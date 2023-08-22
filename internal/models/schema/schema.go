@@ -4,36 +4,36 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
 	_ "github.com/santhosh-tekuri/jsonschema/v5/httploader"
 )
 
 var mu sync.Mutex
 
 type BaseModel interface {
-	SchemaURL() string
+	FromJSON([]byte) error
+	ToJSON() ([]byte, error)
+	DeepCopy() BaseModel
+	Validate() error
 }
 
-type Object struct {
-	Model BaseModel
-}
+var registry = make(map[string]BaseModel)
 
-func (o *Object) Validate() error {
-	sch, err := jsonschema.Compile(o.Model.SchemaURL())
-	if err != nil {
-		return fmt.Errorf("could not load jsonschema:%w", err)
-	}
-	return sch.Validate(o.Model)
-}
-
-var Registry = make(map[string]Object)
-
-func MustRegister(name string, obj Object) {
-	err := obj.Validate()
-	if err != nil {
-		panic(err)
-	}
+func Get(name string) (BaseModel, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	Registry[name] = obj
+	p, ok := registry[name]
+	if !ok {
+		return nil, fmt.Errorf("model not found")
+	}
+	return p, nil
+}
+
+func GetAll() map[string]BaseModel {
+	return registry
+}
+
+func MustRegister(name string, obj BaseModel) {
+	mu.Lock()
+	defer mu.Unlock()
+	registry[name] = obj
 }

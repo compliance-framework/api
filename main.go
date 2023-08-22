@@ -1,7 +1,8 @@
 package main
 
 import (
-	server "github.com/compliance-framework/configuration-service/internal/server"
+	_ "github.com/compliance-framework/configuration-service/internal/models"
+	"github.com/compliance-framework/configuration-service/internal/server"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -13,8 +14,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = e.Start(":8080")
-	if err != nil {
-		panic(err)
-	}
+	e.Start(":8080")
 }

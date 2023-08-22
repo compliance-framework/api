@@ -1,6 +1,10 @@
 package v1_1
 
-import "github.com/compliance-framework/configuration-service/internal/models/schema"
+import (
+	"encoding/json"
+
+	"github.com/compliance-framework/configuration-service/internal/models/schema"
+)
 
 // BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
 type BackMatter struct {
@@ -50,7 +54,7 @@ type Control struct {
 	Class    string     `json:"class,omitempty"`
 	Controls []*Control `json:"controls,omitempty"`
 	// Identifies a control such that it can be referenced in the defining catalog and other OSCAL instances (e.g., profiles).
-	Id     string       `json:"id"`
+	Id     string       `query:"id" json:"id"`
 	Links  []*Link      `json:"links,omitempty"`
 	Params []*Parameter `json:"params,omitempty"`
 	Parts  []*Part      `json:"parts,omitempty"`
@@ -250,18 +254,32 @@ type Selection struct {
 	HowMany interface{} `json:"how-many,omitempty"`
 }
 
-// To automatically add CRUD methos to API
-// Root
-type Root struct {
-	Catalog *OscalCatalog
-	Schema  string
+func (c *OscalCatalog) FromJSON(b []byte) error {
+	return json.Unmarshal(b, c)
 }
 
-func (r *Root) SchemaURL() string {
-	return r.Schema
+func (c *OscalCatalog) ToJSON() ([]byte, error) {
+	return json.Marshal(c)
+}
+
+func (c *OscalCatalog) DeepCopy() schema.BaseModel {
+	d := &OscalCatalog{}
+	p, err := c.ToJSON()
+	if err != nil {
+		panic(err)
+	}
+	err = d.FromJSON(p)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
+func (c *OscalCatalog) Validate() error {
+	//TODO Implement logic as defined in OSCAL
+	return nil
 }
 
 func init() {
-	t := schema.Object{Model: &Root{Schema: "https://github.com/usnistgov/OSCAL/releases/download/v1.1.0/oscal_catalog_schema.json"}}
-	schema.MustRegister("catalogs", t)
+	schema.MustRegister("catalogs", &OscalCatalog{})
 }
