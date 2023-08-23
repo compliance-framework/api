@@ -254,6 +254,7 @@ type Selection struct {
 	HowMany interface{} `json:"how-many,omitempty"`
 }
 
+// Automatic Register methods. add these for the schema to be fully CRUD-registered
 func (c *Catalog) FromJSON(b []byte) error {
 	return json.Unmarshal(b, c)
 }
