@@ -135,7 +135,7 @@ type OscalCatalog struct {
 	Params   []*Parameter           `json:"params,omitempty"`
 
 	// Provides a globally unique means to identify a given catalog instance.
-	Uuid string `json:"uuid"`
+	Uuid string `json:"uuid" query:"uuid"`
 }
 
 // Parameter Parameters provide a mechanism for the dynamic assignment of value(s) in a control.
@@ -273,6 +273,10 @@ func (c *OscalCatalog) DeepCopy() schema.BaseModel {
 		panic(err)
 	}
 	return d
+}
+
+func (c *OscalCatalog) UUID() string {
+	return c.Uuid
 }
 
 func (c *OscalCatalog) Validate() error {

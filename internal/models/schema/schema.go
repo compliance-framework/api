@@ -12,6 +12,7 @@ var mu sync.Mutex
 type BaseModel interface {
 	FromJSON([]byte) error
 	ToJSON() ([]byte, error)
+	UUID() string
 	DeepCopy() BaseModel
 	Validate() error
 }
