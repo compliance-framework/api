@@ -125,8 +125,8 @@ type Link struct {
 	Text string `json:"text,omitempty"`
 }
 
-// OscalCatalog A structured, organized collection of control information.
-type OscalCatalog struct {
+// Catalog A structured, organized collection of control information.
+type Catalog struct {
 	BackMatter *BackMatter     `json:"back-matter,omitempty"`
 	Controls   []*Control      `json:"controls,omitempty"`
 	Groups     []*ControlGroup `json:"groups,omitempty"`
@@ -254,16 +254,16 @@ type Selection struct {
 	HowMany interface{} `json:"how-many,omitempty"`
 }
 
-func (c *OscalCatalog) FromJSON(b []byte) error {
+func (c *Catalog) FromJSON(b []byte) error {
 	return json.Unmarshal(b, c)
 }
 
-func (c *OscalCatalog) ToJSON() ([]byte, error) {
+func (c *Catalog) ToJSON() ([]byte, error) {
 	return json.Marshal(c)
 }
 
-func (c *OscalCatalog) DeepCopy() schema.BaseModel {
-	d := &OscalCatalog{}
+func (c *Catalog) DeepCopy() schema.BaseModel {
+	d := &Catalog{}
 	p, err := c.ToJSON()
 	if err != nil {
 		panic(err)
@@ -275,15 +275,15 @@ func (c *OscalCatalog) DeepCopy() schema.BaseModel {
 	return d
 }
 
-func (c *OscalCatalog) UUID() string {
+func (c *Catalog) UUID() string {
 	return c.Uuid
 }
 
-func (c *OscalCatalog) Validate() error {
+func (c *Catalog) Validate() error {
 	//TODO Implement logic as defined in OSCAL
 	return nil
 }
 
 func init() {
-	schema.MustRegister("catalogs", &OscalCatalog{})
+	schema.MustRegister("catalogs", &Catalog{})
 }

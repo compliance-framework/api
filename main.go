@@ -17,5 +17,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	e.Start(":8080")
+	err = e.Start(":8080")
+	if err != nil {
+		panic(err)
+	}
 }
