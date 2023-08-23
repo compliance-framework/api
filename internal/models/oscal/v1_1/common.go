@@ -315,3 +315,141 @@ type SelectControl struct {
 	WithChildControls interface{} `json:"with-child-controls,omitempty"`
 	WithIds           []string    `json:"with-ids,omitempty"`
 }
+
+// ResponsibleRole A reference to a role with responsibility for performing a function relative to the containing object, optionally associated with a set of persons and/or organizations that perform that role.
+type ResponsibleRole struct {
+	Links      []*Link     `json:"links,omitempty"`
+	PartyUuids []string    `json:"party-uuids,omitempty"`
+	Props      []*Property `json:"props,omitempty"`
+	Remarks    string      `json:"remarks,omitempty"`
+
+	// A human-oriented identifier reference to a role performed.
+	RoleId string `json:"role-id"`
+}
+
+// ResponsibleParty A reference to a set of persons and/or organizations that have responsibility for performing the referenced role in the context of the containing object.
+type ResponsibleParty struct {
+	Links      []*Link     `json:"links,omitempty"`
+	PartyUuids []string    `json:"party-uuids"`
+	Props      []*Property `json:"props,omitempty"`
+	Remarks    string      `json:"remarks,omitempty"`
+
+	// A reference to a role performed by a party.
+	RoleId string `json:"role-id"`
+}
+
+// Role Defines a function, which might be assigned to a party in a specific situation.
+type Role struct {
+
+	// A summary of the role's purpose and associated responsibilities.
+	Description string `json:"description,omitempty"`
+
+	// A unique identifier for the role.
+	Id      string      `json:"id"`
+	Links   []*Link     `json:"links,omitempty"`
+	Props   []*Property `json:"props,omitempty"`
+	Remarks string      `json:"remarks,omitempty"`
+
+	// A short common name, abbreviation, or acronym for the role.
+	ShortName string `json:"short-name,omitempty"`
+
+	// A name given to the role, which may be used by a tool for display and navigation.
+	Title string `json:"title"`
+}
+
+// Party An organization or person, which may be associated with roles or other concepts within the current or linked OSCAL document.
+type Party struct {
+	Addresses             []*Address                 `json:"addresses,omitempty"`
+	EmailAddresses        []interface{}              `json:"email-addresses,omitempty"`
+	ExternalIds           []*PartyExternalIdentifier `json:"external-ids,omitempty"`
+	Links                 []*Link                    `json:"links,omitempty"`
+	LocationUuids         []string                   `json:"location-uuids,omitempty"`
+	MemberOfOrganizations []string                   `json:"member-of-organizations,omitempty"`
+
+	// The full name of the party. This is typically the legal name associated with the party.
+	Name    string      `json:"name,omitempty"`
+	Props   []*Property `json:"props,omitempty"`
+	Remarks string      `json:"remarks,omitempty"`
+
+	// A short common name, abbreviation, or acronym for the party.
+	ShortName        string             `json:"short-name,omitempty"`
+	TelephoneNumbers []*TelephoneNumber `json:"telephone-numbers,omitempty"`
+
+	// A category describing the kind of party the object describes.
+	Type interface{} `json:"type"`
+
+	// A unique identifier for the party.
+	Uuid string `json:"uuid"`
+}
+
+// Address A postal address for the location.
+type Address struct {
+	AddrLines []string `json:"addr-lines,omitempty"`
+
+	// City, town or geographical region for the mailing address.
+	City string `json:"city,omitempty"`
+
+	// The ISO 3166-1 alpha-2 country code for the mailing address.
+	Country string `json:"country,omitempty"`
+
+	// Postal or ZIP code for mailing address.
+	PostalCode string `json:"postal-code,omitempty"`
+
+	// State, province or analogous geographical region for a mailing address.
+	State string `json:"state,omitempty"`
+
+	// Indicates the type of address.
+	Type interface{} `json:"type,omitempty"`
+}
+
+// PartyExternalIdentifier An identifier for a person or organization using a designated scheme. e.g. an Open Researcher and Contributor ID (ORCID).
+type PartyExternalIdentifier struct {
+	Id string `json:"id"`
+
+	// Indicates the type of external identifier.
+	Scheme interface{} `json:"scheme"`
+}
+
+// TelephoneNumber A telephone service number as defined by ITU-T E.164.
+type TelephoneNumber struct {
+	Number string `json:"number"`
+
+	// Indicates the type of phone number.
+	Type interface{} `json:"type,omitempty"`
+}
+
+// CommonPortRange Where applicable this is the IPv4 port range on which the service operates.
+type CommonPortRange struct {
+
+	// Indicates the ending port number in a port range
+	End interface{} `json:"end,omitempty"`
+
+	// Indicates the starting port number in a port range
+	Start interface{} `json:"start,omitempty"`
+
+	// Indicates the transport type.
+	Transport interface{} `json:"transport,omitempty"`
+}
+
+// ServiceProtocolInformation Information about the protocol used to provide a service.
+type ServiceProtocolInformation struct {
+
+	// The common name of the protocol, which should be the appropriate "service name" from the IANA Service Name and Transport Protocol Port Number Registry.
+	Name       string             `json:"name"`
+	PortRanges []*CommonPortRange `json:"port-ranges,omitempty"`
+
+	// A human readable name for the protocol (e.g., Transport Layer Security).
+	Title string `json:"title,omitempty"`
+
+	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this service protocol information elsewhere in this or other OSCAL instances. The locally defined UUID of the service protocol can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	Uuid string `json:"uuid,omitempty"`
+}
+
+// SetParameterValue Identifies the parameter that will be set by the enclosed value.
+type SetParameterValue struct {
+
+	// A human-oriented reference to a parameter within a control, who's catalog has been imported into the current implementation context.
+	ParamId string   `json:"param-id"`
+	Remarks string   `json:"remarks,omitempty"`
+	Values  []string `json:"values"`
+}

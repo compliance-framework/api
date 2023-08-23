@@ -1,5 +1,3 @@
-github.com/a-h/generate v0.0.0-20220105161013-96c14dfdfb60 h1:/rNdG6EuzjwcR1KRFpF+9qWmWh2xIcz84QOeMGr/2L8=
-github.com/a-h/generate v0.0.0-20220105161013-96c14dfdfb60/go.mod h1:traiLYQ0YD7qUMCdjo6/jSaJRPHXniX4HVs+PhEhYpc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

@@ -3,8 +3,6 @@ package schema
 import (
 	"fmt"
 	"sync"
-
-	_ "github.com/santhosh-tekuri/jsonschema/v5/httploader"
 )
 
 var mu sync.Mutex
