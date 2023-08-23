@@ -31,7 +31,7 @@ func (s *Server) genGET(model schema.BaseModel) func(e echo.Context) (err error)
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
 		if err := c.Bind(p); err != nil {
-			return c.String(http.StatusBadRequest, "bad request")
+			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
 		err = s.Driver.Get(c.Param("uuid"), p)
 		if err != nil {
@@ -48,7 +48,7 @@ func (s *Server) genPOST(model schema.BaseModel) func(e echo.Context) (err error
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
 		if err := c.Bind(p); err != nil {
-			return c.String(http.StatusBadRequest, "bad request")
+			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
 		err = s.Driver.Create(p.UUID(), p)
 		if err != nil {
@@ -62,7 +62,7 @@ func (s *Server) genPUT(model schema.BaseModel) func(e echo.Context) (err error)
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
 		if err := c.Bind(p); err != nil {
-			return c.String(http.StatusBadRequest, "bad request")
+			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
 		err = s.Driver.Update(c.Param("uuid"), p)
 		if err != nil {
@@ -76,7 +76,7 @@ func (s *Server) genDELETE(model schema.BaseModel) func(e echo.Context) (err err
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
 		if err := c.Bind(p); err != nil {
-			return c.String(http.StatusBadRequest, "bad request")
+			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
 		err = s.Driver.Delete(c.Param("uuid"))
 		if err != nil {
