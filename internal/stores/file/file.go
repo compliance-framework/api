@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
@@ -17,7 +18,12 @@ type FileDriver struct {
 
 func (f *FileDriver) Update(id string, object schema.BaseModel) error {
 	// TODO - Implement proper upsert. A method 'MergeFrom' on the BaseModel is needed
-	filePath := f.Path + "/" + id + ".gob"
+	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
+	filePath := f.Path + id + ".gob"
+	err := os.MkdirAll(dirPath, 0755)
+	if err != nil {
+		return err
+	}
 	dataFile, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -27,7 +33,12 @@ func (f *FileDriver) Update(id string, object schema.BaseModel) error {
 }
 
 func (f *FileDriver) Create(id string, object schema.BaseModel) error {
-	filePath := f.Path + "/" + id + ".gob"
+	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
+	filePath := f.Path + id + ".gob"
+	err := os.MkdirAll(dirPath, 0755)
+	if err != nil {
+		return err
+	}
 	dataFile, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -37,13 +48,22 @@ func (f *FileDriver) Create(id string, object schema.BaseModel) error {
 }
 
 func (f *FileDriver) Delete(id string) error {
-	filePath := f.Path + "/" + id + ".gob"
+	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
+	filePath := f.Path + id + ".gob"
+	err := os.MkdirAll(dirPath, 0755)
+	if err != nil {
+		return err
+	}
 	return os.Remove(filePath)
 }
 
 func (f *FileDriver) Get(id string, object schema.BaseModel) error {
-	filePath := f.Path + "/" + id + ".gob"
-
+	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
+	filePath := f.Path + id + ".gob"
+	err := os.MkdirAll(dirPath, 0755)
+	if err != nil {
+		return err
+	}
 	dataFile, err := os.Open(filePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

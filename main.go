@@ -12,6 +12,7 @@ import (
 func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
+	//sv := server.Server{Driver: &mongo.MongoDriver{Url: "mongodb://127.0.0.1:27017", Database: "cf"}}
 	sv := server.Server{Driver: &file.FileDriver{Path: "."}}
 	err := sv.RegisterOSCAL(e)
 	if err != nil {
