@@ -1,5 +1,11 @@
 {
     "uuid": "fdac0321-959f-43ec-a91d-322da7d9761c",
+    "metadata": {
+      "title": "foo",
+      "last-modified": "2022-12-27T08:26:49Z",
+      "oscal-version": "1.1.0",
+      "version": "1"
+    },
     "groups": [
       {
         "id": "ac",

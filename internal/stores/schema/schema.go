@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
-	_ "github.com/santhosh-tekuri/jsonschema/v5/httploader"
 )
 
 var mu sync.Mutex
