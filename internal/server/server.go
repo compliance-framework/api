@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
@@ -33,7 +34,8 @@ func (s *Server) genGET(model schema.BaseModel) func(e echo.Context) (err error)
 		if err := c.Bind(p); err != nil {
 			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
-		err = s.Driver.Get(c.Param("uuid"), p)
+		id := fmt.Sprintf("/%s/%s", strings.Split(c.Path(), "/")[1], c.Param("uuid"))
+		err = s.Driver.Get(id, p)
 		if err != nil {
 			if errors.Is(err, storeschema.NotFoundErr{}) {
 				return c.String(http.StatusNotFound, "object not found")
@@ -54,7 +56,8 @@ func (s *Server) genPOST(model schema.BaseModel) func(e echo.Context) (err error
 		if err != nil {
 			return c.String(http.StatusBadRequest, fmt.Sprintf("invalid payload: %v", err))
 		}
-		err = s.Driver.Create(p.UUID(), p)
+		id := fmt.Sprintf("%s/%s", c.Path(), p.UUID())
+		err = s.Driver.Create(id, p)
 		if err != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to create object: %v", err))
 		}
@@ -68,7 +71,8 @@ func (s *Server) genPUT(model schema.BaseModel) func(e echo.Context) (err error)
 		if err := c.Bind(p); err != nil {
 			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
-		err = s.Driver.Update(c.Param("uuid"), p)
+		id := fmt.Sprintf("/%s/%s", strings.Split(c.Path(), "/")[1], c.Param("uuid"))
+		err = s.Driver.Update(id, p)
 		if err != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
 		}
@@ -82,7 +86,8 @@ func (s *Server) genDELETE(model schema.BaseModel) func(e echo.Context) (err err
 		if err := c.Bind(p); err != nil {
 			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
-		err = s.Driver.Delete(c.Param("uuid"))
+		id := fmt.Sprintf("/%s/%s", strings.Split(c.Path(), "/")[1], c.Param("uuid"))
+		err = s.Driver.Delete(id)
 		if err != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to delete object: %v", err))
 		}
