@@ -60,7 +60,7 @@ func (c *Profile) ToJSON() ([]byte, error) {
 }
 
 func (c *Profile) DeepCopy() schema.BaseModel {
-	d := &Catalog{}
+	d := &Profile{}
 	p, err := c.ToJSON()
 	if err != nil {
 		panic(err)

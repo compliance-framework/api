@@ -3,6 +3,8 @@ package v1_1
 import (
 	"encoding/json"
 
+	"github.com/compliance-framework/configuration-service/internal/jsonschema"
+	_ "github.com/compliance-framework/configuration-service/internal/jsonschema/httploader"
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 )
 
@@ -82,8 +84,23 @@ func (c *Catalog) UUID() string {
 }
 
 func (c *Catalog) Validate() error {
-	//TODO Implement logic as defined in OSCAL
-	return nil
+
+	sch, err := jsonschema.Compile("https://github.com/usnistgov/OSCAL/releases/download/v1.1.0/oscal_catalog_schema.json")
+	if err != nil {
+		return err
+	}
+	var p = map[string]interface{}{
+		"catalog": c,
+	}
+	d, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(d, &p)
+	if err != nil {
+		return err
+	}
+	return sch.Validate(p)
 }
 
 func init() {

@@ -8,7 +8,7 @@ import (
 
 // Base64 A resource encoded using the Base64 alphabet defined by RFC 2045.
 // ControlImplementation Describes how the containing component or capability implements an individual control.
-type ControlImplementation struct {
+type ComponentDefinitionControlImplementation struct {
 
 	// A reference to a control with a corresponding id value. When referencing an externally defined control, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
 	ControlId string `json:"control-id"`
@@ -30,11 +30,11 @@ type ControlImplementation struct {
 type ControlImplementationSet struct {
 
 	// A description of how the specified set of controls are implemented for the containing component or capability.
-	Description             string                   `json:"description"`
-	ImplementedRequirements []*ControlImplementation `json:"implemented-requirements"`
-	Links                   []*Link                  `json:"links,omitempty"`
-	Props                   []*Property              `json:"props,omitempty"`
-	SetParameters           []*SetParameterValue     `json:"set-parameters,omitempty"`
+	Description             string                                      `json:"description"`
+	ImplementedRequirements []*ComponentDefinitionControlImplementation `json:"implemented-requirements"`
+	Links                   []*Link                                     `json:"links,omitempty"`
+	Props                   []*Property                                 `json:"props,omitempty"`
+	SetParameters           []*SetParameterValue                        `json:"set-parameters,omitempty"`
 
 	// A reference to an OSCAL catalog or profile providing the referenced control or subcontrol definition.
 	Source string `json:"source"`
@@ -142,7 +142,7 @@ func (c *ComponentDefinition) ToJSON() ([]byte, error) {
 }
 
 func (c *ComponentDefinition) DeepCopy() schema.BaseModel {
-	d := &Catalog{}
+	d := &ComponentDefinition{}
 	p, err := c.ToJSON()
 	if err != nil {
 		panic(err)

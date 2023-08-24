@@ -50,6 +50,10 @@ func (s *Server) genPOST(model schema.BaseModel) func(e echo.Context) (err error
 		if err := c.Bind(p); err != nil {
 			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
+		err = p.Validate()
+		if err != nil {
+			return c.String(http.StatusBadRequest, fmt.Sprintf("invalid payload: %v", err))
+		}
 		err = s.Driver.Create(p.UUID(), p)
 		if err != nil {
 			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to create object: %v", err))
