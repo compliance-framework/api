@@ -46,6 +46,7 @@ func (s *Server) genGET(model schema.BaseModel) func(e echo.Context) (err error)
 	}
 }
 
+// TODO Add tests for GenPOST
 func (s *Server) genPOST(model schema.BaseModel) func(e echo.Context) (err error) {
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
@@ -65,6 +66,7 @@ func (s *Server) genPOST(model schema.BaseModel) func(e echo.Context) (err error
 	}
 }
 
+// TODO Add tests for GenPUT
 func (s *Server) genPUT(model schema.BaseModel) func(e echo.Context) (err error) {
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
@@ -80,6 +82,7 @@ func (s *Server) genPUT(model schema.BaseModel) func(e echo.Context) (err error)
 	}
 }
 
+// TODO Add tests for GenDELETE
 func (s *Server) genDELETE(model schema.BaseModel) func(e echo.Context) (err error) {
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()
