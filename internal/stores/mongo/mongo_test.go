@@ -117,5 +117,3 @@ func TestGetFailNoDocument(t *testing.T) {
 	require.NotNil(t, err)
 	assert.ErrorIs(t, err, storeschema.NotFoundErr{})
 }
-
-// TODO add tests for other methods (using table tests)

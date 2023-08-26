@@ -36,6 +36,8 @@ func (f *MongoDriver) disconnect() error {
 	f.client = nil
 	return nil
 }
+
+// TODO Add tests for Update
 func (f *MongoDriver) Update(id string, object schema.BaseModel) error {
 	err := f.connect()
 	if err != nil {
@@ -60,6 +62,7 @@ func (f *MongoDriver) Update(id string, object schema.BaseModel) error {
 	return err
 }
 
+// TODO Add tests for Create
 func (f *MongoDriver) Create(id string, object schema.BaseModel) error {
 	err := f.connect()
 	if err != nil {
@@ -76,6 +79,7 @@ func (f *MongoDriver) Create(id string, object schema.BaseModel) error {
 	return err
 }
 
+// TODO Add tests for Delete
 func (f *MongoDriver) Delete(id string) error {
 	err := f.connect()
 	if err != nil {
