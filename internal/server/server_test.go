@@ -84,7 +84,8 @@ func TestOSCAL(t *testing.T) {
 	}
 	s := &Server{Driver: drv}
 	p := echo.New()
-	s.RegisterOSCAL(p)
+	err := s.RegisterOSCAL(p)
+	assert.Nil(t, err)
 	expected := map[string]bool{
 		"GET/foo/:uuid":    false,
 		"POST/foo":         false,
