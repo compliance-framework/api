@@ -77,5 +77,7 @@ func (f *FileDriver) Get(id string, object schema.BaseModel) error {
 }
 
 func init() {
+	gob.Register([]interface{}{})
+	gob.Register(map[string]interface{}{})
 	storeschema.MustRegister("file", &FileDriver{})
 }
