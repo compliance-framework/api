@@ -25,3 +25,13 @@ func TestCatalog(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, expect, got)
 }
+
+func TestValidate(t *testing.T) {
+	a, err := os.ReadFile("testdata/catalog.json")
+	require.Nil(t, err)
+	c := Catalog{}
+	err = c.FromJSON(a)
+	require.Nil(t, err)
+	err = c.Validate()
+	assert.Nil(t, err)
+}
