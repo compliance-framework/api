@@ -852,29 +852,29 @@ func equals(v1, v2 interface{}) bool {
 func hash(v interface{}, h *maphash.Hash) {
 	switch v := v.(type) {
 	case nil:
-		h.WriteByte(0)
+		h.WriteByte(0) //nolint
 	case bool:
-		h.WriteByte(1)
+		h.WriteByte(1) //nolint
 		if v {
-			h.WriteByte(1)
+			h.WriteByte(1) //nolint
 		} else {
-			h.WriteByte(0)
+			h.WriteByte(0) //nolint
 		}
 	case json.Number, float32, float64, int, int8, int32, int64, uint, uint8, uint32, uint64:
-		h.WriteByte(2)
+		h.WriteByte(2) //nolint
 		num, _ := new(big.Rat).SetString(fmt.Sprint(v))
-		h.Write(num.Num().Bytes())
-		h.Write(num.Denom().Bytes())
+		h.Write(num.Num().Bytes())   //nolint
+		h.Write(num.Denom().Bytes()) //nolint
 	case string:
-		h.WriteByte(3)
-		h.WriteString(v)
+		h.WriteByte(3)   //nolint
+		h.WriteString(v) //nolint
 	case []interface{}:
-		h.WriteByte(4)
+		h.WriteByte(4) //nolint
 		for _, item := range v {
 			hash(item, h)
 		}
 	case map[string]interface{}:
-		h.WriteByte(5)
+		h.WriteByte(5) //nolint
 		props := make([]string, 0, len(v))
 		for prop := range v {
 			props = append(props, prop)

@@ -83,6 +83,7 @@ func (c *Catalog) UUID() string {
 	return c.Uuid
 }
 
+// TODO Add tests
 func (c *Catalog) Validate() error {
 
 	sch, err := jsonschema.Compile("https://github.com/usnistgov/OSCAL/releases/download/v1.1.0/oscal_catalog_schema.json")

@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
+	"github.com/sv-tools/mongoifc"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,12 +18,14 @@ import (
 type MongoDriver struct {
 	Url      string
 	Database string
-	client   *mongo.Client
+	client   mongoifc.Client
 }
 
 func (f *MongoDriver) connect() error {
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(f.Url))
-	f.client = client
+	client, err := mongoifc.Connect(context.TODO(), options.Client().ApplyURI(f.Url))
+	if f.client == nil {
+		f.client = client
+	}
 	return err
 }
 func (f *MongoDriver) disconnect() error {
@@ -33,6 +36,8 @@ func (f *MongoDriver) disconnect() error {
 	f.client = nil
 	return nil
 }
+
+// TODO Add tests for Update
 func (f *MongoDriver) Update(id string, object schema.BaseModel) error {
 	err := f.connect()
 	if err != nil {
@@ -57,6 +62,7 @@ func (f *MongoDriver) Update(id string, object schema.BaseModel) error {
 	return err
 }
 
+// TODO Add tests for Create
 func (f *MongoDriver) Create(id string, object schema.BaseModel) error {
 	err := f.connect()
 	if err != nil {
@@ -73,6 +79,7 @@ func (f *MongoDriver) Create(id string, object schema.BaseModel) error {
 	return err
 }
 
+// TODO Add tests for Delete
 func (f *MongoDriver) Delete(id string) error {
 	err := f.connect()
 	if err != nil {
@@ -106,11 +113,12 @@ func (f *MongoDriver) Get(id string, object schema.BaseModel) error {
 	uuid := strings.Split(id, "/")[2]
 	filter := bson.D{primitive.E{Key: "uuid", Value: uuid}}
 	result := f.client.Database(f.Database).Collection(collection).FindOne(context.TODO(), filter)
-	if result.Err() != nil {
-		if errors.Is(result.Err(), mongo.ErrNoDocuments) {
+	err = result.Err()
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			return storeschema.NotFoundErr{}
 		}
-		return fmt.Errorf("Error when trying to find: %w", result.Err())
+		return fmt.Errorf("Error when trying to find: %w", err)
 	}
 	err = result.Decode(object)
 	if err != nil {

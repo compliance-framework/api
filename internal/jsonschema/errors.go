@@ -84,6 +84,7 @@ func (ve *ValidationError) causes(err error) error {
 	if err := err.(*ValidationError); err.Message == "" {
 		ve.Causes = err.Causes
 	} else {
+		//nolint
 		ve.add(err)
 	}
 	return ve
