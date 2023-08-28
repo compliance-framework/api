@@ -112,26 +112,11 @@ type ImportSystemSecurityPlan struct {
 	Remarks string `json:"remarks,omitempty"`
 }
 
-// InventoryItem A single managed inventory item within the system.
-type InventoryItem struct {
-
-	// A summary of the inventory item stating its purpose within the system.
-	Description           string                  `json:"description"`
-	ImplementedComponents []*ImplementedComponent `json:"implemented-components,omitempty"`
-	Links                 []*Link                 `json:"links,omitempty"`
-	Props                 []*Property             `json:"props,omitempty"`
-	Remarks               string                  `json:"remarks,omitempty"`
-	ResponsibleParties    []*ResponsibleParty     `json:"responsible-parties,omitempty"`
-
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this inventory item elsewhere in this or other OSCAL instances. The locally defined UUID of the inventory item can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
-	Uuid string `json:"uuid"`
-}
-
 // LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
 type LocalDefinitions struct {
 	Activities           []*CommonActivity        `json:"activities,omitempty"`
 	Components           []*CommonSystemComponent `json:"components,omitempty"`
-	InventoryItems       []*InventoryItem         `json:"inventory-items,omitempty"`
+	InventoryItems       []*CommonInventoryItem   `json:"inventory-items,omitempty"`
 	ObjectivesAndMethods []*CommonLocalObjective  `json:"objectives-and-methods,omitempty"`
 	Remarks              string                   `json:"remarks,omitempty"`
 	Users                []*CommonSystemUser      `json:"users,omitempty"`
@@ -351,22 +336,6 @@ type Step struct {
 
 	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this step elsewhere in this or other OSCAL instances. The locally defined UUID of the step (in a series of steps) can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
 	Uuid string `json:"uuid"`
-}
-
-// SubjectOfAssessment Identifies system elements being assessed, such as components, inventory items, and locations. In the assessment plan, this identifies a planned assessment subject. In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment. Any subjects not identified in this way are out-of-scope.
-type SubjectOfAssessment struct {
-
-	// A human-readable description of the collection of subjects being included in this assessment.
-	Description     string                     `json:"description,omitempty"`
-	ExcludeSubjects []*SelectAssessmentSubject `json:"exclude-subjects,omitempty"`
-	IncludeAll      *IncludeAll                `json:"include-all,omitempty"`
-	IncludeSubjects []*SelectAssessmentSubject `json:"include-subjects,omitempty"`
-	Links           []*Link                    `json:"links,omitempty"`
-	Props           []*Property                `json:"props,omitempty"`
-	Remarks         string                     `json:"remarks,omitempty"`
-
-	// Indicates the type of assessment subject, such as a component, inventory, item, location, or party represented by this selection statement.
-	Type interface{} `json:"type"`
 }
 
 // Task Represents a scheduled event or milestone, which may be associated with a series of assessment actions.
