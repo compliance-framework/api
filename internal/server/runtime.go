@@ -58,6 +58,9 @@ func (s *Server) putConfiguration(c echo.Context) error {
 	}
 	err := s.Driver.Update(c.Request().Context(), p.Type(), c.Param("uuid"), p)
 	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.JSON(http.StatusNotFound, nil)
+		}
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
 	}
 	// Add Job Update in Here

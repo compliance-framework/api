@@ -48,7 +48,9 @@ func TestRegisterRuntime(t *testing.T) {
 type TestCase struct {
 	name         string
 	getFn        func(id string, object interface{}) error
+	updateFn     func(id string, object interface{}) error
 	deleteFn     func(id string) error
+	postFn       func(id string, object interface{}) error
 	path         string
 	params       map[string]string
 	method       string
@@ -174,6 +176,108 @@ func TestDeleteConfiugration(t *testing.T) {
 				c.SetParamValues(v)
 			}
 			err := s.deleteConfiguration(c)
+			assert.NoError(t, err)
+			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
+		})
+	}
+}
+
+func TestUpdateConfiugration(t *testing.T) {
+	tc := []TestCase{
+		{
+			name: "success",
+			updateFn: func(id string, _ interface{}) error {
+				return nil
+			},
+			path: "/runtime/configurations/:uuid",
+			params: map[string]string{
+				"uuid": "123",
+			},
+			requestPath:  "/runtime/configurations/123",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name: "driver-not-found",
+			updateFn: func(id string, _ interface{}) error {
+				return storeschema.NotFoundErr{}
+			},
+			path: "/runtime/configurations/:uuid",
+			params: map[string]string{
+				"uuid": "123",
+			},
+			requestPath:  "/runtime/configurations/123",
+			expectedCode: http.StatusNotFound,
+		},
+		{
+			name: "server-error",
+			updateFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			path: "/runtime/configurations/:uuid",
+			params: map[string]string{
+				"uuid": "123",
+			},
+			requestPath:  "/runtime/configurations/123",
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+	for idx, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn}
+			s := &Server{Driver: drv}
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPut, tc[idx].requestPath, nil)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath(tc[idx].path)
+			for k, v := range tc[idx].params {
+				c.SetParamNames(k)
+				c.SetParamValues(v)
+			}
+			err := s.putConfiguration(c)
+			assert.NoError(t, err)
+			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
+		})
+	}
+}
+
+func TestPostConfiugration(t *testing.T) {
+	tc := []TestCase{
+		{
+			name: "success",
+			postFn: func(id string, _ interface{}) error {
+				return nil
+			},
+			path:         "/runtime/configurations",
+			requestPath:  "/runtime/configurations",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name: "server-error",
+			postFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			path:         "/runtime/configurations",
+			requestPath:  "/runtime/configurations",
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+	for idx, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}
+			s := &Server{Driver: drv}
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPut, tc[idx].requestPath, nil)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath(tc[idx].path)
+			for k, v := range tc[idx].params {
+				c.SetParamNames(k)
+				c.SetParamValues(v)
+			}
+			err := s.postConfiguration(c)
 			assert.NoError(t, err)
 			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
 		})
