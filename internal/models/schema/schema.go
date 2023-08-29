@@ -13,6 +13,7 @@ type BaseModel interface {
 	UUID() string
 	DeepCopy() BaseModel
 	Validate() error
+	Type() string
 }
 
 var registry = make(map[string]BaseModel)

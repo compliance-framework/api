@@ -495,6 +495,10 @@ func (c *SystemSecurityPlan) Validate() error {
 	return sch.Validate(p)
 }
 
+func (c *SystemSecurityPlan) Type() string {
+	return "ssp"
+}
+
 func init() {
 	schema.MustRegister("ssp", &SystemSecurityPlan{})
 }

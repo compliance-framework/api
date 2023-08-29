@@ -162,6 +162,9 @@ func (c *ComponentDefinition) Validate() error {
 	//TODO Implement logic as defined in OSCAL
 	return nil
 }
+func (c *ComponentDefinition) Type() string {
+	return "components"
+}
 
 func init() {
 	schema.MustRegister("components", &ComponentDefinition{})

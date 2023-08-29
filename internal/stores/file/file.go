@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compliance-framework/configuration-service/internal/models/schema"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 )
 
@@ -16,7 +16,7 @@ type FileDriver struct {
 	Path string
 }
 
-func (f *FileDriver) Update(id string, object schema.BaseModel) error {
+func (f *FileDriver) Update(_ context.Context, _, id string, object interface{}) error {
 	// TODO - Implement proper upsert. A method 'MergeFrom' on the BaseModel is needed
 	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
 	filePath := f.Path + id + ".gob"
@@ -32,7 +32,7 @@ func (f *FileDriver) Update(id string, object schema.BaseModel) error {
 	return dataEncoder.Encode(object)
 }
 
-func (f *FileDriver) Create(id string, object schema.BaseModel) error {
+func (f *FileDriver) Create(_ context.Context, _, id string, object interface{}) error {
 	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
 	filePath := f.Path + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)
@@ -47,7 +47,7 @@ func (f *FileDriver) Create(id string, object schema.BaseModel) error {
 	return dataEncoder.Encode(object)
 }
 
-func (f *FileDriver) Delete(id string) error {
+func (f *FileDriver) Delete(_ context.Context, _, id string) error {
 	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
 	filePath := f.Path + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)
@@ -57,7 +57,7 @@ func (f *FileDriver) Delete(id string) error {
 	return os.Remove(filePath)
 }
 
-func (f *FileDriver) Get(id string, object schema.BaseModel) error {
+func (f *FileDriver) Get(_ context.Context, _, id string, object interface{}) error {
 	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
 	filePath := f.Path + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)

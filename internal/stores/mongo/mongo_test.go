@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/compliance-framework/configuration-service/internal/models/schema"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -17,25 +16,6 @@ import (
 var ()
 
 type Foo struct {
-}
-
-func (f *Foo) UUID() string {
-	return "foo"
-}
-
-func (f *Foo) ToJSON() ([]byte, error) {
-	return []byte("foo"), nil
-}
-
-func (f *Foo) FromJSON([]byte) error {
-	return nil
-}
-
-func (f *Foo) Validate() error {
-	return nil
-}
-func (f *Foo) DeepCopy() schema.BaseModel {
-	return nil
 }
 
 // TODO Refactor to use table tests
@@ -54,7 +34,7 @@ func TestGetFailErr(t *testing.T) {
 	cl.On("Database", mock.Anything).Return(db)
 	cl.On("Disconnect", mock.Anything).Return(nil)
 	p := &MongoDriver{client: cl, Url: "mongodb://127.0.0.1:27017", Database: "cf"}
-	err := p.Get("/foo/one", &Foo{})
+	err := p.Get(context.TODO(), "foo", "one", &Foo{})
 	assert.NotNil(t, err)
 }
 
@@ -74,7 +54,7 @@ func TestGetSuccess(t *testing.T) {
 	cl.On("Database", mock.Anything).Return(db)
 	cl.On("Disconnect", mock.Anything).Return(nil)
 	p := &MongoDriver{client: cl, Url: "mongodb://127.0.0.1:27017", Database: "cf"}
-	err := p.Get("/foo/one", &Foo{})
+	err := p.Get(context.TODO(), "foo", "one", &Foo{})
 	assert.Nil(t, err)
 }
 
@@ -94,7 +74,7 @@ func TestGetFailDecode(t *testing.T) {
 	cl.On("Database", mock.Anything).Return(db)
 	cl.On("Disconnect", mock.Anything).Return(nil)
 	p := &MongoDriver{client: cl, Url: "mongodb://127.0.0.1:27017", Database: "cf"}
-	err := p.Get("/foo/one", &Foo{})
+	err := p.Get(context.TODO(), "foo", "one", &Foo{})
 	assert.NotNil(t, err)
 }
 
@@ -113,7 +93,7 @@ func TestGetFailNoDocument(t *testing.T) {
 	cl.On("Database", mock.Anything).Return(db)
 	cl.On("Disconnect", mock.Anything).Return(nil)
 	p := &MongoDriver{client: cl, Url: "mongodb://127.0.0.1:27017", Database: "cf"}
-	err := p.Get("/foo/one", &Foo{})
+	err := p.Get(context.TODO(), "foo", "one", &Foo{})
 	require.NotNil(t, err)
 	assert.ErrorIs(t, err, storeschema.NotFoundErr{})
 }
