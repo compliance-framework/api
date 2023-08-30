@@ -50,10 +50,11 @@ func (f *Foo) Type() string {
 }
 
 type FakeDriver struct {
-	UpdateFn func(id string, object interface{}) error
-	CreateFn func(id string, object interface{}) error
-	GetFn    func(id string, object interface{}) error
-	DeleteFn func(id string) error
+	UpdateFn     func(id string, object interface{}) error
+	CreateFn     func(id string, object interface{}) error
+	CreateManyFn func(objects map[string]interface{}) error
+	GetFn        func(id string, object interface{}) error
+	DeleteFn     func(id string) error
 }
 
 func (f FakeDriver) Update(_ context.Context, _, id string, object interface{}) error {
@@ -68,6 +69,14 @@ func (f FakeDriver) Get(_ context.Context, _, id string, object interface{}) err
 }
 func (f FakeDriver) Delete(_ context.Context, _, id string) error {
 	return f.DeleteFn(id)
+}
+
+func (f FakeDriver) CreateMany(_ context.Context, _ string, objects map[string]interface{}) error {
+	return f.CreateManyFn(objects)
+}
+
+func (f FakeDriver) DeleteWhere(_ context.Context, _ string, _ interface{}, objects map[string]interface{}) error {
+	return nil
 }
 
 func TestOSCAL(t *testing.T) {

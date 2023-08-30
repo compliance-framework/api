@@ -17,9 +17,9 @@ func (s *Server) RegisterRuntime(e *echo.Echo) error {
 	g.DELETE("/configurations/:uuid", s.deleteConfiguration)
 	g.PUT("/configurations/:uuid", s.putConfiguration)
 	g.POST("/configurations", s.postConfiguration)
-	g.GET("jobs/:uuid", s.getJob)
-	g.POST("jobs/assign", s.assignJobs)
-	g.POST("jobs/unassign", s.unassignJobs)
+	g.GET("/jobs/:uuid", s.getJob)
+	g.POST("/jobs/assign", s.assignJobs)
+	g.POST("/jobs/unassign", s.unassignJobs)
 	return nil
 }
 
@@ -43,7 +43,14 @@ func (s *Server) deleteConfiguration(c echo.Context) error {
 	if err := c.Bind(p); err != nil {
 		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 	}
-	err := s.Driver.Delete(c.Request().Context(), p.Type(), c.Param("uuid"))
+	err := s.Driver.Get(c.Request().Context(), p.Type(), c.Param("uuid"), p)
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.JSON(http.StatusOK, p)
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	err = s.Driver.Delete(c.Request().Context(), p.Type(), c.Param("uuid"))
 	if err != nil {
 		if errors.Is(err, storeschema.NotFoundErr{}) {
 			return c.JSON(http.StatusNotFound, p)

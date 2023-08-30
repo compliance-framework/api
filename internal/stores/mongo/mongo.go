@@ -74,6 +74,41 @@ func (f *MongoDriver) Create(ctx context.Context, collection, _ string, object i
 	return err
 }
 
+// TODO Add tests
+func (f *MongoDriver) CreateMany(ctx context.Context, collection string, objects map[string]interface{}) error {
+	docs := make([]interface{}, 0)
+	for _, v := range objects {
+		docs = append(docs, v)
+	}
+	err := f.connect(ctx)
+	if err != nil {
+		return fmt.Errorf("could not connect to server: %w", err)
+	}
+	defer func() {
+		err = f.disconnect(ctx)
+	}()
+	_, err = f.client.Database(f.Database).Collection(collection).InsertMany(ctx, docs)
+	if err != nil {
+		return fmt.Errorf("could not create object: %w", err)
+	}
+	return err
+}
+
+func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ interface{}, conditions map[string]interface{}) error {
+	err := f.connect(ctx)
+	if err != nil {
+		return fmt.Errorf("could not connect to server: %w", err)
+	}
+	defer func() {
+		err = f.disconnect(ctx)
+	}()
+	_, err = f.client.Database(f.Database).Collection(collection).DeleteMany(ctx, conditions)
+	if err != nil {
+		return fmt.Errorf("could not create object: %w", err)
+	}
+	return err
+}
+
 // TODO Add tests for Delete
 func (f *MongoDriver) Delete(ctx context.Context, collection, id string) error {
 	err := f.connect(ctx)
