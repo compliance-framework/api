@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	runtime "github.com/compliance-framework/configuration-service/internal/models/runtime"
+	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	echo "github.com/labstack/echo/v4"
 )
@@ -51,7 +52,7 @@ func (s *Server) deleteConfiguration(c echo.Context) error {
 	}
 	// TODO - Move to a channel dispatch
 	defer func() {
-		err = s.deleteJobs(c, p) // nolint
+		pubsub.Publish(pubsub.RuntimeConfigurationDeleted, p)
 	}()
 	err = c.JSON(http.StatusOK, p)
 	return err
@@ -71,7 +72,7 @@ func (s *Server) putConfiguration(c echo.Context) error {
 	}
 	// TODO - Move to a channel dispatch
 	defer func() {
-		err = s.updateJobs(c, p)
+		pubsub.Publish(pubsub.RuntimeConfigurationUpdated, p)
 	}()
 	err = c.JSON(http.StatusOK, p)
 	return err
@@ -88,7 +89,7 @@ func (s *Server) postConfiguration(c echo.Context) error {
 	}
 	// TODO - Move to a channel dispatch
 	defer func() {
-		err = s.createJobs(c, p)
+		pubsub.Publish(pubsub.RuntimeConfigurationCreated, p)
 	}()
 	err = c.JSON(http.StatusCreated, p)
 	return err
@@ -119,20 +120,5 @@ func (s *Server) assignJobs(c echo.Context) error {
 // unassignJobs removes the runtime-uuid configured for a given set of RuntimeConfigurationJob.
 // Note: RuntimeConfigurationJobs can only be created/updated/deleted via a creation/update/delete of a RuntimeConfiguration
 func (s *Server) unassignJobs(c echo.Context) error {
-	return nil
-}
-
-// deleteJobs deletes RuntimeConfigurationJobs as a result of a RuntimeConfiguration deletion
-func (s *Server) deleteJobs(c echo.Context, r *runtime.RuntimeConfiguration) error {
-	return nil
-}
-
-// updateJobs deletes, creates, and updates RuntimeConfigurationJobs as a result of a RuntimeConfiguration update
-func (s *Server) updateJobs(c echo.Context, r *runtime.RuntimeConfiguration) error {
-	return nil
-}
-
-// createJobs creates RuntimeConfigurationJobs from a newly created RuntimeConfiguration
-func (s *Server) createJobs(c echo.Context, r *runtime.RuntimeConfiguration) error {
 	return nil
 }

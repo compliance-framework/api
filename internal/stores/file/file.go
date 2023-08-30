@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"strings"
 
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 )
@@ -16,10 +15,10 @@ type FileDriver struct {
 	Path string
 }
 
-func (f *FileDriver) Update(_ context.Context, _, id string, object interface{}) error {
+func (f *FileDriver) Update(_ context.Context, collection, id string, object interface{}) error {
 	// TODO - Implement proper upsert. A method 'MergeFrom' on the BaseModel is needed
-	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
-	filePath := f.Path + id + ".gob"
+	dirPath := f.Path + "/" + collection
+	filePath := dirPath + "/" + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)
 	if err != nil {
 		return err
@@ -32,9 +31,9 @@ func (f *FileDriver) Update(_ context.Context, _, id string, object interface{})
 	return dataEncoder.Encode(object)
 }
 
-func (f *FileDriver) Create(_ context.Context, _, id string, object interface{}) error {
-	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
-	filePath := f.Path + id + ".gob"
+func (f *FileDriver) Create(_ context.Context, collection, id string, object interface{}) error {
+	dirPath := f.Path + "/" + collection
+	filePath := dirPath + "/" + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)
 	if err != nil {
 		return err
@@ -47,9 +46,9 @@ func (f *FileDriver) Create(_ context.Context, _, id string, object interface{})
 	return dataEncoder.Encode(object)
 }
 
-func (f *FileDriver) Delete(_ context.Context, _, id string) error {
-	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
-	filePath := f.Path + id + ".gob"
+func (f *FileDriver) Delete(_ context.Context, collection, id string) error {
+	dirPath := f.Path + "/" + collection
+	filePath := dirPath + "/" + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)
 	if err != nil {
 		return err
@@ -57,9 +56,9 @@ func (f *FileDriver) Delete(_ context.Context, _, id string) error {
 	return os.Remove(filePath)
 }
 
-func (f *FileDriver) Get(_ context.Context, _, id string, object interface{}) error {
-	dirPath := f.Path + strings.Join(strings.Split(id, "/")[:2], "/")
-	filePath := f.Path + id + ".gob"
+func (f *FileDriver) Get(_ context.Context, collection, id string, object interface{}) error {
+	dirPath := f.Path + "/" + collection
+	filePath := dirPath + "/" + id + ".gob"
 	err := os.MkdirAll(dirPath, 0755)
 	if err != nil {
 		return err
