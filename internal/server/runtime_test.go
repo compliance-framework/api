@@ -251,7 +251,7 @@ func TestPostConfiugration(t *testing.T) {
 			},
 			path:         "/runtime/configurations",
 			requestPath:  "/runtime/configurations",
-			expectedCode: http.StatusOK,
+			expectedCode: http.StatusCreated,
 		},
 		{
 			name: "server-error",
@@ -278,6 +278,57 @@ func TestPostConfiugration(t *testing.T) {
 				c.SetParamValues(v)
 			}
 			err := s.postConfiguration(c)
+			assert.NoError(t, err)
+			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
+		})
+	}
+}
+
+func TestGetJobs(t *testing.T) {
+	tc := []TestCase{
+		{
+			name: "success",
+			getFn: func(id string, _ interface{}) error {
+				return nil
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/runtime/jobs/:uuid",
+			requestPath:  "/runtime/jobs/123",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name: "server-error",
+			postFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			getFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/runtime/jobs/:uuid",
+			requestPath:  "/runtime/jobs/123",
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+	for idx, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}
+			s := &Server{Driver: drv}
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPut, tc[idx].requestPath, nil)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath(tc[idx].path)
+			for k, v := range tc[idx].params {
+				c.SetParamNames(k)
+				c.SetParamValues(v)
+			}
+			err := s.getJob(c)
 			assert.NoError(t, err)
 			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
 		})

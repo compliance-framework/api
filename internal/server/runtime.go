@@ -11,12 +11,14 @@ import (
 )
 
 func (s *Server) RegisterRuntime(e *echo.Echo) error {
-	p := e
-	g := p.Group("/runtime")
+	g := e.Group("/runtime")
 	g.GET("/configurations/:uuid", s.getConfiguration)
 	g.DELETE("/configurations/:uuid", s.deleteConfiguration)
 	g.PUT("/configurations/:uuid", s.putConfiguration)
 	g.POST("/configurations", s.postConfiguration)
+	g.GET("jobs/:uuid", s.getJob)
+	g.POST("jobs/assign", s.assignJobs)
+	g.POST("jobs/unassign", s.unassignJobs)
 	return nil
 }
 
@@ -47,8 +49,12 @@ func (s *Server) deleteConfiguration(c echo.Context) error {
 		}
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to delete object: %v", err))
 	}
-	// Add Removal of Jobs logic in here
-	return c.JSON(http.StatusOK, p)
+	// TODO - Move to a channel dispatch
+	defer func() {
+		err = s.deleteJobs(c, p) // nolint
+	}()
+	err = c.JSON(http.StatusOK, p)
+	return err
 }
 
 func (s *Server) putConfiguration(c echo.Context) error {
@@ -63,8 +69,12 @@ func (s *Server) putConfiguration(c echo.Context) error {
 		}
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
 	}
-	// Add Job Update in Here
-	return c.JSON(http.StatusOK, p)
+	// TODO - Move to a channel dispatch
+	defer func() {
+		err = s.updateJobs(c, p)
+	}()
+	err = c.JSON(http.StatusOK, p)
+	return err
 }
 
 func (s *Server) postConfiguration(c echo.Context) error {
@@ -76,8 +86,12 @@ func (s *Server) postConfiguration(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
 	}
-	// Add Job Creation Logic Here
-	return c.JSON(http.StatusOK, p)
+	// TODO - Move to a channel dispatch
+	defer func() {
+		err = s.createJobs(c, p)
+	}()
+	err = c.JSON(http.StatusCreated, p)
+	return err
 }
 
 // getJob returns a single RuntimeConfigurationJob by its uuid
@@ -105,5 +119,20 @@ func (s *Server) assignJobs(c echo.Context) error {
 // unassignJobs removes the runtime-uuid configured for a given set of RuntimeConfigurationJob.
 // Note: RuntimeConfigurationJobs can only be created/updated/deleted via a creation/update/delete of a RuntimeConfiguration
 func (s *Server) unassignJobs(c echo.Context) error {
+	return nil
+}
+
+// deleteJobs deletes RuntimeConfigurationJobs as a result of a RuntimeConfiguration deletion
+func (s *Server) deleteJobs(c echo.Context, r *runtime.RuntimeConfiguration) error {
+	return nil
+}
+
+// updateJobs deletes, creates, and updates RuntimeConfigurationJobs as a result of a RuntimeConfiguration update
+func (s *Server) updateJobs(c echo.Context, r *runtime.RuntimeConfiguration) error {
+	return nil
+}
+
+// createJobs creates RuntimeConfigurationJobs from a newly created RuntimeConfiguration
+func (s *Server) createJobs(c echo.Context, r *runtime.RuntimeConfiguration) error {
 	return nil
 }
