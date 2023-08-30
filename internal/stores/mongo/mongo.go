@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	"github.com/sv-tools/mongoifc"
@@ -102,7 +103,12 @@ func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ inte
 	defer func() {
 		err = f.disconnect(ctx)
 	}()
-	_, err = f.client.Database(f.Database).Collection(collection).DeleteMany(ctx, conditions)
+	conditionsMap := make(map[string]interface{})
+	for k, v := range conditions {
+		newK := strings.ReplaceAll(k, "-", "")
+		conditionsMap[newK] = v
+	}
+	_, err = f.client.Database(f.Database).Collection(collection).DeleteMany(ctx, conditionsMap)
 	if err != nil {
 		return fmt.Errorf("could not create object: %w", err)
 	}

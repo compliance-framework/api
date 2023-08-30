@@ -147,7 +147,7 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 		return fmt.Errorf("could not load data")
 	}
 	conditions := map[string]interface{}{
-		"configurationuuid": config.Uuid,
+		"configuration-uuid": config.Uuid,
 	}
 	err = r.Driver.DeleteWhere(context.Background(), "jobs", job, conditions)
 	return err
