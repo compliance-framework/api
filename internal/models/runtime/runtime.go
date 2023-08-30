@@ -21,6 +21,12 @@ type RuntimeConfigurationJobPayload struct {
 	Parameters   []*RuntimeParameters `json:"parameters,omitempty"` // A copy-paste of Subject properties, control properties, task properties, etc.
 }
 
+// RuntimeConfigurationJobRequest is the request payload for assignJobs
+type RuntimeConfigurationJobRequest struct {
+	RuntimeUuid string `json:"runtime-id"`
+	Limit       int    `json:"limit"`
+}
+
 // RuntimeConfigurationJob defines the database representation of a runtime job. It is the source of information for the RuntimeConfigurationPayload
 type RuntimeConfigurationJob struct {
 	Uuid              string                   `json:"uuid"`

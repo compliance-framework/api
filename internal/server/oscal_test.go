@@ -57,6 +57,9 @@ type FakeDriver struct {
 	DeleteFn     func(id string) error
 }
 
+func (f FakeDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	return nil, nil
+}
 func (f FakeDriver) Update(_ context.Context, _, id string, object interface{}) error {
 	return f.UpdateFn(id, object)
 }

@@ -20,6 +20,7 @@ type Driver interface {
 	Create(ctx context.Context, collection, id string, object interface{}) error
 	CreateMany(ctx context.Context, collection string, objects map[string]interface{}) error
 	Get(ctx context.Context, collection string, id string, object interface{}) error
+	GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error)
 	Delete(ctx context.Context, collection string, id string) error
 	DeleteWhere(ctx context.Context, collection string, object interface{}, conditions map[string]interface{}) error
 }

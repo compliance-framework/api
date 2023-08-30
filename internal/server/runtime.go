@@ -18,6 +18,7 @@ func (s *Server) RegisterRuntime(e *echo.Echo) error {
 	g.PUT("/configurations/:uuid", s.putConfiguration)
 	g.POST("/configurations", s.postConfiguration)
 	g.GET("/jobs/:uuid", s.getJob)
+	g.GET("/jobs", s.getJobs)
 	g.POST("/jobs/assign", s.assignJobs)
 	g.POST("/jobs/unassign", s.unassignJobs)
 	return nil
@@ -118,14 +119,80 @@ func (s *Server) getJob(c echo.Context) error {
 	return c.JSON(http.StatusOK, p)
 }
 
+// getJobs returns all RuntimeConfigurationJobs
+func (s *Server) getJobs(c echo.Context) error {
+	objs, err := s.Driver.GetAll(c.Request().Context(), "jobs", &runtime.RuntimeConfigurationJob{})
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.String(http.StatusNotFound, "object not found")
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	return c.JSON(http.StatusOK, objs)
+}
+
 // assignJobs returns all RuntimeConfigurationJobs with no runtime-uuid associated with them, limited to a parameter.
 // When this function is called, the returned jobs will automatically be upserted with the passed runtime-uuid
 func (s *Server) assignJobs(c echo.Context) error {
-	return nil
+	p := &runtime.RuntimeConfigurationJobRequest{}
+	if err := c.Bind(p); err != nil {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
+	}
+	filter := map[string]interface{}{
+		"runtime-uuid": "",
+	}
+	objs, err := s.Driver.GetAll(c.Request().Context(), "jobs", &runtime.RuntimeConfigurationJob{}, filter)
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.String(http.StatusNotFound, "object not found")
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	for i, obj := range objs {
+		if p.Limit > 0 && i >= p.Limit {
+			break
+		}
+		job := obj.(*runtime.RuntimeConfigurationJob)
+		job.RuntimeUuid = p.RuntimeUuid
+		err = s.Driver.Update(c.Request().Context(), job.Type(), job.UUID(), job)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
+		}
+		objs[i] = job
+	}
+	return c.JSON(http.StatusOK, objs)
+
 }
 
 // unassignJobs removes the runtime-uuid configured for a given set of RuntimeConfigurationJob.
 // Note: RuntimeConfigurationJobs can only be created/updated/deleted via a creation/update/delete of a RuntimeConfiguration
 func (s *Server) unassignJobs(c echo.Context) error {
-	return nil
+	p := &runtime.RuntimeConfigurationJobRequest{}
+	if err := c.Bind(p); err != nil {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
+	}
+	filter := map[string]interface{}{
+		"runtime-uuid": p.RuntimeUuid,
+	}
+	objs, err := s.Driver.GetAll(c.Request().Context(), "jobs", &runtime.RuntimeConfigurationJob{}, filter)
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.String(http.StatusNotFound, "object not found")
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	for i, obj := range objs {
+		if p.Limit > 0 && i >= p.Limit {
+			break
+		}
+		job := obj.(*runtime.RuntimeConfigurationJob)
+		job.RuntimeUuid = ""
+		err = s.Driver.Update(c.Request().Context(), job.Type(), job.UUID(), job)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
+		}
+		objs[i] = job
+	}
+	return c.JSON(http.StatusOK, objs)
+
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
@@ -95,6 +96,7 @@ func (f *MongoDriver) CreateMany(ctx context.Context, collection string, objects
 	return err
 }
 
+// TODO Add tests for DeleteWhere
 func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ interface{}, conditions map[string]interface{}) error {
 	err := f.connect(ctx)
 	if err != nil {
@@ -103,6 +105,8 @@ func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ inte
 	defer func() {
 		err = f.disconnect(ctx)
 	}()
+	// Sanitizing conditions to remove `-` from the name
+	// TODO - this might be better off implemented in the model with bson tags somehow.
 	conditionsMap := make(map[string]interface{})
 	for k, v := range conditions {
 		newK := strings.ReplaceAll(k, "-", "")
@@ -159,6 +163,40 @@ func (f *MongoDriver) Get(ctx context.Context, collection, id string, object int
 	return err
 }
 
+func (f *MongoDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	objs := make([]interface{}, 0)
+	err := f.connect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to server: %w", err)
+	}
+	defer func() {
+		err = f.disconnect(ctx)
+	}()
+	g := bson.D{}
+	for _, filter := range filters {
+		for k, v := range filter {
+			// Sanitizing conditions to remove `-` from the name
+			// TODO - this might be better off implemented in the model with bson tags somehow.
+			newK := strings.ReplaceAll(k, "-", "")
+			e := bson.E{Key: newK, Value: v}
+			g = append(g, e)
+		}
+	}
+	cursor, err := f.client.Database(f.Database).Collection(collection).Find(ctx, g)
+	if err != nil {
+		return nil, fmt.Errorf("could not get server: %w", err)
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		obj := reflect.New(reflect.ValueOf(object).Elem().Type()).Interface()
+		err = cursor.Decode(obj)
+		if err != nil {
+			return nil, err
+		}
+		objs = append(objs, obj)
+	}
+	return objs, nil
+}
 func init() {
 	storeschema.MustRegister("mongo", &MongoDriver{})
 }

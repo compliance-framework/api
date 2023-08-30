@@ -114,6 +114,9 @@ func (f *FileDriver) DeleteWhere(_ context.Context, collection string, object in
 	}
 	return nil
 }
+func (f *FileDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	return nil, nil
+}
 func (f *FileDriver) Get(_ context.Context, collection, id string, object interface{}) error {
 	dirPath := f.Path + "/" + collection
 	filePath := dirPath + "/" + id + ".gob"

@@ -34,6 +34,11 @@ func (d *FooDriver) Get(ctx context.Context, collection, id string, object inter
 	return nil
 }
 
+func (d *FooDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	// Implement the Get method for the FooDriver
+	return nil, nil
+}
+
 func (d *FooDriver) Delete(ctx context.Context, collection, id string) error {
 	// Implement the Delete method for the FooDriver
 	return nil
