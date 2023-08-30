@@ -99,7 +99,10 @@ func (f *FileDriver) DeleteWhere(_ context.Context, collection string, object in
 		}
 		d, _ := json.Marshal(object)
 		mapping := make(map[string]interface{})
-		json.Unmarshal(d, &mapping)
+		err = json.Unmarshal(d, &mapping)
+		if err != nil {
+			return err
+		}
 		for k, v := range conditions {
 			if mapping[k] == v {
 				err := os.Remove(filePath)
