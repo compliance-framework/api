@@ -129,6 +129,9 @@ func TestDeleteConfiugration(t *testing.T) {
 			deleteFn: func(id string) error {
 				return nil
 			},
+			getFn: func(id string, object interface{}) error {
+				return nil
+			},
 			path: "/runtime/configurations/:uuid",
 			params: map[string]string{
 				"uuid": "123",
@@ -141,6 +144,9 @@ func TestDeleteConfiugration(t *testing.T) {
 			deleteFn: func(id string) error {
 				return storeschema.NotFoundErr{}
 			},
+			getFn: func(id string, object interface{}) error {
+				return nil
+			},
 			path: "/runtime/configurations/:uuid",
 			params: map[string]string{
 				"uuid": "123",
@@ -152,6 +158,9 @@ func TestDeleteConfiugration(t *testing.T) {
 			name: "server-error",
 			deleteFn: func(id string) error {
 				return fmt.Errorf("boom")
+			},
+			getFn: func(id string, object interface{}) error {
+				return nil
 			},
 			path: "/runtime/configurations/:uuid",
 			params: map[string]string{
