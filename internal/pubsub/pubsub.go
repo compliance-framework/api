@@ -11,6 +11,7 @@ const (
 	RuntimeConfigurationCreated
 	RuntimeConfigurationUpdated
 	RuntimeConfigurationDeleted
+	RuntimeConfigurationJobEvent
 )
 
 type Event struct {

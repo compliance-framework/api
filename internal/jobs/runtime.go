@@ -36,6 +36,7 @@ func (r *RuntimeJobCreator) Init() error {
 	if err != nil {
 		return err
 	}
+
 	r.confDeleted = c
 	return nil
 }
