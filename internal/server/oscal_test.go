@@ -170,3 +170,151 @@ func TestGenGET(t *testing.T) {
 
 	})
 }
+
+func TestGenPOST(t *testing.T) {
+	tc := []TestCase{
+		{
+			name: "success",
+			postFn: func(id string, _ interface{}) error {
+				return nil
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo",
+			requestPath:  "/foo",
+			expectedCode: http.StatusCreated,
+		},
+		{
+			name: "server-error",
+			postFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			getFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo",
+			requestPath:  "/foo",
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+	for idx, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}
+			s := &Server{Driver: drv}
+			fn := s.genPOST(&Foo{})
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPut, tc[idx].requestPath, nil)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath(tc[idx].path)
+			for k, v := range tc[idx].params {
+				c.SetParamNames(k)
+				c.SetParamValues(v)
+			}
+			err := fn(c)
+			assert.NoError(t, err)
+			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
+		})
+	}
+}
+
+func TestGenPUT(t *testing.T) {
+	tc := []TestCase{
+		{
+			name: "success",
+			updateFn: func(id string, _ interface{}) error {
+				return nil
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo/:uuid",
+			requestPath:  "/foo/123",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name: "server-error",
+			updateFn: func(id string, _ interface{}) error {
+				return fmt.Errorf("boom")
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo/:uuid",
+			requestPath:  "/foo/123",
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+	for idx, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}
+			s := &Server{Driver: drv}
+			fn := s.genPUT(&Foo{})
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPut, tc[idx].requestPath, nil)
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPath(tc[idx].path)
+			for k, v := range tc[idx].params {
+				c.SetParamNames(k)
+				c.SetParamValues(v)
+			}
+			err := fn(c)
+			assert.NoError(t, err)
+			assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
+		})
+	}
+}
+
+func TestGenDELETE(t *testing.T) {
+	tc := []TestCase{
+		{
+			name: "success",
+			deleteFn: func(id string) error {
+				return nil
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo/:uuid",
+			requestPath:  "/foo/123",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name: "server-error",
+			deleteFn: func(id string) error {
+				return fmt.Errorf("boom")
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo/:uuid",
+			requestPath:  "/foo/123",
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+	for idx, _ := range tc {
+		drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}
+		s := &Server{Driver: drv}
+		fn := s.genDELETE(&Foo{})
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPut, tc[idx].requestPath, nil)
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath(tc[idx].path)
+		for k, v := range tc[idx].params {
+			c.SetParamNames(k)
+			c.SetParamValues(v)
+		}
+		err := fn(c)
+		assert.NoError(t, err)
+		assert.Equal(t, tc[idx].expectedCode, rec.Result().StatusCode)
+	}
+}

@@ -78,7 +78,6 @@ func (s *Server) putConfiguration(c echo.Context) error {
 		}
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
 	}
-	// TODO - Move to a channel dispatch
 	defer func() {
 		pubsub.Publish(pubsub.RuntimeConfigurationUpdated, p)
 	}()
@@ -95,7 +94,6 @@ func (s *Server) postConfiguration(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
 	}
-	// TODO - Move to a channel dispatch
 	defer func() {
 		pubsub.Publish(pubsub.RuntimeConfigurationCreated, p)
 	}()
