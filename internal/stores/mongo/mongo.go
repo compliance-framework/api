@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// TODO Instead of having a driver structure, it might be a better idea to just have a worker pool.
 type MongoDriver struct {
 	Url      string
 	Database string
