@@ -299,7 +299,7 @@ func TestGenDELETE(t *testing.T) {
 			expectedCode: http.StatusInternalServerError,
 		},
 	}
-	for idx, _ := range tc {
+	for idx := range tc {
 		drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}
 		s := &Server{Driver: drv}
 		fn := s.genDELETE(&Foo{})
