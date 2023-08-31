@@ -1,0 +1,308 @@
+{
+    "uuid": "c151ff09-0a4e-4dd0-bd8a-95696e2f3f5f",
+    "metadata": {
+        "title": "Minimal Assessment plan to test Compliance Framework Logic",
+        "published": "2023-08-31T12:00:00Z",
+        "last-modified": "2023-08-31T12:00:00Z",
+        "version": "1.0.0",
+        "oscal-version": "1.1.0",
+        "revisions": [
+            {
+                "title": "Initial publication.",
+                "published": "2023-08-31T12:00:00Z",
+                "last-modified": "2023-08-31T12:00:00Z",
+                "version": "1.0.0",
+                "oscal-version": "1.1.0"
+            }
+        ]
+    },
+    "back-matter": {
+        "resources": []
+    },
+    "assessment-assets": {
+        "assessment-platforms": [
+            {
+          "uuid": "60218FE9-B01A-4553-B705-DBE9DEC44AA1",
+          "title": "Plugin used",
+          "props": [
+            {
+              "name": "ipv4-address",
+              "ns": "https://fedramp.gov/ns/oscal",
+              "value": "10.10.10.10"
+            },
+            {
+              "name": "ipv4-address",
+              "ns": "https://fedramp.gov/ns/oscal",
+              "value": "10.10.10.11"
+            },
+            {
+              "name": "ipv4-address",
+              "ns": "https://fedramp.gov/ns/oscal",
+              "value": "10.10.10.12"
+            }
+          ],
+          "uses-components": []
+
+        },
+        {
+            "uuid": "60218FE9-B01A-4553-B705-DBE9DEC44AA2",
+            "title": "Any tool interfacing with the plugin (e.g. wiz)",
+            "props": [
+            ],
+            "uses-components": []
+  
+          }
+      ],
+        "components": []
+    },
+    "assessment-subjects": [
+        {
+            "description": "all Subjects from a given system security plan (no logic bound to it yet)",
+            "include-all": {},
+            "remarks": "include all components from SSP",
+            "type": "component"
+        }
+    ],
+    "import-ssp": {
+        "href": "#not-used-right-now",
+        "remarks": "In the future this should be the uuid of the ssp so that we can load the subjects"
+    },
+    "local-definitions": {
+        "activities": [
+            {
+                "description": "This is one activity. This activity is implemented with this plugin.",
+                "props": [
+                    {
+                        "class": "compliance-framework-plugin",
+                        "group": "",
+                        "name": "type",
+                        "ns": "https://compliance-framework.io/oscal/ns",
+                        "remarks": "This property defines the plugin type.",
+                        "uuid": "",
+                        "value": "plugin1"
+                    },
+                    {
+                        "class": "compliance-framework-plugin",
+                        "group": "",
+                        "name": "plugin-config",
+                        "ns": "https://compliance-framework.io/oscal/ns",
+                        "remarks": "This property defines specific configuration for the plugin",
+                        "uuid": "",
+                        "value": "abc"
+                    }
+                ],
+                "responsible-roles": [],
+                "related-controls": {
+                    "control-objective-selections": [
+                        {
+                            "props": [],
+                            "description": "This relates to all control objectives from the SSP that we want to comply to. Not sure how a control Objective is defined yet.",
+                            "include-objectives": [
+                                {
+                                    "objective-id": "ctrl.ac1.obj-01"
+                                }
+                            ],
+                            "remarks": "This session refers to whatever is defined as an objective in the catalog. Examples are: 'an access control policy is developed and documented;'"
+                        }
+                    ],
+                    "control-selections": [
+                        {
+                            "description": "The Controls that are selected for a given activity or Assessment Plan. Examples are 'Policy and Procedures' control, where only a few control objectives are going to be looked at.",
+                            "include-controls": [
+                                {
+                                    "control-id": "ctgl.ac1",
+                                    "statement-ids": [
+                                        "ctrl.ac1-smt-01"
+                                    ]
+                                }
+                            ],
+                            "remarks": "we can optionally refer to statmeent ids if this implementation only focus on one particular statement"
+                        }
+                    ],
+                    "description": "A description on why these controls are related to this activity",
+                    "remarks": "Properties here are _not_ passed to the runtime. Only the properties on the control selection."
+                },
+                "remarks": "Properties are passed to the runtime and can be used to instruct runtime on how to perform an execution, how to collect results, etc. Steps are ignored.",
+                "steps": [],
+                "title": "A title for the activity. This activity is very important 123.",
+                "uuid": "54a42462-98ec-404f-887c-43deec5ee2b1"
+            },
+            {
+                "description": "This is another activity. This activity is a little bit different than the previous one, and can be executed by a different plugin.",
+                "props": [
+                    {
+                        "class": "compliance-framework-plugin",
+                        "group": "",
+                        "name": "type",
+                        "ns": "https://compliance-framework.io/oscal/ns",
+                        "remarks": "This property defines the plugin type, different than the first activity",
+                        "uuid": "",
+                        "value": "plugin2"
+                    },
+                    {
+                        "class": "compliance-framework-plugin",
+                        "group": "",
+                        "name": "this-is-another-configuration",
+                        "ns": "https://compliance-framework.io/oscal/ns",
+                        "remarks": "This property defines another configuration for that other plugin",
+                        "uuid": "",
+                        "value": "abc"
+                    }
+                ],
+                "responsible-roles": [],
+                "related-controls": {
+                    "control-objective-selections": [
+                        {
+                            "props": [],
+                            "description": "This relates to all control objectives from the SSP that we want to comply to. Not sure how a control Objective is defined yet.",
+                            "include-objectives": [
+                                {
+                                    "objective-id": "ctrl.ac1.obj-02"
+                                }
+                            ],
+                            "remarks": "This session refers to whatever is defined as an objective in the catalog. Examples are: 'an access control policy is developed and documented;'"
+                        }
+                    ],
+                    "control-selections": [
+                        {
+                            "description": "The Controls that are selected for a given activity or Assessment Plan. Examples are 'Policy and Procedures' control, where only a few control objectives are going to be looked at.",
+                            "include-controls": [
+                                {
+                                    "control-id": "ctgl.ac1",
+                                    "statement-ids": [
+                                        "ctrl.ac1-smt-01"
+                                    ]
+                                }
+                            ],
+                            "remarks": "we can optionally refer to statmeent ids if this implementation only focus on one particular statement"
+                        }
+                    ],
+                    "description": "A description on why these controls are related to this activity",
+                    "remarks": "Properties here are _not_ passed to the runtime. Only the properties on the control selection."
+                },
+                "remarks": "Properties are passed to the runtime and can be used to instruct runtime on how to perform an execution, how to collect results, etc. Steps are ignored.",
+                "steps": [],
+                "title": "A title for the second activity. the second activity may be for a different control objective",
+                "uuid": "e04f7b14-2504-423c-857f-fa8bd4913515"
+            }
+        ],
+        "components": [],
+        "inventory-items": [],
+        "objectives-and-methods": [],
+        "remarks": "In the future, Objectives and Methods should have a list of extra objectives not found on the ssp",
+        "users": []
+    },
+    "reviewed-controls": {
+        "control-objective-selections": [
+            {
+                "description": "All control objectives bound to the SSP will be selected",
+                "include-all": {},
+                "remarks": "This currently does nothing, but on the future this is where we will need to load a map of control objectives that this specific assessment plan is assessing"
+            }
+        ],
+        "control-selections": [
+            {
+                "description": "All controls bound to the SSP will be selected",
+                "include-all": {},
+                "remarks": "This currently does nothing, but on the future this is where we will need to load a map of controls that this specific assessment plan is assessing"
+            }
+        ]
+    },
+    "tasks": [
+        {
+            "associated-activities": [
+                {
+                    "activity-uuid": "54a42462-98ec-404f-887c-43deec5ee2b1",
+                    "remarks": "This is an associated activity. Properties here are not cascaded to the runtime",
+                    "responsible-roles": [],
+                    "subjects": [
+                        {
+                            "description": "The Subjects that are included for this activity",
+                            "include-subjects": [
+                                {
+                                    "remarks": "This is a component on the imported System Security Plan",
+                                    "subject-uuid": "c0551bea-5366-48eb-b4f0-e81377ba2f10",
+                                    "type": "component"
+                                },
+                                {
+                                    "remarks": "This is another component that also needs to be verified on this activity scope",
+                                    "subject-uuid": "68c66c6e-5524-42aa-b8c4-ba498a4fa116",
+                                    "type": "component"
+                                }
+                            ],
+                            "remarks": "remakrs on the subject choice. Not sure why the duplicate type in here.",
+                            "type": "component"
+                        }
+                    ]
+                }
+            ],
+            "dependencies": [],
+            "description": "This is a task. It represents all the activities that will be automated by multiple runtimes.",
+            "props": [
+                {
+                    "class": "compliance-framework-plugin",
+                    "group": "",
+                    "name": "this-is-a-common-configuration-across-all-jobs-created-from-this-task",
+                    "ns": "https://compliance-framework.io/oscal/ns",
+                    "remarks": "This property defines another configuration for that other plugin",
+                    "uuid": "",
+                    "value": "very-important-configuration"
+                }
+        ],
+            "remarks": "Ideally subjects is a superset of the activities subject. Ignored for simplification.  Task properties are also cascaded to runtimeJob",
+            "responsible-roles":[],
+            "subjects": [],
+            "title": "this is a task",
+            "type": "test",
+            "uuid": "a017f164-7785-41fd-8682-42765b504b4d"
+        },
+        {
+            "associated-activities": [
+                {
+                    "activity-uuid": "e04f7b14-2504-423c-857f-fa8bd4913515",
+                    "remarks": "This is an associated activity. Properties here are not cascaded to the runtime",
+                    "responsible-roles": [],
+                    "subjects": [
+                        {
+                            "description": "The Subjects that are included for this activity",
+                            "include-subjects": [
+                                {
+                                    "remarks": "This is a component on the imported System Security Plan. Both tasks target this component",
+                                    "subject-uuid": "c0551bea-5366-48eb-b4f0-e81377ba2f10",
+                                    "type": "component"
+                                },
+                                {
+                                    "remarks": "This is another component that also needs to be verified on this activity scope",
+                                    "subject-uuid": "64bcc1a6-3edd-474c-aca3-81ff29554ea4",
+                                    "type": "component"
+                                }
+                            ],
+                            "remarks": "remakrs on the subject choice. Not sure why the duplicate type in here.",
+                            "type": "component"
+                        }
+                    ]
+                }
+            ],
+            "dependencies": [],
+            "description": "This is a second task.",
+            "props": [
+                {
+                    "class": "compliance-framework-plugin",
+                    "group": "",
+                    "name": "this-is-a-common-configuration-across-all-jobs-created-from-this-task",
+                    "ns": "https://compliance-framework.io/oscal/ns",
+                    "remarks": "This property defines another configuration for that other plugin",
+                    "uuid": "",
+                    "value": "very-unimportant-configuration"
+                }
+        ],
+            "remarks": "Ideally subjects is a superset of the activities subject. Ignored for simplification.  Task properties are also cascaded to runtimeJob",
+            "responsible-roles":[],
+            "subjects": [],
+            "title": "this is another task",
+            "type": "test",
+            "uuid": "9bd0e042-0ea0-489b-9acc-ec569a1b9128"
+        }
+    ],
+    "terms-and-conditions": {}
+}

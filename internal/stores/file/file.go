@@ -77,6 +77,7 @@ func (f *FileDriver) Delete(_ context.Context, collection, id string) error {
 	}
 	return os.Remove(filePath)
 }
+
 func (f *FileDriver) DeleteWhere(_ context.Context, collection string, object interface{}, conditions map[string]interface{}) error {
 	dirPath := f.Path + "/" + collection
 	files, err := os.ReadDir(dirPath)
@@ -114,6 +115,8 @@ func (f *FileDriver) DeleteWhere(_ context.Context, collection string, object in
 	}
 	return nil
 }
+
+// TODO implement this driver if we want to keep it, or deprecate it altogether (probably better)
 func (f *FileDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
 	return nil, nil
 }

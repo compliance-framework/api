@@ -120,6 +120,7 @@ func (s *Server) getJob(c echo.Context) error {
 }
 
 // getJobs returns all RuntimeConfigurationJobs
+// TODO Add tests
 func (s *Server) getJobs(c echo.Context) error {
 	objs, err := s.Driver.GetAll(c.Request().Context(), "jobs", &runtime.RuntimeConfigurationJob{})
 	if err != nil {
@@ -133,6 +134,7 @@ func (s *Server) getJobs(c echo.Context) error {
 
 // assignJobs returns all RuntimeConfigurationJobs with no runtime-uuid associated with them, limited to a parameter.
 // When this function is called, the returned jobs will automatically be upserted with the passed runtime-uuid
+// TODO Add tests
 func (s *Server) assignJobs(c echo.Context) error {
 	p := &runtime.RuntimeConfigurationJobRequest{}
 	if err := c.Bind(p); err != nil {
@@ -166,6 +168,7 @@ func (s *Server) assignJobs(c echo.Context) error {
 
 // unassignJobs removes the runtime-uuid configured for a given set of RuntimeConfigurationJob.
 // Note: RuntimeConfigurationJobs can only be created/updated/deleted via a creation/update/delete of a RuntimeConfiguration
+// TODO Add tests
 func (s *Server) unassignJobs(c echo.Context) error {
 	p := &runtime.RuntimeConfigurationJobRequest{}
 	if err := c.Bind(p); err != nil {

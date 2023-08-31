@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO Instead of having this runtime to publish changes, it would be better to have the Driver to publish changes whenever that change happened (with a specific message, and a specific channel)
 type RuntimeJobCreator struct {
 	confCreated <-chan pubsub.Event
 	confUpdated <-chan pubsub.Event

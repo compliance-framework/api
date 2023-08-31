@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO Add tests
 type PublishJob struct {
 	conn         *nats.Conn
 	mu           *sync.Mutex
@@ -48,6 +49,8 @@ func (p *PublishJob) Connect(server string) error {
 	return nil
 }
 
+// TODO This logic here is coupled with implementation - Publish should only publish a message to a given channel (obtained from data).
+// A different type of event might need to be supported in here.
 func (p *PublishJob) Run() {
 	for msg := range p.runtimeJobCh {
 		d, err := json.Marshal(msg.Data)

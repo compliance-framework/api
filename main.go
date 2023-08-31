@@ -13,7 +13,7 @@ import (
 
 func main() {
 	//driver := &file.FileDriver{Path: "."}
-	driver := &mongo.MongoDriver{Url: "mongodb://127.0.0.1:27017", Database: "cf"}
+	driver := &mongo.MongoDriver{Url: "mongodb://mongo:27017", Database: "cf"}
 	e := echo.New()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = pub.Connect("nats://localhost:4222")
+	err = pub.Connect("nats://nats:4222")
 	if err != nil {
 		panic(err)
 	}
