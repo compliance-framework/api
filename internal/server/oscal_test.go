@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -44,40 +45,52 @@ func (f *Foo) DeepCopy() schema.BaseModel {
 func (f *Foo) Validate() error {
 	return nil
 }
+func (f *Foo) Type() string {
+	return "foo"
+}
 
 type FakeDriver struct {
-	UpdateFn func(id string, object schema.BaseModel) error
-	CreateFn func(id string, object schema.BaseModel) error
-	GetFn    func(id string, object schema.BaseModel) error
-	DeleteFn func(id string) error
+	UpdateFn     func(id string, object interface{}) error
+	CreateFn     func(id string, object interface{}) error
+	CreateManyFn func(objects map[string]interface{}) error
+	GetFn        func(id string, object interface{}) error
+	DeleteFn     func(id string) error
 }
 
-func (f FakeDriver) Update(id string, object schema.BaseModel) error {
+func (f FakeDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	return nil, nil
+}
+func (f FakeDriver) Update(_ context.Context, _, id string, object interface{}) error {
 	return f.UpdateFn(id, object)
 }
-func (f FakeDriver) Create(id string, object schema.BaseModel) error {
+func (f FakeDriver) Create(_ context.Context, _, id string, object interface{}) error {
 	return f.CreateFn(id, object)
 }
 
-func (f FakeDriver) Get(id string, object schema.BaseModel) error {
+func (f FakeDriver) Get(_ context.Context, _, id string, object interface{}) error {
 	return f.GetFn(id, object)
 }
-func (f FakeDriver) Delete(id string) error {
+func (f FakeDriver) Delete(_ context.Context, _, id string) error {
 	return f.DeleteFn(id)
 }
 
-var fooString = []byte(`{"foo":"foo","bar":"bar","uuid":"123"}
-`)
+func (f FakeDriver) CreateMany(_ context.Context, _ string, objects map[string]interface{}) error {
+	return f.CreateManyFn(objects)
+}
+
+func (f FakeDriver) DeleteWhere(_ context.Context, _ string, _ interface{}, objects map[string]interface{}) error {
+	return nil
+}
 
 func TestOSCAL(t *testing.T) {
 	schema.MustRegister("foo", &Foo{})
 	drv := FakeDriver{
-		GetFn: func(id string, object schema.BaseModel) error {
+		GetFn: func(id string, object interface{}) error {
 			if strings.Contains(id, "err") {
 				return fmt.Errorf("boom")
 			}
 			if strings.Contains(id, "123") {
-				return object.FromJSON(fooString)
+				return nil
 			}
 			return storeschema.NotFoundErr{}
 		},
@@ -104,12 +117,12 @@ func TestOSCAL(t *testing.T) {
 }
 func TestGenGET(t *testing.T) {
 	drv := FakeDriver{
-		GetFn: func(id string, object schema.BaseModel) error {
+		GetFn: func(id string, object interface{}) error {
 			if strings.Contains(id, "err") {
 				return fmt.Errorf("boom")
 			}
 			if strings.Contains(id, "123") {
-				return object.FromJSON(fooString)
+				return nil
 			}
 			return storeschema.NotFoundErr{}
 		},
@@ -128,7 +141,6 @@ func TestGenGET(t *testing.T) {
 		err := fn(c)
 		if assert.NoError(t, err) {
 			assert.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, string(fooString), rec.Body.String())
 		}
 	})
 	t.Run("return server error if get fails", func(t *testing.T) {

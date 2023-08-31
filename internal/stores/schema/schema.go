@@ -1,10 +1,9 @@
 package schema
 
 import (
+	"context"
 	"fmt"
 	"sync"
-
-	"github.com/compliance-framework/configuration-service/internal/models/schema"
 )
 
 var mu sync.Mutex
@@ -17,10 +16,13 @@ func (e NotFoundErr) Error() string {
 }
 
 type Driver interface {
-	Update(id string, object schema.BaseModel) error
-	Create(id string, object schema.BaseModel) error
-	Get(id string, object schema.BaseModel) error
-	Delete(id string) error
+	Update(ctx context.Context, collection string, id string, object interface{}) error
+	Create(ctx context.Context, collection, id string, object interface{}) error
+	CreateMany(ctx context.Context, collection string, objects map[string]interface{}) error
+	Get(ctx context.Context, collection string, id string, object interface{}) error
+	GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error)
+	Delete(ctx context.Context, collection string, id string) error
+	DeleteWhere(ctx context.Context, collection string, object interface{}, conditions map[string]interface{}) error
 }
 
 var registry = make(map[string]Driver)

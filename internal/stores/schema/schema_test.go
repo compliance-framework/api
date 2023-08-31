@@ -1,9 +1,9 @@
 package schema
 
 import (
+	"context"
 	"testing"
 
-	"github.com/compliance-framework/configuration-service/internal/models/schema"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,25 +14,40 @@ func reset() {
 type FooDriver struct {
 }
 
-func (d *FooDriver) Update(id string, object schema.BaseModel) error {
+func (d *FooDriver) Update(ctx context.Context, collection, id string, object interface{}) error {
 	// Implement the Update method for the FooDriver
 	return nil
 }
 
-func (d *FooDriver) Create(id string, object schema.BaseModel) error {
+func (d *FooDriver) Create(ctx context.Context, collection, id string, object interface{}) error {
 	// Implement the Create method for the FooDriver
 	return nil
 }
 
-func (d *FooDriver) Get(id string, object schema.BaseModel) error {
+func (d *FooDriver) CreateMany(ctx context.Context, collection string, objects map[string]interface{}) error {
+	// Implement the Create method for the FooDriver
+	return nil
+}
+
+func (d *FooDriver) Get(ctx context.Context, collection, id string, object interface{}) error {
 	// Implement the Get method for the FooDriver
 	return nil
 }
 
-func (d *FooDriver) Delete(id string) error {
+func (d *FooDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	// Implement the Get method for the FooDriver
+	return nil, nil
+}
+
+func (d *FooDriver) Delete(ctx context.Context, collection, id string) error {
 	// Implement the Delete method for the FooDriver
 	return nil
 }
+func (d *FooDriver) DeleteWhere(ctx context.Context, collection string, object interface{}, conditions map[string]interface{}) error {
+	// Implement the Delete method for the FooDriver
+	return nil
+}
+
 func TestGet(t *testing.T) {
 	reset()
 	MustRegister("foo", &FooDriver{})

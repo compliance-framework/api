@@ -80,6 +80,9 @@ func (c *Profile) Validate() error {
 	//TODO Implement logic as defined in OSCAL
 	return nil
 }
+func (c *Profile) Type() string {
+	return "profiles"
+}
 
 func init() {
 	schema.MustRegister("profiles", &Profile{})

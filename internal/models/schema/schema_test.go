@@ -28,6 +28,9 @@ func (f *Foo) DeepCopy() BaseModel {
 func (f *Foo) Validate() error {
 	return nil
 }
+func (f *Foo) Type() string {
+	return "foo"
+}
 func TestGet(t *testing.T) {
 	reset()
 	MustRegister("foo", &Foo{})

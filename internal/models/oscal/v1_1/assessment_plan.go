@@ -451,6 +451,10 @@ func (c *AssessmentPlan) Validate() error {
 	return sch.Validate(p)
 }
 
+func (c *AssessmentPlan) Type() string {
+	return "assessment-plan"
+}
+
 func init() {
 	schema.MustRegister("assessment-plan", &AssessmentPlan{})
 }

@@ -104,6 +104,10 @@ func (c *Catalog) Validate() error {
 	return sch.Validate(p)
 }
 
+func (c *Catalog) Type() string {
+	return "catalogs"
+}
+
 func init() {
 	schema.MustRegister("catalogs", &Catalog{})
 }
