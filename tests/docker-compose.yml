@@ -1,10 +1,10 @@
 services:
-  # configuration-service:
-  #   build:
-  #     context: ../
-  #     dockerfile: tests/configuration-service/Dockerfile
-  #   ports:
-  #     - "8080:8080"
+  configuration-service:
+    build:
+      context: ../
+      dockerfile: tests/configuration-service/Dockerfile
+    ports:
+      - "8080:8080"
   nats:
     image: nats:latest
     volumes:
