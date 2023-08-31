@@ -36,6 +36,7 @@ func (r *RuntimeJobCreator) Init() error {
 	if err != nil {
 		return err
 	}
+
 	r.confDeleted = c
 	return nil
 }
@@ -120,16 +121,112 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	return err
 }
 
-// TODO Make better logic, as this will override any runtime-uuid that is setup via assignJobs
+// TODO Make logic better. Too much of a convolution, too many responsibilities
+// TODO Add tests
+// TODO Add OnChange mechanism to listen for assessment-plan changes.
 func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
-	err := r.deleteJobs(msg)
+	d, err := json.Marshal(msg.Data)
 	if err != nil {
-		return fmt.Errorf("could not delete jobs as part of an update: %w", err)
+		return fmt.Errorf("could not marshal data")
 	}
-	err = r.createJobs(msg)
+	config := &models.RuntimeConfiguration{}
+	err = config.FromJSON(d)
 	if err != nil {
-		return fmt.Errorf("could not create jobs as part of an update: %w", err)
+		return fmt.Errorf("could not load data")
 	}
+	ap := oscal.AssessmentPlan{}
+	err = r.Driver.Get(context.Background(), ap.Type(), config.AssessmentPlanUuid, &ap)
+	// TODO - If the assessmentplan is invalid, instead we should delete all the jobs associated to this assessment plan.
+	if err != nil {
+		return fmt.Errorf("no assessment-plan with uuid %v found: %w", config.AssessmentPlanUuid, err)
+	}
+	task := &oscal.Task{}
+	for i, t := range ap.Tasks {
+		if t.Uuid == config.TaskUuid {
+			task = ap.Tasks[i]
+			break
+		}
+	}
+	// TODO - If the Task uuid is invalid, instead we should delete all the jobs containing refering to this task.
+	if task.Uuid != config.TaskUuid {
+		return fmt.Errorf("task with uuid %v not found on assessment-plan %v", config.TaskUuid, config.AssessmentPlanUuid)
+	}
+	j := &models.RuntimeConfigurationJob{}
+	filter := map[string]interface{}{
+		"configuration-uuid": config.Uuid,
+	}
+	jobs, err := r.Driver.GetAll(context.Background(), j.Type(), j, filter)
+	if err != nil {
+		return fmt.Errorf("could not get all jobs: %w", err)
+	}
+	t := map[string]*models.RuntimeConfigurationJob{}
+	for _, jj := range jobs {
+		job := jj.(*models.RuntimeConfigurationJob)
+		key := fmt.Sprintf("%s/%s", job.ActivityId, job.SubjectUuid)
+		t[key] = job
+	}
+	o := map[string]*models.RuntimeConfigurationJob{}
+	for _, activity := range task.AssociatedActivities {
+		for _, subject := range activity.Subjects {
+			for _, include := range subject.IncludeSubjects {
+				k := fmt.Sprintf("%s/%s", activity.ActivityUuid, include.SubjectUuid)
+				o[k] = &models.RuntimeConfigurationJob{
+					ActivityId:  activity.ActivityUuid,
+					SubjectUuid: include.SubjectUuid,
+					SubjectType: include.Type.(string),
+				}
+			}
+		}
+	}
+	// Remove uneeded Jobs
+	for k, v := range t {
+		if _, ok := o[k]; !ok {
+			err = r.Driver.Delete(context.Background(), j.Type(), v.Uuid)
+			if err != nil {
+				return fmt.Errorf("could not delete job %v: %w", v.Uuid, err)
+			}
+			delete(t, k)
+			// Job no longer needed - pub it to propagate unassign from runtime
+			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, v)
+		}
+	}
+	for k, v := range o {
+		_, ok := t[k]
+		// Create New Jobs
+		if !ok {
+			// TODO As this is a new job, no runtime-uuid assigned to it. Does that make sense?
+			job := &models.RuntimeConfigurationJob{
+				ConfigurationUuid: config.Uuid,
+				ActivityId:        v.ActivityId,
+				SubjectUuid:       v.SubjectUuid,
+				SubjectType:       v.SubjectType,
+				Schedule:          config.Schedule,
+				Plugins:           config.Plugins,
+			}
+			err = r.Driver.Create(context.Background(), j.Type(), job.Uuid, job)
+			if err != nil {
+				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
+			}
+		}
+		if ok && o[k].Schedule != config.Schedule {
+			job := models.RuntimeConfigurationJob{
+				ConfigurationUuid: config.Uuid,
+				ActivityId:        v.ActivityId,
+				SubjectUuid:       v.SubjectUuid,
+				SubjectType:       v.SubjectType,
+				Schedule:          config.Schedule,
+				Plugins:           config.Plugins,
+				Uuid:              t[k].Uuid,
+				RuntimeUuid:       t[k].RuntimeUuid,
+			}
+			err = r.Driver.Update(context.Background(), j.Type(), job.Uuid, &job)
+			if err != nil {
+				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
+			}
+			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, job)
+		}
+	}
+	// Update Jobs
 	return nil
 }
 
@@ -149,6 +246,15 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 	conditions := map[string]interface{}{
 		"configuration-uuid": config.Uuid,
 	}
-	err = r.Driver.DeleteWhere(context.Background(), "jobs", job, conditions)
+	objs, err := r.Driver.GetAll(context.Background(), "jobs", job, conditions)
+	for _, o := range objs {
+		obj := o.(*models.RuntimeConfigurationJob)
+		obj.RuntimeUuid = ""
+		err = r.Driver.Delete(context.Background(), job.Type(), obj.Uuid)
+		if err != nil {
+			return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
+		}
+		pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, obj)
+	}
 	return err
 }
