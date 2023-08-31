@@ -2,10 +2,8 @@ package jobs
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 
-	"github.com/compliance-framework/configuration-service/internal/models/runtime"
 	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -57,17 +55,7 @@ func (p *PublishJob) Run() {
 			p.Log.Errorw("could not marshal message", "msg", msg, "err", err.Error())
 			continue
 		}
-		obj := &runtime.RuntimeConfigurationJob{}
-		err = obj.FromJSON(d)
-		if err != nil {
-			p.Log.Errorw("could not decode to format", "err", err.Error())
-			continue
-		}
-		if obj.RuntimeUuid == "" {
-			p.Log.Infow("job ist not assigned to a runtime. Skipping", "msg", msg)
-			continue
-		}
-		subj := fmt.Sprintf("runtime/%v/job", obj.RuntimeUuid)
+		subj := "runtime/job-update"
 		err = p.Publish(subj, d)
 		if err != nil {
 			p.Log.Errorw("could not publish message", "msg", msg, "err", err.Error())

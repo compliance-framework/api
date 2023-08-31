@@ -1,0 +1,17 @@
+services:
+  # configuration-service:
+  #   build:
+  #     context: ../
+  #     dockerfile: tests/configuration-service/Dockerfile
+  #   ports:
+  #     - "8080:8080"
+  nats:
+    image: nats:latest
+    volumes:
+      - ./messaging/nats-server.conf:/nats-server.conf
+    ports:
+      - "4222:4222"
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
