@@ -1,28 +1,68 @@
 package jobs
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
 )
 
-// TODO Add tests
+type NatsIfc interface {
+	Connect(url string, options ...nats.Option) (*nats.Conn, error)
+	NewEncodedConn(c *nats.Conn, enc nats.Encoder) (EncoderIfc, error)
+}
+
+type EncoderIfc interface {
+	BindSendChan(subject string, channel any) error
+}
+type internal struct {
+	ConnectFn    func(url string, options ...nats.Option) (*nats.Conn, error)
+	NewEncodedFn func(c *nats.Conn, enc string) (EncoderIfc, error)
+}
+
+func (i *internal) Connect(url string, options ...nats.Option) (*nats.Conn, error) {
+	return i.ConnectFn(url, options...)
+}
+
+func (i *internal) NewEncodedConn(c *nats.Conn, enc string) (EncoderIfc, error) {
+	return i.NewEncodedFn(c, enc)
+}
+
+func DefaultConnect(url string, options ...nats.Option) (*nats.Conn, error) {
+	return nats.Connect(url, options...)
+}
+
+func DefaultEncodedConn(c *nats.Conn, enc string) (EncoderIfc, error) {
+	return nats.NewEncodedConn(c, enc)
+}
+
+type encoder struct {
+	BindSendFn func(subject string, channel any) error
+}
+
+func (e *encoder) BindSendChan(subject string, channel any) error {
+	return e.BindSendFn(subject, channel)
+}
+
 type PublishJob struct {
 	conn         *nats.Conn
 	mu           *sync.Mutex
 	runtimeJobCh <-chan pubsub.Event
-	Log          *zap.SugaredLogger
+	driver       *internal
 }
 
 func (p *PublishJob) Init() error {
+	if p.driver == nil {
+		p.driver = &internal{
+			ConnectFn:    DefaultConnect,
+			NewEncodedFn: DefaultEncodedConn,
+		}
+	}
 	ch, err := pubsub.Subscribe(pubsub.RuntimeConfigurationJobEvent)
-	p.runtimeJobCh = ch
 	if err != nil {
 		return err
 	}
+	p.runtimeJobCh = ch
 	if p.mu == nil {
 		p.mu = &sync.Mutex{}
 	}
@@ -41,30 +81,18 @@ func (p *PublishJob) Connect(server string) error {
 		return nil
 	}
 
-	c, err := nats.Connect(server, nats.ReconnectBufSize(5*1024*1024))
+	c, err := p.driver.Connect(server, nats.ReconnectBufSize(5*1024*1024))
 	if err != nil {
 		return err
 	}
 	p.conn = c
-	return nil
-}
-
-// TODO This logic here is coupled with implementation - Publish should only publish a message to a given channel (obtained from data).
-// A different type of event might need to be supported in here.
-func (p *PublishJob) Run() {
-	for msg := range p.runtimeJobCh {
-		d, err := json.Marshal(msg.Data)
-		if err != nil {
-			p.Log.Errorw("could not marshal message", "msg", msg, "err", err.Error())
-			continue
-		}
-		subj := "runtime/job-update"
-		err = p.Publish(subj, d)
-		if err != nil {
-			p.Log.Errorw("could not publish message", "msg", msg, "err", err.Error())
-		}
+	ec, err := p.driver.NewEncodedConn(p.conn, nats.JSON_ENCODER)
+	if err != nil {
+		return err
 	}
-}
-func (p *PublishJob) Publish(subj string, data []byte) error {
-	return p.conn.Publish(subj, data)
+	err = ec.BindSendChan("runtime/job-update", p.runtimeJobCh)
+	if err != nil {
+		return err
+	}
+	return nil
 }

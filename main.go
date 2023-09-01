@@ -27,17 +27,11 @@ func main() {
 		panic(err)
 	}
 	go job.Run()
-	pub := jobs.PublishJob{Log: sugar}
-	err = pub.Init()
-	if err != nil {
-		panic(err)
-	}
+	pub := jobs.PublishJob{}
 	err = pub.Connect("nats://nats:4222")
 	if err != nil {
 		panic(err)
 	}
-	go pub.Run()
-	//sv := server.Server{Driver: &mongo.MongoDriver{Url: "mongodb://127.0.0.1:27017", Database: "cf"}}
 	sv := server.Server{Driver: driver}
 	err = sv.RegisterOSCAL(e)
 	if err != nil {
