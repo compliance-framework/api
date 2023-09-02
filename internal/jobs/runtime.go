@@ -64,7 +64,6 @@ func (r *RuntimeJobCreator) Run() {
 	}
 }
 
-// TODO Add tests
 func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	jobs := make([]*models.RuntimeConfigurationJob, 0)
 	r.Log.Infow("creating jobs from RuntimeConfiguration", "msg", msg)
@@ -123,7 +122,6 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 }
 
 // TODO Make logic better. Too much of a convolution, too many responsibilities
-// TODO Add tests
 // TODO Add OnChange mechanism to listen for assessment-plan changes.
 func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	d, err := json.Marshal(msg.Data)
@@ -191,6 +189,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, v)
 		}
 	}
+
 	for k, v := range o {
 		_, ok := t[k]
 		// Create New Jobs
@@ -206,7 +205,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			}
 			err = r.Driver.Create(context.Background(), j.Type(), job.Uuid, job)
 			if err != nil {
-				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
+				return fmt.Errorf("could not create job %v: %w", job.Uuid, err)
 			}
 		}
 		if ok && o[k].Schedule != config.Schedule {
@@ -248,6 +247,9 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 		"configuration-uuid": config.Uuid,
 	}
 	objs, err := r.Driver.GetAll(context.Background(), "jobs", job, conditions)
+	if err != nil {
+		return fmt.Errorf("could not get jobs: %w", err)
+	}
 	for _, o := range objs {
 		obj := o.(*models.RuntimeConfigurationJob)
 		obj.RuntimeUuid = ""

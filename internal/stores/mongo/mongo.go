@@ -115,7 +115,7 @@ func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ inte
 	}
 	_, err = f.client.Database(f.Database).Collection(collection).DeleteMany(ctx, conditionsMap)
 	if err != nil {
-		return fmt.Errorf("could not create object: %w", err)
+		return fmt.Errorf("could not delete object: %w", err)
 	}
 	return err
 }
@@ -132,7 +132,7 @@ func (f *MongoDriver) Delete(ctx context.Context, collection, id string) error {
 	filter := bson.D{primitive.E{Key: "uuid", Value: id}}
 	result, err := f.client.Database(f.Database).Collection(collection).DeleteOne(context.TODO(), filter)
 	if err != nil {
-		return fmt.Errorf("could not update object: %w", err)
+		return fmt.Errorf("could not delete object: %w", err)
 	}
 	if result.DeletedCount == 0 {
 		return storeschema.NotFoundErr{}
