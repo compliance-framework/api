@@ -21,7 +21,89 @@ func (s *Server) RegisterRuntime(e *echo.Echo) error {
 	g.GET("/jobs", s.getJobs)
 	g.POST("/jobs/assign", s.assignJobs)
 	g.POST("/jobs/unassign", s.unassignJobs)
+	g.GET("/plugins", s.getPlugins)
+	g.GET("/plugins/:uuid", s.getPlugin)
+	g.DELETE("/plugins/:uuid", s.deletePlugin)
+	g.PUT("/plugins/:uuid", s.putPlugin)
+	g.POST("/plugins", s.postPlugin)
 	return nil
+}
+func (s *Server) getPlugins(c echo.Context) (err error) {
+	objs, err := s.Driver.GetAll(c.Request().Context(), "plugins", &runtime.RuntimePlugin{})
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.String(http.StatusNotFound, "object not found")
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	return c.JSON(http.StatusOK, objs)
+}
+
+func (s *Server) deletePlugin(c echo.Context) error {
+	p := &runtime.RuntimePlugin{}
+	if err := c.Bind(p); err != nil {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
+	}
+	err := s.Driver.Get(c.Request().Context(), "plugins", c.Param("uuid"), p)
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.JSON(http.StatusOK, p)
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	err = s.Driver.Delete(c.Request().Context(), "plugins", c.Param("uuid"))
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.JSON(http.StatusNotFound, p)
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to delete object: %v", err))
+	}
+	err = c.JSON(http.StatusOK, p)
+	return err
+}
+
+func (s *Server) putPlugin(c echo.Context) error {
+	p := &runtime.RuntimePlugin{}
+	if err := c.Bind(p); err != nil {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
+	}
+	err := s.Driver.Update(c.Request().Context(), "plugins", c.Param("uuid"), p)
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.JSON(http.StatusNotFound, nil)
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
+	}
+	err = c.JSON(http.StatusOK, p)
+	return err
+}
+
+func (s *Server) postPlugin(c echo.Context) error {
+	p := &runtime.RuntimePlugin{}
+	if err := c.Bind(p); err != nil {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
+	}
+	err := s.Driver.Create(c.Request().Context(), "plugins", p.Uuid, p)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to update object: %v", err))
+	}
+	err = c.JSON(http.StatusCreated, p)
+	return err
+}
+
+func (s *Server) getPlugin(c echo.Context) (err error) {
+	p := &runtime.RuntimePlugin{}
+	if err := c.Bind(p); err != nil {
+		return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
+	}
+	err = s.Driver.Get(c.Request().Context(), "plugins", c.Param("uuid"), p)
+	if err != nil {
+		if errors.Is(err, storeschema.NotFoundErr{}) {
+			return c.String(http.StatusNotFound, "object not found")
+		}
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+	}
+	return c.JSON(http.StatusOK, p)
 }
 
 func (s *Server) getConfiguration(c echo.Context) (err error) {
