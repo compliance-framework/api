@@ -53,12 +53,13 @@ type FakeDriver struct {
 	UpdateFn     func(id string, object interface{}) error
 	CreateFn     func(id string, object interface{}) error
 	CreateManyFn func(objects map[string]interface{}) error
+	GetAllFn     func(id string, object interface{}) ([]interface{}, error)
 	GetFn        func(id string, object interface{}) error
 	DeleteFn     func(id string) error
 }
 
-func (f FakeDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-	return nil, nil
+func (f FakeDriver) GetAll(_ context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	return f.GetAllFn(collection, object)
 }
 func (f FakeDriver) Update(_ context.Context, _, id string, object interface{}) error {
 	return f.UpdateFn(id, object)
