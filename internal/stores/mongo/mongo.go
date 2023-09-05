@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
+	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	"github.com/sv-tools/mongoifc"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,7 +24,14 @@ type MongoDriver struct {
 	client   mongoifc.Client
 }
 
+var mu = sync.Mutex{}
+
 func (f *MongoDriver) connect(ctx context.Context) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if f.client != nil {
+		return nil
+	}
 	client, err := mongoifc.Connect(ctx, options.Client().ApplyURI(f.Url))
 	if f.client == nil {
 		f.client = client
@@ -30,12 +39,25 @@ func (f *MongoDriver) connect(ctx context.Context) error {
 	return err
 }
 func (f *MongoDriver) disconnect(ctx context.Context) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if f.client == nil {
+		return nil
+	}
 	err := f.client.Disconnect(ctx)
 	if err != nil {
 		return err
 	}
 	f.client = nil
 	return nil
+}
+
+func (f *MongoDriver) Publish(event pubsub.EventType, collection string, object interface{}) {
+	msg := pubsub.DatabaseEvent{
+		Type:   collection,
+		Object: object,
+	}
+	pubsub.Publish(event, msg)
 }
 
 // TODO Add tests for Update
@@ -58,6 +80,9 @@ func (f *MongoDriver) Update(ctx context.Context, collection, id string, object 
 	if result.ModifiedCount == 0 {
 		return fmt.Errorf("could not modify document %v", id)
 	}
+	defer func() {
+		f.Publish(pubsub.ObjectUpdated, collection, object)
+	}()
 	return err
 }
 
@@ -70,10 +95,13 @@ func (f *MongoDriver) Create(ctx context.Context, collection, _ string, object i
 	defer func() {
 		err = f.disconnect(ctx)
 	}()
-	_, err = f.client.Database(f.Database).Collection(collection).InsertOne(context.TODO(), object)
+	_, err = f.client.Database(f.Database).Collection(collection).InsertOne(ctx, object)
 	if err != nil {
 		return fmt.Errorf("could not create object: %w", err)
 	}
+	defer func() {
+		f.Publish(pubsub.ObjectCreated, collection, object)
+	}()
 	return err
 }
 
@@ -94,11 +122,14 @@ func (f *MongoDriver) CreateMany(ctx context.Context, collection string, objects
 	if err != nil {
 		return fmt.Errorf("could not create object: %w", err)
 	}
+	defer func() {
+		f.Publish(pubsub.ManyObjectsCreated, collection, objects)
+	}()
 	return err
 }
 
 // TODO Add tests for DeleteWhere
-func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ interface{}, conditions map[string]interface{}) error {
+func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, object interface{}, conditions map[string]interface{}) error {
 	err := f.connect(ctx)
 	if err != nil {
 		return fmt.Errorf("could not connect to server: %w", err)
@@ -117,6 +148,10 @@ func (f *MongoDriver) DeleteWhere(ctx context.Context, collection string, _ inte
 	if err != nil {
 		return fmt.Errorf("could not delete object: %w", err)
 	}
+	// TODO figure out this channel if we need it
+	// defer func() {
+	// 	f.Publish(pubsub.ManyObjectsDeleted, collection, objsToDelete)
+	// }()
 	return err
 }
 
@@ -130,13 +165,21 @@ func (f *MongoDriver) Delete(ctx context.Context, collection, id string) error {
 		err = f.disconnect(ctx)
 	}()
 	filter := bson.D{primitive.E{Key: "uuid", Value: id}}
-	result, err := f.client.Database(f.Database).Collection(collection).DeleteOne(context.TODO(), filter)
+	result, err := f.client.Database(f.Database).Collection(collection).DeleteOne(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("could not delete object: %w", err)
 	}
 	if result.DeletedCount == 0 {
 		return storeschema.NotFoundErr{}
 	}
+	defer func() {
+		obj := struct {
+			Uuid string `json:"uuid"`
+		}{
+			Uuid: id,
+		}
+		f.Publish(pubsub.ObjectDeleted, collection, obj)
+	}()
 	return err
 }
 
