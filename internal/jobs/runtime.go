@@ -97,11 +97,46 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	if task.Uuid != config.TaskUuid {
 		return fmt.Errorf("task with uuid %v not found on assessment-plan %v", config.TaskUuid, config.AssessmentPlanUuid)
 	}
+	baseParams := []*models.RuntimeParameters{}
+	for _, v := range task.Props {
+		param := models.RuntimeParameters{
+			Name:  v.Name,
+			Value: v.Value,
+		}
+		baseParams = append(baseParams, &param)
+	}
+
 	for _, activity := range task.AssociatedActivities {
+		params := []*models.RuntimeParameters{}
+		params = append(params, baseParams...)
+		// Including Activities Props into Parameters.
+		// TODO - INCLUDE COMPONENT PROPERTIES
+		if ap.LocalDefinitions == nil {
+			return fmt.Errorf("no local definitions to get associated activities.")
+		}
+		valid := false
+		for _, v := range ap.LocalDefinitions.Activities {
+			if v.Uuid == activity.ActivityUuid {
+				valid = true
+				for _, p := range v.Props {
+					param := models.RuntimeParameters{
+						Name:  p.Name,
+						Value: p.Value,
+					}
+					params = append(params, &param)
+				}
+			}
+		}
+		if !valid {
+			return fmt.Errorf("associated activity %v not found in assessment plan %v", activity.ActivityUuid, config.AssessmentPlanUuid)
+		}
 		for _, subject := range activity.Subjects {
 			for _, include := range subject.IncludeSubjects {
 				job := &models.RuntimeConfigurationJob{
 					ConfigurationUuid: config.Uuid,
+					TaskId:            task.Uuid,
+					AssessmentId:      ap.Uuid,
+					Parameters:        params,
 					ActivityId:        activity.ActivityUuid,
 					SubjectUuid:       include.SubjectUuid,
 					SubjectType:       include.Type.(string),
@@ -125,18 +160,6 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	r.Log.Infow("will create jobs", "jobs", jobs)
 	err = r.Driver.CreateMany(context.Background(), t.Type(), create)
 	return err
-}
-func (r *RuntimeJobCreator) Convert(original *models.RuntimeConfigurationJob) (models.RuntimeConfigurationJobPayload, error) {
-	// TODO - A lot of queries to the database needed to convert this.
-	// Probably better to change the Job structure to use the configuration parameters, and passit on easily
-	// Also probably better to already add extra things on job time, as we already need to check for task existence and activities existence there
-	// This method then would be optional, and we could just send the RuntimeConfigurationJob directly
-	return models.RuntimeConfigurationJobPayload{
-		Uuid:        original.Uuid,
-		RuntimeUuid: original.RuntimeUuid,
-		Schedule:    original.Schedule,
-		SubjectId:   original.SubjectUuid,
-	}, nil
 }
 
 // TODO Make logic better. Too much of a convolution, too many responsibilities
@@ -210,11 +233,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			}
 			delete(t, k)
 			// Job no longer needed - pub it to propagate unassign from runtime
-			a, err := r.Convert(v)
-			if err != nil {
-				return fmt.Errorf("could not convert job %v: %w", v.Uuid, err)
-			}
-			pubsub.PublishPayload(a)
+			pubsub.PublishPayload(*v)
 		}
 	}
 
@@ -251,11 +270,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			if err != nil {
 				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
 			}
-			t, err := r.Convert(&job)
-			if err != nil {
-				return fmt.Errorf("could not convert job %v: %w", job.Uuid, err)
-			}
-			pubsub.PublishPayload(t)
+			pubsub.PublishPayload(job)
 		}
 	}
 	// Update Jobs
@@ -295,11 +310,7 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 		if err != nil {
 			return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
 		}
-		t, err := r.Convert(obj)
-		if err != nil {
-			return fmt.Errorf("could not convert job %v: %w", obj.Uuid, err)
-		}
-		pubsub.PublishPayload(t)
+		pubsub.PublishPayload(*obj)
 	}
 	return err
 }

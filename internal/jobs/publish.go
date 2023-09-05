@@ -48,7 +48,7 @@ func (e *encoder) BindSendChan(subject string, channel any) error {
 type PublishJob struct {
 	conn         *nats.Conn
 	mu           *sync.Mutex
-	runtimeJobCh <-chan runtime.RuntimeConfigurationJobPayload
+	runtimeJobCh <-chan runtime.RuntimeConfigurationJob
 	driver       *internal
 }
 

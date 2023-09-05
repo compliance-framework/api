@@ -96,6 +96,19 @@ func TestCreateJobs(t *testing.T) {
 			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
+				t.LocalDefinitions = &oscal.LocalDefinitions{
+					Activities: []*oscal.CommonActivity{
+						{
+							Uuid: "123",
+							Props: []*oscal.Property{
+								{
+									Name:  "foo",
+									Value: "bar",
+								},
+							},
+						},
+					},
+				}
 				t.Tasks = []*oscal.Task{{
 					Uuid: "123",
 					AssociatedActivities: []*oscal.AssociatedActivity{{
