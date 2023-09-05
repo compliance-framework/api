@@ -3,6 +3,7 @@ module github.com/compliance-framework/configuration-service
 go 1.19
 
 require (
+	dario.cat/mergo v1.0.0
 	github.com/google/uuid v1.3.1
 	github.com/labstack/echo/v4 v4.11.1
 	github.com/nats-io/nats.go v1.28.0

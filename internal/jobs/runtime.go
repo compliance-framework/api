@@ -254,23 +254,15 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			if err != nil {
 				return fmt.Errorf("could not create job %v: %w", job.Uuid, err)
 			}
-		}
-		if ok && o[k].Schedule != config.Schedule {
-			job := models.RuntimeConfigurationJob{
-				ConfigurationUuid: config.Uuid,
-				ActivityId:        v.ActivityId,
-				SubjectUuid:       v.SubjectUuid,
-				SubjectType:       v.SubjectType,
-				Schedule:          config.Schedule,
-				Plugins:           config.Plugins,
-				Uuid:              t[k].Uuid,
-				RuntimeUuid:       t[k].RuntimeUuid,
-			}
-			err = r.Driver.Update(context.Background(), j.Type(), job.Uuid, &job)
+		} else {
+			// Updates that need to be propagated
+			t[k].Schedule = config.Schedule
+			t[k].Plugins = config.Plugins
+			err = r.Driver.Update(context.Background(), j.Type(), t[k].Uuid, t[k])
 			if err != nil {
-				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
+				return fmt.Errorf("could not update job %v: %w", t[k].Uuid, err)
 			}
-			pubsub.PublishPayload(job)
+			pubsub.PublishPayload(*t[k])
 		}
 	}
 	// Update Jobs
