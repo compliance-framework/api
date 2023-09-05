@@ -97,11 +97,46 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	if task.Uuid != config.TaskUuid {
 		return fmt.Errorf("task with uuid %v not found on assessment-plan %v", config.TaskUuid, config.AssessmentPlanUuid)
 	}
+	baseParams := []*models.RuntimeParameters{}
+	for _, v := range task.Props {
+		param := models.RuntimeParameters{
+			Name:  v.Name,
+			Value: v.Value,
+		}
+		baseParams = append(baseParams, &param)
+	}
+
 	for _, activity := range task.AssociatedActivities {
+		params := []*models.RuntimeParameters{}
+		params = append(params, baseParams...)
+		// Including Activities Props into Parameters.
+		// TODO - INCLUDE COMPONENT PROPERTIES
+		if ap.LocalDefinitions == nil {
+			return fmt.Errorf("no local definitions to get associated activities.")
+		}
+		valid := false
+		for _, v := range ap.LocalDefinitions.Activities {
+			if v.Uuid == activity.ActivityUuid {
+				valid = true
+				for _, p := range v.Props {
+					param := models.RuntimeParameters{
+						Name:  p.Name,
+						Value: p.Value,
+					}
+					params = append(params, &param)
+				}
+			}
+		}
+		if !valid {
+			return fmt.Errorf("associated activity %v not found in assessment plan %v", activity.ActivityUuid, config.AssessmentPlanUuid)
+		}
 		for _, subject := range activity.Subjects {
 			for _, include := range subject.IncludeSubjects {
 				job := &models.RuntimeConfigurationJob{
 					ConfigurationUuid: config.Uuid,
+					TaskId:            task.Uuid,
+					AssessmentId:      ap.Uuid,
+					Parameters:        params,
 					ActivityId:        activity.ActivityUuid,
 					SubjectUuid:       include.SubjectUuid,
 					SubjectType:       include.Type.(string),
@@ -198,7 +233,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			}
 			delete(t, k)
 			// Job no longer needed - pub it to propagate unassign from runtime
-			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, v)
+			pubsub.PublishPayload(*v)
 		}
 	}
 
@@ -235,7 +270,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			if err != nil {
 				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
 			}
-			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, job)
+			pubsub.PublishPayload(job)
 		}
 	}
 	// Update Jobs
@@ -275,7 +310,7 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 		if err != nil {
 			return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
 		}
-		pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, obj)
+		pubsub.PublishPayload(*obj)
 	}
 	return err
 }

@@ -31,12 +31,16 @@ type RuntimeConfigurationJobRequest struct {
 type RuntimeConfigurationJob struct {
 	Uuid              string                   `json:"uuid"`
 	ConfigurationUuid string                   `json:"configuration-uuid"`
+	AssessmentId      string                   `json:"assessment-id"`
+	TaskId            string                   `json:"task-id"`
+	ControlId         string                   `json:"control-id,omitempty"`
 	RuntimeUuid       string                   `json:"runtime-uuid,omitempty"`
 	ActivityId        string                   `json:"activity-id,omitempty"`
 	SubjectUuid       string                   `json:"subject-uuid,omitempty"`
 	SubjectType       string                   `json:"subject-type,omitempty"`
 	Schedule          string                   `json:"schedule,omitempty"`
 	Plugins           []*RuntimePluginSelector `json:"plugins,omitempty"`
+	Parameters        []*RuntimeParameters     `json:"parameters,omitempty"` // A copy-paste of Subject properties, control properties, task properties, etc.
 }
 
 // Automatic Register methods. add these for the schema to be fully CRUD-registered
@@ -120,7 +124,8 @@ func (c *RuntimeConfiguration) Type() string {
 
 // RuntimePluginSelector references a plugin uuid
 type RuntimePluginSelector struct {
-	PluginUuid string `json:"plugin-uuid"`
+	Package string `json:"package"`
+	Version string `json:"version"`
 }
 
 // RuntimePlugin defines a plugin configuration storage. TBD if authentication information would reside here or not.
