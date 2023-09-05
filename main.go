@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/compliance-framework/configuration-service/internal/jobs"
 	_ "github.com/compliance-framework/configuration-service/internal/models"
 	"github.com/compliance-framework/configuration-service/internal/server"
@@ -13,7 +15,15 @@ import (
 
 func main() {
 	//driver := &file.FileDriver{Path: "."}
-	driver := &mongo.MongoDriver{Url: "mongodb://mongo:27017", Database: "cf"}
+	mongoUri := os.Getenv("MONGO_URI")
+	if mongoUri == "" {
+		mongoUri = "mongodb://mongo:27017"
+	}
+	natsUri := os.Getenv("NATS_URI")
+	if natsUri == "" {
+		natsUri = "nats://nats:4222"
+	}
+	driver := &mongo.MongoDriver{Url: mongoUri, Database: "cf"}
 	e := echo.New()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -28,7 +38,7 @@ func main() {
 	}
 	go job.Run()
 	pub := jobs.PublishJob{}
-	err = pub.Connect("nats://nats:4222")
+	err = pub.Connect(natsUri)
 	if err != nil {
 		panic(err)
 	}
