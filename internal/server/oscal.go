@@ -27,6 +27,17 @@ func (s *Server) RegisterOSCAL(e *echo.Echo) error {
 	return nil
 }
 
+func (s *Server) genLIST(model schema.BaseModel) func(e echo.Context) (err error) {
+	return func(c echo.Context) (err error) {
+		p := model.DeepCopy()
+		objs, err := s.Driver.GetAll(c.Request().Context(), p.Type(), p)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to get object: %v", err))
+		}
+		return c.JSON(http.StatusOK, objs)
+	}
+}
+
 func (s *Server) genGET(model schema.BaseModel) func(e echo.Context) (err error) {
 	return func(c echo.Context) (err error) {
 		p := model.DeepCopy()

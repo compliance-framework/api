@@ -23,17 +23,17 @@ type RuntimeJobCreator struct {
 }
 
 func (r *RuntimeJobCreator) Init() error {
-	c, err := pubsub.Subscribe(pubsub.RuntimeConfigurationCreated)
+	c, err := pubsub.Subscribe(pubsub.ObjectCreated)
 	if err != nil {
 		return err
 	}
 	r.confCreated = c
-	c, err = pubsub.Subscribe(pubsub.RuntimeConfigurationUpdated)
+	c, err = pubsub.Subscribe(pubsub.ObjectUpdated)
 	if err != nil {
 		return err
 	}
 	r.confUpdated = c
-	c, err = pubsub.Subscribe(pubsub.RuntimeConfigurationDeleted)
+	c, err = pubsub.Subscribe(pubsub.ObjectDeleted)
 	if err != nil {
 		return err
 	}
@@ -65,9 +65,15 @@ func (r *RuntimeJobCreator) Run() {
 }
 
 func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
+	evt := msg.Data.(pubsub.DatabaseEvent)
+	c := models.RuntimeConfiguration{}
+	// skip events that are not runtimeConfiguration changes
+	if evt.Type != c.Type() {
+		return nil
+	}
 	jobs := make([]*models.RuntimeConfigurationJob, 0)
 	r.Log.Infow("creating jobs from RuntimeConfiguration", "msg", msg)
-	d, err := json.Marshal(msg.Data)
+	d, err := json.Marshal(evt.Object)
 	if err != nil {
 		return fmt.Errorf("could not marshal data")
 	}
@@ -124,7 +130,13 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 // TODO Make logic better. Too much of a convolution, too many responsibilities
 // TODO Add OnChange mechanism to listen for assessment-plan changes.
 func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
-	d, err := json.Marshal(msg.Data)
+	evt := msg.Data.(pubsub.DatabaseEvent)
+	c := models.RuntimeConfiguration{}
+	// skip events that are not runtimeConfiguration changes
+	if evt.Type != c.Type() {
+		return nil
+	}
+	d, err := json.Marshal(evt.Object)
 	if err != nil {
 		return fmt.Errorf("could not marshal data")
 	}
@@ -232,8 +244,14 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 
 // TODO Add tests
 func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
+	evt := msg.Data.(pubsub.DatabaseEvent)
+	c := models.RuntimeConfiguration{}
+	// skip events that are not runtimeConfiguration changes
+	if evt.Type != c.Type() {
+		return nil
+	}
 	r.Log.Infow("deleting jobs from RuntimeConfiguration", "msg", msg)
-	d, err := json.Marshal(msg.Data)
+	d, err := json.Marshal(evt.Object)
 	if err != nil {
 		return fmt.Errorf("could not marshal data")
 	}

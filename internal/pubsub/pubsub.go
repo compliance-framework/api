@@ -8,15 +8,22 @@ type EventType int
 
 const (
 	ConfigurationUpdated EventType = iota
-	RuntimeConfigurationCreated
-	RuntimeConfigurationUpdated
-	RuntimeConfigurationDeleted
+	ObjectCreated
+	ObjectUpdated
+	ManyObjectsCreated
+	ManyObjectsDeleted
+	ObjectDeleted
 	RuntimeConfigurationJobEvent
 )
 
 type Event struct {
 	Type EventType
 	Data any
+}
+
+type DatabaseEvent struct {
+	Type   string
+	Object any
 }
 
 var (

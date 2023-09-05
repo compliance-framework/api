@@ -115,7 +115,7 @@ func (c *RuntimeConfiguration) Validate() error {
 }
 
 func (c *RuntimeConfiguration) Type() string {
-	return "configuration"
+	return "configurations"
 }
 
 // RuntimePluginSelector references a plugin uuid
@@ -132,8 +132,83 @@ type RuntimePlugin struct {
 	Configuration []*RuntimeParameters `json:"configuration"`
 }
 
+// Automatic Register methods. add these for the schema to be fully CRUD-registered
+func (c *RuntimePlugin) FromJSON(b []byte) error {
+	return json.Unmarshal(b, c)
+}
+
+func (c *RuntimePlugin) ToJSON() ([]byte, error) {
+	return json.Marshal(c)
+}
+
+func (c *RuntimePlugin) DeepCopy() schema.BaseModel {
+	d := &RuntimePlugin{}
+	p, err := c.ToJSON()
+	if err != nil {
+		panic(err)
+	}
+	err = d.FromJSON(p)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
+func (c *RuntimePlugin) UUID() string {
+	return c.Uuid
+}
+
+func (c *RuntimePlugin) Validate() error {
+	return nil
+}
+
+func (c *RuntimePlugin) Type() string {
+	return "plugins"
+}
+
 // RuntimeParameters are the parameters related to Controls,Assessements,Subjects, etc. to run the assessment.
 type RuntimeParameters struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+type Runtime struct {
+	Uuid   string `json:"uuid"`
+	Name   string `json:"name"`
+	Key    string `json:"key"`
+	Secret string `json:"secret"` //TODO Properly use authentication. this is just a placeholder and should not be used
+}
+
+// Automatic Register methods. add these for the schema to be fully CRUD-registered
+func (c *Runtime) FromJSON(b []byte) error {
+	return json.Unmarshal(b, c)
+}
+
+func (c *Runtime) ToJSON() ([]byte, error) {
+	return json.Marshal(c)
+}
+
+func (c *Runtime) DeepCopy() schema.BaseModel {
+	d := &Runtime{}
+	p, err := c.ToJSON()
+	if err != nil {
+		panic(err)
+	}
+	err = d.FromJSON(p)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
+func (c *Runtime) UUID() string {
+	return c.Uuid
+}
+
+func (c *Runtime) Validate() error {
+	return nil
+}
+
+func (c *Runtime) Type() string {
+	return "runtimes"
 }
