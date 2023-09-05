@@ -2,6 +2,8 @@ package pubsub
 
 import (
 	"sync"
+
+	"github.com/compliance-framework/configuration-service/internal/models/runtime"
 )
 
 type EventType int
@@ -27,9 +29,10 @@ type DatabaseEvent struct {
 }
 
 var (
-	mu     sync.RWMutex
-	subs   map[EventType][]chan Event
-	closed bool
+	mu        sync.RWMutex
+	subs      map[EventType][]chan Event
+	closed    bool
+	payloadCh []chan runtime.RuntimeConfigurationJobPayload
 )
 
 func init() {
@@ -44,6 +47,24 @@ func Subscribe(topic EventType) (<-chan Event, error) {
 	ch := make(chan Event, 1)
 	subs[topic] = append(subs[topic], ch)
 	return ch, nil
+}
+
+func SubscribePayload() <-chan runtime.RuntimeConfigurationJobPayload {
+	mu.Lock()
+	defer mu.Unlock()
+	ch := make(chan runtime.RuntimeConfigurationJobPayload, 1)
+	payloadCh = append(payloadCh, ch)
+	return ch
+}
+
+func PublishPayload(data runtime.RuntimeConfigurationJobPayload) {
+	mu.RLock()
+	defer mu.RUnlock()
+	for _, ch := range payloadCh {
+		go func(ch chan runtime.RuntimeConfigurationJobPayload) {
+			ch <- data
+		}(ch)
+	}
 }
 
 func Publish(topic EventType, data any) {

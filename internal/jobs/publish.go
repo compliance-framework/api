@@ -3,6 +3,7 @@ package jobs
 import (
 	"sync"
 
+	"github.com/compliance-framework/configuration-service/internal/models/runtime"
 	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	"github.com/nats-io/nats.go"
 )
@@ -47,7 +48,7 @@ func (e *encoder) BindSendChan(subject string, channel any) error {
 type PublishJob struct {
 	conn         *nats.Conn
 	mu           *sync.Mutex
-	runtimeJobCh <-chan pubsub.Event
+	runtimeJobCh <-chan runtime.RuntimeConfigurationJobPayload
 	driver       *internal
 }
 
@@ -58,10 +59,7 @@ func (p *PublishJob) Init() error {
 			NewEncodedFn: DefaultEncodedConn,
 		}
 	}
-	ch, err := pubsub.Subscribe(pubsub.RuntimeConfigurationJobEvent)
-	if err != nil {
-		return err
-	}
+	ch := pubsub.SubscribePayload()
 	p.runtimeJobCh = ch
 	if p.mu == nil {
 		p.mu = &sync.Mutex{}

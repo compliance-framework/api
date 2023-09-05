@@ -126,6 +126,18 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	err = r.Driver.CreateMany(context.Background(), t.Type(), create)
 	return err
 }
+func (r *RuntimeJobCreator) Convert(original *models.RuntimeConfigurationJob) (models.RuntimeConfigurationJobPayload, error) {
+	// TODO - A lot of queries to the database needed to convert this.
+	// Probably better to change the Job structure to use the configuration parameters, and passit on easily
+	// Also probably better to already add extra things on job time, as we already need to check for task existence and activities existence there
+	// This method then would be optional, and we could just send the RuntimeConfigurationJob directly
+	return models.RuntimeConfigurationJobPayload{
+		Uuid:        original.Uuid,
+		RuntimeUuid: original.RuntimeUuid,
+		Schedule:    original.Schedule,
+		SubjectId:   original.SubjectUuid,
+	}, nil
+}
 
 // TODO Make logic better. Too much of a convolution, too many responsibilities
 // TODO Add OnChange mechanism to listen for assessment-plan changes.
@@ -198,7 +210,11 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			}
 			delete(t, k)
 			// Job no longer needed - pub it to propagate unassign from runtime
-			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, v)
+			a, err := r.Convert(v)
+			if err != nil {
+				return fmt.Errorf("could not convert job %v: %w", v.Uuid, err)
+			}
+			pubsub.PublishPayload(a)
 		}
 	}
 
@@ -235,7 +251,11 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			if err != nil {
 				return fmt.Errorf("could not update job %v: %w", job.Uuid, err)
 			}
-			pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, job)
+			t, err := r.Convert(&job)
+			if err != nil {
+				return fmt.Errorf("could not convert job %v: %w", job.Uuid, err)
+			}
+			pubsub.PublishPayload(t)
 		}
 	}
 	// Update Jobs
@@ -275,7 +295,11 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 		if err != nil {
 			return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
 		}
-		pubsub.Publish(pubsub.RuntimeConfigurationJobEvent, obj)
+		t, err := r.Convert(obj)
+		if err != nil {
+			return fmt.Errorf("could not convert job %v: %w", obj.Uuid, err)
+		}
+		pubsub.PublishPayload(t)
 	}
 	return err
 }
