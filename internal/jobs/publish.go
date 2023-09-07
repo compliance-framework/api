@@ -6,11 +6,12 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/models/runtime"
 	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 type NatsIfc interface {
 	Connect(url string, options ...nats.Option) (*nats.Conn, error)
-	NewEncodedConn(c *nats.Conn, enc nats.Encoder) (EncoderIfc, error)
+	NewEncodedConn(c *nats.Conn, enc nats.Encoder) (*nats.EncodedConn, error)
 }
 
 type EncoderIfc interface {
@@ -18,14 +19,14 @@ type EncoderIfc interface {
 }
 type internal struct {
 	ConnectFn    func(url string, options ...nats.Option) (*nats.Conn, error)
-	NewEncodedFn func(c *nats.Conn, enc string) (EncoderIfc, error)
+	NewEncodedFn func(c *nats.Conn, enc string) (*nats.EncodedConn, error)
 }
 
 func (i *internal) Connect(url string, options ...nats.Option) (*nats.Conn, error) {
 	return i.ConnectFn(url, options...)
 }
 
-func (i *internal) NewEncodedConn(c *nats.Conn, enc string) (EncoderIfc, error) {
+func (i *internal) NewEncodedConn(c *nats.Conn, enc string) (*nats.EncodedConn, error) {
 	return i.NewEncodedFn(c, enc)
 }
 
@@ -33,22 +34,16 @@ func DefaultConnect(url string, options ...nats.Option) (*nats.Conn, error) {
 	return nats.Connect(url, options...)
 }
 
-func DefaultEncodedConn(c *nats.Conn, enc string) (EncoderIfc, error) {
+func DefaultEncodedConn(c *nats.Conn, enc string) (*nats.EncodedConn, error) {
 	return nats.NewEncodedConn(c, enc)
 }
 
-type encoder struct {
-	BindSendFn func(subject string, channel any) error
-}
-
-func (e *encoder) BindSendChan(subject string, channel any) error {
-	return e.BindSendFn(subject, channel)
-}
-
 type PublishJob struct {
+	Log          *zap.SugaredLogger
 	conn         *nats.Conn
+	ec           *nats.EncodedConn
 	mu           *sync.Mutex
-	runtimeJobCh <-chan runtime.RuntimeConfigurationJob
+	runtimeJobCh <-chan runtime.RuntimeConfigurationJobPayload
 	driver       *internal
 }
 
@@ -88,9 +83,18 @@ func (p *PublishJob) Connect(server string) error {
 	if err != nil {
 		return err
 	}
-	err = ec.BindSendChan("runtime/job-update", p.runtimeJobCh)
-	if err != nil {
-		return err
-	}
+	p.ec = ec
 	return nil
+}
+
+func (p *PublishJob) Run() {
+	for msg := range p.runtimeJobCh {
+		topic := msg.Topic
+		event := msg.RuntimeConfigurationEvent
+		err := p.ec.Publish(topic, event)
+		if err != nil {
+			p.Log.Errorw("failed to publish message", "error", err.Error())
+		}
+
+	}
 }

@@ -6,19 +6,22 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 )
 
-// RuntimeConfigurationJobPayload defines the payload sent to the runtime on calling initial_configuration API. It is a response model, rather than a database model.
+type PayloadEventType string
+
+const (
+	PayloadEventUpdated PayloadEventType = "updated"
+	PayloadEventCreated PayloadEventType = "created"
+	PayloadEventDeleted PayloadEventType = "deleted"
+)
+
 type RuntimeConfigurationJobPayload struct {
-	Uuid         string               `json:"uuid" query:"uuid"`
-	RuntimeUuid  string               `json:"runtime-id"`
-	SspId        string               `json:"ssp-id,omitempty"`
-	AssessmentId string               `json:"assessment-id"`
-	TaskId       string               `json:"task-id"`
-	ActivityId   string               `json:"activity-id,omitempty"`
-	SubjectId    string               `json:"subject-id,omitempty"`
-	ControlId    string               `json:"control-id,omitempty"`
-	Schedule     string               `json:"schedule"`
-	Plugins      []*RuntimePlugin     `json:"plugins,omitempty"`
-	Parameters   []*RuntimeParameters `json:"parameters,omitempty"` // A copy-paste of Subject properties, control properties, task properties, etc.
+	Topic string `json:"topic"`
+	RuntimeConfigurationEvent
+}
+type RuntimeConfigurationEvent struct {
+	Uuid string                   `json:"uuid"`
+	Type PayloadEventType         `json:"type"`
+	Data *RuntimeConfigurationJob `json:"data"`
 }
 
 // RuntimeConfigurationJobRequest is the request payload for assignJobs
