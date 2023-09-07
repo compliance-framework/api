@@ -38,14 +38,6 @@ func DefaultEncodedConn(c *nats.Conn, enc string) (*nats.EncodedConn, error) {
 	return nats.NewEncodedConn(c, enc)
 }
 
-type encoder struct {
-	BindSendFn func(subject string, channel any) error
-}
-
-func (e *encoder) BindSendChan(subject string, channel any) error {
-	return e.BindSendFn(subject, channel)
-}
-
 type PublishJob struct {
 	Log          *zap.SugaredLogger
 	conn         *nats.Conn
@@ -96,16 +88,13 @@ func (p *PublishJob) Connect(server string) error {
 }
 
 func (p *PublishJob) Run() {
-	for {
-		select {
-		case msg := <-p.runtimeJobCh:
-			topic := msg.Topic
-			event := msg.RuntimeConfigurationEvent
-			err := p.ec.Publish(topic, event)
-			if err != nil {
-				p.Log.Errorw("failed to publish message", "error", err.Error())
-			}
-
+	for msg := range p.runtimeJobCh {
+		topic := msg.Topic
+		event := msg.RuntimeConfigurationEvent
+		err := p.ec.Publish(topic, event)
+		if err != nil {
+			p.Log.Errorw("failed to publish message", "error", err.Error())
 		}
+
 	}
 }
