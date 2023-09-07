@@ -30,11 +30,6 @@ func TestConnect(t *testing.T) {
 			encErr:    fmt.Errorf("boom!"),
 			expectErr: "boom!",
 		},
-		{
-			name:      "fail binding",
-			bindErr:   fmt.Errorf("boom!"),
-			expectErr: "boom!",
-		},
 	}
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -43,12 +38,11 @@ func TestConnect(t *testing.T) {
 					c := nats.Conn{}
 					return &c, testCases[i].connErr
 				},
-				NewEncodedFn: func(c *nats.Conn, enc string) (EncoderIfc, error) {
-					return &encoder{BindSendFn: func(subject string, channel any) error {
-						return testCases[i].bindErr
-					}}, testCases[i].encErr
+				NewEncodedFn: func(c *nats.Conn, enc string) (*nats.EncodedConn, error) {
+					return &nats.EncodedConn{}, testCases[i].encErr
 				},
-			}}
+			},
+			}
 			err := p.Init()
 			require.NoError(t, err)
 			err = p.Connect("nats://nats:4222")

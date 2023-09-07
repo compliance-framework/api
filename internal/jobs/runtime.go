@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	oscal "github.com/compliance-framework/configuration-service/internal/models/oscal/v1_1"
+	"github.com/compliance-framework/configuration-service/internal/models/runtime"
 	models "github.com/compliance-framework/configuration-service/internal/models/runtime"
 	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
@@ -233,7 +234,15 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			}
 			delete(t, k)
 			// Job no longer needed - pub it to propagate unassign from runtime
-			pubsub.PublishPayload(*v)
+			event := runtime.RuntimeConfigurationJobPayload{
+				Topic: fmt.Sprintf("runtime.configuration.%v", v.RuntimeUuid),
+				RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
+					Data: nil,
+					Type: runtime.PayloadEventDeleted,
+					Uuid: v.Uuid,
+				},
+			}
+			pubsub.PublishPayload(event)
 		}
 	}
 
@@ -262,7 +271,15 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			if err != nil {
 				return fmt.Errorf("could not update job %v: %w", t[k].Uuid, err)
 			}
-			pubsub.PublishPayload(*t[k])
+			event := runtime.RuntimeConfigurationJobPayload{
+				Topic: fmt.Sprintf("runtime.configuration.%v", t[k].RuntimeUuid),
+				RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
+					Data: t[k],
+					Type: runtime.PayloadEventUpdated,
+					Uuid: t[k].Uuid,
+				},
+			}
+			pubsub.PublishPayload(event)
 		}
 	}
 	// Update Jobs
@@ -297,12 +314,19 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 	}
 	for _, o := range objs {
 		obj := o.(*models.RuntimeConfigurationJob)
-		obj.RuntimeUuid = ""
 		err = r.Driver.Delete(context.Background(), job.Type(), obj.Uuid)
 		if err != nil {
 			return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
 		}
-		pubsub.PublishPayload(*obj)
+		event := runtime.RuntimeConfigurationJobPayload{
+			Topic: fmt.Sprintf("runtime.configuration.%v", obj.RuntimeUuid),
+			RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
+				Data: nil,
+				Type: runtime.PayloadEventDeleted,
+				Uuid: obj.Uuid,
+			},
+		}
+		pubsub.PublishPayload(event)
 	}
 	return err
 }

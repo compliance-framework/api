@@ -42,6 +42,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	go pub.Run()
 	sv := server.Server{Driver: driver}
 	err = sv.RegisterOSCAL(e)
 	if err != nil {

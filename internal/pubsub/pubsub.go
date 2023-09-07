@@ -32,7 +32,7 @@ var (
 	mu        sync.RWMutex
 	subs      map[EventType][]chan Event
 	closed    bool
-	payloadCh []chan runtime.RuntimeConfigurationJob
+	payloadCh []chan runtime.RuntimeConfigurationJobPayload
 )
 
 func init() {
@@ -49,19 +49,19 @@ func Subscribe(topic EventType) (<-chan Event, error) {
 	return ch, nil
 }
 
-func SubscribePayload() <-chan runtime.RuntimeConfigurationJob {
+func SubscribePayload() <-chan runtime.RuntimeConfigurationJobPayload {
 	mu.Lock()
 	defer mu.Unlock()
-	ch := make(chan runtime.RuntimeConfigurationJob, 1)
+	ch := make(chan runtime.RuntimeConfigurationJobPayload, 1)
 	payloadCh = append(payloadCh, ch)
 	return ch
 }
 
-func PublishPayload(data runtime.RuntimeConfigurationJob) {
+func PublishPayload(data runtime.RuntimeConfigurationJobPayload) {
 	mu.RLock()
 	defer mu.RUnlock()
 	for _, ch := range payloadCh {
-		go func(ch chan runtime.RuntimeConfigurationJob) {
+		go func(ch chan runtime.RuntimeConfigurationJobPayload) {
 			ch <- data
 		}(ch)
 	}
