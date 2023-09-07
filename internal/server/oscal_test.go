@@ -299,6 +299,18 @@ func TestGenDELETE(t *testing.T) {
 			requestPath:  "/foo/123",
 			expectedCode: http.StatusInternalServerError,
 		},
+		{
+			name: "object-not-found",
+			deleteFn: func(id string) error {
+				return storeschema.NotFoundErr{}
+			},
+			params: map[string]string{
+				"uuid": "123",
+			},
+			path:         "/foo/:uuid",
+			requestPath:  "/foo/123",
+			expectedCode: http.StatusNotFound,
+		},
 	}
 	for idx := range tc {
 		drv := FakeDriver{GetFn: tc[idx].getFn, DeleteFn: tc[idx].deleteFn, UpdateFn: tc[idx].updateFn, CreateFn: tc[idx].postFn}

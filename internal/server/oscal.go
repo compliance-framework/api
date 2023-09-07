@@ -97,9 +97,14 @@ func (s *Server) genDELETE(model schema.BaseModel) func(e echo.Context) (err err
 			return c.String(http.StatusBadRequest, fmt.Sprintf("bad request: %v", err))
 		}
 		err = s.Driver.Delete(c.Request().Context(), p.Type(), c.Param("uuid"))
+
 		if err != nil {
+			if errors.Is(err, storeschema.NotFoundErr{}) {
+				return c.String(http.StatusNotFound, "object not found")
+			}
 			return c.String(http.StatusInternalServerError, fmt.Sprintf("failed to delete object: %v", err))
 		}
+
 		return c.JSON(http.StatusOK, p)
 	}
 }
