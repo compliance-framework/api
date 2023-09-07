@@ -78,3 +78,11 @@ lint: lint.check ## Run golangci-lint
 		exit 1; \
 	fi ; \
 	$(OK) No linting issues found
+
+.PHONY: debug
+debug: ## Run docker-compose with debug
+	@docker-compose -f ./tests/docker-compose.yml up -d --build
+
+.PHONY: debug.stop
+debug.stop: ## Run docker-compose with debug
+	@docker-compose -f ./tests/docker-compose.yml down

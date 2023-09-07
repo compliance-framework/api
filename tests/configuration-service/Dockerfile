@@ -1,4 +1,4 @@
-FROM golang:1.21 as builder
+FROM golang:1.21 as tester
 
 # Set destination for COPY
 WORKDIR /app
@@ -11,14 +11,6 @@ RUN go mod download
 # https://docs.docker.com/engine/reference/builder/#copy
 COPY . ./
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /svc
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
-# Use a minimal base image to package the runtime binary
-FROM alpine:latest
-
-WORKDIR /app
-
-COPY --from=builder /svc ./svc
-# Run
-CMD ["./svc"]
+CMD ["dlv", "debug", ".", "--listen=:2345", "--headless=true", "--api-version=2", "--log"]
