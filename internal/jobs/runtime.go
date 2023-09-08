@@ -131,22 +131,18 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 		if !valid {
 			return fmt.Errorf("associated activity %v not found in assessment plan %v", activity.ActivityUuid, config.AssessmentPlanUuid)
 		}
-		for _, subject := range activity.Subjects {
-			for _, include := range subject.IncludeSubjects {
-				job := &models.RuntimeConfigurationJob{
-					ConfigurationUuid: config.Uuid,
-					TaskId:            task.Uuid,
-					AssessmentId:      ap.Uuid,
-					Parameters:        params,
-					ActivityId:        activity.ActivityUuid,
-					SubjectUuid:       include.SubjectUuid,
-					SubjectType:       include.Type.(string),
-					Schedule:          config.Schedule,
-					Plugins:           config.Plugins,
-				}
-				jobs = append(jobs, job)
-			}
+		job := &models.RuntimeConfigurationJob{
+			ConfigurationUuid: config.Uuid,
+			TaskUuid:          task.Uuid,
+			AssessmentId:      ap.Uuid,
+			Parameters:        params,
+			ActivityId:        activity.ActivityUuid,
+			RuntimeUuid:       config.RuntimeUuid,
+			TargetSubjects:    config.TargetSubjects,
+			Schedule:          config.Schedule,
+			Plugins:           config.Plugins,
 		}
+		jobs = append(jobs, job)
 	}
 	create := make(map[string]interface{})
 	for i := range jobs {
@@ -160,7 +156,21 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	t := &models.RuntimeConfigurationJob{}
 	r.Log.Infow("will create jobs", "jobs", jobs)
 	err = r.Driver.CreateMany(context.Background(), t.Type(), create)
-	return err
+	if err != nil {
+		return fmt.Errorf("could not create jobs: %w", err)
+	}
+	for _, job := range jobs {
+		event := runtime.RuntimeConfigurationJobPayload{
+			Topic: fmt.Sprintf("runtime.configuration.%v", job.RuntimeUuid),
+			RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
+				Data: job,
+				Type: runtime.PayloadEventCreated,
+				Uuid: job.Uuid,
+			},
+		}
+		pubsub.PublishPayload(event)
+	}
+	return nil
 }
 
 // TODO Make logic better. Too much of a convolution, too many responsibilities
@@ -198,6 +208,14 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	if task.Uuid != config.TaskUuid {
 		return fmt.Errorf("task with uuid %v not found on assessment-plan %v", config.TaskUuid, config.AssessmentPlanUuid)
 	}
+	baseParams := []*models.RuntimeParameters{}
+	for _, v := range task.Props {
+		param := models.RuntimeParameters{
+			Name:  v.Name,
+			Value: v.Value,
+		}
+		baseParams = append(baseParams, &param)
+	}
 	j := &models.RuntimeConfigurationJob{}
 	filter := map[string]interface{}{
 		"configuration-uuid": config.Uuid,
@@ -209,20 +227,14 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	t := map[string]*models.RuntimeConfigurationJob{}
 	for _, jj := range jobs {
 		job := jj.(*models.RuntimeConfigurationJob)
-		key := fmt.Sprintf("%s/%s", job.ActivityId, job.SubjectUuid)
+		key := job.ActivityId
 		t[key] = job
 	}
 	o := map[string]*models.RuntimeConfigurationJob{}
 	for _, activity := range task.AssociatedActivities {
-		for _, subject := range activity.Subjects {
-			for _, include := range subject.IncludeSubjects {
-				k := fmt.Sprintf("%s/%s", activity.ActivityUuid, include.SubjectUuid)
-				o[k] = &models.RuntimeConfigurationJob{
-					ActivityId:  activity.ActivityUuid,
-					SubjectUuid: include.SubjectUuid,
-					SubjectType: include.Type.(string),
-				}
-			}
+		k := activity.ActivityUuid
+		o[k] = &models.RuntimeConfigurationJob{
+			ActivityId: activity.ActivityUuid,
 		}
 	}
 	// Remove uneeded Jobs
@@ -246,16 +258,31 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 		}
 	}
 
-	for k, v := range o {
+	for k := range o {
 		_, ok := t[k]
+		params := []*models.RuntimeParameters{}
+		params = append(params, baseParams...)
+		for _, v := range ap.LocalDefinitions.Activities {
+			if v.Uuid == k {
+				for _, p := range v.Props {
+					param := models.RuntimeParameters{
+						Name:  p.Name,
+						Value: p.Value,
+					}
+					params = append(params, &param)
+				}
+			}
+		}
 		// Create New Jobs
 		if !ok {
-			// TODO As this is a new job, no runtime-uuid assigned to it. Does that make sense?
 			job := &models.RuntimeConfigurationJob{
 				ConfigurationUuid: config.Uuid,
-				ActivityId:        v.ActivityId,
-				SubjectUuid:       v.SubjectUuid,
-				SubjectType:       v.SubjectType,
+				TaskUuid:          task.Uuid,
+				AssessmentId:      ap.Uuid,
+				Parameters:        params,
+				ActivityId:        k,
+				RuntimeUuid:       config.RuntimeUuid,
+				TargetSubjects:    config.TargetSubjects,
 				Schedule:          config.Schedule,
 				Plugins:           config.Plugins,
 			}
@@ -263,10 +290,21 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			if err != nil {
 				return fmt.Errorf("could not create job %v: %w", job.Uuid, err)
 			}
+			event := runtime.RuntimeConfigurationJobPayload{
+				Topic: fmt.Sprintf("runtime.configuration.%v", job.RuntimeUuid),
+				RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
+					Data: job,
+					Type: runtime.PayloadEventCreated,
+					Uuid: job.Uuid,
+				},
+			}
+			pubsub.PublishPayload(event)
+
 		} else {
 			// Updates that need to be propagated
 			t[k].Schedule = config.Schedule
 			t[k].Plugins = config.Plugins
+			t[k].Parameters = params
 			err = r.Driver.Update(context.Background(), j.Type(), t[k].Uuid, t[k])
 			if err != nil {
 				return fmt.Errorf("could not update job %v: %w", t[k].Uuid, err)
@@ -282,7 +320,6 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			pubsub.PublishPayload(event)
 		}
 	}
-	// Update Jobs
 	return nil
 }
 

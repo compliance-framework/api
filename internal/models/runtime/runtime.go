@@ -32,17 +32,16 @@ type RuntimeConfigurationJobRequest struct {
 
 // RuntimeConfigurationJob defines the database representation of a runtime job. It is the source of information for the RuntimeConfigurationPayload
 type RuntimeConfigurationJob struct {
-	Uuid              string                   `json:"uuid"`
+	Uuid              string                   `json:"uuid" query:"uuid"`
+	RuntimeUuid       string                   `json:"runtime-uuid"`
+	TargetSubjects    []*TargetSubject         `json:"target-subjects"`
+	TaskUuid          string                   `json:"task-uuid"`
+	Schedule          string                   `json:"schedule"`
+	Plugins           []*RuntimePluginSelector `json:"plugins"`
 	ConfigurationUuid string                   `json:"configuration-uuid"`
 	AssessmentId      string                   `json:"assessment-id"`
-	TaskId            string                   `json:"task-id"`
 	ControlId         string                   `json:"control-id,omitempty"`
-	RuntimeUuid       string                   `json:"runtime-uuid,omitempty"`
 	ActivityId        string                   `json:"activity-id,omitempty"`
-	SubjectUuid       string                   `json:"subject-uuid,omitempty"`
-	SubjectType       string                   `json:"subject-type,omitempty"`
-	Schedule          string                   `json:"schedule,omitempty"`
-	Plugins           []*RuntimePluginSelector `json:"plugins,omitempty"`
 	Parameters        []*RuntimeParameters     `json:"parameters,omitempty"` // A copy-paste of Subject properties, control properties, task properties, etc.
 }
 
@@ -80,11 +79,35 @@ func (c *RuntimeConfigurationJob) Type() string {
 	return "jobs"
 }
 
+// TargetSubject relates how to select a given subject for the runtime to create jobs
+type TargetSubject struct {
+	MatchQuery       string             `json:"match-query,omitempty"`
+	MatchLabels      map[string]string  `json:"match-labels,omitempty"`
+	MatchExpressions []*MatchExpression `json:"match-expressions,omitempty"`
+	FromAssessment   *FromAssessment    `json:"direct-match,omitempty"`
+}
+type FromAssessment struct {
+	Subjects []*Subject `json:"subjects"`
+}
+
+type Subject struct {
+	SubjectUuid string `json:"subject-uuid,omitempty"`
+	SubjectType string `json:"subject-type,omitempty"`
+}
+
+type MatchExpression struct {
+	Key      string   `json:"key"`
+	Operator string   `json:"operator"`
+	Values   []string `json:"values"`
+}
+
 // RuntimeConfiguration defines that a given Task on an AssessmentPlan will be assessed by a plugin. It is a template because multiple subjects might be assessed.
 type RuntimeConfiguration struct {
-	Uuid               string `json:"uuid" query:"uuid"`
-	AssessmentPlanUuid string `json:"assessment-plan-uuid"`
-	TaskUuid           string `json:"task-uuid"`
+	Uuid               string           `json:"uuid" query:"uuid"`
+	AssessmentPlanUuid string           `json:"assessment-plan-uuid"`
+	RuntimeUuid        string           `json:"runtime-uuid"`
+	TargetSubjects     []*TargetSubject `json:"target-subjects"`
+	TaskUuid           string           `json:"task-uuid"`
 	// For simplicity, all activities in a task are going to be assessed.
 	//Activities         []*oscal.AssociatedActivity `json:"activities"`
 	Schedule string                   `json:"schedule"`

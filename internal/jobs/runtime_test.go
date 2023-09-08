@@ -304,8 +304,11 @@ func TestUpdateJobs(t *testing.T) {
 					Uuid:              "123",
 					ConfigurationUuid: "123",
 					ActivityId:        "124",
-					SubjectUuid:       "123",
-					SubjectType:       "component",
+					TargetSubjects: []*runtime.TargetSubject{
+						{
+							MatchQuery: "123",
+						},
+					},
 				}
 				out := make([]interface{}, 0)
 				out = append(out, obj)
@@ -329,8 +332,11 @@ func TestUpdateJobs(t *testing.T) {
 					Uuid:              "123",
 					ConfigurationUuid: "123",
 					ActivityId:        "124",
-					SubjectUuid:       "123",
-					SubjectType:       "component",
+					TargetSubjects: []*runtime.TargetSubject{
+						{
+							MatchQuery: "123",
+						},
+					},
 				}
 				out := make([]interface{}, 0)
 				out = append(out, obj)
@@ -343,6 +349,19 @@ func TestUpdateJobs(t *testing.T) {
 			CreateFn: func(id string, object interface{}) error { return fmt.Errorf("boom") },
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
+				t.LocalDefinitions = &oscal.LocalDefinitions{
+					Activities: []*oscal.CommonActivity{
+						{
+							Uuid: "123",
+							Props: []*oscal.Property{
+								{
+									Name:  "foo",
+									Value: "bar",
+								},
+							},
+						},
+					},
+				}
 				t.Tasks = []*oscal.Task{{
 					Uuid: "123",
 					AssociatedActivities: []*oscal.AssociatedActivity{{
@@ -372,6 +391,19 @@ func TestUpdateJobs(t *testing.T) {
 			CreateFn: func(id string, object interface{}) error { return nil },
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
+				t.LocalDefinitions = &oscal.LocalDefinitions{
+					Activities: []*oscal.CommonActivity{
+						{
+							Uuid: "123",
+							Props: []*oscal.Property{
+								{
+									Name:  "foo",
+									Value: "bar",
+								},
+							},
+						},
+					},
+				}
 				t.Tasks = []*oscal.Task{{
 					Uuid: "123",
 					AssociatedActivities: []*oscal.AssociatedActivity{{
@@ -400,6 +432,19 @@ func TestUpdateJobs(t *testing.T) {
 			UpdateFn: func(id string, object interface{}) error { return fmt.Errorf("boom") },
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
+				t.LocalDefinitions = &oscal.LocalDefinitions{
+					Activities: []*oscal.CommonActivity{
+						{
+							Uuid: "123",
+							Props: []*oscal.Property{
+								{
+									Name:  "foo",
+									Value: "bar",
+								},
+							},
+						},
+					},
+				}
 				t.Tasks = []*oscal.Task{{
 					Uuid: "123",
 					AssociatedActivities: []*oscal.AssociatedActivity{{
@@ -423,9 +468,12 @@ func TestUpdateJobs(t *testing.T) {
 					Uuid:              "123",
 					ConfigurationUuid: "123",
 					ActivityId:        "123",
-					SubjectUuid:       "123",
-					SubjectType:       "component",
-					Schedule:          "12345",
+					TargetSubjects: []*runtime.TargetSubject{
+						{
+							MatchQuery: "123",
+						},
+					},
+					Schedule: "12345",
 				}
 				out := make([]interface{}, 0)
 				out = append(out, obj)
@@ -439,6 +487,19 @@ func TestUpdateJobs(t *testing.T) {
 			UpdateFn: func(id string, object interface{}) error { return nil },
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
+				t.LocalDefinitions = &oscal.LocalDefinitions{
+					Activities: []*oscal.CommonActivity{
+						{
+							Uuid: "123",
+							Props: []*oscal.Property{
+								{
+									Name:  "foo",
+									Value: "bar",
+								},
+							},
+						},
+					},
+				}
 				t.Tasks = []*oscal.Task{{
 					Uuid: "123",
 					AssociatedActivities: []*oscal.AssociatedActivity{{
@@ -462,9 +523,12 @@ func TestUpdateJobs(t *testing.T) {
 					Uuid:              "123",
 					ConfigurationUuid: "123",
 					ActivityId:        "123",
-					SubjectUuid:       "123",
-					SubjectType:       "component",
-					Schedule:          "12345",
+					TargetSubjects: []*runtime.TargetSubject{
+						{
+							MatchQuery: "123",
+						},
+					},
+					Schedule: "12345",
 				}
 				out := make([]interface{}, 0)
 				out = append(out, obj)
