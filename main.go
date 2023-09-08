@@ -37,7 +37,16 @@ func main() {
 		panic(err)
 	}
 	go job.Run()
-	pub := jobs.PublishJob{}
+	sub := jobs.SubscribeJob{Log: sugar}
+	err = sub.Connect(natsUri)
+	if err != nil {
+		panic(err)
+	}
+	sub.Subscribe("foo.bar")
+	sub.Subscribe("foo.baz")
+	sub.Subscribe("yada.yada")
+
+	pub := jobs.PublishJob{Log: sugar}
 	err = pub.Connect(natsUri)
 	if err != nil {
 		panic(err)
