@@ -234,12 +234,14 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	for _, activity := range task.AssociatedActivities {
 		k := activity.ActivityUuid
 		o[k] = &models.RuntimeConfigurationJob{
-			ActivityId: activity.ActivityUuid,
+			RuntimeUuid: config.RuntimeUuid,
+			ActivityId:  activity.ActivityUuid,
 		}
 	}
 	// Remove uneeded Jobs
 	for k, v := range t {
-		if _, ok := o[k]; !ok {
+		if _, ok := o[k]; !ok ||
+			ok && o[k].RuntimeUuid != v.RuntimeUuid { // If the runtime uuid changed, we need to effectively recreate this job
 			err = r.Driver.Delete(context.Background(), j.Type(), v.Uuid)
 			if err != nil {
 				return fmt.Errorf("could not delete job %v: %w", v.Uuid, err)
@@ -274,7 +276,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 			}
 		}
 		// Create New Jobs
-		if !ok {
+		if !ok { // similar logic is not needed as we've removed the old the old job from t[k]
 			job := &models.RuntimeConfigurationJob{
 				ConfigurationUuid: config.Uuid,
 				TaskUuid:          task.Uuid,
