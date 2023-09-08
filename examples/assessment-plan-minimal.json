@@ -234,6 +234,16 @@
                             "type": "component"
                         }
                     ]
+                },
+                {
+                    "activity-uuid": "e04f7b14-2504-423c-857f-fa8bd4913515",
+                    "remarks": "This is an associated activity. Properties here are not cascaded to the runtime",
+                    "responsible-roles": [],
+                    "subjects": [{
+                        "include-all": {},
+                        "type": "component"
+                    }
+                    ]
                 }
             ],
             "dependencies": [],
@@ -255,53 +265,6 @@
             "title": "this is a task",
             "type": "test",
             "uuid": "a017f164-7785-41fd-8682-42765b504b4d"
-        },
-        {
-            "associated-activities": [
-                {
-                    "activity-uuid": "e04f7b14-2504-423c-857f-fa8bd4913515",
-                    "remarks": "This is an associated activity. Properties here are not cascaded to the runtime",
-                    "responsible-roles": [],
-                    "subjects": [
-                        {
-                            "description": "The Subjects that are included for this activity",
-                            "include-subjects": [
-                                {
-                                    "remarks": "This is a component on the imported System Security Plan. Both tasks target this component",
-                                    "subject-uuid": "c0551bea-5366-48eb-b4f0-e81377ba2f10",
-                                    "type": "component"
-                                },
-                                {
-                                    "remarks": "This is another component that also needs to be verified on this activity scope",
-                                    "subject-uuid": "64bcc1a6-3edd-474c-aca3-81ff29554ea4",
-                                    "type": "component"
-                                }
-                            ],
-                            "remarks": "remakrs on the subject choice. Not sure why the duplicate type in here.",
-                            "type": "component"
-                        }
-                    ]
-                }
-            ],
-            "dependencies": [],
-            "description": "This is a second task.",
-            "props": [
-                {
-                    "class": "compliance-framework-plugin",
-                    "group": "",
-                    "name": "this-is-a-common-configuration-across-all-jobs-created-from-this-task",
-                    "ns": "https://compliance-framework.io/oscal/ns",
-                    "remarks": "This property defines another configuration for that other plugin",
-                    "uuid": "",
-                    "value": "very-unimportant-configuration"
-                }
-        ],
-            "remarks": "Ideally subjects is a superset of the activities subject. Ignored for simplification.  Task properties are also cascaded to runtimeJob",
-            "responsible-roles":[],
-            "subjects": [],
-            "title": "this is another task",
-            "type": "test",
-            "uuid": "9bd0e042-0ea0-489b-9acc-ec569a1b9128"
         }
     ],
     "terms-and-conditions": {}
