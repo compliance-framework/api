@@ -11,12 +11,12 @@ type SubscribeJob struct {
 	Log          *zap.SugaredLogger
 	conn         *nats.Conn
 	mu           *sync.Mutex
-	runtimeJobCh chan<- any
+	RuntimeJobCh chan *nats.Msg
 }
 
 func (s *SubscribeJob) Init() error {
-	ch := make(chan<- any, 1)
-	s.runtimeJobCh = ch
+	ch := make(chan *nats.Msg, 1)
+	s.RuntimeJobCh = ch
 	if s.mu == nil {
 		s.mu = &sync.Mutex{}
 	}
@@ -31,7 +31,7 @@ func (s *SubscribeJob) Connect(server string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.conn != nil && s.runtimeJobCh != nil {
+	if s.conn != nil && s.RuntimeJobCh != nil {
 		return nil
 	}
 
@@ -43,10 +43,15 @@ func (s *SubscribeJob) Connect(server string) error {
 	return nil
 }
 
-// Subscribe to a given topic
+// Subscribe to a given topic in a channel
 func (s *SubscribeJob) Subscribe(topic string) {
-	s.conn.Subscribe(topic, func(msg *nats.Msg) {
-		// on a new message received, forward to a given channel
-		s.Log.Infow("Message received!", "msg", msg, "topic", topic)
-	})
+	s.conn.ChanSubscribe(topic, s.RuntimeJobCh)
+	s.Log.Infow("Subscribed to topic", "topic", topic)
+
+}
+
+func (s *SubscribeJob) ReadFromChannel() {
+	for msg := range s.RuntimeJobCh {
+		s.Log.Infow("Message received!", "msg", msg)
+	}
 }
