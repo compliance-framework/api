@@ -264,14 +264,16 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 		_, ok := t[k]
 		params := []*models.RuntimeParameters{}
 		params = append(params, baseParams...)
-		for _, v := range ap.LocalDefinitions.Activities {
-			if v.Uuid == k {
-				for _, p := range v.Props {
-					param := models.RuntimeParameters{
-						Name:  p.Name,
-						Value: p.Value,
+		if ap.LocalDefinitions != nil {
+			for _, v := range ap.LocalDefinitions.Activities {
+				if v.Uuid == k {
+					for _, p := range v.Props {
+						param := models.RuntimeParameters{
+							Name:  p.Name,
+							Value: p.Value,
+						}
+						params = append(params, &param)
 					}
-					params = append(params, &param)
 				}
 			}
 		}
