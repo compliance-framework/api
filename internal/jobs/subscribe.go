@@ -8,15 +8,13 @@ import (
 )
 
 type SubscribeJob struct {
-	Log          *zap.SugaredLogger
-	conn         *nats.Conn
-	mu           *sync.Mutex
-	RuntimeJobCh chan *nats.Msg
+	Log           *zap.SugaredLogger
+	conn          *nats.Conn
+	mu            *sync.Mutex
+	subscriptions map[string]chan *nats.Msg
 }
 
 func (s *SubscribeJob) Init() error {
-	ch := make(chan *nats.Msg, 1)
-	s.RuntimeJobCh = ch
 	if s.mu == nil {
 		s.mu = &sync.Mutex{}
 	}
@@ -31,7 +29,7 @@ func (s *SubscribeJob) Connect(server string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.conn != nil && s.RuntimeJobCh != nil {
+	if s.conn != nil {
 		return nil
 	}
 
@@ -39,19 +37,36 @@ func (s *SubscribeJob) Connect(server string) error {
 	if err != nil {
 		return err
 	}
+
 	s.conn = nc
 	return nil
 }
 
-// Subscribe to a given topic in a channel
-func (s *SubscribeJob) Subscribe(topic string) {
-	s.conn.ChanSubscribe(topic, s.RuntimeJobCh)
-	s.Log.Infow("Subscribed to topic", "topic", topic)
-
+func (s *SubscribeJob) createChannel(topic string) chan *nats.Msg {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ch, ok := s.subscriptions[topic]
+	if !ok {
+		ch = make(chan *nats.Msg, 1)
+		s.subscriptions[topic] = ch
+	}
+	return ch
 }
 
-func (s *SubscribeJob) ReadFromChannel() {
-	for msg := range s.RuntimeJobCh {
+// Subscribe to a given topic in a channel
+func (s *SubscribeJob) Subscribe(topic string) {
+	ch := s.createChannel(topic)
+	s.conn.ChanSubscribe(topic, ch)
+	s.Log.Infow("Subscribed to topic", "topic", topic)
+}
+
+func (s *SubscribeJob) ReadFromChannel(topic string) {
+	ch, ok := s.subscriptions[topic]
+	if !ok {
+		s.Log.Errorw("Channel not found", "topic", topic)
+		return
+	}
+	for msg := range ch {
 		s.Log.Infow("Message received!", "msg", msg)
 	}
 }
