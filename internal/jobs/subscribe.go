@@ -18,6 +18,7 @@ func (s *SubscribeJob) Init() error {
 	if s.mu == nil {
 		s.mu = &sync.Mutex{}
 	}
+	s.subscriptions = make(map[string]chan *nats.Msg)
 	return nil
 }
 
