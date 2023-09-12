@@ -30,19 +30,29 @@ type RuntimeConfigurationJobRequest struct {
 	Limit       int    `json:"limit"`
 }
 
-// RuntimeConfigurationJob defines the database representation of a runtime job. It is the source of information for the RuntimeConfigurationPayload
+type Activity struct {
+	Id         string `yaml:"id" json:"id"`
+	Selector   Selector
+	ControlId  string              `yaml:"control-id,omitempty" json:"control-id,omitempty"`
+	Plugins    []RuntimePlugin     `yaml:"plugins,omitempty" json:"plugins,omitempty"`
+	Parameters []RuntimeParameters `yaml:"parameters,omitempty" json:"parameters,omitempty"`
+}
+
+type Selector struct {
+	Query       string            `yaml:"query" json:"query"`
+	Labels      map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Expressions []MatchExpression `yaml:"expressions,omitempty" json:"expressions,omitempty"`
+	Ids         []string          `yaml:"ids,omitempty" json:"ids,omitempty"`
+}
 type RuntimeConfigurationJob struct {
-	Uuid              string                   `json:"uuid" query:"uuid"`
-	RuntimeUuid       string                   `json:"runtime-uuid"`
-	TargetSubjects    []*TargetSubject         `json:"target-subjects"`
-	TaskUuid          string                   `json:"task-uuid"`
-	Schedule          string                   `json:"schedule"`
-	Plugins           []*RuntimePluginSelector `json:"plugins"`
-	ConfigurationUuid string                   `json:"configuration-uuid"`
-	AssessmentId      string                   `json:"assessment-id"`
-	ControlId         string                   `json:"control-id,omitempty"`
-	ActivityId        string                   `json:"activity-id,omitempty"`
-	Parameters        []*RuntimeParameters     `json:"parameters,omitempty"` // A copy-paste of Subject properties, control properties, task properties, etc.
+	Uuid              string     `yaml:"uuid" json:"uuid" query:"uuid"`
+	RuntimeUuid       string     `yaml:"runtime-id" json:"runtime-id"`
+	ConfigurationUuid string     `json:"configuration-uuid"`
+	SspId             string     `yaml:"ssp-id,omitempty" json:"ssp-id,omitempty"`
+	AssessmentId      string     `yaml:"assessment-id" json:"assessment-id"`
+	TaskId            string     `yaml:"task-id" json:"task-id"`
+	Schedule          string     `yaml:"schedule" json:"schedule"`
+	Activities        []Activity `yaml:"activities,omitempty" json:"activities,omitempty"`
 }
 
 // Automatic Register methods. add these for the schema to be fully CRUD-registered
@@ -79,22 +89,6 @@ func (c *RuntimeConfigurationJob) Type() string {
 	return "jobs"
 }
 
-// TargetSubject relates how to select a given subject for the runtime to create jobs
-type TargetSubject struct {
-	MatchQuery       string             `json:"match-query,omitempty"`
-	MatchLabels      map[string]string  `json:"match-labels,omitempty"`
-	MatchExpressions []*MatchExpression `json:"match-expressions,omitempty"`
-	FromAssessment   *FromAssessment    `json:"direct-match,omitempty"`
-}
-type FromAssessment struct {
-	Subjects []*Subject `json:"subjects"`
-}
-
-type Subject struct {
-	SubjectUuid string `json:"subject-uuid,omitempty"`
-	SubjectType string `json:"subject-type,omitempty"`
-}
-
 type MatchExpression struct {
 	Key      string   `json:"key"`
 	Operator string   `json:"operator"`
@@ -103,15 +97,11 @@ type MatchExpression struct {
 
 // RuntimeConfiguration defines that a given Task on an AssessmentPlan will be assessed by a plugin. It is a template because multiple subjects might be assessed.
 type RuntimeConfiguration struct {
-	Uuid               string           `json:"uuid" query:"uuid"`
-	AssessmentPlanUuid string           `json:"assessment-plan-uuid"`
-	RuntimeUuid        string           `json:"runtime-uuid"`
-	TargetSubjects     []*TargetSubject `json:"target-subjects"`
-	TaskUuid           string           `json:"task-uuid"`
-	// For simplicity, all activities in a task are going to be assessed.
-	//Activities         []*oscal.AssociatedActivity `json:"activities"`
-	Schedule string                   `json:"schedule"`
-	Plugins  []*RuntimePluginSelector `json:"plugins"`
+	Uuid               string `json:"uuid" query:"uuid"`
+	AssessmentPlanUuid string `json:"assessment-plan-uuid"`
+	RuntimeUuid        string `json:"runtime-uuid"`
+	TaskUuid           string `json:"task-uuid"`
+	Schedule           string `json:"schedule"`
 }
 
 // Automatic Register methods. add these for the schema to be fully CRUD-registered
