@@ -77,7 +77,7 @@ func TestCreateJobs(t *testing.T) {
 				}}
 				return fmt.Errorf("boom")
 			},
-			expectErr: "no assessment-plan",
+			expectErr: "could not get assessment-plan",
 		},
 		{
 			name: "no task-uuid",
@@ -89,7 +89,7 @@ func TestCreateJobs(t *testing.T) {
 				}}
 				return nil
 			},
-			expectErr: "task with uuid 124 not found on assessment-plan",
+			expectErr: "task 124 not found on assessment-plan",
 		},
 		{
 			name: "success",
@@ -127,7 +127,7 @@ func TestCreateJobs(t *testing.T) {
 				}}
 				return nil
 			},
-			CreateManyFn: func(objects map[string]interface{}) error {
+			CreateFn: func(_ string, _ interface{}) error {
 				return nil
 			},
 		},
@@ -167,21 +167,18 @@ func TestDeleteJobs(t *testing.T) {
 		{
 			name: "error jobs",
 			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				return nil, fmt.Errorf("boom")
+			GetFn: func(id string, object interface{}) error {
+				return fmt.Errorf("boom")
 			},
 			expectErr: "could not get jobs",
 		},
 		{
 			name: "error delete",
 			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				out := make([]interface{}, 0)
-				obs := &runtime.RuntimeConfigurationJob{
-					Uuid: "123",
-				}
-				out = append(out, obs)
-				return out, nil
+			GetFn: func(id string, object interface{}) error {
+				obs := object.(*runtime.RuntimeConfigurationJob)
+				obs.Uuid = "123"
+				return nil
 			},
 			DeleteFn: func(id string) error {
 				return fmt.Errorf("boom")
@@ -191,13 +188,10 @@ func TestDeleteJobs(t *testing.T) {
 		{
 			name: "success",
 			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				out := make([]interface{}, 0)
-				obs := &runtime.RuntimeConfigurationJob{
-					Uuid: "123",
-				}
-				out = append(out, obs)
-				return out, nil
+			GetFn: func(id string, object interface{}) error {
+				obs := object.(*runtime.RuntimeConfigurationJob)
+				obs.Uuid = "123"
+				return nil
 			},
 			DeleteFn: func(id string) error {
 				return nil
@@ -240,244 +234,61 @@ func TestUpdateJobs(t *testing.T) {
 			name: "no assessment-plan",
 			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-				}}
-				return fmt.Errorf("boom")
+				switch t := object.(type) {
+				case *oscal.AssessmentPlan:
+					t.Tasks = []*oscal.Task{{
+						Uuid: "123",
+					}}
+					return fmt.Errorf("boom")
+				case *runtime.RuntimeConfigurationJob:
+					t.Uuid = "123"
+					return nil
+				}
+				return nil
 			},
-			expectErr: "no assessment-plan",
+			expectErr: "could not get assessment-plan",
 		},
 		{
 			name: "no task-uuid",
 			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "124"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-				}}
-				return nil
-			},
-			expectErr: "task with uuid 124 not found on assessment-plan",
-		},
-		{
-			name: "fail get-all",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-					AssociatedActivities: []*oscal.AssociatedActivity{{
-						ActivityUuid: "123",
-						Subjects: []*oscal.AssessmentSubject{
-							{
-								IncludeSubjects: []*oscal.SelectAssessmentSubject{
-									{
-										SubjectUuid: "123",
-										Type:        "component",
-									},
-								},
-							},
-						},
-					}},
-				}}
-				return nil
-			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				return nil, fmt.Errorf("boom")
-			},
-			expectErr: "could not get all jobs",
-		},
-		{
-			name:     "fail delete",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			DeleteFn: func(id string) error { return fmt.Errorf("boom") },
-			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-				}}
-				return nil
-			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				obj := &runtime.RuntimeConfigurationJob{
-					Uuid:              "123",
-					ConfigurationUuid: "123",
-					ActivityId:        "124",
-					TargetSubjects: []*runtime.TargetSubject{
-						{
-							MatchQuery: "123",
-						},
-					},
+				switch t := object.(type) {
+				case *oscal.AssessmentPlan:
+					t.Tasks = []*oscal.Task{{
+						Uuid: "123",
+					}}
+					return nil
+				case *runtime.RuntimeConfigurationJob:
+					t.TaskId = "123"
+					return nil
 				}
-				out := make([]interface{}, 0)
-				out = append(out, obj)
-				return out, nil
-			},
-			expectErr: "could not delete job",
-		},
-		{
-			name:     "success delete",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			DeleteFn: func(id string) error { return nil },
-			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-				}}
 				return nil
 			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				obj := &runtime.RuntimeConfigurationJob{
-					Uuid:              "123",
-					ConfigurationUuid: "123",
-					ActivityId:        "124",
-					TargetSubjects: []*runtime.TargetSubject{
-						{
-							MatchQuery: "123",
-						},
-					},
-				}
-				out := make([]interface{}, 0)
-				out = append(out, obj)
-				return out, nil
-			},
-		},
-		{
-			name:     "fail create",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			CreateFn: func(id string, object interface{}) error { return fmt.Errorf("boom") },
-			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.LocalDefinitions = &oscal.LocalDefinitions{
-					Activities: []*oscal.CommonActivity{
-						{
-							Uuid: "123",
-							Props: []*oscal.Property{
-								{
-									Name:  "foo",
-									Value: "bar",
-								},
-							},
-						},
-					},
-				}
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-					AssociatedActivities: []*oscal.AssociatedActivity{{
-						ActivityUuid: "123",
-						Subjects: []*oscal.AssessmentSubject{
-							{
-								IncludeSubjects: []*oscal.SelectAssessmentSubject{
-									{
-										SubjectUuid: "123",
-										Type:        "component",
-									},
-								},
-							},
-						},
-					}},
-				}}
-				return nil
-			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				return nil, nil
-			},
-			expectErr: "could not create job",
-		},
-		{
-			name:     "create success",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
-			CreateFn: func(id string, object interface{}) error { return nil },
-			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.LocalDefinitions = &oscal.LocalDefinitions{
-					Activities: []*oscal.CommonActivity{
-						{
-							Uuid: "123",
-							Props: []*oscal.Property{
-								{
-									Name:  "foo",
-									Value: "bar",
-								},
-							},
-						},
-					},
-				}
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-					AssociatedActivities: []*oscal.AssociatedActivity{{
-						ActivityUuid: "123",
-						Subjects: []*oscal.AssessmentSubject{
-							{
-								IncludeSubjects: []*oscal.SelectAssessmentSubject{
-									{
-										SubjectUuid: "123",
-										Type:        "component",
-									},
-								},
-							},
-						},
-					}},
-				}}
-				return nil
-			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				return nil, nil
-			},
+			expectErr: "task 124 not found on assessment-plan",
 		},
 		{
 			name:     "fail update",
 			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123", Schedule: "1"}, Type: "configurations"}},
 			UpdateFn: func(id string, object interface{}) error { return fmt.Errorf("boom") },
 			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.LocalDefinitions = &oscal.LocalDefinitions{
-					Activities: []*oscal.CommonActivity{
-						{
-							Uuid: "123",
-							Props: []*oscal.Property{
-								{
-									Name:  "foo",
-									Value: "bar",
-								},
-							},
-						},
-					},
-				}
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-					AssociatedActivities: []*oscal.AssociatedActivity{{
-						ActivityUuid: "123",
-						Subjects: []*oscal.AssessmentSubject{
+				switch t := object.(type) {
+				case *oscal.AssessmentPlan:
+					t.Tasks = []*oscal.Task{{
+						Uuid: "123",
+					}}
+					t.LocalDefinitions = &oscal.LocalDefinitions{
+						Activities: []*oscal.CommonActivity{
 							{
-								IncludeSubjects: []*oscal.SelectAssessmentSubject{
-									{
-										SubjectUuid: "123",
-										Type:        "component",
-									},
-								},
+								Uuid: "123",
 							},
 						},
-					}},
-				}}
-				return nil
-			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				obj := &runtime.RuntimeConfigurationJob{
-					Uuid:              "123",
-					ConfigurationUuid: "123",
-					ActivityId:        "123",
-					TargetSubjects: []*runtime.TargetSubject{
-						{
-							MatchQuery: "123",
-						},
-					},
-					Schedule: "12345",
+					}
+					return nil
+				case *runtime.RuntimeConfigurationJob:
+					t.TaskId = "123"
+					return nil
 				}
-				out := make([]interface{}, 0)
-				out = append(out, obj)
-				return out, nil
+				return nil
 			},
 			expectErr: "could not update job",
 		},
@@ -486,53 +297,24 @@ func TestUpdateJobs(t *testing.T) {
 			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
 			UpdateFn: func(id string, object interface{}) error { return nil },
 			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.LocalDefinitions = &oscal.LocalDefinitions{
-					Activities: []*oscal.CommonActivity{
-						{
-							Uuid: "123",
-							Props: []*oscal.Property{
-								{
-									Name:  "foo",
-									Value: "bar",
-								},
-							},
-						},
-					},
-				}
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-					AssociatedActivities: []*oscal.AssociatedActivity{{
-						ActivityUuid: "123",
-						Subjects: []*oscal.AssessmentSubject{
+				switch t := object.(type) {
+				case *oscal.AssessmentPlan:
+					t.Tasks = []*oscal.Task{{
+						Uuid: "123",
+					}}
+					t.LocalDefinitions = &oscal.LocalDefinitions{
+						Activities: []*oscal.CommonActivity{
 							{
-								IncludeSubjects: []*oscal.SelectAssessmentSubject{
-									{
-										SubjectUuid: "123",
-										Type:        "component",
-									},
-								},
+								Uuid: "123",
 							},
 						},
-					}},
-				}}
-				return nil
-			},
-			GetAllFn: func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
-				obj := &runtime.RuntimeConfigurationJob{
-					Uuid:              "123",
-					ConfigurationUuid: "123",
-					ActivityId:        "123",
-					TargetSubjects: []*runtime.TargetSubject{
-						{
-							MatchQuery: "123",
-						},
-					},
-					Schedule: "12345",
+					}
+					return nil
+				case *runtime.RuntimeConfigurationJob:
+					t.TaskId = "123"
+					return nil
 				}
-				out := make([]interface{}, 0)
-				out = append(out, obj)
-				return out, nil
+				return nil
 			},
 		},
 	}
