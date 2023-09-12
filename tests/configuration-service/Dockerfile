@@ -11,6 +11,6 @@ RUN go mod download
 # https://docs.docker.com/engine/reference/builder/#copy
 COPY . ./
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN CGO_ENABLED=0 go install -ldflags "-s -w -extldflags '-static'" github.com/go-delve/delve/cmd/dlv@latest
 
-CMD ["dlv", "debug", ".", "--listen=:2345", "--headless=true", "--api-version=2", "--log"]
+CMD ["dlv", "debug", "main.go",  "--listen=:2345", "--headless=true", "--api-version=2", "--log=true"]

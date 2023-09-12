@@ -42,10 +42,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	sub.Subscribe("foo.bar")
-	sub.Subscribe("foo.baz")
-	sub.Subscribe("yada.yada")
-	go sub.ReadFromChannel("yada.yada")
 	pub := jobs.PublishJob{Log: sugar}
 	err = pub.Connect(natsUri)
 	if err != nil {

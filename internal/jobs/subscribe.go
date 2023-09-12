@@ -9,16 +9,28 @@ import (
 
 type SubscribeJob struct {
 	Log           *zap.SugaredLogger
+	driver        *internal
 	conn          *nats.Conn
 	mu            *sync.Mutex
-	subscriptions map[string]chan *nats.Msg
+	subscriptions map[string]*Subscription
+}
+
+type Subscription struct {
+	sub *nats.Subscription
+	ch  chan *nats.Msg
 }
 
 func (s *SubscribeJob) Init() error {
+	if s.driver == nil {
+		s.driver = &internal{
+			ConnectFn:    DefaultConnect,
+			NewEncodedFn: DefaultEncodedConn,
+		}
+	}
 	if s.mu == nil {
 		s.mu = &sync.Mutex{}
 	}
-	s.subscriptions = make(map[string]chan *nats.Msg)
+	s.subscriptions = make(map[string]*Subscription)
 	return nil
 }
 
@@ -34,7 +46,7 @@ func (s *SubscribeJob) Connect(server string) error {
 		return nil
 	}
 
-	nc, err := nats.Connect(server, nats.ReconnectBufSize(5*1024*1024))
+	nc, err := s.driver.Connect(server, nats.ReconnectBufSize(5*1024*1024))
 	if err != nil {
 		return err
 	}
@@ -43,31 +55,55 @@ func (s *SubscribeJob) Connect(server string) error {
 	return nil
 }
 
-func (s *SubscribeJob) createChannel(topic string) chan *nats.Msg {
+func (s *SubscribeJob) createSubscription(topic string) *Subscription {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ch, ok := s.subscriptions[topic]
+	sub, ok := s.subscriptions[topic]
 	if !ok {
-		ch = make(chan *nats.Msg, 1)
-		s.subscriptions[topic] = ch
+		ch := make(chan *nats.Msg, 1)
+		sub = &Subscription{
+			ch: ch,
+		}
+		s.subscriptions[topic] = sub
 	}
-	return ch
+	return sub
 }
 
 // Subscribe to a given topic in a channel
-func (s *SubscribeJob) Subscribe(topic string) {
-	ch := s.createChannel(topic)
-	s.conn.ChanSubscribe(topic, ch)
+func (s *SubscribeJob) Subscribe(topic string) chan *nats.Msg {
+	sub := s.createSubscription(topic)
+	subscription, err := s.conn.ChanSubscribe(topic, sub.ch)
+	if err != nil {
+		s.Log.Errorw("Error subscribing to topic", "topic", topic, "error", err)
+		return nil
+	}
+	sub.sub = subscription
 	s.Log.Infow("Subscribed to topic", "topic", topic)
+	return sub.ch
 }
 
-func (s *SubscribeJob) ReadFromChannel(topic string) {
-	ch, ok := s.subscriptions[topic]
+func (s *SubscribeJob) Close() error {
+	for k := range s.subscriptions {
+		err := s.CloseSubscription(k)
+		if err != nil {
+			return err
+		}
+	}
+	s.conn.Close()
+	return nil
+}
+
+func (s *SubscribeJob) CloseSubscription(topic string) error {
+	sub, ok := s.subscriptions[topic]
 	if !ok {
-		s.Log.Errorw("Channel not found", "topic", topic)
-		return
+		return nil
 	}
-	for msg := range ch {
-		s.Log.Infow("Message received!", "msg", msg)
+	err := sub.sub.Unsubscribe()
+	if err != nil {
+		return err
 	}
+	close(sub.ch)
+	s.subscriptions[topic] = nil
+	delete(s.subscriptions, topic)
+	return nil
 }
