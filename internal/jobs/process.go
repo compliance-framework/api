@@ -23,5 +23,5 @@ func (s *ProcessJob) Run() {
 
 //
 /* DONE: NATS MSG >> Subscribe.go >> Golang Channel >> Process.go
-   TODO: Process.go >> (GRPC Decoder) >> Save Assessment Results on DB
+   TODO: Process.go >> Save Assessment Results on DB
 */
