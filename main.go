@@ -42,6 +42,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	ch := sub.Subscribe("runtime.resutls")
+	process := jobs.ProcessJob{Log: sugar}
+	err = process.Init(ch)
+	if err != nil {
+		panic(err)
+	}
+	go process.Run()
 	pub := jobs.PublishJob{Log: sugar}
 	err = pub.Connect(natsUri)
 	if err != nil {
