@@ -69,7 +69,7 @@ func TestCreateJobs(t *testing.T) {
 		},
 		{
 			name: "no assessment-plan",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
 				t.Tasks = []*oscal.Task{{
@@ -80,51 +80,46 @@ func TestCreateJobs(t *testing.T) {
 			expectErr: "could not get assessment-plan",
 		},
 		{
-			name: "no task-uuid",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "124"}, Type: "configurations"}},
-			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-				}}
-				return nil
-			},
-			expectErr: "task 124 not found on assessment-plan",
-		},
-		{
 			name: "success",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
-				t := object.(*oscal.AssessmentPlan)
-				t.LocalDefinitions = &oscal.LocalDefinitions{
-					Activities: []*oscal.CommonActivity{
-						{
-							Uuid: "123",
-							Props: []*oscal.Property{
-								{
-									Name:  "foo",
-									Value: "bar",
-								},
-							},
-						},
-					},
-				}
-				t.Tasks = []*oscal.Task{{
-					Uuid: "123",
-					AssociatedActivities: []*oscal.AssociatedActivity{{
-						ActivityUuid: "123",
-						Subjects: []*oscal.AssessmentSubject{
+				switch t := object.(type) {
+				case *runtime.RuntimePlugin:
+					t.Uuid = "123"
+				case *oscal.AssessmentPlan:
+					t.LocalDefinitions = &oscal.LocalDefinitions{
+						Activities: []*oscal.CommonActivity{
 							{
-								IncludeSubjects: []*oscal.SelectAssessmentSubject{
+								Uuid: "123",
+								Props: []*oscal.Property{
 									{
-										SubjectUuid: "123",
-										Type:        "component",
+										Name:  "foo",
+										Value: "bar",
 									},
 								},
 							},
 						},
-					}},
-				}}
+					}
+					t.Tasks = []*oscal.Task{{
+						Uuid: "123",
+						AssociatedActivities: []*oscal.AssociatedActivity{{
+							ActivityUuid: "123",
+							Subjects: []*oscal.AssessmentSubject{
+								{
+									IncludeSubjects: []*oscal.SelectAssessmentSubject{
+										{
+											SubjectUuid: "123",
+											Type:        "component",
+										},
+									},
+								},
+							},
+						}},
+					}}
+				case *runtime.RuntimeConfigurationJob:
+					t.Uuid = "123"
+					return nil
+				}
 				return nil
 			},
 			CreateFn: func(_ string, _ interface{}) error {
@@ -166,7 +161,7 @@ func TestDeleteJobs(t *testing.T) {
 		},
 		{
 			name: "error jobs",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				return fmt.Errorf("boom")
 			},
@@ -174,7 +169,7 @@ func TestDeleteJobs(t *testing.T) {
 		},
 		{
 			name: "error delete",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				obs := object.(*runtime.RuntimeConfigurationJob)
 				obs.Uuid = "123"
@@ -187,7 +182,7 @@ func TestDeleteJobs(t *testing.T) {
 		},
 		{
 			name: "success",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				obs := object.(*runtime.RuntimeConfigurationJob)
 				obs.Uuid = "123"
@@ -232,7 +227,7 @@ func TestUpdateJobs(t *testing.T) {
 		},
 		{
 			name: "no assessment-plan",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {
 				case *oscal.AssessmentPlan:
@@ -249,33 +244,12 @@ func TestUpdateJobs(t *testing.T) {
 			expectErr: "could not get assessment-plan",
 		},
 		{
-			name: "no task-uuid",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "124"}, Type: "configurations"}},
-			GetFn: func(id string, object interface{}) error {
-				switch t := object.(type) {
-				case *oscal.AssessmentPlan:
-					t.Tasks = []*oscal.Task{{
-						Uuid: "123",
-					}}
-					return nil
-				case *runtime.RuntimeConfigurationJob:
-					t.TaskId = "123"
-					return nil
-				}
-				return nil
-			},
-			expectErr: "task 124 not found on assessment-plan",
-		},
-		{
 			name:     "fail update",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123", Schedule: "1"}, Type: "configurations"}},
+			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123", Schedule: "1"}, Type: "configurations"}},
 			UpdateFn: func(id string, object interface{}) error { return fmt.Errorf("boom") },
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {
 				case *oscal.AssessmentPlan:
-					t.Tasks = []*oscal.Task{{
-						Uuid: "123",
-					}}
 					t.LocalDefinitions = &oscal.LocalDefinitions{
 						Activities: []*oscal.CommonActivity{
 							{
@@ -285,7 +259,7 @@ func TestUpdateJobs(t *testing.T) {
 					}
 					return nil
 				case *runtime.RuntimeConfigurationJob:
-					t.TaskId = "123"
+					t.ActivityUuid = "123"
 					return nil
 				}
 				return nil
@@ -294,14 +268,11 @@ func TestUpdateJobs(t *testing.T) {
 		},
 		{
 			name:     "update success",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", TaskUuid: "123"}, Type: "configurations"}},
+			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			UpdateFn: func(id string, object interface{}) error { return nil },
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {
 				case *oscal.AssessmentPlan:
-					t.Tasks = []*oscal.Task{{
-						Uuid: "123",
-					}}
 					t.LocalDefinitions = &oscal.LocalDefinitions{
 						Activities: []*oscal.CommonActivity{
 							{
@@ -311,7 +282,7 @@ func TestUpdateJobs(t *testing.T) {
 					}
 					return nil
 				case *runtime.RuntimeConfigurationJob:
-					t.TaskId = "123"
+					t.ActivityUuid = "123"
 					return nil
 				}
 				return nil
