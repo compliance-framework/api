@@ -76,50 +76,15 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	if err != nil {
 		return fmt.Errorf("could not get RuntimeConfiguration: %w", err)
 	}
-	task, err := r._getTask(c)
+	job := &models.RuntimeConfigurationJob{}
+	err = r._makeJob(c, job)
 	if err != nil {
-		return fmt.Errorf("could not get task %v: %w", c.TaskUuid, err)
+		return fmt.Errorf("could not prepare job spec for %v: %w", c.Uuid, err)
 	}
-	activities, err := r._getActivities(c, task)
-	if err != nil {
-		return fmt.Errorf("could not get activities for task %v: %w", c.TaskUuid, err)
-	}
-	processed := make([]*models.Activity, 0)
-	for _, a := range activities {
-		props := assembleProperties(task, a)
-		// TODO if Activities have specific parameter configuring a specific plugin, use that instead
-		plugins, err := r._getPlugins(c.PluginUuids)
-		if err != nil {
-			return fmt.Errorf("could not get plugins for configuration %v: %w", c.Uuid, err)
-		}
-		// TODO if Activities have a specific selector, use that instead
-		activity := &models.Activity{
-			Id:         a.Uuid,
-			Selector:   c.Selector,
-			Parameters: props,
-			ControlId:  "",
-			Plugins:    plugins,
-		}
-		processed = append(processed, activity)
-	}
-	if err != nil {
-		return fmt.Errorf("could not generate uuid: %w", err)
-	}
-	job := &models.RuntimeConfigurationJob{
-		Uuid:              c.Uuid,
-		ConfigurationUuid: c.Uuid,
-		RuntimeUuid:       c.RuntimeUuid,
-		SspId:             "",
-		AssessmentId:      c.AssessmentPlanUuid,
-		TaskId:            c.TaskUuid,
-		Schedule:          c.Schedule,
-		Activities:        processed,
-	}
-	err = r.Driver.Create(context.Background(), job.Type(), job.Uuid, job)
+	err = r._createJob(job)
 	if err != nil {
 		return fmt.Errorf("could not create job %v: %w", job.Uuid, err)
 	}
-	publish(job.Uuid, job.RuntimeUuid, runtime.PayloadEventCreated, job)
 	return nil
 }
 
@@ -139,43 +104,30 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	if err != nil {
 		return fmt.Errorf("could not get jobs for configuration %v: %w", c.Uuid, err)
 	}
-	task, err := r._getTask(c)
-	if err != nil {
-		return fmt.Errorf("could not get task %v: %w", c.TaskUuid, err)
-	}
-	activities, err := r._getActivities(c, task)
-	if err != nil {
-		return fmt.Errorf("could not get activities for task %v: %w", c.TaskUuid, err)
-	}
-	processed := make([]*models.Activity, 0)
-	for _, a := range activities {
-		props := assembleProperties(task, a)
-		// TODO if Activities have specific parameter configuring a specific plugin, use that instead
-		plugins, err := r._getPlugins(c.PluginUuids)
+	if configJob.RuntimeUuid != c.RuntimeUuid {
+		err = r._deleteJob(configJob)
 		if err != nil {
-			return fmt.Errorf("could not get plugins for configuration %v: %w", c.Uuid, err)
+			return fmt.Errorf("could not update job %v: %w", configJob.Uuid, err)
 		}
-		// TODO if Activities have a specific selector, use that instead
-		activity := &models.Activity{
-			Id:         a.Uuid,
-			Selector:   c.Selector,
-			Parameters: props,
-			ControlId:  "",
-			Plugins:    plugins,
+		job := &models.RuntimeConfigurationJob{}
+		err = r._makeJob(c, job)
+		if err != nil {
+			return fmt.Errorf("could not prepare job spec for %v: %w", c.Uuid, err)
 		}
-		processed = append(processed, activity)
+		err = r._createJob(job)
+		if err != nil {
+			return fmt.Errorf("could not update job %v: %w", configJob.Uuid, err)
+		}
+	} else {
+		err = r._makeJob(c, configJob)
+		if err != nil {
+			return fmt.Errorf("could not prepare job spec for %v: %w", c.Uuid, err)
+		}
+		err = r._updateJob(configJob)
+		if err != nil {
+			return fmt.Errorf("could not update job for config %v: %w", c.Uuid, err)
+		}
 	}
-	configJob.RuntimeUuid = c.RuntimeUuid
-	configJob.SspId = ""
-	configJob.AssessmentId = c.AssessmentPlanUuid
-	configJob.TaskId = c.TaskUuid
-	configJob.Schedule = c.Schedule
-	configJob.Activities = processed
-	err = r.Driver.Update(context.Background(), configJob.Type(), configJob.Uuid, configJob)
-	if err != nil {
-		return fmt.Errorf("could not update job %v: %w", configJob.Uuid, err)
-	}
-	publish(configJob.Uuid, configJob.RuntimeUuid, runtime.PayloadEventUpdated, configJob)
 	return nil
 }
 
@@ -202,17 +154,13 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) _getPlugins(uuids []string) ([]*models.RuntimePlugin, error) {
-	ans := make([]*models.RuntimePlugin, 0)
-	for _, uuid := range uuids {
-		plugin := &models.RuntimePlugin{}
-		err := r.Driver.Get(context.Background(), plugin.Type(), uuid, plugin)
-		if err != nil {
-			return nil, fmt.Errorf("could not get plugin %v: %w", uuid, err)
-		}
-		ans = append(ans, plugin)
+func (r *RuntimeJobCreator) _getPlugin(uuid string) (*models.RuntimePlugin, error) {
+	plugin := &models.RuntimePlugin{}
+	err := r.Driver.Get(context.Background(), plugin.Type(), uuid, plugin)
+	if err != nil {
+		return nil, fmt.Errorf("could not get plugin %v: %w", uuid, err)
 	}
-	return ans, nil
+	return plugin, nil
 }
 
 func assembleProperties(task *oscal.Task, activity *oscal.CommonActivity) []*models.RuntimeParameters {
@@ -235,7 +183,7 @@ func assembleProperties(task *oscal.Task, activity *oscal.CommonActivity) []*mod
 
 }
 
-func (r *RuntimeJobCreator) _getActivities(c *models.RuntimeConfiguration, task *oscal.Task) ([]*oscal.CommonActivity, error) {
+func (r *RuntimeJobCreator) _getActivity(c *models.RuntimeConfiguration) (*oscal.CommonActivity, error) {
 	ap, err := r._getAp(c.AssessmentPlanUuid)
 	if err != nil {
 		return nil, fmt.Errorf("could not get assessment-plan %v: %w", c.AssessmentPlanUuid, err)
@@ -243,39 +191,16 @@ func (r *RuntimeJobCreator) _getActivities(c *models.RuntimeConfiguration, task 
 	if ap.LocalDefinitions == nil || ap.LocalDefinitions.Activities == nil {
 		return nil, fmt.Errorf("no activities defined on assessment-plan %v", c.AssessmentPlanUuid)
 	}
-	ans := make([]*oscal.CommonActivity, 0)
-	for _, t := range task.AssociatedActivities {
-		for _, a := range ap.LocalDefinitions.Activities {
-			if t.ActivityUuid == a.Uuid {
-				ans = append(ans, a)
-			}
+	ans := &oscal.CommonActivity{}
+	for _, a := range ap.LocalDefinitions.Activities {
+		if c.ActivityUuid == a.Uuid {
+			ans = a
 		}
 	}
-	// TODO we could change this logic to provide more context (which uuids failed?)
-	if len(ans) != len(task.AssociatedActivities) {
-		return nil, fmt.Errorf("some activities of task %v could not be found in assessment-plan %v", c.TaskUuid, c.AssessmentPlanUuid)
+	if ans.Uuid == "" {
+		return nil, fmt.Errorf("Could not find activity %v on assessment-plan %v", c.ActivityUuid, c.AssessmentPlanUuid)
 	}
 	return ans, nil
-}
-
-func (r *RuntimeJobCreator) _getTask(c *models.RuntimeConfiguration) (*oscal.Task, error) {
-	ap, err := r._getAp(c.AssessmentPlanUuid)
-	if err != nil {
-		return nil, fmt.Errorf("could not get assessment-plan %v: %w", c.AssessmentPlanUuid, err)
-	}
-	found := false
-	task := &oscal.Task{}
-	for i, t := range ap.Tasks {
-		if t.Uuid == c.TaskUuid {
-			task = ap.Tasks[i]
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, fmt.Errorf("task %v not found on assessment-plan %v", c.TaskUuid, c.AssessmentPlanUuid)
-	}
-	return task, nil
 }
 
 func (r *RuntimeJobCreator) _getAp(uuid string) (*oscal.AssessmentPlan, error) {
@@ -312,10 +237,29 @@ func (r *RuntimeJobCreator) _deleteJob(o interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
 	}
-	publish(obj.Uuid, obj.RuntimeUuid, runtime.PayloadEventDeleted, obj)
+	publish(obj.Uuid, obj.RuntimeUuid, runtime.PayloadEventDeleted, nil)
 	return nil
 }
 
+func (r *RuntimeJobCreator) _createJob(o interface{}) error {
+	obj := o.(*models.RuntimeConfigurationJob)
+	err := r.Driver.Create(context.Background(), obj.Type(), obj.Uuid, obj)
+	if err != nil {
+		return fmt.Errorf("could not create job %v: %w", obj.Uuid, err)
+	}
+	publish(obj.Uuid, obj.RuntimeUuid, runtime.PayloadEventCreated, obj)
+	return nil
+}
+
+func (r *RuntimeJobCreator) _updateJob(o interface{}) error {
+	obj := o.(*models.RuntimeConfigurationJob)
+	err := r.Driver.Update(context.Background(), obj.Type(), obj.Uuid, obj)
+	if err != nil {
+		return fmt.Errorf("could not update job %v: %w", obj.Uuid, err)
+	}
+	publish(obj.Uuid, obj.RuntimeUuid, runtime.PayloadEventUpdated, obj)
+	return nil
+}
 func publish(objUuid, runtimeUuid string, payload runtime.PayloadEventType, data *models.RuntimeConfigurationJob) {
 	event := runtime.RuntimeConfigurationJobPayload{
 		Topic: fmt.Sprintf("runtime.configuration.%v", runtimeUuid),
@@ -327,4 +271,25 @@ func publish(objUuid, runtimeUuid string, payload runtime.PayloadEventType, data
 	}
 	pubsub.PublishPayload(event)
 
+}
+
+func (r *RuntimeJobCreator) _makeJob(c *models.RuntimeConfiguration, job *models.RuntimeConfigurationJob) error {
+	activity, err := r._getActivity(c)
+	if err != nil {
+		return fmt.Errorf("could not get activity %v for configuration %v: %w", c.ActivityUuid, c.Uuid, err)
+	}
+	props := assembleProperties(&oscal.Task{}, activity)
+	plugin, err := r._getPlugin(c.PluginUuid)
+	if err != nil {
+		return fmt.Errorf("could not get plugins for configuration %v: %w", c.Uuid, err)
+	}
+	job.Uuid = c.Uuid
+	job.Selector = c.Selector
+	job.RuntimeUuid = c.RuntimeUuid
+	job.AssessmentUuid = c.AssessmentPlanUuid
+	job.Schedule = c.Schedule
+	job.ActivityUuid = c.ActivityUuid
+	job.Plugin = plugin
+	job.Parameters = props
+	return nil
 }

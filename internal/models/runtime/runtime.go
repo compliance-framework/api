@@ -30,12 +30,18 @@ type RuntimeConfigurationJobRequest struct {
 	Limit       int    `json:"limit"`
 }
 
+type RuntimeConfigurationJob struct {
+	Uuid           string               `json:"uuid" query:"uuid"`
+	RuntimeUuid    string               `json:"runtime-uuid"`
+	AssessmentUuid string               `json:"assessment-uuid"`
+	ActivityUuid   string               `json:"activity-uuid"`
+	Schedule       string               `json:"schedule"`
+	Selector       *Selector            `json:"selector"`
+	Plugin         *RuntimePlugin       `json:"plugin,omitempty"`
+	Parameters     []*RuntimeParameters `json:"parameters,omitempty"`
+}
+
 type Activity struct {
-	Id         string               `yaml:"id" json:"id"`
-	Selector   *Selector            `json:"selector"`
-	ControlId  string               `yaml:"control-id,omitempty" json:"control-id,omitempty"`
-	Plugins    []*RuntimePlugin     `yaml:"plugins,omitempty" json:"plugins,omitempty"`
-	Parameters []*RuntimeParameters `yaml:"parameters,omitempty" json:"parameters,omitempty"`
 }
 
 type Selector struct {
@@ -43,16 +49,6 @@ type Selector struct {
 	Labels      map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 	Expressions []MatchExpression `yaml:"expressions,omitempty" json:"expressions,omitempty"`
 	Ids         []string          `yaml:"ids,omitempty" json:"ids,omitempty"`
-}
-type RuntimeConfigurationJob struct {
-	Uuid              string      `yaml:"uuid" json:"uuid" query:"uuid"`
-	RuntimeUuid       string      `yaml:"runtime-id" json:"runtime-id"`
-	ConfigurationUuid string      `json:"configuration-uuid"`
-	SspId             string      `yaml:"ssp-id,omitempty" json:"ssp-id,omitempty"`
-	AssessmentId      string      `yaml:"assessment-id" json:"assessment-id"`
-	TaskId            string      `yaml:"task-id" json:"task-id"`
-	Schedule          string      `yaml:"schedule" json:"schedule"`
-	Activities        []*Activity `yaml:"activities,omitempty" json:"activities,omitempty"`
 }
 
 // Automatic Register methods. add these for the schema to be fully CRUD-registered
@@ -100,8 +96,8 @@ type RuntimeConfiguration struct {
 	Uuid               string    `json:"uuid" query:"uuid"`
 	AssessmentPlanUuid string    `json:"assessment-plan-uuid"`
 	RuntimeUuid        string    `json:"runtime-uuid"`
-	TaskUuid           string    `json:"task-uuid"`
-	PluginUuids        []string  `json:"plugin-uuids,omitempty"`
+	ActivityUuid       string    `json:"activity-uuid"`
+	PluginUuid         string    `json:"plugin-uuid,omitempty"`
 	Selector           *Selector `json:"selector"`
 	Schedule           string    `json:"schedule"`
 }
