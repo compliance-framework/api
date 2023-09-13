@@ -10,7 +10,6 @@ import (
 	models "github.com/compliance-framework/configuration-service/internal/models/runtime"
 	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -67,307 +66,265 @@ func (r *RuntimeJobCreator) Run() {
 
 func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	evt := msg.Data.(pubsub.DatabaseEvent)
-	c := models.RuntimeConfiguration{}
-	// skip events that are not runtimeConfiguration changes
+	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
 		return nil
 	}
-	jobs := make([]*models.RuntimeConfigurationJob, 0)
-	r.Log.Infow("creating jobs from RuntimeConfiguration", "msg", msg)
-	d, err := json.Marshal(evt.Object)
+	// skip events that are not runtimeConfiguration changes
+	r.Log.Infow("deleting jobs from RuntimeConfiguration", "msg", msg)
+	err := loadConfig(evt, c)
 	if err != nil {
-		return fmt.Errorf("could not marshal data")
+		return fmt.Errorf("could not get RuntimeConfiguration: %w", err)
 	}
-	config := &models.RuntimeConfiguration{}
-	err = config.FromJSON(d)
+	task, err := r._getTask(c)
 	if err != nil {
-		return fmt.Errorf("could not load data")
+		return fmt.Errorf("could not get task %v: %w", c.TaskUuid, err)
 	}
-	ap := oscal.AssessmentPlan{}
-	err = r.Driver.Get(context.Background(), ap.Type(), config.AssessmentPlanUuid, &ap)
+	activities, err := r._getActivities(c, task)
 	if err != nil {
-		return fmt.Errorf("no assessment-plan with uuid %v found: %w", config.AssessmentPlanUuid, err)
+		return fmt.Errorf("could not get activities for task %v: %w", c.TaskUuid, err)
 	}
-	task := &oscal.Task{}
-	for i, t := range ap.Tasks {
-		if t.Uuid == config.TaskUuid {
-			task = ap.Tasks[i]
-			break
-		}
-	}
-	if task.Uuid != config.TaskUuid {
-		return fmt.Errorf("task with uuid %v not found on assessment-plan %v", config.TaskUuid, config.AssessmentPlanUuid)
-	}
-	baseParams := []*models.RuntimeParameters{}
-	for _, v := range task.Props {
-		param := models.RuntimeParameters{
-			Name:  v.Name,
-			Value: v.Value,
-		}
-		baseParams = append(baseParams, &param)
-	}
-
-	for _, activity := range task.AssociatedActivities {
-		params := []*models.RuntimeParameters{}
-		params = append(params, baseParams...)
-		// Including Activities Props into Parameters.
-		// TODO - INCLUDE COMPONENT PROPERTIES
-		if ap.LocalDefinitions == nil {
-			return fmt.Errorf("no local definitions to get associated activities.")
-		}
-		valid := false
-		for _, v := range ap.LocalDefinitions.Activities {
-			if v.Uuid == activity.ActivityUuid {
-				valid = true
-				for _, p := range v.Props {
-					param := models.RuntimeParameters{
-						Name:  p.Name,
-						Value: p.Value,
-					}
-					params = append(params, &param)
-				}
-			}
-		}
-		if !valid {
-			return fmt.Errorf("associated activity %v not found in assessment plan %v", activity.ActivityUuid, config.AssessmentPlanUuid)
-		}
-		job := &models.RuntimeConfigurationJob{
-			ConfigurationUuid: config.Uuid,
-			TaskUuid:          task.Uuid,
-			AssessmentId:      ap.Uuid,
-			Parameters:        params,
-			ActivityId:        activity.ActivityUuid,
-			RuntimeUuid:       config.RuntimeUuid,
-			TargetSubjects:    config.TargetSubjects,
-			Schedule:          config.Schedule,
-			Plugins:           config.Plugins,
-		}
-		jobs = append(jobs, job)
-	}
-	create := make(map[string]interface{})
-	for i := range jobs {
-		uid, err := uuid.NewUUID()
+	processed := make([]*models.Activity, 0)
+	for _, a := range activities {
+		props := assembleProperties(task, a)
+		// TODO if Activities have specific parameter configuring a specific plugin, use that instead
+		plugins, err := r._getPlugins(c.PluginUuids)
 		if err != nil {
-			return fmt.Errorf("failed generating uid for job: %w", err)
+			return fmt.Errorf("could not get plugins for configuration %v: %w", c.Uuid, err)
 		}
-		jobs[i].Uuid = uid.String()
-		create[uid.String()] = jobs[i]
+		// TODO if Activities have a specific selector, use that instead
+		activity := &models.Activity{
+			Id:         a.Uuid,
+			Selector:   c.Selector,
+			Parameters: props,
+			ControlId:  "",
+			Plugins:    plugins,
+		}
+		processed = append(processed, activity)
 	}
-	t := &models.RuntimeConfigurationJob{}
-	r.Log.Infow("will create jobs", "jobs", jobs)
-	err = r.Driver.CreateMany(context.Background(), t.Type(), create)
 	if err != nil {
-		return fmt.Errorf("could not create jobs: %w", err)
+		return fmt.Errorf("could not generate uuid: %w", err)
 	}
-	for _, job := range jobs {
-		event := runtime.RuntimeConfigurationJobPayload{
-			Topic: fmt.Sprintf("runtime.configuration.%v", job.RuntimeUuid),
-			RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
-				Data: job,
-				Type: runtime.PayloadEventCreated,
-				Uuid: job.Uuid,
-			},
-		}
-		pubsub.PublishPayload(event)
+	job := &models.RuntimeConfigurationJob{
+		Uuid:              c.Uuid,
+		ConfigurationUuid: c.Uuid,
+		RuntimeUuid:       c.RuntimeUuid,
+		SspId:             "",
+		AssessmentId:      c.AssessmentPlanUuid,
+		TaskId:            c.TaskUuid,
+		Schedule:          c.Schedule,
+		Activities:        processed,
 	}
+	err = r.Driver.Create(context.Background(), job.Type(), job.Uuid, job)
+	if err != nil {
+		return fmt.Errorf("could not create job %v: %w", job.Uuid, err)
+	}
+	publish(job.Uuid, job.RuntimeUuid, runtime.PayloadEventCreated, job)
 	return nil
 }
 
-// TODO Make logic better. Too much of a convolution, too many responsibilities
-// TODO Add OnChange mechanism to listen for assessment-plan changes.
 func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	evt := msg.Data.(pubsub.DatabaseEvent)
-	c := models.RuntimeConfiguration{}
-	// skip events that are not runtimeConfiguration changes
+	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
 		return nil
 	}
-	d, err := json.Marshal(evt.Object)
+	// skip events that are not runtimeConfiguration changes
+	r.Log.Infow("deleting jobs from RuntimeConfiguration", "msg", msg)
+	err := loadConfig(evt, c)
 	if err != nil {
-		return fmt.Errorf("could not marshal data")
+		return fmt.Errorf("could not get RuntimeConfiguration: %w", err)
 	}
-	config := &models.RuntimeConfiguration{}
-	err = config.FromJSON(d)
+	configJob, err := r._getJob(c.Uuid)
 	if err != nil {
-		return fmt.Errorf("could not load data")
+		return fmt.Errorf("could not get jobs for configuration %v: %w", c.Uuid, err)
 	}
-	ap := oscal.AssessmentPlan{}
-	err = r.Driver.Get(context.Background(), ap.Type(), config.AssessmentPlanUuid, &ap)
-	// TODO - If the assessmentplan is invalid, instead we should delete all the jobs associated to this assessment plan.
+	task, err := r._getTask(c)
 	if err != nil {
-		return fmt.Errorf("no assessment-plan with uuid %v found: %w", config.AssessmentPlanUuid, err)
+		return fmt.Errorf("could not get task %v: %w", c.TaskUuid, err)
 	}
-	task := &oscal.Task{}
-	for i, t := range ap.Tasks {
-		if t.Uuid == config.TaskUuid {
-			task = ap.Tasks[i]
-			break
-		}
-	}
-	// TODO - If the Task uuid is invalid, instead we should delete all the jobs containing refering to this task.
-	if task.Uuid != config.TaskUuid {
-		return fmt.Errorf("task with uuid %v not found on assessment-plan %v", config.TaskUuid, config.AssessmentPlanUuid)
-	}
-	baseParams := []*models.RuntimeParameters{}
-	for _, v := range task.Props {
-		param := models.RuntimeParameters{
-			Name:  v.Name,
-			Value: v.Value,
-		}
-		baseParams = append(baseParams, &param)
-	}
-	j := &models.RuntimeConfigurationJob{}
-	filter := map[string]interface{}{
-		"configuration-uuid": config.Uuid,
-	}
-	jobs, err := r.Driver.GetAll(context.Background(), j.Type(), j, filter)
+	activities, err := r._getActivities(c, task)
 	if err != nil {
-		return fmt.Errorf("could not get all jobs: %w", err)
+		return fmt.Errorf("could not get activities for task %v: %w", c.TaskUuid, err)
 	}
-	t := map[string]*models.RuntimeConfigurationJob{}
-	for _, jj := range jobs {
-		job := jj.(*models.RuntimeConfigurationJob)
-		key := job.ActivityId
-		t[key] = job
-	}
-	o := map[string]*models.RuntimeConfigurationJob{}
-	for _, activity := range task.AssociatedActivities {
-		k := activity.ActivityUuid
-		o[k] = &models.RuntimeConfigurationJob{
-			RuntimeUuid: config.RuntimeUuid,
-			ActivityId:  activity.ActivityUuid,
+	processed := make([]*models.Activity, 0)
+	for _, a := range activities {
+		props := assembleProperties(task, a)
+		// TODO if Activities have specific parameter configuring a specific plugin, use that instead
+		plugins, err := r._getPlugins(c.PluginUuids)
+		if err != nil {
+			return fmt.Errorf("could not get plugins for configuration %v: %w", c.Uuid, err)
 		}
-	}
-	// Remove uneeded Jobs
-	for k, v := range t {
-		if _, ok := o[k]; !ok ||
-			ok && o[k].RuntimeUuid != v.RuntimeUuid { // If the runtime uuid changed, we need to effectively recreate this job
-			err = r.Driver.Delete(context.Background(), j.Type(), v.Uuid)
-			if err != nil {
-				return fmt.Errorf("could not delete job %v: %w", v.Uuid, err)
-			}
-			delete(t, k)
-			// Job no longer needed - pub it to propagate unassign from runtime
-			event := runtime.RuntimeConfigurationJobPayload{
-				Topic: fmt.Sprintf("runtime.configuration.%v", v.RuntimeUuid),
-				RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
-					Data: nil,
-					Type: runtime.PayloadEventDeleted,
-					Uuid: v.Uuid,
-				},
-			}
-			pubsub.PublishPayload(event)
+		// TODO if Activities have a specific selector, use that instead
+		activity := &models.Activity{
+			Id:         a.Uuid,
+			Selector:   c.Selector,
+			Parameters: props,
+			ControlId:  "",
+			Plugins:    plugins,
 		}
+		processed = append(processed, activity)
 	}
-
-	for k := range o {
-		_, ok := t[k]
-		params := []*models.RuntimeParameters{}
-		params = append(params, baseParams...)
-		if ap.LocalDefinitions != nil {
-			for _, v := range ap.LocalDefinitions.Activities {
-				if v.Uuid == k {
-					for _, p := range v.Props {
-						param := models.RuntimeParameters{
-							Name:  p.Name,
-							Value: p.Value,
-						}
-						params = append(params, &param)
-					}
-				}
-			}
-		}
-		// Create New Jobs
-		if !ok { // similar logic is not needed as we've removed the old the old job from t[k]
-			job := &models.RuntimeConfigurationJob{
-				ConfigurationUuid: config.Uuid,
-				TaskUuid:          task.Uuid,
-				AssessmentId:      ap.Uuid,
-				Parameters:        params,
-				ActivityId:        k,
-				RuntimeUuid:       config.RuntimeUuid,
-				TargetSubjects:    config.TargetSubjects,
-				Schedule:          config.Schedule,
-				Plugins:           config.Plugins,
-			}
-			err = r.Driver.Create(context.Background(), j.Type(), job.Uuid, job)
-			if err != nil {
-				return fmt.Errorf("could not create job %v: %w", job.Uuid, err)
-			}
-			event := runtime.RuntimeConfigurationJobPayload{
-				Topic: fmt.Sprintf("runtime.configuration.%v", job.RuntimeUuid),
-				RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
-					Data: job,
-					Type: runtime.PayloadEventCreated,
-					Uuid: job.Uuid,
-				},
-			}
-			pubsub.PublishPayload(event)
-
-		} else {
-			// Updates that need to be propagated
-			t[k].Schedule = config.Schedule
-			t[k].Plugins = config.Plugins
-			t[k].Parameters = params
-			err = r.Driver.Update(context.Background(), j.Type(), t[k].Uuid, t[k])
-			if err != nil {
-				return fmt.Errorf("could not update job %v: %w", t[k].Uuid, err)
-			}
-			event := runtime.RuntimeConfigurationJobPayload{
-				Topic: fmt.Sprintf("runtime.configuration.%v", t[k].RuntimeUuid),
-				RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
-					Data: t[k],
-					Type: runtime.PayloadEventUpdated,
-					Uuid: t[k].Uuid,
-				},
-			}
-			pubsub.PublishPayload(event)
-		}
+	configJob.RuntimeUuid = c.RuntimeUuid
+	configJob.SspId = ""
+	configJob.AssessmentId = c.AssessmentPlanUuid
+	configJob.TaskId = c.TaskUuid
+	configJob.Schedule = c.Schedule
+	configJob.Activities = processed
+	err = r.Driver.Update(context.Background(), configJob.Type(), configJob.Uuid, configJob)
+	if err != nil {
+		return fmt.Errorf("could not update job %v: %w", configJob.Uuid, err)
 	}
+	publish(configJob.Uuid, configJob.RuntimeUuid, runtime.PayloadEventUpdated, configJob)
 	return nil
 }
 
-// TODO Add tests
 func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 	evt := msg.Data.(pubsub.DatabaseEvent)
-	c := models.RuntimeConfiguration{}
-	// skip events that are not runtimeConfiguration changes
+	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
 		return nil
 	}
+	// skip events that are not runtimeConfiguration changes
 	r.Log.Infow("deleting jobs from RuntimeConfiguration", "msg", msg)
-	d, err := json.Marshal(evt.Object)
+	err := loadConfig(evt, c)
 	if err != nil {
-		return fmt.Errorf("could not marshal data")
+		return fmt.Errorf("could not get RuntimeConfiguration: %w", err)
 	}
-	config := &models.RuntimeConfiguration{}
-	job := &models.RuntimeConfigurationJob{}
-	err = config.FromJSON(d)
-	if err != nil {
-		return fmt.Errorf("could not load data")
-	}
-	conditions := map[string]interface{}{
-		"configuration-uuid": config.Uuid,
-	}
-	objs, err := r.Driver.GetAll(context.Background(), "jobs", job, conditions)
+	job, err := r._getJob(c.Uuid)
 	if err != nil {
 		return fmt.Errorf("could not get jobs: %w", err)
 	}
-	for _, o := range objs {
-		obj := o.(*models.RuntimeConfigurationJob)
-		err = r.Driver.Delete(context.Background(), job.Type(), obj.Uuid)
-		if err != nil {
-			return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
-		}
-		event := runtime.RuntimeConfigurationJobPayload{
-			Topic: fmt.Sprintf("runtime.configuration.%v", obj.RuntimeUuid),
-			RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
-				Data: nil,
-				Type: runtime.PayloadEventDeleted,
-				Uuid: obj.Uuid,
-			},
-		}
-		pubsub.PublishPayload(event)
+	err = r._deleteJob(job)
+	if err != nil {
+		return fmt.Errorf("could not delete job %v: %w", job, err)
 	}
-	return err
+	return nil
+}
+
+func (r *RuntimeJobCreator) _getPlugins(uuids []string) ([]*models.RuntimePlugin, error) {
+	ans := make([]*models.RuntimePlugin, 0)
+	for _, uuid := range uuids {
+		plugin := &models.RuntimePlugin{}
+		err := r.Driver.Get(context.Background(), plugin.Type(), uuid, plugin)
+		if err != nil {
+			return nil, fmt.Errorf("could not get plugin %v: %w", uuid, err)
+		}
+		ans = append(ans, plugin)
+	}
+	return ans, nil
+}
+
+func assembleProperties(task *oscal.Task, activity *oscal.CommonActivity) []*models.RuntimeParameters {
+	ans := make([]*models.RuntimeParameters, 0)
+	for _, p := range task.Props {
+		param := &models.RuntimeParameters{
+			Name:  p.Name,
+			Value: p.Value,
+		}
+		ans = append(ans, param)
+	}
+	for _, p := range activity.Props {
+		param := &models.RuntimeParameters{
+			Name:  p.Name,
+			Value: p.Value,
+		}
+		ans = append(ans, param)
+	}
+	return ans
+
+}
+
+func (r *RuntimeJobCreator) _getActivities(c *models.RuntimeConfiguration, task *oscal.Task) ([]*oscal.CommonActivity, error) {
+	ap, err := r._getAp(c.AssessmentPlanUuid)
+	if err != nil {
+		return nil, fmt.Errorf("could not get assessment-plan %v: %w", c.AssessmentPlanUuid, err)
+	}
+	if ap.LocalDefinitions == nil || ap.LocalDefinitions.Activities == nil {
+		return nil, fmt.Errorf("no activities defined on assessment-plan %v", c.AssessmentPlanUuid)
+	}
+	ans := make([]*oscal.CommonActivity, 0)
+	for _, t := range task.AssociatedActivities {
+		for _, a := range ap.LocalDefinitions.Activities {
+			if t.ActivityUuid == a.Uuid {
+				ans = append(ans, a)
+			}
+		}
+	}
+	// TODO we could change this logic to provide more context (which uuids failed?)
+	if len(ans) != len(task.AssociatedActivities) {
+		return nil, fmt.Errorf("some activities of task %v could not be found in assessment-plan %v", c.TaskUuid, c.AssessmentPlanUuid)
+	}
+	return ans, nil
+}
+
+func (r *RuntimeJobCreator) _getTask(c *models.RuntimeConfiguration) (*oscal.Task, error) {
+	ap, err := r._getAp(c.AssessmentPlanUuid)
+	if err != nil {
+		return nil, fmt.Errorf("could not get assessment-plan %v: %w", c.AssessmentPlanUuid, err)
+	}
+	found := false
+	task := &oscal.Task{}
+	for i, t := range ap.Tasks {
+		if t.Uuid == c.TaskUuid {
+			task = ap.Tasks[i]
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("task %v not found on assessment-plan %v", c.TaskUuid, c.AssessmentPlanUuid)
+	}
+	return task, nil
+}
+
+func (r *RuntimeJobCreator) _getAp(uuid string) (*oscal.AssessmentPlan, error) {
+	ap := &oscal.AssessmentPlan{}
+	err := r.Driver.Get(context.Background(), ap.Type(), uuid, ap)
+	if err != nil {
+		return nil, fmt.Errorf("could not get assessment-plan %v: %w", uuid, err)
+	}
+	return ap, nil
+}
+
+func loadConfig(evt pubsub.DatabaseEvent, config *models.RuntimeConfiguration) error {
+	d, err := json.Marshal(evt.Object)
+	if err != nil {
+		return fmt.Errorf("could not marshal data: %w", err)
+	}
+	err = config.FromJSON(d)
+	if err != nil {
+		return fmt.Errorf("could not load data: %w", err)
+	}
+	return nil
+}
+
+func (r *RuntimeJobCreator) _getJob(uuid string) (*models.RuntimeConfigurationJob, error) {
+	job := &models.RuntimeConfigurationJob{}
+	err := r.Driver.Get(context.Background(), job.Type(), uuid, job)
+	return job, err
+}
+
+func (r *RuntimeJobCreator) _deleteJob(o interface{}) error {
+	job := &models.RuntimeConfigurationJob{}
+	obj := o.(*models.RuntimeConfigurationJob)
+	err := r.Driver.Delete(context.Background(), job.Type(), obj.Uuid)
+	if err != nil {
+		return fmt.Errorf("could not delete job %v: %w", obj.Uuid, err)
+	}
+	publish(obj.Uuid, obj.RuntimeUuid, runtime.PayloadEventDeleted, obj)
+	return nil
+}
+
+func publish(objUuid, runtimeUuid string, payload runtime.PayloadEventType, data *models.RuntimeConfigurationJob) {
+	event := runtime.RuntimeConfigurationJobPayload{
+		Topic: fmt.Sprintf("runtime.configuration.%v", runtimeUuid),
+		RuntimeConfigurationEvent: runtime.RuntimeConfigurationEvent{
+			Data: data,
+			Type: payload,
+			Uuid: objUuid,
+		},
+	}
+	pubsub.PublishPayload(event)
+
 }
