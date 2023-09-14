@@ -44,8 +44,8 @@ type AssessmentResults struct {
 	Outputs      map[string]Output `json:"Outputs"`
 }
 
-func (s *ProcessJob) SaveAssessmentResults(AssessmentResults AssessmentResults) error {
-	s.Log.Infow(">>RUN has Received message", "subject", AssessmentResults.AssessmentId, "data", AssessmentResults.Outputs)
+func (s *ProcessJob) SaveAssessmentResults(assessmentResults AssessmentResults) error {
+	s.Log.Infow(">>RUN has Received message", "subject", assessmentResults.AssessmentId, "data", assessmentResults.Outputs)
 
 	// TODO: is the assessment id is even valid?
 
@@ -53,8 +53,8 @@ func (s *ProcessJob) SaveAssessmentResults(AssessmentResults AssessmentResults) 
 	if err != nil {
 		return fmt.Errorf("failed generating uid for assessesment result: %w", err)
 	}
-	AssessmentResults.Id = uid.String()
-	err = s.Driver.Create(context.Background(), "AssessmentResults", AssessmentResults.Id, AssessmentResults)
+	assessmentResults.Id = uid.String()
+	err = s.Driver.Create(context.Background(), "AssessmentResults", assessmentResults.Id, assessmentResults)
 	if err != nil {
 		return fmt.Errorf("failed to save assessment result: %w", err)
 	}
