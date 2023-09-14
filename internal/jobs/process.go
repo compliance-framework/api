@@ -18,6 +18,10 @@ type ProcessJob struct {
 }
 
 func (s *ProcessJob) Init(ch chan *nats.Msg) error {
+	s.Log.Infow(">>INIT %s", ch)
+	if s.Driver == nil {
+		panic("ProcessJob driver is nil")
+	}
 	s.ch = ch
 	return nil
 }
@@ -45,7 +49,11 @@ type AssessmentResults struct {
 }
 
 func (s *ProcessJob) SaveAssessmentResults(assessmentResults AssessmentResults) error {
-	s.Log.Infow(">>RUN has Received message", "subject", assessmentResults.AssessmentId, "data", assessmentResults.Outputs)
+	s.Log.Infow(">>SaveAssessmentResults has Received message", "subject", assessmentResults.AssessmentId, "data", assessmentResults.Outputs)
+
+	if s.Driver == nil {
+		return fmt.Errorf("ProcessJob driver is nil")
+	}
 
 	// TODO: is the assessment id is even valid?
 

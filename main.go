@@ -42,8 +42,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	ch := sub.Subscribe("runtime.resutls")
-	process := jobs.ProcessJob{Log: sugar}
+	ch := sub.Subscribe("assessment.result")
+	process := jobs.ProcessJob{Log: sugar, Driver: driver}
 	err = process.Init(ch)
 	if err != nil {
 		panic(err)
