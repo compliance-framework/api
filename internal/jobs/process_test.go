@@ -21,9 +21,9 @@ func TestProcess(t *testing.T) {
 			CreateFn: func(id string, object interface{}) error { return nil },
 		}}
 
-	f := FakeDriver{}
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			f := FakeDriver{}
 			f.CreateFn = tc.CreateFn
 			testCase := testCases[i]
 			processJob := &ProcessJob{
@@ -33,6 +33,9 @@ func TestProcess(t *testing.T) {
 			}
 			err := processJob.SaveAssessmentResults(testCase.assessmentResults)
 
+			if f.calls.Create == 0 {
+				t.Errorf("expected Create to be called")
+			}
 			if err != nil {
 				t.Errorf("failed to save assessment result: %s", err)
 			}
