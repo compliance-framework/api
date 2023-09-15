@@ -9,7 +9,7 @@ import (
 
 func (s *Server) RegisterProcess(e *echo.Echo) error {
 	e.GET("/assessment-results/:uuid", s.getAssessmentResult)
-	e.GET("/assessment-results", s.listAssessmentResult)
+	e.GET("/assessment-results", s.listAssessmentResults)
 	return nil
 }
 
@@ -24,7 +24,7 @@ func (s *Server) getAssessmentResult(c echo.Context) error {
 	return c.JSON(http.StatusOK, obj)
 }
 
-func (s *Server) listAssessmentResult(c echo.Context) error {
+func (s *Server) listAssessmentResults(c echo.Context) error {
 	assessmentResult := process.AssessmentResult{}
 	objs, err := s.Driver.GetAll(c.Request().Context(), assessmentResult.Type(), &assessmentResult)
 
