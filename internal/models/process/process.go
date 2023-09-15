@@ -13,22 +13,22 @@ type Output struct {
 	ResultData ResultData `json:"ResultData"`
 }
 
-type AssessmentResults struct {
+type AssessmentResult struct {
 	Id           string
 	AssessmentId string            `json:"AssessmentId"`
 	Outputs      map[string]Output `json:"Outputs"`
 }
 
-func (c *AssessmentResults) FromJSON(b []byte) error {
+func (c *AssessmentResult) FromJSON(b []byte) error {
 	return json.Unmarshal(b, c)
 }
 
-func (c *AssessmentResults) ToJSON() ([]byte, error) {
+func (c *AssessmentResult) ToJSON() ([]byte, error) {
 	return json.Marshal(c)
 }
 
-func (c *AssessmentResults) DeepCopy() schema.BaseModel {
-	d := &AssessmentResults{}
+func (c *AssessmentResult) DeepCopy() schema.BaseModel {
+	d := &AssessmentResult{}
 	p, err := c.ToJSON()
 	if err != nil {
 		panic(err)
@@ -40,14 +40,14 @@ func (c *AssessmentResults) DeepCopy() schema.BaseModel {
 	return d
 }
 
-func (c *AssessmentResults) UUID() string {
+func (c *AssessmentResult) UUID() string {
 	return c.Id
 }
 
-func (c *AssessmentResults) Validate() error {
+func (c *AssessmentResult) Validate() error {
 	return nil
 }
 
-func (c *AssessmentResults) Type() string {
-	return "AssessmentResults"
+func (c *AssessmentResult) Type() string {
+	return "assessment-result"
 }

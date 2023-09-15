@@ -30,13 +30,13 @@ func (s *ProcessJob) Init(ch chan *nats.Msg) error {
 func (s *ProcessJob) Run() {
 	for msg := range s.ch {
 		s.Log.Infow(">>RUN has Received message", "subject", msg.Subject, "data", string(msg.Data))
-		a := process.AssessmentResults{}
+		a := process.AssessmentResult{}
 		json.Unmarshal(msg.Data, &a)
-		s.SaveAssessmentResults(a)
+		s.SaveAssessmentResult(a)
 	}
 }
-func (s *ProcessJob) SaveAssessmentResults(assessmentResults process.AssessmentResults) error {
-	s.Log.Infow(">>SaveAssessmentResults has Received message", "subject", assessmentResults.AssessmentId, "data", assessmentResults.Outputs)
+func (s *ProcessJob) SaveAssessmentResult(assessmentResult process.AssessmentResult) error {
+	s.Log.Infow(">>SaveAssessmentResult has Received message", "subject", assessmentResult.AssessmentId, "data", assessmentResult.Outputs)
 
 	if s.Driver == nil {
 		return fmt.Errorf("ProcessJob driver is nil")
@@ -48,8 +48,8 @@ func (s *ProcessJob) SaveAssessmentResults(assessmentResults process.AssessmentR
 	if err != nil {
 		return fmt.Errorf("failed generating uid for assessesment result: %w", err)
 	}
-	assessmentResults.Id = uid.String()
-	err = s.Driver.Create(context.Background(), "AssessmentResults", assessmentResults.Id, assessmentResults)
+	assessmentResult.Id = uid.String()
+	err = s.Driver.Create(context.Background(), assessmentResult.Type(), assessmentResult.Id, assessmentResult)
 	if err != nil {
 		return fmt.Errorf("failed to save assessment result: %w", err)
 	}
