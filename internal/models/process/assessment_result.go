@@ -14,7 +14,7 @@ type Output struct {
 }
 
 type AssessmentResult struct {
-	Id           string
+	Uuid         string            `json:"Uuid"`
 	AssessmentId string            `json:"AssessmentId"`
 	Outputs      map[string]Output `json:"Outputs"`
 }
@@ -41,7 +41,7 @@ func (c *AssessmentResult) DeepCopy() schema.BaseModel {
 }
 
 func (c *AssessmentResult) UUID() string {
-	return c.Id
+	return c.Uuid
 }
 
 func (c *AssessmentResult) Validate() error {

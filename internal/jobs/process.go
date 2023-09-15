@@ -48,8 +48,8 @@ func (s *ProcessJob) SaveAssessmentResult(assessmentResult process.AssessmentRes
 	if err != nil {
 		return fmt.Errorf("failed generating uid for assessesment result: %w", err)
 	}
-	assessmentResult.Id = uid.String()
-	err = s.Driver.Create(context.Background(), assessmentResult.Type(), assessmentResult.Id, assessmentResult)
+	assessmentResult.Uuid = uid.String()
+	err = s.Driver.Create(context.Background(), assessmentResult.Type(), assessmentResult.Uuid, assessmentResult)
 	if err != nil {
 		return fmt.Errorf("failed to save assessment result: %w", err)
 	}

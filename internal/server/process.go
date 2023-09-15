@@ -22,7 +22,7 @@ func (s *Server) getAssessmentResult(c echo.Context) error {
 	err := s.Driver.Get(c.Request().Context(), assessmentResult.Type(), id, &assessmentResult)
 
 	c.Logger().Infof("Process::getAssessmentResult::obj: %v", assessmentResult)
-	if err == nil {
+	if err != nil {
 		return c.String(http.StatusNotFound, fmt.Errorf("object not found").Error())
 	}
 

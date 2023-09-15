@@ -17,7 +17,7 @@ func TestProcess(t *testing.T) {
 		{
 			name: "creates-result",
 			assessmentResult: process.AssessmentResult{
-				Id: "1234",
+				Uuid: "1234",
 			},
 			CreateFn: func(id string, object interface{}) error { return nil },
 		}}
