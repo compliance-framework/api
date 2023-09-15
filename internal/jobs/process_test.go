@@ -3,6 +3,7 @@ package jobs
 import (
 	"testing"
 
+	process "github.com/compliance-framework/configuration-service/internal/models/process"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
@@ -10,12 +11,12 @@ import (
 func TestProcess(t *testing.T) {
 	testCases := []struct {
 		name              string
-		assessmentResults AssessmentResults
+		assessmentResults process.AssessmentResults
 		CreateFn          func(id string, object interface{}) error
 	}{
 		{
 			name: "creates-result",
-			assessmentResults: AssessmentResults{
+			assessmentResults: process.AssessmentResults{
 				Id: "1234",
 			},
 			CreateFn: func(id string, object interface{}) error { return nil },

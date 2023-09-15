@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	process "github.com/compliance-framework/configuration-service/internal/models/process"
 	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
@@ -29,26 +30,12 @@ func (s *ProcessJob) Init(ch chan *nats.Msg) error {
 func (s *ProcessJob) Run() {
 	for msg := range s.ch {
 		s.Log.Infow(">>RUN has Received message", "subject", msg.Subject, "data", string(msg.Data))
-		a := AssessmentResults{}
+		a := process.AssessmentResults{}
 		json.Unmarshal(msg.Data, &a)
 		s.SaveAssessmentResults(a)
 	}
 }
-
-type ResultData struct {
-	Message string `json:"message"`
-}
-type Output struct {
-	ResultData ResultData `json:"ResultData"`
-}
-
-type AssessmentResults struct {
-	Id           string
-	AssessmentId string            `json:"AssessmentId"`
-	Outputs      map[string]Output `json:"Outputs"`
-}
-
-func (s *ProcessJob) SaveAssessmentResults(assessmentResults AssessmentResults) error {
+func (s *ProcessJob) SaveAssessmentResults(assessmentResults process.AssessmentResults) error {
 	s.Log.Infow(">>SaveAssessmentResults has Received message", "subject", assessmentResults.AssessmentId, "data", assessmentResults.Outputs)
 
 	if s.Driver == nil {

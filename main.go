@@ -64,6 +64,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	err = sv.RegisterProcess(e)
+	if err != nil {
+		panic(err)
+	}
 	err = e.Start(":8080")
 	if err != nil {
 		panic(err)
