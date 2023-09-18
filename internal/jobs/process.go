@@ -31,8 +31,14 @@ func (s *ProcessJob) Run() {
 	for msg := range s.ch {
 		s.Log.Infow(">>RUN has Received message", "subject", msg.Subject, "data", string(msg.Data))
 		a := process.AssessmentResult{}
-		json.Unmarshal(msg.Data, &a)
-		s.SaveAssessmentResult(a)
+		err := json.Unmarshal(msg.Data, &a)
+		if err != nil {
+			s.Log.Errorf("failed to Unamrshal AssessmentResults: %w", err)
+		}
+		err = s.SaveAssessmentResult(a)
+		if err != nil {
+			s.Log.Errorf("failed to save AssessmentResults: %w", err)
+		}
 	}
 }
 func (s *ProcessJob) SaveAssessmentResult(assessmentResult process.AssessmentResult) error {
