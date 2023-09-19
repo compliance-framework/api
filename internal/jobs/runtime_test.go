@@ -12,6 +12,16 @@ import (
 	"go.uber.org/zap"
 )
 
+type CallCounter struct {
+	Update      int
+	Create      int
+	CreateMany  int
+	Get         int
+	GetAll      int
+	Delete      int
+	DeleteWhere int
+}
+
 type FakeDriver struct {
 	UpdateFn      func(id string, object interface{}) error
 	CreateFn      func(id string, object interface{}) error
@@ -20,30 +30,39 @@ type FakeDriver struct {
 	GetAllFn      func(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error)
 	DeleteFn      func(id string) error
 	DeleteWhereFn func(ctx context.Context, collection string, object interface{}, filters map[string]interface{}) error
+	calls         CallCounter
 }
 
 func (f *FakeDriver) GetAll(ctx context.Context, collection string, object interface{}, filters ...map[string]interface{}) ([]interface{}, error) {
+	f.calls.GetAll += 1
 	return f.GetAllFn(ctx, collection, object, filters...)
 }
 func (f *FakeDriver) Update(_ context.Context, _, id string, object interface{}) error {
+	f.calls.Update += 1
 	return f.UpdateFn(id, object)
 }
 func (f *FakeDriver) Create(_ context.Context, _, id string, object interface{}) error {
+	f.calls.Create += 1
 	return f.CreateFn(id, object)
 }
 
 func (f *FakeDriver) Get(_ context.Context, _, id string, object interface{}) error {
+	f.calls.Get += 1
 	return f.GetFn(id, object)
 }
+
 func (f *FakeDriver) Delete(_ context.Context, _, id string) error {
+	f.calls.Delete += 1
 	return f.DeleteFn(id)
 }
 
 func (f *FakeDriver) CreateMany(_ context.Context, _ string, objects map[string]interface{}) error {
+	f.calls.CreateMany += 1
 	return f.CreateManyFn(objects)
 }
 
 func (f *FakeDriver) DeleteWhere(ctx context.Context, collection string, object interface{}, filters map[string]interface{}) error {
+	f.calls.DeleteWhere += 1
 	return f.DeleteWhereFn(ctx, collection, object, filters)
 }
 

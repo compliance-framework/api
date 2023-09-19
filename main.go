@@ -37,7 +37,19 @@ func main() {
 		panic(err)
 	}
 	go job.Run()
-	pub := jobs.PublishJob{}
+	sub := jobs.SubscribeJob{Log: sugar}
+	err = sub.Connect(natsUri)
+	if err != nil {
+		panic(err)
+	}
+	ch := sub.Subscribe("assessment.result")
+	process := jobs.ProcessJob{Log: sugar, Driver: driver}
+	err = process.Init(ch)
+	if err != nil {
+		panic(err)
+	}
+	go process.Run()
+	pub := jobs.PublishJob{Log: sugar}
 	err = pub.Connect(natsUri)
 	if err != nil {
 		panic(err)
@@ -49,6 +61,10 @@ func main() {
 		panic(err)
 	}
 	err = sv.RegisterRuntime(e)
+	if err != nil {
+		panic(err)
+	}
+	err = sv.RegisterProcess(e)
 	if err != nil {
 		panic(err)
 	}
