@@ -59,7 +59,7 @@ func TestGetAssessmentResult(t *testing.T) {
 			},
 			path:         "/assessment-results/:uuid",
 			params:       map[string]string{"uuid": "1236"},
-			requestPath:  "/assessment-results/1234",
+			requestPath:  "/assessment-results/1236",
 			expectedCode: 404,
 		},
 	}
@@ -76,11 +76,9 @@ func TestGetAssessmentResult(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			p := c
-
-			err := s.GetAssessmentResult(p)
+			err := s.GetAssessmentResult(c)
 			assert.Nil(t, err)
-			assert.Equal(t, tc.expectedCode, p.Response().Status)
+			assert.Equal(t, tc.expectedCode, c.Response().Status)
 		})
 	}
 }
@@ -113,7 +111,7 @@ func TestGetAssessmentResults(t *testing.T) {
 			},
 			path: "/assessment-results",
 
-			requestPath:  "/assessment-results/1234",
+			requestPath:  "/assessment-results",
 			expectedCode: 500,
 		},
 	}
@@ -130,11 +128,9 @@ func TestGetAssessmentResults(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			p := c
-
-			err := s.GetAssessmentResults(p)
+			err := s.GetAssessmentResults(c)
 			assert.Nil(t, err)
-			assert.Equal(t, tc.expectedCode, p.Response().Status)
+			assert.Equal(t, tc.expectedCode, c.Response().Status)
 		})
 	}
 }
