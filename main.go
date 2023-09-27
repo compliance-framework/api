@@ -1,12 +1,12 @@
 package main
 
 import (
+	"log"
 	"os"
+	"sync"
 
 	"github.com/compliance-framework/configuration-service/internal/jobs"
-	_ "github.com/compliance-framework/configuration-service/internal/models"
 	"github.com/compliance-framework/configuration-service/internal/server"
-	_ "github.com/compliance-framework/configuration-service/internal/stores"
 	"github.com/compliance-framework/configuration-service/internal/stores/mongo"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -14,62 +14,68 @@ import (
 )
 
 func main() {
-	//driver := &file.FileDriver{Path: "."}
-	mongoUri := os.Getenv("MONGO_URI")
-	if mongoUri == "" {
-		mongoUri = "mongodb://mongo:27017"
-	}
-	natsUri := os.Getenv("NATS_URI")
-	if natsUri == "" {
-		natsUri = "nats://nats:4222"
-	}
+	var wg sync.WaitGroup
+
+	mongoUri := getEnv("MONGO_URI", "mongodb://mongo:27017")
+	natsUri := getEnv("NATS_URI", "nats://nats:4222")
+
 	driver := &mongo.MongoDriver{Url: mongoUri, Database: "cf"}
-	e := echo.New()
 	logger, err := zap.NewProduction()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := logger.Sugar()
+	e := echo.New()
 	e.Use(middleware.Logger())
+
 	job := jobs.RuntimeJobCreator{Log: sugar, Driver: driver}
-	err = job.Init()
-	if err != nil {
-		panic(err)
-	}
-	go job.Run()
+	checkErr(job.Init())
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		job.Run()
+	}()
+
 	sub := jobs.SubscribeJob{Log: sugar}
-	err = sub.Connect(natsUri)
-	if err != nil {
-		panic(err)
-	}
+	checkErr(sub.Connect(natsUri))
 	ch := sub.Subscribe("assessment.result")
+
 	process := jobs.ProcessJob{Log: sugar, Driver: driver}
-	err = process.Init(ch)
-	if err != nil {
-		panic(err)
-	}
-	go process.Run()
+	checkErr(process.Init(ch))
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		process.Run()
+	}()
+
 	pub := jobs.PublishJob{Log: sugar}
-	err = pub.Connect(natsUri)
-	if err != nil {
-		panic(err)
-	}
-	go pub.Run()
+	checkErr(pub.Connect(natsUri))
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		pub.Run()
+	}()
+
 	sv := server.Server{Driver: driver}
-	err = sv.RegisterOSCAL(e)
-	if err != nil {
-		panic(err)
+	checkErr(sv.RegisterOSCAL(e))
+	checkErr(sv.RegisterRuntime(e))
+	checkErr(sv.RegisterProcess(e))
+
+	checkErr(e.Start(":8080"))
+
+	wg.Wait()
+}
+
+func getEnv(key, fallback string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		value = fallback
 	}
-	err = sv.RegisterRuntime(e)
+	return value
+}
+
+func checkErr(err error) {
 	if err != nil {
-		panic(err)
-	}
-	err = sv.RegisterProcess(e)
-	if err != nil {
-		panic(err)
-	}
-	err = e.Start(":8080")
-	if err != nil {
-		panic(err)
+		log.Fatalf("An error occurred: %v", err)
 	}
 }
