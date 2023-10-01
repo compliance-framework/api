@@ -6,29 +6,37 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 )
 
-type ResultData struct {
-	Message string `json:"message"`
-}
-type Output struct {
-	ResultData ResultData `json:"ResultData"`
+type Observation struct {
+	SubjectId   string `json:"subject-id"`
+	Description string `json:"description"` // Holds the observation text (couldn't find a better name)
 }
 
-type AssessmentResult struct {
-	Uuid         string            `json:"Uuid"`
-	AssessmentId string            `json:"AssessmentId"`
-	Outputs      map[string]Output `json:"Outputs"`
+type Risk struct {
+	SubjectId   string `json:"subject-id"`
+	Description string `json:"description"` // Holds the risk text
+	Impact      string `json:"impact"`      // Holds the impact text
 }
 
-func (c *AssessmentResult) FromJSON(b []byte) error {
+type JobResult struct {
+	Uuid         string `json:"uuid"`
+	JobId        string `json:"id"`
+	RuntimeId    string `json:"runtime-id"` // only if the control-plane doesn't listen to runtime specific topic
+	AssessmentId string `json:"assessment-id"`
+	ActivityId   string `json:"activity-id"`
+	Observations []*Observation
+	Risks        []*Risk
+}
+
+func (c *JobResult) FromJSON(b []byte) error {
 	return json.Unmarshal(b, c)
 }
 
-func (c *AssessmentResult) ToJSON() ([]byte, error) {
+func (c *JobResult) ToJSON() ([]byte, error) {
 	return json.Marshal(c)
 }
 
-func (c *AssessmentResult) DeepCopy() schema.BaseModel {
-	d := &AssessmentResult{}
+func (c *JobResult) DeepCopy() schema.BaseModel {
+	d := &JobResult{}
 	p, err := c.ToJSON()
 	if err != nil {
 		panic(err)
@@ -40,14 +48,14 @@ func (c *AssessmentResult) DeepCopy() schema.BaseModel {
 	return d
 }
 
-func (c *AssessmentResult) UUID() string {
+func (c *JobResult) UUID() string {
 	return c.Uuid
 }
 
-func (c *AssessmentResult) Validate() error {
+func (c *JobResult) Validate() error {
 	return nil
 }
 
-func (c *AssessmentResult) Type() string {
-	return "assessment-result"
+func (c *JobResult) Type() string {
+	return "job-result"
 }
