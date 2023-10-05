@@ -18,8 +18,8 @@ func TestRegisterProcess(t *testing.T) {
 	err := s.RegisterProcess(p)
 	assert.Nil(t, err)
 	expected := map[string]bool{
-		"GET/assessment-results/:uuid": false,
-		"GET/assessment-results":       false,
+		"GET/job-results/:uuid": false,
+		"GET/job-results":       false,
 	}
 	for _, routes := range p.Routes() {
 		t := fmt.Sprintf("%s%s", routes.Method, routes.Path)
@@ -32,7 +32,7 @@ func TestRegisterProcess(t *testing.T) {
 	}
 }
 
-func TestGetAssessmentResult(t *testing.T) {
+func TestGetJobResult(t *testing.T) {
 	testCases := []struct {
 		name         string
 		getFn        func(id string, object interface{}) error
@@ -42,24 +42,24 @@ func TestGetAssessmentResult(t *testing.T) {
 		expectedCode int
 	}{
 		{
-			name: "get-assessment-result",
+			name: "get-job-result",
 			getFn: func(id string, object interface{}) error {
 				// Simulate a successful Get call here
 				return nil
 			},
-			path:         "/assessment-results/:uuid",
+			path:         "/job-results/:uuid",
 			params:       map[string]string{"uuid": "1234"},
-			requestPath:  "/assessment-results/1234",
+			requestPath:  "/job-results/1234",
 			expectedCode: 200,
 		},
 		{
-			name: "get-assessment-result-not-found",
+			name: "get-job-result-not-found",
 			getFn: func(id string, object interface{}) error {
 				return storeschema.NotFoundErr{}
 			},
-			path:         "/assessment-results/:uuid",
+			path:         "/job-results/:uuid",
 			params:       map[string]string{"uuid": "1236"},
-			requestPath:  "/assessment-results/1236",
+			requestPath:  "/job-results/1236",
 			expectedCode: 404,
 		},
 	}
@@ -76,14 +76,14 @@ func TestGetAssessmentResult(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			err := s.GetAssessmentResult(c)
+			err := s.GetJobResult(c)
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expectedCode, c.Response().Status)
 		})
 	}
 }
 
-func TestGetAssessmentResults(t *testing.T) {
+func TestGetJobResults(t *testing.T) {
 	testCases := []struct {
 		name     string
 		getAllFn func(id string, object interface{}) ([]interface{}, error)
@@ -93,25 +93,25 @@ func TestGetAssessmentResults(t *testing.T) {
 		expectedCode int
 	}{
 		{
-			name: "get-assessment-results",
+			name: "get-job-results",
 			getAllFn: func(id string, object interface{}) ([]interface{}, error) {
 				// Simulate a successful Get call here
 				return nil, nil
 			},
-			path: "/assessment-results",
+			path: "/job-results",
 
-			requestPath:  "/assessment-results",
+			requestPath:  "/job-results",
 			expectedCode: 200,
 		},
 		{
-			name: "get-assessment-result-not-found",
+			name: "get-job-result-not-found",
 			getAllFn: func(id string, object interface{}) ([]interface{}, error) {
 				// Simulate a successful Get call here
 				return nil, fmt.Errorf("boom")
 			},
-			path: "/assessment-results",
+			path: "/job-results",
 
-			requestPath:  "/assessment-results",
+			requestPath:  "/job-results",
 			expectedCode: 500,
 		},
 	}
@@ -128,7 +128,7 @@ func TestGetAssessmentResults(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			err := s.GetAssessmentResults(c)
+			err := s.GetJobResults(c)
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expectedCode, c.Response().Status)
 		})
