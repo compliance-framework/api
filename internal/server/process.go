@@ -9,12 +9,12 @@ import (
 )
 
 func (s *Server) RegisterProcess(e *echo.Echo) error {
-	e.GET("/assessment-results/:uuid", s.getAssessmentResult)
-	e.GET("/assessment-results", s.getAssessmentResults)
+	e.GET("/assessment-results/:uuid", s.GetAssessmentResult)
+	e.GET("/assessment-results", s.GetAssessmentResults)
 	return nil
 }
 
-func (s *Server) getAssessmentResult(c echo.Context) error {
+func (s *Server) GetAssessmentResult(c echo.Context) error {
 	id := c.Param("uuid")
 	c.Logger().Infof("Process::getAssessmentResult::uuid: %v", id)
 	jr := process.JobResult{}
@@ -29,8 +29,9 @@ func (s *Server) getAssessmentResult(c echo.Context) error {
 	return c.JSON(http.StatusOK, jr)
 }
 
-func (s *Server) getAssessmentResults(c echo.Context) error {
-	assessmentResult := process.JobResult{}
+
+func (s *Server) GetAssessmentResults(c echo.Context) error {
+	assessmentResult := process.AssessmentResult{}
 	objs, err := s.Driver.GetAll(c.Request().Context(), assessmentResult.Type(), &assessmentResult)
 
 	c.Logger().Infof("Process::getAssessmentResults::objs: %v", objs)
