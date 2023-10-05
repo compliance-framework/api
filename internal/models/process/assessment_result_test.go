@@ -6,16 +6,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var aresult = &AssessmentResult{
+var aresult = &JobResult{
 	Uuid:         "uuid-123",
 	AssessmentId: "assId456",
-	Outputs: map[string]Output{
-		"output1": {
-			ResultData: ResultData{
-				Message: "Message1",
-			},
+	Observations: []*Observation{
+		{
+			SubjectId:   "123",
+			Description: "456",
 		},
 	},
+	Risks: []*Risk{{
+		SubjectId:   "123",
+		Description: "foo",
+		Impact:      "HIGH",
+	}},
 }
 
 func TestToAndFromJson(t *testing.T) {
@@ -23,7 +27,7 @@ func TestToAndFromJson(t *testing.T) {
 	jsonData, err := aresult.ToJSON()
 	assert.NoError(t, err)
 
-	var deserialisedAssessmentResult AssessmentResult
+	var deserialisedAssessmentResult JobResult
 	err = deserialisedAssessmentResult.FromJSON(jsonData)
 	assert.NoError(t, err)
 
@@ -33,7 +37,7 @@ func TestToAndFromJson(t *testing.T) {
 
 func TestDeepCopy(t *testing.T) {
 
-	copy := aresult.DeepCopy().(*AssessmentResult)
+	copy := aresult.DeepCopy().(*JobResult)
 
 	assert.Equal(t, aresult, copy)
 
@@ -53,6 +57,6 @@ func TestValidate(t *testing.T) {
 
 func TestType(t *testing.T) {
 
-	assert.Equal(t, "assessment-result", aresult.Type())
+	assert.Equal(t, "job-result", aresult.Type())
 
 }

@@ -11,12 +11,12 @@ import (
 func TestProcess(t *testing.T) {
 	testCases := []struct {
 		name             string
-		assessmentResult process.AssessmentResult
+		assessmentResult process.JobResult
 		CreateFn         func(id string, object interface{}) error
 	}{
 		{
 			name: "creates-result",
-			assessmentResult: process.AssessmentResult{
+			assessmentResult: process.JobResult{
 				Uuid: "1234",
 			},
 			CreateFn: func(id string, object interface{}) error { return nil },
@@ -32,7 +32,7 @@ func TestProcess(t *testing.T) {
 				ch:     make(chan *nats.Msg),
 				Log:    zap.NewExample().Sugar(),
 			}
-			err := processJob.SaveAssessmentResult(testCase.assessmentResult)
+			err := processJob.Save(testCase.assessmentResult)
 
 			if f.calls.Create == 0 {
 				t.Errorf("expected Create to be called")

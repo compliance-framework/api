@@ -17,20 +17,20 @@ func (s *Server) RegisterProcess(e *echo.Echo) error {
 func (s *Server) GetAssessmentResult(c echo.Context) error {
 	id := c.Param("uuid")
 	c.Logger().Infof("Process::getAssessmentResult::uuid: %v", id)
-	assessmentResult := process.AssessmentResult{}
+	jr := process.JobResult{}
 
-	err := s.Driver.Get(c.Request().Context(), assessmentResult.Type(), id, &assessmentResult)
+	err := s.Driver.Get(c.Request().Context(), jr.Type(), id, &jr)
 
-	c.Logger().Infof("Process::getAssessmentResult::obj: %v", assessmentResult)
+	c.Logger().Infof("Process::getAssessmentResult::obj: %v", jr)
 	if err != nil {
 		return c.String(http.StatusNotFound, fmt.Errorf("object not found").Error())
 	}
 
-	return c.JSON(http.StatusOK, assessmentResult)
+	return c.JSON(http.StatusOK, jr)
 }
 
 func (s *Server) GetAssessmentResults(c echo.Context) error {
-	assessmentResult := process.AssessmentResult{}
+	assessmentResult := process.JobResult{}
 	objs, err := s.Driver.GetAll(c.Request().Context(), assessmentResult.Type(), &assessmentResult)
 
 	c.Logger().Infof("Process::getAssessmentResults::objs: %v", objs)
