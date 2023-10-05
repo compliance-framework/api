@@ -29,9 +29,8 @@ func (s *Server) GetAssessmentResult(c echo.Context) error {
 	return c.JSON(http.StatusOK, jr)
 }
 
-
 func (s *Server) GetAssessmentResults(c echo.Context) error {
-	assessmentResult := process.AssessmentResult{}
+	assessmentResult := process.JobResult{}
 	objs, err := s.Driver.GetAll(c.Request().Context(), assessmentResult.Type(), &assessmentResult)
 
 	c.Logger().Infof("Process::getAssessmentResults::objs: %v", objs)
