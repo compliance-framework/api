@@ -36,7 +36,7 @@ func main() {
 		job.Run()
 	}()
 
-	sub := jobs.SubscribeJob{Log: sugar}
+	sub := jobs.EventSubscriber{Log: sugar}
 	checkErr(sub.Connect(natsUri))
 	ch := sub.Subscribe("assessment.result")
 
