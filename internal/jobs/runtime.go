@@ -14,7 +14,7 @@ import (
 )
 
 // TODO Instead of having this runtime to publish changes, it would be better to have the Driver to publish changes whenever that change happened (with a specific message, and a specific channel)
-type RuntimeJobCreator struct {
+type RuntimeJobManager struct {
 	confCreated <-chan pubsub.Event
 	confUpdated <-chan pubsub.Event
 	confDeleted <-chan pubsub.Event
@@ -22,7 +22,7 @@ type RuntimeJobCreator struct {
 	Driver      storeschema.Driver
 }
 
-func (r *RuntimeJobCreator) Init() error {
+func (r *RuntimeJobManager) Init() error {
 	c, err := pubsub.Subscribe(pubsub.ObjectCreated)
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (r *RuntimeJobCreator) Init() error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) Run() {
+func (r *RuntimeJobManager) Run() {
 	for {
 		select {
 		case msg := <-r.confCreated:
@@ -64,7 +64,7 @@ func (r *RuntimeJobCreator) Run() {
 	}
 }
 
-func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
+func (r *RuntimeJobManager) createJobs(msg pubsub.Event) error {
 	evt := msg.Data.(pubsub.DatabaseEvent)
 	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
@@ -88,7 +88,7 @@ func (r *RuntimeJobCreator) createJobs(msg pubsub.Event) error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
+func (r *RuntimeJobManager) updateJobs(msg pubsub.Event) error {
 	evt := msg.Data.(pubsub.DatabaseEvent)
 	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
@@ -131,7 +131,7 @@ func (r *RuntimeJobCreator) updateJobs(msg pubsub.Event) error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
+func (r *RuntimeJobManager) deleteJobs(msg pubsub.Event) error {
 	evt := msg.Data.(pubsub.DatabaseEvent)
 	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
@@ -154,7 +154,7 @@ func (r *RuntimeJobCreator) deleteJobs(msg pubsub.Event) error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) _getPlugin(uuid string) (*models.RuntimePlugin, error) {
+func (r *RuntimeJobManager) _getPlugin(uuid string) (*models.RuntimePlugin, error) {
 	plugin := &models.RuntimePlugin{}
 	err := r.Driver.Get(context.Background(), plugin.Type(), uuid, plugin)
 	if err != nil {
@@ -183,7 +183,7 @@ func assembleProperties(task *oscal.Task, activity *oscal.CommonActivity) []*mod
 
 }
 
-func (r *RuntimeJobCreator) _getActivity(c *models.RuntimeConfiguration) (*oscal.CommonActivity, error) {
+func (r *RuntimeJobManager) _getActivity(c *models.RuntimeConfiguration) (*oscal.CommonActivity, error) {
 	ap, err := r._getAp(c.AssessmentPlanUuid)
 	if err != nil {
 		return nil, fmt.Errorf("could not get assessment-plan %v: %w", c.AssessmentPlanUuid, err)
@@ -203,7 +203,7 @@ func (r *RuntimeJobCreator) _getActivity(c *models.RuntimeConfiguration) (*oscal
 	return ans, nil
 }
 
-func (r *RuntimeJobCreator) _getAp(uuid string) (*oscal.AssessmentPlan, error) {
+func (r *RuntimeJobManager) _getAp(uuid string) (*oscal.AssessmentPlan, error) {
 	ap := &oscal.AssessmentPlan{}
 	err := r.Driver.Get(context.Background(), ap.Type(), uuid, ap)
 	if err != nil {
@@ -224,13 +224,13 @@ func loadConfig(evt pubsub.DatabaseEvent, config *models.RuntimeConfiguration) e
 	return nil
 }
 
-func (r *RuntimeJobCreator) _getJob(uuid string) (*models.RuntimeConfigurationJob, error) {
+func (r *RuntimeJobManager) _getJob(uuid string) (*models.RuntimeConfigurationJob, error) {
 	job := &models.RuntimeConfigurationJob{}
 	err := r.Driver.Get(context.Background(), job.Type(), uuid, job)
 	return job, err
 }
 
-func (r *RuntimeJobCreator) _deleteJob(o interface{}) error {
+func (r *RuntimeJobManager) _deleteJob(o interface{}) error {
 	job := &models.RuntimeConfigurationJob{}
 	obj := o.(*models.RuntimeConfigurationJob)
 	err := r.Driver.Delete(context.Background(), job.Type(), obj.Uuid)
@@ -241,7 +241,7 @@ func (r *RuntimeJobCreator) _deleteJob(o interface{}) error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) _createJob(o interface{}) error {
+func (r *RuntimeJobManager) _createJob(o interface{}) error {
 	obj := o.(*models.RuntimeConfigurationJob)
 	err := r.Driver.Create(context.Background(), obj.Type(), obj.Uuid, obj)
 	if err != nil {
@@ -251,7 +251,7 @@ func (r *RuntimeJobCreator) _createJob(o interface{}) error {
 	return nil
 }
 
-func (r *RuntimeJobCreator) _updateJob(o interface{}) error {
+func (r *RuntimeJobManager) _updateJob(o interface{}) error {
 	obj := o.(*models.RuntimeConfigurationJob)
 	err := r.Driver.Update(context.Background(), obj.Type(), obj.Uuid, obj)
 	if err != nil {
@@ -273,7 +273,7 @@ func publish(objUuid, runtimeUuid string, payload runtime.PayloadEventType, data
 
 }
 
-func (r *RuntimeJobCreator) _makeJob(c *models.RuntimeConfiguration, job *models.RuntimeConfigurationJob) error {
+func (r *RuntimeJobManager) _makeJob(c *models.RuntimeConfiguration, job *models.RuntimeConfigurationJob) error {
 	activity, err := r._getActivity(c)
 	if err != nil {
 		return fmt.Errorf("could not get activity %v for configuration %v: %w", c.ActivityUuid, c.Uuid, err)

@@ -12,22 +12,22 @@ import (
 	"go.uber.org/zap"
 )
 
-type ProcessJob struct {
+type EventProcessor struct {
 	ch     chan *nats.Msg
 	Log    *zap.SugaredLogger
 	Driver storeschema.Driver
 }
 
-func (s *ProcessJob) Init(ch chan *nats.Msg) error {
+func (s *EventProcessor) Init(ch chan *nats.Msg) error {
 	s.Log.Infow(">>INIT %s", ch)
 	if s.Driver == nil {
-		panic("ProcessJob driver is nil")
+		panic("EventProcessor driver is nil")
 	}
 	s.ch = ch
 	return nil
 }
 
-func (s *ProcessJob) Run() {
+func (s *EventProcessor) Run() {
 	for msg := range s.ch {
 		s.Log.Infow(">>RUN has Received message", "subject", msg.Subject, "data", string(msg.Data))
 		a := process.JobResult{}
@@ -41,11 +41,11 @@ func (s *ProcessJob) Run() {
 		}
 	}
 }
-func (s *ProcessJob) Save(res process.JobResult) error {
+func (s *EventProcessor) Save(res process.JobResult) error {
 	s.Log.Infow(">>SaveAssessmentResult has Received message", "subject", res.AssessmentId)
 
 	if s.Driver == nil {
-		return fmt.Errorf("ProcessJob driver is nil")
+		return fmt.Errorf("EventProcessor driver is nil")
 	}
 
 	// TODO: is the assessment id is even valid?

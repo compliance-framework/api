@@ -27,12 +27,12 @@ func TestProcess(t *testing.T) {
 			f := FakeDriver{}
 			f.CreateFn = tc.CreateFn
 			testCase := testCases[i]
-			processJob := &ProcessJob{
+			EventProcessor := &EventProcessor{
 				Driver: &f,
 				ch:     make(chan *nats.Msg),
 				Log:    zap.NewExample().Sugar(),
 			}
-			err := processJob.Save(testCase.assessmentResult)
+			err := EventProcessor.Save(testCase.assessmentResult)
 
 			if f.calls.Create == 0 {
 				t.Errorf("expected Create to be called")

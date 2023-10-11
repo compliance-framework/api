@@ -28,7 +28,7 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
 
-	job := jobs.RuntimeJobCreator{Log: sugar, Driver: driver}
+	job := jobs.RuntimeJobManager{Log: sugar, Driver: driver}
 	checkErr(job.Init())
 	wg.Add(1)
 	go func() {
@@ -40,7 +40,7 @@ func main() {
 	checkErr(sub.Connect(natsUri))
 	ch := sub.Subscribe("assessment.result")
 
-	process := jobs.ProcessJob{Log: sugar, Driver: driver}
+	process := jobs.EventProcessor{Log: sugar, Driver: driver}
 	checkErr(process.Init(ch))
 	wg.Add(1)
 	go func() {
