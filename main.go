@@ -40,7 +40,7 @@ func main() {
 	checkErr(sub.Connect(natsUri))
 	ch := sub.Subscribe("assessment.result")
 
-	process := jobs.ProcessJob{Log: sugar, Driver: driver}
+	process := jobs.EventProcessor{Log: sugar, Driver: driver}
 	checkErr(process.Init(ch))
 	wg.Add(1)
 	go func() {
