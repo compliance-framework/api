@@ -33,7 +33,7 @@ func TestConnect(t *testing.T) {
 	}
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := PublishJob{driver: &internal{
+			p := EventPublisher{driver: &internal{
 				ConnectFn: func(url string, options ...nats.Option) (*nats.Conn, error) {
 					c := nats.Conn{}
 					return &c, testCases[i].connErr

@@ -38,7 +38,7 @@ func DefaultEncodedConn(c *nats.Conn, enc string) (*nats.EncodedConn, error) {
 	return nats.NewEncodedConn(c, enc)
 }
 
-type PublishJob struct {
+type EventPublisher struct {
 	Log          *zap.SugaredLogger
 	conn         *nats.Conn
 	ec           *nats.EncodedConn
@@ -47,7 +47,7 @@ type PublishJob struct {
 	driver       *internal
 }
 
-func (p *PublishJob) Init() error {
+func (p *EventPublisher) Init() error {
 	if p.driver == nil {
 		p.driver = &internal{
 			ConnectFn:    DefaultConnect,
@@ -62,7 +62,7 @@ func (p *PublishJob) Init() error {
 	return nil
 }
 
-func (p *PublishJob) Connect(server string) error {
+func (p *EventPublisher) Connect(server string) error {
 	err := p.Init()
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func (p *PublishJob) Connect(server string) error {
 	return nil
 }
 
-func (p *PublishJob) Run() {
+func (p *EventPublisher) Run() {
 	for msg := range p.runtimeJobCh {
 		topic := msg.Topic
 		event := msg.RuntimeConfigurationEvent

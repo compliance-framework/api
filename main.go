@@ -48,7 +48,7 @@ func main() {
 		process.Run()
 	}()
 
-	pub := jobs.PublishJob{Log: sugar}
+	pub := jobs.EventPublisher{Log: sugar}
 	checkErr(pub.Connect(natsUri))
 	wg.Add(1)
 	go func() {
