@@ -9,19 +9,19 @@ import (
 )
 
 func (s *Server) RegisterProcess(e *echo.Echo) error {
-	e.GET("/assessment-results/:uuid", s.GetAssessmentResult)
-	e.GET("/assessment-results", s.GetAssessmentResults)
+	e.GET("/job-results/:uuid", s.GetJobResult)
+	e.GET("/job-results", s.GetJobResults)
 	return nil
 }
 
-func (s *Server) GetAssessmentResult(c echo.Context) error {
+func (s *Server) GetJobResult(c echo.Context) error {
 	id := c.Param("uuid")
-	c.Logger().Infof("Process::getAssessmentResult::uuid: %v", id)
+	c.Logger().Infof("Process::getJobResult::uuid: %v", id)
 	jr := process.JobResult{}
 
 	err := s.Driver.Get(c.Request().Context(), jr.Type(), id, &jr)
 
-	c.Logger().Infof("Process::getAssessmentResult::obj: %v", jr)
+	c.Logger().Infof("Process::getJobResult::obj: %v", jr)
 	if err != nil {
 		return c.String(http.StatusNotFound, fmt.Errorf("object not found").Error())
 	}
@@ -29,11 +29,11 @@ func (s *Server) GetAssessmentResult(c echo.Context) error {
 	return c.JSON(http.StatusOK, jr)
 }
 
-func (s *Server) GetAssessmentResults(c echo.Context) error {
-	assessmentResult := process.JobResult{}
-	objs, err := s.Driver.GetAll(c.Request().Context(), assessmentResult.Type(), &assessmentResult)
+func (s *Server) GetJobResults(c echo.Context) error {
+	jobResult := process.JobResult{}
+	objs, err := s.Driver.GetAll(c.Request().Context(), jobResult.Type(), &jobResult)
 
-	c.Logger().Infof("Process::getAssessmentResults::objs: %v", objs)
+	c.Logger().Infof("Process::getJobResults::objs: %v", objs)
 
 	if err != nil {
 		return c.String(http.StatusInternalServerError, fmt.Errorf("failed to get object: %v", err).Error())
