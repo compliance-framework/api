@@ -147,7 +147,7 @@ func TestCreateJobs(t *testing.T) {
 		},
 	}
 	f := FakeDriver{}
-	r := RuntimeJobCreator{
+	r := RuntimeJobManager{
 		Driver: &f,
 		Log:    zap.NewNop().Sugar(),
 	}
@@ -213,7 +213,7 @@ func TestDeleteJobs(t *testing.T) {
 		},
 	}
 	f := FakeDriver{}
-	r := RuntimeJobCreator{
+	r := RuntimeJobManager{
 		Driver: &f,
 		Log:    zap.NewNop().Sugar(),
 	}
@@ -309,7 +309,7 @@ func TestUpdateJobs(t *testing.T) {
 		},
 	}
 	f := FakeDriver{}
-	r := RuntimeJobCreator{
+	r := RuntimeJobManager{
 		Driver: &f,
 		Log:    zap.NewNop().Sugar(),
 	}

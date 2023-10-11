@@ -28,7 +28,7 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
 
-	job := jobs.RuntimeJobCreator{Log: sugar, Driver: driver}
+	job := jobs.RuntimeJobManager{Log: sugar, Driver: driver}
 	checkErr(job.Init())
 	wg.Add(1)
 	go func() {
