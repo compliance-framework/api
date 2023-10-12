@@ -16,8 +16,8 @@ import (
 func main() {
 	var wg sync.WaitGroup
 
-	mongoUri := getEnv("MONGO_URI", "mongodb://mongo:27017")
-	natsUri := getEnv("NATS_URI", "nats://nats:4222")
+	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://mongo:27017")
+	natsUri := getEnvironmentVariable("NATS_URI", "nats://nats:4222")
 
 	driver := &mongo.MongoDriver{Url: mongoUri, Database: "cf"}
 	logger, err := zap.NewProduction()
@@ -36,7 +36,7 @@ func main() {
 		job.Run()
 	}()
 
-	sub := jobs.SubscribeJob{Log: sugar}
+	sub := jobs.EventSubscriber{Log: sugar}
 	checkErr(sub.Connect(natsUri))
 	ch := sub.Subscribe("assessment.result")
 
@@ -48,7 +48,7 @@ func main() {
 		process.Run()
 	}()
 
-	pub := jobs.PublishJob{Log: sugar}
+	pub := jobs.EventPublisher{Log: sugar}
 	checkErr(pub.Connect(natsUri))
 	wg.Add(1)
 	go func() {
@@ -66,7 +66,7 @@ func main() {
 	wg.Wait()
 }
 
-func getEnv(key, fallback string) string {
+func getEnvironmentVariable(key, fallback string) string {
 	value, exists := os.LookupEnv(key)
 	if !exists {
 		value = fallback

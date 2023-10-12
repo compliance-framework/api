@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type SubscribeJob struct {
+type EventSubscriber struct {
 	Log           *zap.SugaredLogger
 	driver        *internal
 	conn          *nats.Conn
@@ -20,7 +20,7 @@ type Subscription struct {
 	ch  chan *nats.Msg
 }
 
-func (s *SubscribeJob) Init() error {
+func (s *EventSubscriber) Init() error {
 	if s.driver == nil {
 		s.driver = &internal{
 			ConnectFn:    DefaultConnect,
@@ -34,7 +34,7 @@ func (s *SubscribeJob) Init() error {
 	return nil
 }
 
-func (s *SubscribeJob) Connect(server string) error {
+func (s *EventSubscriber) Connect(server string) error {
 	err := s.Init()
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func (s *SubscribeJob) Connect(server string) error {
 	return nil
 }
 
-func (s *SubscribeJob) createSubscription(topic string) *Subscription {
+func (s *EventSubscriber) createSubscription(topic string) *Subscription {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sub, ok := s.subscriptions[topic]
@@ -70,7 +70,7 @@ func (s *SubscribeJob) createSubscription(topic string) *Subscription {
 }
 
 // Subscribe to a given topic in a channel
-func (s *SubscribeJob) Subscribe(topic string) chan *nats.Msg {
+func (s *EventSubscriber) Subscribe(topic string) chan *nats.Msg {
 	sub := s.createSubscription(topic)
 	subscription, err := s.conn.ChanSubscribe(topic, sub.ch)
 	if err != nil {
@@ -82,7 +82,7 @@ func (s *SubscribeJob) Subscribe(topic string) chan *nats.Msg {
 	return sub.ch
 }
 
-func (s *SubscribeJob) Close() error {
+func (s *EventSubscriber) Close() error {
 	for k := range s.subscriptions {
 		err := s.CloseSubscription(k)
 		if err != nil {
@@ -93,7 +93,7 @@ func (s *SubscribeJob) Close() error {
 	return nil
 }
 
-func (s *SubscribeJob) CloseSubscription(topic string) error {
+func (s *EventSubscriber) CloseSubscription(topic string) error {
 	sub, ok := s.subscriptions[topic]
 	if !ok {
 		return nil
