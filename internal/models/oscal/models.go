@@ -6,16 +6,20 @@ import (
 
 type Uuid string
 
+type Links struct {
+	Links []metadata.Link `json:"links,omitempty"`
+}
+
 type Metadata struct {
 	Metadata metadata.Metadata `json:"metadata"`
 }
 
-type Props struct {
-	Props []Property `json:"props,omitempty"`
+type Parts struct {
+	Parts []Part `json:"parts,omitempty"`
 }
 
-type Links struct {
-	Links []metadata.Link `json:"links,omitempty"`
+type Props struct {
+	Props []Property `json:"props,omitempty"`
 }
 
 type Remarks struct {
