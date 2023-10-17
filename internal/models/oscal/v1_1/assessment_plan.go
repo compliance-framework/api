@@ -161,7 +161,7 @@ type CommonActivity struct {
 // CommonAssessmentPart A partition of an assessment plan or results or a child of another part.
 type CommonAssessmentPart struct {
 
-	// A textual label that provides a sub-type or characterization of the part's name. This can be used to further distinguish or discriminate between the semantics of multiple parts of the same control with the same name and ns.
+	// A textual label that provides a sub-type or characterization of the part's name. This can be used to further distinguish or discriminate between the semantics of multiple parts of the same catalog with the same name and ns.
 	Class string  `json:"class,omitempty"`
 	Links []*Link `json:"links,omitempty"`
 
@@ -199,13 +199,13 @@ type AssessmentSubject struct {
 	Type interface{} `json:"type"`
 }
 
-// CommonLocalObjective A local definition of a control objective for this assessment. Uses catalog syntax for control objective and assessment actions.
+// CommonLocalObjective A local definition of a catalog objective for this assessment. Uses catalog syntax for catalog objective and assessment actions.
 type CommonLocalObjective struct {
 
-	// A reference to a control with a corresponding id value. When referencing an externally defined control, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
-	ControlId string `json:"control-id"`
+	// A reference to a catalog with a corresponding id value. When referencing an externally defined catalog, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
+	ControlId string `json:"catalog-id"`
 
-	// A human-readable description of this control objective.
+	// A human-readable description of this catalog objective.
 	Description string      `json:"description,omitempty"`
 	Links       []*Link     `json:"links,omitempty"`
 	Parts       []*Part     `json:"parts"`
@@ -213,7 +213,7 @@ type CommonLocalObjective struct {
 	Remarks     string      `json:"remarks,omitempty"`
 }
 
-// CommonSelectObjectiveById Used to select a control objective for inclusion/exclusion based on the control objective's identifier.
+// CommonSelectObjectiveById Used to select a catalog objective for inclusion/exclusion based on the catalog objective's identifier.
 type CommonSelectObjectiveById struct {
 
 	// Points to an assessment objective.
@@ -274,10 +274,10 @@ type PortRange struct {
 	Transport interface{} `json:"transport,omitempty"`
 }
 
-// ReferencedControlObjectives Identifies the control objectives of the assessment. In the assessment plan, these are the planned objectives. In the assessment results, these are the assessed objectives, and reflects any changes from the plan.
+// ReferencedControlObjectives Identifies the catalog objectives of the assessment. In the assessment plan, these are the planned objectives. In the assessment results, these are the assessed objectives, and reflects any changes from the plan.
 type ReferencedControlObjectives struct {
 
-	// A human-readable description of this collection of control objectives.
+	// A human-readable description of this collection of catalog objectives.
 	Description       string                       `json:"description,omitempty"`
 	ExcludeObjectives []*CommonSelectObjectiveById `json:"exclude-objectives,omitempty"`
 	IncludeAll        *IncludeAll                  `json:"include-all,omitempty"`
@@ -287,12 +287,12 @@ type ReferencedControlObjectives struct {
 	Remarks           string                       `json:"remarks,omitempty"`
 }
 
-// ReviewedControlsAndControlObjectives Identifies the controls being assessed and their control objectives.
+// ReviewedControlsAndControlObjectives Identifies the controls being assessed and their catalog objectives.
 type ReviewedControlsAndControlObjectives struct {
-	ControlObjectiveSelections []*ReferencedControlObjectives `json:"control-objective-selections,omitempty"`
-	ControlSelections          []*AssessedControls            `json:"control-selections"`
+	ControlObjectiveSelections []*ReferencedControlObjectives `json:"catalog-objective-selections,omitempty"`
+	ControlSelections          []*AssessedControls            `json:"catalog-selections"`
 
-	// A human-readable description of control objectives.
+	// A human-readable description of catalog objectives.
 	Description string      `json:"description,omitempty"`
 	Links       []*Link     `json:"links,omitempty"`
 	Props       []*Property `json:"props,omitempty"`
@@ -312,11 +312,11 @@ type SelectAssessmentSubject struct {
 	Type interface{} `json:"type"`
 }
 
-// SelectControl Used to select a control for inclusion/exclusion based on one or more control identifiers. A set of statement identifiers can be used to target the inclusion/exclusion to only specific control statements providing more granularity over the specific statements that are within the asessment scope.
+// SelectControl Used to select a catalog for inclusion/exclusion based on one or more catalog identifiers. A set of statement identifiers can be used to target the inclusion/exclusion to only specific catalog statements providing more granularity over the specific statements that are within the asessment scope.
 type AssessmentSelectControl struct {
 
-	// A reference to a control with a corresponding id value. When referencing an externally defined control, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
-	ControlId    string   `json:"control-id"`
+	// A reference to a catalog with a corresponding id value. When referencing an externally defined catalog, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
+	ControlId    string   `json:"catalog-id"`
 	StatementIds []string `json:"statement-ids,omitempty"`
 }
 

@@ -6,7 +6,7 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 )
 
-// ProfileImport Designates a referenced source catalog or profile that provides a source of control information for use in creating a new overlay or baseline.
+// ProfileImport Designates a referenced source catalog or profile that provides a source of catalog information for use in creating a new overlay or baseline.
 type ProfileImport struct {
 	ExcludeControls []*SelectControl `json:"exclude-controls,omitempty"`
 
@@ -22,7 +22,7 @@ type ProfileMerge struct {
 	// Indicates that the controls selected should retain their original grouping as defined in the import source.
 	AsIs bool `json:"as-is,omitempty"`
 
-	// A Combine element defines how to resolve duplicate instances of the same control (e.g., controls with the same ID).
+	// A Combine element defines how to resolve duplicate instances of the same catalog (e.g., controls with the same ID).
 	Combine *CombinationRule `json:"combine,omitempty"`
 
 	// Provides an alternate grouping structure that selected controls will be placed in.

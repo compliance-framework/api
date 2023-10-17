@@ -20,7 +20,7 @@ type Risk struct {
 type JobResult struct {
 	Uuid         string `json:"uuid"`
 	JobId        string `json:"id"`
-	RuntimeId    string `json:"runtime-id"` // only if the control-plane doesn't listen to runtime specific topic
+	RuntimeId    string `json:"runtime-id"` // only if the catalog-plane doesn't listen to runtime specific topic
 	AssessmentId string `json:"assessment-id"`
 	ActivityId   string `json:"activity-id"`
 	Observations []*Observation

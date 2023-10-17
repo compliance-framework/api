@@ -11,17 +11,17 @@ import (
 // Control A structured object representing a requirement or guideline, which when implemented will reduce an aspect of risk related to an information system and its information.
 type Control struct {
 
-	// A textual label that provides a sub-type or characterization of the control.
+	// A textual label that provides a sub-type or characterization of the catalog.
 	Class    string     `json:"class,omitempty"`
 	Controls []*Control `json:"controls,omitempty"`
-	// Identifies a control such that it can be referenced in the defining catalog and other OSCAL instances (e.g., profiles).
+	// Identifies a catalog such that it can be referenced in the defining catalog and other OSCAL instances (e.g., profiles).
 	Id     string       `query:"id" json:"id"`
 	Links  []*Link      `json:"links,omitempty"`
 	Params []*Parameter `json:"params,omitempty"`
 	Parts  []*Part      `json:"parts,omitempty"`
 	Props  []*Property  `json:"props,omitempty"`
 
-	// A name given to the control, which may be used by a tool for display and navigation.
+	// A name given to the catalog, which may be used by a tool for display and navigation.
 	Title string `json:"title"`
 }
 
@@ -44,7 +44,7 @@ type ControlGroup struct {
 	Title string `json:"title"`
 }
 
-// Catalog A structured, organized collection of control information.
+// Catalog A structured, organized collection of catalog information.
 type Catalog struct {
 	BackMatter *BackMatter     `json:"back-matter,omitempty"`
 	Controls   []*Control      `json:"controls,omitempty"`

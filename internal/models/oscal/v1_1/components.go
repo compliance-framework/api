@@ -7,13 +7,13 @@ import (
 )
 
 // Base64 A resource encoded using the Base64 alphabet defined by RFC 2045.
-// ControlImplementation Describes how the containing component or capability implements an individual control.
+// ControlImplementation Describes how the containing component or capability implements an individual catalog.
 type ComponentDefinitionControlImplementation struct {
 
-	// A reference to a control with a corresponding id value. When referencing an externally defined control, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
-	ControlId string `json:"control-id"`
+	// A reference to a catalog with a corresponding id value. When referencing an externally defined catalog, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
+	ControlId string `json:"catalog-id"`
 
-	// A suggestion from the supplier (e.g., component vendor or author) for how the specified control may be implemented if the containing component or capability is instantiated in a system security plan.
+	// A suggestion from the supplier (e.g., component vendor or author) for how the specified catalog may be implemented if the containing component or capability is instantiated in a system security plan.
 	Description      string                            `json:"description"`
 	Links            []*Link                           `json:"links,omitempty"`
 	Props            []*Property                       `json:"props,omitempty"`
@@ -22,7 +22,7 @@ type ComponentDefinitionControlImplementation struct {
 	SetParameters    []*SetParameterValue              `json:"set-parameters,omitempty"`
 	Statements       []*ControlStatementImplementation `json:"statements,omitempty"`
 
-	// Provides a globally unique means to identify a given control implementation by a component.
+	// Provides a globally unique means to identify a given catalog implementation by a component.
 	Uuid string `json:"uuid"`
 }
 
@@ -36,27 +36,27 @@ type ControlImplementationSet struct {
 	Props                   []*Property                                 `json:"props,omitempty"`
 	SetParameters           []*SetParameterValue                        `json:"set-parameters,omitempty"`
 
-	// A reference to an OSCAL catalog or profile providing the referenced control or subcontrol definition.
+	// A reference to an OSCAL catalog or profile providing the referenced catalog or subcontrol definition.
 	Source string `json:"source"`
 
-	// Provides a means to identify a set of control implementations that are supported by a given component or capability.
+	// Provides a means to identify a set of catalog implementations that are supported by a given component or capability.
 	Uuid string `json:"uuid"`
 }
 
-// ControlStatementImplementation Identifies which statements within a control are addressed.
+// ControlStatementImplementation Identifies which statements within a catalog are addressed.
 type ControlStatementImplementation struct {
 
-	// A summary of how the containing control statement is implemented by the component or capability.
+	// A summary of how the containing catalog statement is implemented by the component or capability.
 	Description      string             `json:"description"`
 	Links            []*Link            `json:"links,omitempty"`
 	Props            []*Property        `json:"props,omitempty"`
 	Remarks          string             `json:"remarks,omitempty"`
 	ResponsibleRoles []*ResponsibleRole `json:"responsible-roles,omitempty"`
 
-	// A human-oriented identifier reference to a control statement.
+	// A human-oriented identifier reference to a catalog statement.
 	StatementId string `json:"statement-id"`
 
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this control statement elsewhere in this or other OSCAL instances. The UUID of the control statement in the source OSCAL instance is sufficient to reference the data item locally or globally (e.g., in an imported OSCAL instance).
+	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this catalog statement elsewhere in this or other OSCAL instances. The UUID of the catalog statement in the source OSCAL instance is sufficient to reference the data item locally or globally (e.g., in an imported OSCAL instance).
 	Uuid string `json:"uuid"`
 }
 
@@ -79,7 +79,7 @@ type IncorporatesComponent struct {
 
 // ComponentDefinitionCapability A grouping of other components and/or capabilities.
 type ComponentDefinitionCapability struct {
-	ControlImplementations []*ControlImplementationSet `json:"control-implementations,omitempty"`
+	ControlImplementations []*ControlImplementationSet `json:"catalog-implementations,omitempty"`
 
 	// A summary of the capability.
 	Description            string                   `json:"description"`
@@ -97,7 +97,7 @@ type ComponentDefinitionCapability struct {
 
 // DefinedComponent A defined component that can be part of an implemented system.
 type DefinedComponent struct {
-	ControlImplementations []*ControlImplementationSet `json:"control-implementations,omitempty"`
+	ControlImplementations []*ControlImplementationSet `json:"catalog-implementations,omitempty"`
 
 	// A description of the component, including information about its function.
 	Description string                        `json:"description"`

@@ -1,6 +1,6 @@
 package v1_1
 
-// Parameter Parameters provide a mechanism for the dynamic assignment of value(s) in a control.
+// Parameter Parameters provide a mechanism for the dynamic assignment of value(s) in a catalog.
 type Parameter struct {
 
 	// A textual label that provides a characterization of the type, purpose, use or scope of the parameter.
@@ -26,7 +26,7 @@ type Parameter struct {
 	Values []string `json:"values,omitempty"`
 }
 
-// Part An annotated, markup-based textual element of a control's or catalog group's definition, or a child of another part.
+// Part An annotated, markup-based textual element of a catalog's or catalog group's definition, or a child of another part.
 type Part struct {
 
 	// An optional textual providing a sub-type or characterization of the part's name, or a category to which the part belongs.
@@ -212,20 +212,20 @@ type Addition struct {
 	Position interface{} `json:"position,omitempty"`
 	Props    []*Property `json:"props,omitempty"`
 
-	// A name given to the control, which may be used by a tool for display and navigation.
+	// A name given to the catalog, which may be used by a tool for display and navigation.
 	Title string `json:"title,omitempty"`
 }
 
-// Alteration Specifies changes to be made to an included control when a profile is resolved.
+// Alteration Specifies changes to be made to an included catalog when a profile is resolved.
 type Alteration struct {
 	Adds []*Addition `json:"adds,omitempty"`
 
-	// A reference to a control with a corresponding id value. When referencing an externally defined control, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
-	ControlId string     `json:"control-id"`
+	// A reference to a catalog with a corresponding id value. When referencing an externally defined catalog, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
+	ControlId string     `json:"catalog-id"`
 	Removes   []*Removal `json:"removes,omitempty"`
 }
 
-// CombinationRule A Combine element defines how to resolve duplicate instances of the same control (e.g., controls with the same ID).
+// CombinationRule A Combine element defines how to resolve duplicate instances of the same catalog (e.g., controls with the same ID).
 type CombinationRule struct {
 
 	// Declare how clashing controls should be handled.
@@ -288,7 +288,7 @@ type ParameterSetting struct {
 	Values []string `json:"values,omitempty"`
 }
 
-// Removal Specifies objects to be removed from a control based on specific aspects of the object that must all match.
+// Removal Specifies objects to be removed from a catalog based on specific aspects of the object that must all match.
 type Removal struct {
 
 	// Identify items to remove by matching their class.
@@ -307,11 +307,11 @@ type Removal struct {
 	ByNs string `json:"by-ns,omitempty"`
 }
 
-// SelectControl Select a control or controls from an imported control set.
+// SelectControl Select a catalog or controls from an imported catalog set.
 type SelectControl struct {
 	Matching []*MatchControlsByPattern `json:"matching,omitempty"`
 
-	// When a control is included, whether its child (dependent) controls are also included.
+	// When a catalog is included, whether its child (dependent) controls are also included.
 	WithChildControls interface{} `json:"with-child-controls,omitempty"`
 	WithIds           []string    `json:"with-ids,omitempty"`
 }
@@ -448,7 +448,7 @@ type ServiceProtocolInformation struct {
 // SetParameterValue Identifies the parameter that will be set by the enclosed value.
 type SetParameterValue struct {
 
-	// A human-oriented reference to a parameter within a control, who's catalog has been imported into the current implementation context.
+	// A human-oriented reference to a parameter within a catalog, who's catalog has been imported into the current implementation context.
 	ParamId string   `json:"param-id"`
 	Remarks string   `json:"remarks,omitempty"`
 	Values  []string `json:"values"`

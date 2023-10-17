@@ -7,27 +7,30 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/models/schema"
 )
 
-// AuthorizationBoundary A description of this system's authorization boundary, optionally supplemented by diagrams that illustrate the authorization boundary.
+// AuthorizationBoundary defines the system's authorization boundary. It includes a description and optional diagrams illustrating the boundary.
+// It can also contain links to additional resources and arbitrary properties.
+// For example, the boundary of a cloud-based service might include the cloud infrastructure, network components, and hosted applications.
 type AuthorizationBoundary struct {
-
-	// A summary of the system's authorization boundary.
-	Description string      `json:"description"`
-	Diagrams    []*Diagram  `json:"diagrams,omitempty"`
-	Links       []*Link     `json:"links,omitempty"`
-	Props       []*Property `json:"props,omitempty"`
-	Remarks     string      `json:"remarks,omitempty"`
+	// Description provides a summary of the system's authorization boundary.
+	Description string `json:"description"`
+	// Diagrams is an optional collection of visual representations of the boundary.
+	Diagrams []*Diagram `json:"diagrams,omitempty"`
+	// Links is an optional collection of hyperlinks related to the boundary.
+	Links []*Link `json:"links,omitempty"`
+	// Props is an optional collection of properties related to the boundary.
+	Props []*Property `json:"props,omitempty"`
+	// Remarks is an optional text field for additional details or comments about the boundary.
+	Remarks string `json:"remarks,omitempty"`
 }
 
-// ComponentControlImplementation Defines how the referenced component implements a set of controls.
+// ComponentControlImplementation represents how a component implements a set of controls in a system.
+// For instance, this could represent how a firewall component implements network security controls.
 type ComponentControlImplementation struct {
-
-	// A machine-oriented identifier reference to the component that is implemeting a given control.
+	// ComponentUuid is a machine-oriented identifier reference to the component that is implementing a given catalog.
 	ComponentUuid string `json:"component-uuid"`
-
-	// An implementation statement that describes how a control or a control statement is implemented within the referenced system component.
+	// Description is a statement that describes how a catalog or a catalog statement is implemented within the referenced system component.
 	Description string `json:"description"`
-
-	// Identifies content intended for external consumption, such as with leveraged organizations.
+	// Export identifies content intended for external consumption, such as information for leveraged organizations.
 	Export               *Export                                         `json:"export,omitempty"`
 	ImplementationStatus *ImplementationStatus                           `json:"implementation-status,omitempty"`
 	Inherited            []*InheritedControlImplementation               `json:"inherited,omitempty"`
@@ -37,49 +40,45 @@ type ComponentControlImplementation struct {
 	ResponsibleRoles     []*ResponsibleRole                              `json:"responsible-roles,omitempty"`
 	Satisfied            []*SatisfiedControlImplementationResponsibility `json:"satisfied,omitempty"`
 	SetParameters        []*ImplementationCommonSetParameter             `json:"set-parameters,omitempty"`
-
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this by-component entry elsewhere in this or other OSCAL instances. The locally defined UUID of the by-component entry can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// Uuid is a machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this by-component entry elsewhere in this or other OSCAL instances.
 	Uuid string `json:"uuid"`
 }
 
-// ControlBasedRequirement Describes how the system satisfies the requirements of an individual control.
+// ControlBasedRequirement describes how the system satisfies the requirements of an individual catalog.
+// For example, this could describe how the system addresses the requirement for user authentication controls.
 type ControlBasedRequirement struct {
 	ByComponents []*ComponentControlImplementation `json:"by-components,omitempty"`
-
-	// A reference to a control with a corresponding id value. When referencing an externally defined control, the Control Identifier Reference must be used in the context of the external / imported OSCAL instance (e.g., uri-reference).
-	ControlId        string               `json:"control-id"`
+	// ControlId is a reference to a catalog with a corresponding id value.
+	ControlId        string               `json:"catalog-id"`
 	Links            []*Link              `json:"links,omitempty"`
 	Props            []*Property          `json:"props,omitempty"`
 	Remarks          string               `json:"remarks,omitempty"`
 	ResponsibleRoles []*ResponsibleRole   `json:"responsible-roles,omitempty"`
 	SetParameters    []*SetParameterValue `json:"set-parameters,omitempty"`
 	Statements       []*SystemStatement   `json:"statements,omitempty"`
-
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this control requirement elsewhere in this or other OSCAL instances. The locally defined UUID of the control requirement can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// Uuid is a machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this catalog requirement elsewhere in this or other OSCAL instances.
 	Uuid string `json:"uuid"`
 }
 
-// ControlImplementationResponsibility Describes a control implementation responsibility imposed on a leveraging system.
+// ControlImplementationResponsibility describes a catalog implementation responsibility imposed on a leveraging system.
+// For instance, a system leveraging a cloud-based service might have the responsibility to implement certain access controls.
 type ControlImplementationResponsibility struct {
-
-	// An implementation statement that describes the aspects of the control or control statement implementation that a leveraging system must implement to satisfy the control provided by a leveraged system.
+	// Description is a statement that describes aspects of the catalog or catalog statement implementation that a leveraging system must implement.
 	Description string      `json:"description"`
 	Links       []*Link     `json:"links,omitempty"`
 	Props       []*Property `json:"props,omitempty"`
-
-	// A machine-oriented identifier reference to an inherited control implementation that a leveraging system is inheriting from a leveraged system.
+	// ProvidedUuid is a machine-oriented identifier reference to an inherited catalog implementation that a leveraging system is inheriting from a leveraged system.
 	ProvidedUuid     string             `json:"provided-uuid,omitempty"`
 	Remarks          string             `json:"remarks,omitempty"`
 	ResponsibleRoles []*ResponsibleRole `json:"responsible-roles,omitempty"`
-
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this responsibility elsewhere in this or other OSCAL instances. The locally defined UUID of the responsibility can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// Uuid is a machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this responsibility elsewhere in this or other OSCAL instances.
 	Uuid string `json:"uuid"`
 }
 
-// DataFlow A description of the logical flow of information within the system and across its boundaries, optionally supplemented by diagrams that illustrate these flows.
+// DataFlow describes the logical flow of information within the system and across its boundaries.
+// For example, this could represent how data flows from user interfaces to backend services in a web application.
 type DataFlow struct {
-
-	// A summary of the system's data flow.
+	// Description is a summary of the system's data flow.
 	Description string      `json:"description"`
 	Diagrams    []*Diagram  `json:"diagrams,omitempty"`
 	Links       []*Link     `json:"links,omitempty"`
@@ -87,26 +86,24 @@ type DataFlow struct {
 	Remarks     string      `json:"remarks,omitempty"`
 }
 
-// Diagram A graphic that provides a visual representation the system, or some aspect of it.
+// Diagram provides a visual representation of the system, or some aspect of it.
+// For example, a diagram could illustrate the system's network architecture.
 type Diagram struct {
-
-	// A brief caption to annotate the diagram.
+	// Caption provides a brief annotation for the diagram.
 	Caption string `json:"caption,omitempty"`
-
-	// A summary of the diagram.
+	// Description provides a summary of the diagram.
 	Description string      `json:"description,omitempty"`
 	Links       []*Link     `json:"links,omitempty"`
 	Props       []*Property `json:"props,omitempty"`
 	Remarks     string      `json:"remarks,omitempty"`
-
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this diagram elsewhere in this or other OSCAL instances. The locally defined UUID of the diagram can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// Uuid is a machine-oriented, globally unique identifier that can be used to reference this diagram elsewhere in this or other OSCAL instances.
 	Uuid string `json:"uuid"`
 }
 
-// Export Identifies content intended for external consumption, such as with leveraged organizations.
+// Export identifies content intended for external consumption, such as with leveraged organizations.
+// For example, it might describe which parts of a catalog implementation can be used by another system.
 type Export struct {
-
-	// An implementation statement that describes the aspects of the control or control statement implementation that can be available to another system leveraging this system.
+	// Description describes the aspects of the catalog or catalog statement implementation that can be available to another system leveraging this system.
 	Description      string                                 `json:"description,omitempty"`
 	Links            []*Link                                `json:"links,omitempty"`
 	Props            []*Property                            `json:"props,omitempty"`
@@ -115,10 +112,10 @@ type Export struct {
 	Responsibilities []*ControlImplementationResponsibility `json:"responsibilities,omitempty"`
 }
 
-// ImplementedComponent The set of components that are implemented in a given system inventory item.
+// ImplementedComponent represents a set of components that are implemented in a given system inventory item.
+// For example, this could represent a web server component implemented as part of a cloud-based service.
 type ImplementedComponent struct {
-
-	// A machine-oriented identifier reference to a component that is implemented as part of an inventory item.
+	// ComponentUuid is a machine-oriented identifier reference to a component that is implemented as part of an inventory item.
 	ComponentUuid      string              `json:"component-uuid"`
 	Links              []*Link             `json:"links,omitempty"`
 	Props              []*Property         `json:"props,omitempty"`
@@ -126,22 +123,20 @@ type ImplementedComponent struct {
 	ResponsibleParties []*ResponsibleParty `json:"responsible-parties,omitempty"`
 }
 
-// InformationType Contains details about one information type that is stored, processed, or transmitted by the system, such as privacy information, and those defined in NIST SP 800-60.
+// InformationType contains details about one type of information that is stored, processed, or transmitted by the system.
+// This could represent any type of data, such as user data, network traffic data, or system logs.
 type InformationType struct {
 	AvailabilityImpact    *SystemImpact                    `json:"availability-impact,omitempty"`
 	Categorizations       []*InformationTypeCategorization `json:"categorizations,omitempty"`
 	ConfidentialityImpact *SystemImpact                    `json:"confidentiality-impact,omitempty"`
-
-	// A summary of how this information type is used within the system.
+	// Description provides a summary of how this information type is used within the system.
 	Description     string        `json:"description"`
 	IntegrityImpact *SystemImpact `json:"integrity-impact,omitempty"`
 	Links           []*Link       `json:"links,omitempty"`
 	Props           []*Property   `json:"props,omitempty"`
-
-	// A human readable name for the information type. This title should be meaningful within the context of the system.
+	// Title is a human readable name for the information type.
 	Title string `json:"title"`
-
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this information type elsewhere in this or other OSCAL instances. The locally defined UUID of the information type can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// Uuid is a machine-oriented, globally unique identifier that can be used to reference this information type elsewhere in this or other OSCAL instances.
 	Uuid string `json:"uuid,omitempty"`
 }
 
@@ -153,23 +148,23 @@ type InformationTypeCategorization struct {
 	System interface{} `json:"system"`
 }
 
-// InheritedControlImplementation Describes a control implementation inherited by a leveraging system.
+// InheritedControlImplementation Describes a catalog implementation inherited by a leveraging system.
 type InheritedControlImplementation struct {
 
-	// An implementation statement that describes the aspects of a control or control statement implementation that a leveraging system is inheriting from a leveraged system.
+	// An implementation statement that describes the aspects of a catalog or catalog statement implementation that a leveraging system is inheriting from a leveraged system.
 	Description string      `json:"description"`
 	Links       []*Link     `json:"links,omitempty"`
 	Props       []*Property `json:"props,omitempty"`
 
-	// A machine-oriented identifier reference to an inherited control implementation that a leveraging system is inheriting from a leveraged system.
+	// A machine-oriented identifier reference to an inherited catalog implementation that a leveraging system is inheriting from a leveraged system.
 	ProvidedUuid     string             `json:"provided-uuid,omitempty"`
 	ResponsibleRoles []*ResponsibleRole `json:"responsible-roles,omitempty"`
 
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this inherited entry elsewhere in this or other OSCAL instances. The locally defined UUID of the inherited control implementation can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this inherited entry elsewhere in this or other OSCAL instances. The locally defined UUID of the inherited catalog implementation can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
 	Uuid string `json:"uuid"`
 }
 
-// LeveragedAuthorization A description of another authorized system from which this system inherits capabilities that satisfy security requirements. Another term for this concept is a common control provider.
+// LeveragedAuthorization A description of another authorized system from which this system inherits capabilities that satisfy security requirements. Another term for this concept is a common catalog provider.
 type LeveragedAuthorization struct {
 	DateAuthorized string  `json:"date-authorized"`
 	Links          []*Link `json:"links,omitempty"`
@@ -208,11 +203,11 @@ type CommonAuthorizedPrivilege struct {
 	Title string `json:"title"`
 }
 
-// ImplementationStatus Indicates the degree to which the a given control is implemented.
+// ImplementationStatus Indicates the degree to which the a given catalog is implemented.
 type ImplementationStatus struct {
 	Remarks string `json:"remarks,omitempty"`
 
-	// Identifies the implementation status of the control or control objective.
+	// Identifies the implementation status of the catalog or catalog objective.
 	State interface{} `json:"state"`
 }
 
@@ -234,7 +229,7 @@ type CommonInventoryItem struct {
 // ImplementationCommonSetParameter Identifies the parameter that will be set by the enclosed value.
 type ImplementationCommonSetParameter struct {
 
-	// A human-oriented reference to a parameter within a control, who's catalog has been imported into the current implementation context.
+	// A human-oriented reference to a parameter within a catalog, who's catalog has been imported into the current implementation context.
 	ParamId string   `json:"param-id"`
 	Remarks string   `json:"remarks,omitempty"`
 	Values  []string `json:"values"`
@@ -291,7 +286,7 @@ type CommonSystemUser struct {
 // SystemPlanControlImplementation Describes how the system satisfies a set of controls.
 type SystemPlanControlImplementation struct {
 
-	// A statement describing important things to know about how this set of control satisfaction documentation is approached.
+	// A statement describing important things to know about how this set of catalog satisfaction documentation is approached.
 	Description             string                              `json:"description"`
 	ImplementedRequirements []*ControlBasedRequirement          `json:"implemented-requirements"`
 	SetParameters           []*ImplementationCommonSetParameter `json:"set-parameters,omitempty"`
@@ -306,15 +301,15 @@ type SystemImpact struct {
 	Selected                string      `json:"selected,omitempty"`
 }
 
-// ImportProfile Used to import the OSCAL profile representing the system's control baseline.
+// ImportProfile Used to import the OSCAL profile representing the system's catalog baseline.
 type ImportProfile struct {
 
-	// A resolvable URL reference to the profile or catalog to use as the system's control baseline.
+	// A resolvable URL reference to the profile or catalog to use as the system's catalog baseline.
 	Href    string `json:"href"`
 	Remarks string `json:"remarks,omitempty"`
 }
 
-// SystemStatement Identifies which statements within a control are addressed.
+// SystemStatement Identifies which statements within a catalog are addressed.
 type SystemStatement struct {
 	ByComponents     []*ComponentControlImplementation `json:"by-components,omitempty"`
 	Links            []*Link                           `json:"links,omitempty"`
@@ -322,10 +317,10 @@ type SystemStatement struct {
 	Remarks          string                            `json:"remarks,omitempty"`
 	ResponsibleRoles []*ResponsibleRole                `json:"responsible-roles,omitempty"`
 
-	// A human-oriented identifier reference to a control statement.
+	// A human-oriented identifier reference to a catalog statement.
 	StatementId string `json:"statement-id"`
 
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this control statement elsewhere in this or other OSCAL instances. The UUID of the control statement in the source OSCAL instance is sufficient to reference the data item locally or globally (e.g., in an imported OSCAL instance).
+	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this catalog statement elsewhere in this or other OSCAL instances. The UUID of the catalog statement in the source OSCAL instance is sufficient to reference the data item locally or globally (e.g., in an imported OSCAL instance).
 	Uuid string `json:"uuid"`
 }
 
@@ -371,7 +366,7 @@ type SystemImplementation struct {
 // ProvidedControlImplementation Describes a capability which may be inherited by a leveraging system.
 type ProvidedControlImplementation struct {
 
-	// An implementation statement that describes the aspects of the control or control statement implementation that can be provided to another system leveraging this system.
+	// An implementation statement that describes the aspects of the catalog or catalog statement implementation that can be provided to another system leveraging this system.
 	Description      string             `json:"description"`
 	Links            []*Link            `json:"links,omitempty"`
 	Props            []*Property        `json:"props,omitempty"`
@@ -385,17 +380,17 @@ type ProvidedControlImplementation struct {
 // SatisfiedControlImplementationResponsibility Describes how this system satisfies a responsibility imposed by a leveraged system.
 type SatisfiedControlImplementationResponsibility struct {
 
-	// An implementation statement that describes the aspects of a control or control statement implementation that a leveraging system is implementing based on a requirement from a leveraged system.
+	// An implementation statement that describes the aspects of a catalog or catalog statement implementation that a leveraging system is implementing based on a requirement from a leveraged system.
 	Description string      `json:"description"`
 	Links       []*Link     `json:"links,omitempty"`
 	Props       []*Property `json:"props,omitempty"`
 	Remarks     string      `json:"remarks,omitempty"`
 
-	// A machine-oriented identifier reference to a control implementation that satisfies a responsibility imposed by a leveraged system.
+	// A machine-oriented identifier reference to a catalog implementation that satisfies a responsibility imposed by a leveraged system.
 	ResponsibilityUuid string             `json:"responsibility-uuid,omitempty"`
 	ResponsibleRoles   []*ResponsibleRole `json:"responsible-roles,omitempty"`
 
-	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this satisfied control implementation entry elsewhere in this or other OSCAL instances. The locally defined UUID of the control implementation can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
+	// A machine-oriented, globally unique identifier with cross-instance scope that can be used to reference this satisfied catalog implementation entry elsewhere in this or other OSCAL instances. The locally defined UUID of the catalog implementation can be used to reference the data item locally or globally (e.g., in an imported OSCAL instance). This UUID should be assigned per-subject, which means it should be consistently used to identify the same subject across revisions of the document.
 	Uuid string `json:"uuid"`
 }
 
@@ -438,7 +433,7 @@ type SystemInformation struct {
 // SystemSecurityPlan A system security plan, such as those described in NIST SP 800-18.
 type SystemSecurityPlan struct {
 	BackMatter            *BackMatter                      `json:"back-matter,omitempty"`
-	ControlImplementation *SystemPlanControlImplementation `json:"control-implementation,omitempty"`
+	ControlImplementation *SystemPlanControlImplementation `json:"catalog-implementation,omitempty"`
 	ImportProfile         *ImportProfile                   `json:"import-profile,omitempty"`
 	Metadata              map[string]interface{}           `json:"metadata"`
 	SystemCharacteristics *SystemCharacteristics           `json:"system-characteristics,omitempty"`
