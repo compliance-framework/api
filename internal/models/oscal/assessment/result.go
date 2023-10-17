@@ -5,10 +5,27 @@ import (
 	"time"
 )
 
+type Results struct {
+	Uuid oscal.Uuid `json:"uuid"`
+
+	oscal.Metadata
+
+	BackMatter oscal.BackMatter `json:"backMatter"`
+
+	// ImportAp represents the imported assessment plan used for this assessment result.
+	// NOTE: In the OSCAL model, this is a web reference. We allow a reference to a local assessment plan.
+	ImportAp []oscal.Uuid `json:"import-ap"`
+
+	// LocalDefinitions is an optional field used to define data objects that are used in the assessment plan, that do not appear in the referenced System Security Plan (SSP).
+	LocalDefinitions LocalDefinition `json:"local-definitions,omitempty"`
+
+	// Results is a collection of Result structures, each representing an individual result from the assessment.
+	Results []Result `json:"results"`
+}
+
 type Result struct {
 	Uuid oscal.Uuid `json:"uuid"`
 	oscal.ComprehensiveDetails
-	oscal.Props
 
 	AssessmentLog []LogEntry    `json:"assessmentLogEntries"`
 	Attestations  []Attestation `json:"attestations"`
