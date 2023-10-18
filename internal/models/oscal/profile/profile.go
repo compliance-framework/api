@@ -2,16 +2,17 @@ package profile
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/models/oscal"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/metadata"
 )
 
 // Profile is a collection of controls and metadata that can be used to create a new overlay or baseline.
 // Note: The "Merge" and "Modify" are being skipped for now, as it doesn't make any sense to store the instructions for merging and modifying, rather than the result of applying them. They can be added as audit logs, holding all the details of the merge and modify operations.
 type Profile struct {
-	Uuid       oscal.Uuid        `json:"uuid"`
-	Metadata   metadata.Metadata `json:"metadata"`
-	Imports    []Import          `json:"imports"`
-	BackMatter oscal.BackMatter  `json:"backmatter"`
+	Uuid oscal.Uuid `json:"uuid"`
+
+	oscal.Metadata
+
+	Imports    []Import         `json:"imports"`
+	BackMatter oscal.BackMatter `json:"backmatter"`
 }
 
 // Import Designates a referenced source catalog or profile that provides a source of control information for use in creating a new overlay or baseline.

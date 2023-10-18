@@ -1,20 +1,15 @@
 package identity
 
-import (
-	"github.com/compliance-framework/configuration-service/internal/models/oscal"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/metadata"
-)
+import "github.com/compliance-framework/configuration-service/internal/models/oscal"
 
 // User A type of user that interacts with the system based on an associated role.
 type User struct {
 	AuthorizedPrivileges []CommonAuthorizedPrivilege `json:"authorized-privileges,omitempty"`
 
 	// A summary of the user's purpose within the system.
-	Description string           `json:"description,omitempty"`
-	Links       []metadata.Link  `json:"links,omitempty"`
-	Props       []oscal.Property `json:"props,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
-	RoleIds     []string         `json:"role-ids,omitempty"`
+	oscal.ComprehensiveDetails
+
+	RoleIds []string `json:"role-ids,omitempty"`
 
 	// A short common name, abbreviation, or acronym for the user.
 	ShortName string `json:"short-name,omitempty"`

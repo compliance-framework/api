@@ -6,7 +6,7 @@ import (
 )
 
 type Parameter struct {
-	Uuid        string           `json:"uuid"`
+	Uuid        oscal.Uuid       `json:"uuid"`
 	Class       string           `json:"class"`
 	Props       []oscal.Property `json:"props"`
 	Links       []metadata.Link  `json:"links"`

@@ -1,15 +1,12 @@
 package identity
 
-import (
-	"github.com/compliance-framework/configuration-service/internal/models/oscal"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/metadata"
-)
+import "github.com/compliance-framework/configuration-service/internal/models/oscal"
 
 type Role struct {
-	Uuid    string           `json:"uuid"`
-	Props   []oscal.Property `json:"props"`
-	Links   []metadata.Link  `json:"links"`
-	Remarks string           `json:"remarks"`
+	Uuid string `json:"uuid"`
+
+	oscal.ComprehensiveDetails
+
 	// PartyUuids holds the UUIDs of the `Party` data. Supports many-to-many relationship.
 	PartyUuids []string `json:"partyUuids"`
 }

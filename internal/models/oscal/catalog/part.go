@@ -6,7 +6,7 @@ import (
 )
 
 type Part struct {
-	Uuid  string           `json:"uuid"`
+	Uuid  oscal.Uuid       `json:"uuid"`
 	Name  string           `json:"name"`
 	Ns    string           `json:"ns"`
 	Class string           `json:"class"`
