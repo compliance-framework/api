@@ -3,11 +3,11 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"github.com/compliance-framework/configuration-service/internal/adapter"
 	"testing"
 
 	oscal "github.com/compliance-framework/configuration-service/internal/models/oscal/v1_1"
 	"github.com/compliance-framework/configuration-service/internal/models/runtime"
-	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -76,19 +76,19 @@ type TestCase struct {
 	DeleteFn      func(id string) error
 	DeleteWhereFn func(ctx context.Context, collection string, object interface{}, filters map[string]interface{}) error
 	expectErr     string
-	data          pubsub.Event
+	data          adapter.Event
 }
 
 func TestCreateJobs(t *testing.T) {
 	testCases := []TestCase{
 		{
 			name:      "no loading RuntimeConfiguration",
-			data:      pubsub.Event{Data: pubsub.DatabaseEvent{Object: "foo", Type: "configurations"}},
+			data:      adapter.Event{Data: adapter.DatabaseEvent{Object: "foo", Type: "configurations"}},
 			expectErr: "could not load data",
 		},
 		{
 			name: "no assessment-plan",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data: adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				t := object.(*oscal.AssessmentPlan)
 				t.Tasks = []*oscal.Task{{
@@ -100,7 +100,7 @@ func TestCreateJobs(t *testing.T) {
 		},
 		{
 			name: "success",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data: adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {
 				case *runtime.RuntimePlugin:
@@ -175,12 +175,12 @@ func TestDeleteJobs(t *testing.T) {
 	testCases := []TestCase{
 		{
 			name:      "no loading RuntimeConfiguration",
-			data:      pubsub.Event{Data: pubsub.DatabaseEvent{Object: "foo", Type: "configurations"}},
+			data:      adapter.Event{Data: adapter.DatabaseEvent{Object: "foo", Type: "configurations"}},
 			expectErr: "could not load data",
 		},
 		{
 			name: "error jobs",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data: adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				return fmt.Errorf("boom")
 			},
@@ -188,7 +188,7 @@ func TestDeleteJobs(t *testing.T) {
 		},
 		{
 			name: "error delete",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data: adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				obs := object.(*runtime.RuntimeConfigurationJob)
 				obs.Uuid = "123"
@@ -201,7 +201,7 @@ func TestDeleteJobs(t *testing.T) {
 		},
 		{
 			name: "success",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data: adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				obs := object.(*runtime.RuntimeConfigurationJob)
 				obs.Uuid = "123"
@@ -241,12 +241,12 @@ func TestUpdateJobs(t *testing.T) {
 	testCases := []TestCase{
 		{
 			name:      "no loading RuntimeConfiguration",
-			data:      pubsub.Event{Data: pubsub.DatabaseEvent{Object: "foo", Type: "configurations"}},
+			data:      adapter.Event{Data: adapter.DatabaseEvent{Object: "foo", Type: "configurations"}},
 			expectErr: "could not load data",
 		},
 		{
 			name: "no assessment-plan",
-			data: pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data: adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {
 				case *oscal.AssessmentPlan:
@@ -264,7 +264,7 @@ func TestUpdateJobs(t *testing.T) {
 		},
 		{
 			name:     "fail update",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123", Schedule: "1"}, Type: "configurations"}},
+			data:     adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123", Schedule: "1"}, Type: "configurations"}},
 			UpdateFn: func(id string, object interface{}) error { return fmt.Errorf("boom") },
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {
@@ -287,7 +287,7 @@ func TestUpdateJobs(t *testing.T) {
 		},
 		{
 			name:     "update success",
-			data:     pubsub.Event{Data: pubsub.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
+			data:     adapter.Event{Data: adapter.DatabaseEvent{Object: runtime.RuntimeConfiguration{AssessmentPlanUuid: "123", ActivityUuid: "123"}, Type: "configurations"}},
 			UpdateFn: func(id string, object interface{}) error { return nil },
 			GetFn: func(id string, object interface{}) error {
 				switch t := object.(type) {

@@ -4,36 +4,35 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/compliance-framework/configuration-service/internal/adapter"
+	storeschema "github.com/compliance-framework/configuration-service/internal/adapter/store/schema"
 
 	oscal "github.com/compliance-framework/configuration-service/internal/models/oscal/v1_1"
 	"github.com/compliance-framework/configuration-service/internal/models/runtime"
 	models "github.com/compliance-framework/configuration-service/internal/models/runtime"
-	"github.com/compliance-framework/configuration-service/internal/pubsub"
-	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	"go.uber.org/zap"
 )
 
-// TODO Instead of having this runtime to publish changes, it would be better to have the Driver to publish changes whenever that change happened (with a specific message, and a specific channel)
 type RuntimeJobManager struct {
-	confCreated <-chan pubsub.Event
-	confUpdated <-chan pubsub.Event
-	confDeleted <-chan pubsub.Event
+	confCreated <-chan adapter.Event
+	confUpdated <-chan adapter.Event
+	confDeleted <-chan adapter.Event
 	Log         *zap.SugaredLogger
 	Driver      storeschema.Driver
 }
 
 func (r *RuntimeJobManager) Init() error {
-	c, err := pubsub.Subscribe(pubsub.ObjectCreated)
+	c, err := adapter.Subscribe(adapter.ObjectCreated)
 	if err != nil {
 		return err
 	}
 	r.confCreated = c
-	c, err = pubsub.Subscribe(pubsub.ObjectUpdated)
+	c, err = adapter.Subscribe(adapter.ObjectUpdated)
 	if err != nil {
 		return err
 	}
 	r.confUpdated = c
-	c, err = pubsub.Subscribe(pubsub.ObjectDeleted)
+	c, err = adapter.Subscribe(adapter.ObjectDeleted)
 	if err != nil {
 		return err
 	}
@@ -64,8 +63,8 @@ func (r *RuntimeJobManager) Run() {
 	}
 }
 
-func (r *RuntimeJobManager) createJobs(msg pubsub.Event) error {
-	evt := msg.Data.(pubsub.DatabaseEvent)
+func (r *RuntimeJobManager) createJobs(msg adapter.Event) error {
+	evt := msg.Data.(adapter.DatabaseEvent)
 	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
 		return nil
@@ -88,8 +87,8 @@ func (r *RuntimeJobManager) createJobs(msg pubsub.Event) error {
 	return nil
 }
 
-func (r *RuntimeJobManager) updateJobs(msg pubsub.Event) error {
-	evt := msg.Data.(pubsub.DatabaseEvent)
+func (r *RuntimeJobManager) updateJobs(msg adapter.Event) error {
+	evt := msg.Data.(adapter.DatabaseEvent)
 	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
 		return nil
@@ -131,8 +130,8 @@ func (r *RuntimeJobManager) updateJobs(msg pubsub.Event) error {
 	return nil
 }
 
-func (r *RuntimeJobManager) deleteJobs(msg pubsub.Event) error {
-	evt := msg.Data.(pubsub.DatabaseEvent)
+func (r *RuntimeJobManager) deleteJobs(msg adapter.Event) error {
+	evt := msg.Data.(adapter.DatabaseEvent)
 	c := &models.RuntimeConfiguration{}
 	if evt.Type != c.Type() {
 		return nil
@@ -212,7 +211,7 @@ func (r *RuntimeJobManager) _getAp(uuid string) (*oscal.AssessmentPlan, error) {
 	return ap, nil
 }
 
-func loadConfig(evt pubsub.DatabaseEvent, config *models.RuntimeConfiguration) error {
+func loadConfig(evt adapter.DatabaseEvent, config *models.RuntimeConfiguration) error {
 	d, err := json.Marshal(evt.Object)
 	if err != nil {
 		return fmt.Errorf("could not marshal data: %w", err)
@@ -269,7 +268,7 @@ func publish(objUuid, runtimeUuid string, payload runtime.PayloadEventType, data
 			Uuid: objUuid,
 		},
 	}
-	pubsub.PublishPayload(event)
+	adapter.PublishPayload(event)
 
 }
 

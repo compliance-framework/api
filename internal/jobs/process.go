@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	storeschema "github.com/compliance-framework/configuration-service/internal/adapter/store/schema"
 
 	process "github.com/compliance-framework/configuration-service/internal/models/process"
-	storeschema "github.com/compliance-framework/configuration-service/internal/stores/schema"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"

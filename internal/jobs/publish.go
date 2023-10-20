@@ -1,10 +1,10 @@
 package jobs
 
 import (
+	"github.com/compliance-framework/configuration-service/internal/adapter"
 	"sync"
 
 	"github.com/compliance-framework/configuration-service/internal/models/runtime"
-	"github.com/compliance-framework/configuration-service/internal/pubsub"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
@@ -54,7 +54,7 @@ func (p *EventPublisher) Init() error {
 			NewEncodedFn: DefaultEncodedConn,
 		}
 	}
-	ch := pubsub.SubscribePayload()
+	ch := adapter.SubscribePayload()
 	p.runtimeJobCh = ch
 	if p.mu == nil {
 		p.mu = &sync.Mutex{}

@@ -1,15 +1,13 @@
 package main
 
 import (
+	"github.com/compliance-framework/configuration-service/internal/adapter/api"
+	"github.com/compliance-framework/configuration-service/internal/adapter/store/mongo"
+	"github.com/compliance-framework/configuration-service/internal/domain/service"
 	"log"
 	"os"
 	"sync"
 
-	"github.com/compliance-framework/configuration-service/internal/jobs"
-	"github.com/compliance-framework/configuration-service/internal/server"
-	"github.com/compliance-framework/configuration-service/internal/stores/mongo"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
 )
 
@@ -17,53 +15,59 @@ func main() {
 	var wg sync.WaitGroup
 
 	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://mongo:27017")
-	natsUri := getEnvironmentVariable("NATS_URI", "nats://nats:4222")
+	//natsUri := getEnvironmentVariable("NATS_URI", "nats://nats:4222")
 
-	driver := &mongo.MongoDriver{Url: mongoUri, Database: "cf"}
 	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := logger.Sugar()
-	e := echo.New()
-	e.Use(middleware.Logger())
 
-	job := jobs.RuntimeJobManager{Log: sugar, Driver: driver}
-	checkErr(job.Init())
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		job.Run()
-	}()
+	err = mongo.Connect(mongoUri, "cf")
+	if err != nil {
+		sugar.Fatalf("error connecting to mongo: %v", err)
+	}
 
-	sub := jobs.EventSubscriber{Log: sugar}
-	checkErr(sub.Connect(natsUri))
-	ch := sub.Subscribe("assessment.result")
+	//job := jobs.RuntimeJobManager{Log: sugar, Driver: driver}
+	//checkErr(job.Init())
+	//wg.Add(1)
+	//go func() {
+	//	defer wg.Done()
+	//	job.Run()
+	//}()
+	//
+	//sub := jobs.EventSubscriber{Log: sugar}
+	//checkErr(sub.Connect(natsUri))
+	//ch := sub.Subscribe("assessment.result")
+	//
+	//process := jobs.EventProcessor{Log: sugar, Driver: driver}
+	//checkErr(process.Init(ch))
+	//wg.Add(1)
+	//go func() {
+	//	defer wg.Done()
+	//	process.Run()
+	//}()
+	//
+	//pub := jobs.EventPublisher{Log: sugar}
+	//checkErr(pub.Connect(natsUri))
+	//wg.Add(1)
+	//go func() {
+	//	defer wg.Done()
+	//	pub.Run()
+	//}()
 
-	process := jobs.EventProcessor{Log: sugar, Driver: driver}
-	checkErr(process.Init(ch))
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		process.Run()
-	}()
-
-	pub := jobs.EventPublisher{Log: sugar}
-	checkErr(pub.Connect(natsUri))
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		pub.Run()
-	}()
-
-	sv := server.Server{Driver: driver}
-	checkErr(sv.RegisterOSCAL(e))
-	checkErr(sv.RegisterRuntime(e))
-	checkErr(sv.RegisterProcess(e))
-
-	checkErr(e.Start(":8080"))
+	server := api.NewServer()
+	controlService := service.NewControlService()
+	controlHandler := api.NewControlHandler(controlService)
+	server.Route("GET", "/controls/:id", controlHandler.GetControl)
+	checkErr(server.Start(":8080"))
 
 	wg.Wait()
+
+	err = mongo.Disconnect()
+	if err != nil {
+		sugar.Fatalf("error disconnecting from mongo: %v", err)
+	}
 }
 
 func getEnvironmentVariable(key, fallback string) string {
