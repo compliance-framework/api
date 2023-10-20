@@ -2,7 +2,6 @@ package component
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/domain/model"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/metadata"
 )
 
 type Type int
@@ -33,7 +32,7 @@ type Component struct {
 	// A summary of the technological or business purpose of the component.
 	Purpose          string           `json:"purpose" query:"purpose"`
 	Props            []model.Property `json:"props" query:"props"`
-	Links            []metadata.Link  `json:"links" query:"links"`
+	Links            []model.Link     `json:"links" query:"links"`
 	Implementations  []model.Uuid     `json:"control_implementations" query:"control_implementations"`
 	ResponsibleRoles []model.Uuid     `json:"responsible_roles" query:"responsible_roles"`
 }

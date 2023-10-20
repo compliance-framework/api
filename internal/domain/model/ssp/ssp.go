@@ -2,9 +2,8 @@ package ssp
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/domain/model"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/component"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/identity"
-	"github.com/compliance-framework/configuration-service/internal/models/oscal/metadata"
+	"github.com/compliance-framework/configuration-service/internal/domain/model/component"
+	"github.com/compliance-framework/configuration-service/internal/domain/model/identity"
 	"time"
 )
 
@@ -54,7 +53,7 @@ type Diagram struct {
 
 type Impact struct {
 	Props                   []model.Property `json:"props"`
-	Links                   []metadata.Link  `json:"links"`
+	Links                   []model.Link     `json:"links"`
 	Base                    string           `json:"base"`
 	Selected                string           `json:"selected"`
 	AdjustmentJustification string           `json:"adjustment_justification"`
@@ -152,7 +151,7 @@ type SystemImplementation struct {
 type SystemInformation struct {
 	// Contains details about one information type that is stored, processed, or transmitted by the system, such as privacy information, and those defined in NIST SP 800-60.
 	InformationTypes []InformationType `json:"information_types"`
-	Links            []metadata.Link   `json:"links"`
+	Links            []model.Link      `json:"links"`
 	Props            []model.Property  `json:"props"`
 	Uuid             model.Uuid        `json:"uuid"`
 }
