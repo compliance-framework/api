@@ -1,28 +1,26 @@
 package handler
 
 import (
-	"github.com/compliance-framework/configuration-service/domain/service"
+	"github.com/compliance-framework/configuration-service/store"
 	"github.com/labstack/echo/v4"
-	"net/http"
 )
 
 type CatalogHandler struct {
-	service *service.Catalog
+	store store.CatalogStore
 }
 
-func NewCatalogHandler(s *service.Catalog) *CatalogHandler {
-	return &CatalogHandler{service: s}
+func NewCatalogHandler(s store.CatalogStore) *CatalogHandler {
+	return &CatalogHandler{store: s}
 }
 
 func (h *CatalogHandler) Register(api *echo.Group) {
-	api.GET("/catalog/controls/:id", h.GetControl)
+	api.POST("/catalog", h.CreateCatalog)
 }
 
-func (h *CatalogHandler) GetControl(c echo.Context) error {
-	id := c.Param("id")
-	obj, err := h.service.GetControl(id)
+func (h *CatalogHandler) CreateCatalog(c echo.Context) error {
+	catalog, err := h.store.CreateCatalog(nil)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return err
 	}
-	return c.JSON(http.StatusOK, obj)
+	return c.JSON(200, catalog)
 }
