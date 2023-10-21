@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	mw "github.com/compliance-framework/configuration-service/api/middleware"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -14,7 +15,9 @@ type Server struct {
 // NewServer initializes the echo server with necessary routes and configurations.
 func NewServer(ctx context.Context) *Server {
 	e := echo.New()
+	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
+	e.Validator = mw.NewValidator()
 
 	return &Server{
 		ctx:  ctx,
