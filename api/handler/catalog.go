@@ -6,19 +6,19 @@ import (
 	"net/http"
 )
 
-type ControlHandler struct {
-	service *service.Control
+type CatalogHandler struct {
+	service *service.Catalog
 }
 
-func NewControlHandler(s *service.Control) *ControlHandler {
-	return &ControlHandler{service: s}
+func NewCatalogHandler(s *service.Catalog) *CatalogHandler {
+	return &CatalogHandler{service: s}
 }
 
-func (h *ControlHandler) Register(api *echo.Group) {
-	api.GET("/controls/:id", h.GetControl)
+func (h *CatalogHandler) Register(api *echo.Group) {
+	api.GET("/catalog/controls/:id", h.GetControl)
 }
 
-func (h *ControlHandler) GetControl(c echo.Context) error {
+func (h *CatalogHandler) GetControl(c echo.Context) error {
 	id := c.Param("id")
 	obj, err := h.service.GetControl(id)
 	if err != nil {

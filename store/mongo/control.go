@@ -7,17 +7,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type ControlStoreMongo struct {
+type CatalogStoreMongo struct {
 	collection *mongo.Collection
 }
 
-func NewControlStore() store.ControlStore {
-	return &ControlStoreMongo{
+func NewCatalogStore() store.CatalogStore {
+	return &CatalogStoreMongo{
 		collection: Collection("controls"),
 	}
 }
 
-func (r *ControlStoreMongo) Create(ctx context.Context, control *catalog.Control) (interface{}, error) {
+func (r *CatalogStoreMongo) CreateControl(ctx context.Context, control *catalog.Control) (interface{}, error) {
 	result, err := r.collection.InsertOne(ctx, control)
 	if err != nil {
 		return nil, err

@@ -27,8 +27,8 @@ func main() {
 	}
 
 	server := api.NewServer(ctx)
-	controlService := service.NewControlService(mongo.NewControlStore())
-	controlHandler := handler.NewControlHandler(controlService)
+	controlService := service.NewCatalogService(mongo.NewCatalogStore())
+	controlHandler := handler.NewCatalogHandler(controlService)
 	controlHandler.Register(server.API())
 	checkErr(server.Start(":8080"))
 }

@@ -5,6 +5,6 @@ import (
 	"github.com/compliance-framework/configuration-service/domain/model/catalog"
 )
 
-type ControlStore interface {
-	Create(ctx context.Context, control *catalog.Control) (interface{}, error)
+type CatalogStore interface {
+	CreateControl(ctx context.Context, control *catalog.Control) (interface{}, error)
 }
