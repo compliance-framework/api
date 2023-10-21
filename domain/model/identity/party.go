@@ -15,7 +15,11 @@ const (
 type Party struct {
 	Uuid string `json:"uuid"`
 
-	model.ComprehensiveDetails
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	model.Props
+	model.Links
+	model.Remarks
 
 	// Parties represents the UUIDs of the child `Party` data
 	Parties []model.Uuid `json:"parties"`

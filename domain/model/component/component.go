@@ -1,7 +1,7 @@
 package component
 
 import (
-	model2 "github.com/compliance-framework/configuration-service/domain/model"
+	"github.com/compliance-framework/configuration-service/domain/model"
 )
 
 type Type int
@@ -24,84 +24,98 @@ const (
 // Notes:
 // - Implemented Protocols from OSCAL is not implemented. They can always be added as props.
 type Component struct {
-	Uuid        model2.Uuid `json:"uuid" query:"uuid"`
-	Type        Type        `json:"type" query:"type"`
-	Title       string      `json:"title" query:"title"`
-	Description string      `json:"description" query:"description"`
+	Uuid        model.Uuid `json:"uuid" query:"uuid"`
+	Type        Type       `json:"type" query:"type"`
+	Title       string     `json:"title" query:"title"`
+	Description string     `json:"description" query:"description"`
 
 	// A summary of the technological or business purpose of the component.
-	Purpose          string            `json:"purpose" query:"purpose"`
-	Props            []model2.Property `json:"props" query:"props"`
-	Links            []model2.Link     `json:"links" query:"links"`
-	Implementations  []model2.Uuid     `json:"control_implementations" query:"control_implementations"`
-	ResponsibleRoles []model2.Uuid     `json:"responsible_roles" query:"responsible_roles"`
+	Purpose          string           `json:"purpose" query:"purpose"`
+	Props            []model.Property `json:"props" query:"props"`
+	Links            []model.Link     `json:"links" query:"links"`
+	Implementations  []model.Uuid     `json:"control_implementations" query:"control_implementations"`
+	ResponsibleRoles []model.Uuid     `json:"responsible_roles" query:"responsible_roles"`
 }
 
 // Definition A collection of component descriptions, which may optionally be grouped by capability.
 type Definition struct {
-	Uuid     model2.Uuid `json:"uuid" query:"uuid"`
-	Metadata model2.Metadata
+	Uuid     model.Uuid `json:"uuid" query:"uuid"`
+	Metadata model.Metadata
 
 	// ImportedDefinitions Loads a component definition from another resource.
 	// TODO: Does importing move all the definitions into the current definition or does it just reference them?
-	ImportedDefinitions []model2.Uuid `json:"imported_definitions" query:"imported_definitions"`
+	ImportedDefinitions []model.Uuid `json:"imported_definitions" query:"imported_definitions"`
 
-	Components   []model2.Uuid     `json:"components" query:"components"`
-	Capabilities []model2.Uuid     `json:"capabilities" query:"capabilities"`
-	BackMatter   model2.BackMatter `json:"backmatter" query:"backmatter"`
+	Components   []model.Uuid     `json:"components" query:"components"`
+	Capabilities []model.Uuid     `json:"capabilities" query:"capabilities"`
+	BackMatter   model.BackMatter `json:"backmatter" query:"backmatter"`
 }
 
 type Capability struct {
-	Uuid model2.Uuid `json:"uuid" query:"uuid"`
-	Name string      `json:"name" query:"name"`
+	Uuid model.Uuid `json:"uuid" query:"uuid"`
+	Name string     `json:"name" query:"name"`
 
-	model2.ComprehensiveDetails
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	model.Props
+	model.Links
 
-	IncorporatesComponents []model2.Uuid `json:"incorporated_components" query:"incorporated_components"`
-	ControlImplementations []model2.Uuid `json:"control_implementations" query:"control_implementations"`
+	IncorporatesComponents []model.Uuid `json:"incorporated_components" query:"incorporated_components"`
+	ControlImplementations []model.Uuid `json:"control_implementations" query:"control_implementations"`
 
 	Remarks string `json:"remarks" query:"remarks"`
 }
 
 // ControlImplementation Control Implementation Set: Defines how the component or capability supports a set of controls.
 type ControlImplementation struct {
-	Uuid model2.Uuid `json:"uuid" query:"uuid"`
+	Uuid model.Uuid `json:"uuid" query:"uuid"`
 
-	model2.ComprehensiveDetails
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	model.Props
+	model.Links
+	model.Remarks
 
 	// Source A reference to an OSCAL catalog or profile providing the referenced control or sub-control definition.
 	// Should be in the format `catalog/{catalog_uuid}` or `profile/{profile_uuid}`.
 	// TODO: Need to find a way to handle this in MongoDB. (Maybe add another field to store the source type?)
 	Source                  string           `json:"source" query:"source"`
 	SetParameters           []ParameterValue `json:"set_parameters" query:"set_parameters"`
-	ImplementedRequirements []model2.Uuid    `json:"implemented_requirements" query:"implemented_requirements"`
-	ResponsibleRoles        []model2.Uuid    `json:"responsible_roles" query:"responsible_roles"`
+	ImplementedRequirements []model.Uuid     `json:"implemented_requirements" query:"implemented_requirements"`
+	ResponsibleRoles        []model.Uuid     `json:"responsible_roles" query:"responsible_roles"`
 }
 
 // ImplementedRequirement Describes how the containing component or capability implements an individual control.
 type ImplementedRequirement struct {
-	Uuid model2.Uuid `json:"uuid" query:"uuid"`
+	Uuid model.Uuid `json:"uuid" query:"uuid"`
 
-	model2.ComprehensiveDetails
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	model.Props
+	model.Links
+	model.Remarks
 
-	ControlId        model2.Uuid                  `json:"control_id" query:"control_id"`
+	ControlId        model.Uuid                   `json:"control_id" query:"control_id"`
 	SetParameters    []ParameterValue             `json:"set_parameters" query:"set_parameters"`
-	ResponsibleRoles []model2.Uuid                `json:"responsible_roles" query:"responsible_roles"`
+	ResponsibleRoles []model.Uuid                 `json:"responsible_roles" query:"responsible_roles"`
 	Statements       []ControlDefinitionStatement `json:"statements" query:"statements"`
 }
 
 type ControlDefinitionStatement struct {
-	Uuid model2.Uuid `json:"uuid" query:"uuid"`
+	Uuid model.Uuid `json:"uuid" query:"uuid"`
 
-	model2.ComprehensiveDetails
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	model.Props
+	model.Links
 
-	StatementId      string        `json:"statement_id" query:"statement_id"`
-	ResponsibleRoles []model2.Uuid `json:"responsible_roles" query:"responsible_roles"`
-	Remarks          string        `json:"remarks" query:"remarks"`
+	StatementId      string       `json:"statement_id" query:"statement_id"`
+	ResponsibleRoles []model.Uuid `json:"responsible_roles" query:"responsible_roles"`
+	Remarks          string       `json:"remarks" query:"remarks"`
 }
 
 type ParameterValue struct {
-	ParamId model2.Uuid `json:"parameter" query:"parameter"`
-	Values  []string    `json:"values" query:"values"`
-	Remarks string      `json:"remarks" query:"remarks"`
+	ParamId model.Uuid `json:"parameter" query:"parameter"`
+	Values  []string   `json:"values" query:"values"`
+	Remarks string     `json:"remarks" query:"remarks"`
 }

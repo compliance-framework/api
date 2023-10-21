@@ -7,9 +7,9 @@ import (
 type Control struct {
 	Uuid model.Uuid `json:"uuid"`
 
-	model.Links
-	model.Parts
-	model.Props
+	Props []model.Property `json:"props,omitempty"`
+	Links []model.Link     `json:"links,omitempty"`
+	Parts []model.Part     `json:"parts,omitempty"`
 
 	Class    string       `json:"class"`
 	Title    string       `json:"title"`

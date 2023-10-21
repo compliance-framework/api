@@ -1,86 +1,104 @@
 package assessment
 
 import (
-	model2 "github.com/compliance-framework/configuration-service/domain/model"
+	model "github.com/compliance-framework/configuration-service/domain/model"
 )
 
 // Plan An assessment plan, such as those provided by a FedRAMP assessor.
 type Plan struct {
-	model2.Uuid
-	Metadata model2.Metadata `json:"metadata"`
+	model.Uuid
+	Metadata model.Metadata `json:"metadata"`
 
 	Assets Assets `json:"assets"`
 
 	Subjects []SubjectSelection `json:"subjects"`
 
-	BackMatter model2.BackMatter `json:"backMatter"`
+	BackMatter model.BackMatter `json:"backMatter"`
 
 	// Reference to a System Security Plan
-	ImportSSP model2.Uuid `json:"importSSP"`
+	ImportSSP model.Uuid `json:"importSSP"`
 
 	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
 	// Reference to LocalDefinition
 	LocalDefinitions LocalDefinition `json:"localDefinitions"`
 
 	ReviewedControls   []ControlsAndObjectives `json:"reviewedControls"`
-	Tasks              []model2.Uuid           `json:"tasks"`
-	TermsAndConditions []model2.Part           `json:"termsAndConditions"`
+	Tasks              []model.Uuid            `json:"tasks"`
+	TermsAndConditions []model.Part            `json:"termsAndConditions"`
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
-	Components []model2.Uuid `json:"components"`
+	Components []model.Uuid `json:"components"`
 
 	// Used to represent the toolset used to perform aspects of the assessment.
 	Platforms []Platform `json:"platforms"`
 }
 
 type Platform struct {
-	model2.Uuid
-	model2.ComprehensiveDetails
+	model.Uuid
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	Title string `json:"title"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	// Reference to component.Component
-	UsesComponents []model2.Uuid `json:"usesComponents"`
+	UsesComponents []model.Uuid `json:"usesComponents"`
 }
 
 type ControlsAndObjectives struct {
-	model2.ComprehensiveDetails
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	ControlObjectiveSelections []struct {
-		model2.ComprehensiveDetails
-		model2.Selection
+		Title       string           `json:"title,omitempty"`
+		Description string           `json:"description,omitempty"`
+		Props       []model.Property `json:"props,omitempty"`
+
+		Links   []model.Link `json:"links,omitempty"`
+		Remarks string       `json:"remarks,omitempty"`
+		model.Selection
 	} `json:"controlObjectiveSelections"`
 
-	ControlSelections model2.Selection `json:"controlSelections"`
+	ControlSelections model.Selection `json:"controlSelections"`
 }
 
 type LocalDefinition struct {
-	model2.Remarks
+	Remarks string `json:"remarks,omitempty"`
 
 	// Reference to Activity
-	Activities []model2.Uuid `json:"activities"`
+	Activities []model.Uuid `json:"activities"`
 
 	// Reference to component.Component
-	Components []model2.Uuid `json:"components"`
+	Components []model.Uuid `json:"components"`
 
 	// Reference to ssp.InventoryItem
-	InventoryItems []model2.Uuid `json:"inventoryItems"`
+	InventoryItems []model.Uuid `json:"inventoryItems"`
 
 	Objectives []Objective `json:"objectives"`
 
 	// Reference to identity.User
-	Users []model2.Uuid `json:"users"`
+	Users []model.Uuid `json:"users"`
 }
 
 // Objective A local objective is a security control or requirement that is specific to the system or organization under assessment.
 type Objective struct {
-	model2.ComprehensiveDetails
-	model2.Parts
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	Control model2.Uuid `json:"control"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
+	Parts   []model.Part `json:"parts,omitempty"`
+
+	Control model.Uuid `json:"control"`
 }
 
 type SubjectType string
@@ -94,18 +112,27 @@ const (
 )
 
 type Subject struct {
-	model2.Uuid
-	model2.ComprehensiveDetails
+	model.Uuid
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	Title string      `json:"title"`
-	Type  SubjectType `json:"type"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
+
+	Type SubjectType `json:"type"`
 }
 
 // SubjectSelection Acts as a selector. It can hold either a Subject or a Selection.
 type SubjectSelection struct {
-	Uuid model2.Uuid `json:"uuid"`
-	model2.ComprehensiveDetails
-	model2.Selection
+	Uuid        model.Uuid       `json:"uuid"`
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
+	model.Selection
 
 	Type SubjectType `json:"type"`
 }
@@ -118,22 +145,26 @@ const (
 )
 
 type Task struct {
-	model2.Uuid
-	model2.ComprehensiveDetails
+	model.Uuid
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	Title            string             `json:"title"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
+
 	Type             TaskType           `json:"type"`
 	Activities       []Activity         `json:"activities"`
 	Dependencies     []TaskDependency   `json:"dependencies"`
-	ResponsibleRoles []model2.Uuid      `json:"responsibleRoles"`
+	ResponsibleRoles []model.Uuid       `json:"responsibleRoles"`
 	Subjects         []SubjectSelection `json:"subjects"`
-	Tasks            []model2.Uuid      `json:"tasks"`
+	Tasks            []model.Uuid       `json:"tasks"`
 	Timing           EventTiming        `json:"timing"`
 }
 
 type TaskDependency struct {
-	TaskId  model2.Uuid `json:"taskUuid"`
-	Remarks string      `json:"remarks"`
+	TaskId  model.Uuid `json:"taskUuid"`
+	Remarks string     `json:"remarks"`
 }
 
 // EventTiming The timing under which the task is intended to occur.

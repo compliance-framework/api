@@ -13,8 +13,13 @@ const (
 )
 
 type Actor struct {
-	Uuid model.Uuid `json:"uuid"`
-	model.ComprehensiveDetails
+	Uuid        model.Uuid       `json:"uuid"`
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	RoleId model.Uuid `json:"roleId"`
 	Type   ActorType  `json:"type"`

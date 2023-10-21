@@ -1,20 +1,20 @@
 package assessment
 
 import (
-	model2 "github.com/compliance-framework/configuration-service/domain/model"
+	model "github.com/compliance-framework/configuration-service/domain/model"
 	"time"
 )
 
 type Results struct {
-	Uuid model2.Uuid `json:"uuid"`
+	Uuid model.Uuid `json:"uuid"`
 
-	Metadata model2.Metadata `json:"metadata"`
+	Metadata model.Metadata `json:"metadata"`
 
-	BackMatter model2.BackMatter `json:"backMatter"`
+	BackMatter model.BackMatter `json:"backMatter"`
 
 	// ImportAp represents the imported assessment plan used for this assessment result.
 	// NOTE: In the OSCAL model, this is a web reference. We allow a reference to a local assessment plan.
-	ImportAp []model2.Uuid `json:"import-ap"`
+	ImportAp []model.Uuid `json:"import-ap"`
 
 	// LocalDefinitions is an optional field used to define data objects that are used in the assessment plan, that do not appear in the referenced System Security Plan (SSP).
 	LocalDefinitions LocalDefinition `json:"local-definitions,omitempty"`
@@ -24,8 +24,13 @@ type Results struct {
 }
 
 type Result struct {
-	Uuid model2.Uuid `json:"uuid"`
-	model2.ComprehensiveDetails
+	Uuid        model.Uuid       `json:"uuid"`
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	AssessmentLog []LogEntry    `json:"assessmentLogEntries"`
 	Attestations  []Attestation `json:"attestations"`
@@ -34,23 +39,23 @@ type Result struct {
 	End   time.Time `json:"end"`
 
 	// NOTE: Does it make sense to store Findings in their own collection rather than embedding them into the Result?
-	Findings []model2.Uuid `json:"findings"`
+	Findings []model.Uuid `json:"findings"`
 
 	LocalDefinitions LocalDefinition         `json:"localDefinitions"`
 	Observations     []Observation           `json:"observations"`
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
 
-	Risks []model2.Uuid `json:"risks"`
+	Risks []model.Uuid `json:"risks"`
 }
 
 type Attestation struct {
-	Parts              []model2.Part `json:"parts"`
-	ResponsibleParties []model2.Uuid `json:"responsibleParties"`
+	Parts              []model.Part `json:"parts"`
+	ResponsibleParties []model.Uuid `json:"responsibleParties"`
 }
 
 type Characterization struct {
-	model2.Links
-	model2.Props
+	Links []model.Link     `json:"links,omitempty"`
+	Props []model.Property `json:"props,omitempty"`
 
 	Facets []Facet `json:"facets"`
 	Origin Origin  `json:"origin"`
@@ -58,7 +63,12 @@ type Characterization struct {
 
 // Facet An individual characteristic that is part of a larger set produced by the same actor.
 type Facet struct {
-	model2.ComprehensiveDetails
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	Name string `json:"name"`
 
@@ -69,45 +79,64 @@ type Facet struct {
 }
 
 type Finding struct {
-	model2.ComprehensiveDetails
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	Title string      `json:"title"`
-	Uuid  model2.Uuid `json:"uuid"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
-	ImplementationStatement model2.Uuid   `json:"implementationStatementUuid"`
-	Origins                 []model2.Uuid `json:"origins"`
-	RelatedObservations     []model2.Uuid `json:"relatedObservations"`
-	RelatedRisks            []model2.Uuid `json:"relatedRisks"`
-	Target                  []model2.Uuid `json:"target"`
+	Uuid model.Uuid `json:"uuid"`
+
+	ImplementationStatement model.Uuid   `json:"implementationStatementUuid"`
+	Origins                 []model.Uuid `json:"origins"`
+	RelatedObservations     []model.Uuid `json:"relatedObservations"`
+	RelatedRisks            []model.Uuid `json:"relatedRisks"`
+	Target                  []model.Uuid `json:"target"`
 }
 
 type LogEntry struct {
-	model2.ComprehensiveDetails
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	Start    time.Time     `json:"start"`
-	End      time.Time     `json:"end"`
-	LoggedBy []model2.Uuid `json:"loggedBy"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
+
+	Start    time.Time    `json:"start"`
+	End      time.Time    `json:"end"`
+	LoggedBy []model.Uuid `json:"loggedBy"`
 
 	// Reference to Task(s)
-	RelatedTasks []model2.Uuid `json:"relatedTasks"`
+	RelatedTasks []model.Uuid `json:"relatedTasks"`
 }
 
 type Observation struct {
-	UUid model2.Uuid `json:"uuid"`
-	model2.ComprehensiveDetails
+	UUid        model.Uuid       `json:"uuid"`
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	Collected time.Time `json:"collected"`
 	Expires   time.Time `json:"expires"`
 }
 
 type Origin struct {
-	Actors       []model2.Uuid `json:"actors"`
-	RelatedTasks []model2.Uuid `json:"relatedTasks"`
+	Actors       []model.Uuid `json:"actors"`
+	RelatedTasks []model.Uuid `json:"relatedTasks"`
 }
 
 type Risk struct {
-	UUid model2.Uuid `json:"uuid"`
-	model2.ComprehensiveDetails
+	UUid        model.Uuid       `json:"uuid"`
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
 	Characterizations []Characterization `json:"characterizations"`
 	Deadline          time.Time          `json:"deadline"`
@@ -115,12 +144,14 @@ type Risk struct {
 
 // Target Captures an assessor's conclusions regarding the degree to which an objective is satisfied.
 type Target struct {
-	model2.ComprehensiveDetails
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
 
-	// The title for this objective status.
-	Title string `json:"title"`
+	Links   []model.Link `json:"links,omitempty"`
+	Remarks string       `json:"remarks,omitempty"`
 
-	TargetId model2.Uuid  `json:"targetId"`
+	TargetId model.Uuid   `json:"targetId"`
 	Status   TargetStatus `json:"status"`
 }
 

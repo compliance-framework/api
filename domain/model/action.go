@@ -7,7 +7,11 @@ import (
 type Action struct {
 	Uuid Uuid `json:"uuid"`
 
-	ComprehensiveDetails
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	Date                  time.Time `json:"date"`
 	ResponsiblePartyUuids []string  `json:"responsiblePartyUuids"`
