@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/compliance-framework/configuration-service/internal/adapter/api"
-	"github.com/compliance-framework/configuration-service/internal/adapter/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/adapter/store/mongo"
-	"github.com/compliance-framework/configuration-service/internal/domain/service"
+	"github.com/compliance-framework/configuration-service/api"
+	"github.com/compliance-framework/configuration-service/api/handler"
+	"github.com/compliance-framework/configuration-service/domain/service"
+	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.uber.org/zap"
 	"log"
 	"os"
@@ -21,16 +21,15 @@ func main() {
 	sugar := logger.Sugar()
 
 	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://mongo:27017")
-	store := mongo.NewStore(ctx, mongoUri, "cf")
-	err = store.Connect()
+	err = mongo.Connect(ctx, mongoUri, "cf")
 	if err != nil {
 		sugar.Fatalf("error connecting to mongo: %v", err)
 	}
 
 	server := api.NewServer(ctx)
-	controlService := service.NewControlService()
+	controlService := service.NewControlService(mongo.NewControlStore())
 	controlHandler := handler.NewControlHandler(controlService)
-	server.Route("GET", "/controls/:id", controlHandler.GetControl)
+	controlHandler.Register(server.API())
 	checkErr(server.Start(":8080"))
 }
 
