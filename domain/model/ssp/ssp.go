@@ -25,11 +25,11 @@ func (os OperationalStatus) String() string {
 // It can also contain links to additional resources and arbitrary properties.
 // For example, the boundary of a cloud-based service might include the cloud infrastructure, network components, and hosted applications.
 type AuthorizationBoundary struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	// Diagrams is an optional collection of visual representations of the boundary.
 	Diagrams []Diagram `json:"diagrams,omitempty"`
@@ -38,11 +38,11 @@ type AuthorizationBoundary struct {
 // DataFlow describes the logical flow of information within the system and across its boundaries.
 // For example, this could represent how data flows from user interfaces to backend services in a web application.
 type DataFlow struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	// Description is a summary of the system's data flow.
 	Diagrams []Diagram `json:"diagrams,omitempty"`
@@ -51,11 +51,11 @@ type DataFlow struct {
 // Diagram provides a visual representation of the system, or some aspect of it.
 // For example, a diagram could illustrate the system's network architecture.
 type Diagram struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	// Caption provides a brief annotation for the diagram.
 	Caption string `json:"caption,omitempty"`
@@ -78,11 +78,11 @@ type InventoryItem struct {
 	// A summary of the inventory item stating its purpose within the system.
 	ImplementedComponents []component.Component `json:"implemented-components,omitempty"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	// Reference to Party docs
 	ResponsibleParties []model.Uuid `json:"responsible-parties,omitempty"`
@@ -92,11 +92,11 @@ type InventoryItem struct {
 type LeveragedAuthorization struct {
 	Uuid model.Uuid `json:"uuid"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	DateAuthorized string `json:"date-authorized"`
 
@@ -106,11 +106,11 @@ type LeveragedAuthorization struct {
 
 // NetworkArchitecture A description of the system's network architecture, optionally supplemented by diagrams that illustrate the network architecture.
 type NetworkArchitecture struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	Diagrams []Diagram `json:"diagrams,omitempty"`
 }
@@ -120,11 +120,11 @@ type Statement struct {
 	Uuid model.Uuid `json:"uuid"`
 	Id   string     `json:"id"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	ResponsibleRoles []model.Uuid `json:"responsibleRoles"`
 }
@@ -133,11 +133,11 @@ type Statement struct {
 type SystemCharacteristics struct {
 	Uuid model.Uuid `json:"uuid"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	model.Metadata
 
@@ -173,11 +173,11 @@ type SecurityImpactLevel struct {
 
 // SystemImplementation Provides information as to how the system is implemented.
 type SystemImplementation struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	Components              []component.Component    `json:"components"`
 	InventoryItems          []InventoryItem          `json:"inventory-items,omitempty"`
@@ -194,12 +194,12 @@ type SystemInformation struct {
 }
 
 type InformationType struct {
-	Uuid        model.Uuid `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Uuid        model.Uuid       `json:"uuid"`
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	AvailabilityImpact    Impact                          `json:"availability_impact"`
 	Categorizations       []InformationTypeCategorization `json:"categorizations"`

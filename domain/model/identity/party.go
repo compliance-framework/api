@@ -15,11 +15,11 @@ const (
 type Party struct {
 	Uuid string `json:"uuid"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	// Parties represents the UUIDs of the child `Party` data
 	Parties []model.Uuid `json:"parties"`

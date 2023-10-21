@@ -55,10 +55,10 @@ type Capability struct {
 	Uuid model.Uuid `json:"uuid" query:"uuid"`
 	Name string     `json:"name" query:"name"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
 
 	IncorporatesComponents []model.Uuid `json:"incorporated_components" query:"incorporated_components"`
 	ControlImplementations []model.Uuid `json:"control_implementations" query:"control_implementations"`
@@ -70,11 +70,11 @@ type Capability struct {
 type ControlImplementation struct {
 	Uuid model.Uuid `json:"uuid" query:"uuid"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	// Source A reference to an OSCAL catalog or profile providing the referenced control or sub-control definition.
 	// Should be in the format `catalog/{catalog_uuid}` or `profile/{profile_uuid}`.
@@ -89,11 +89,11 @@ type ControlImplementation struct {
 type ImplementedRequirement struct {
 	Uuid model.Uuid `json:"uuid" query:"uuid"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	ControlId        model.Uuid                   `json:"control_id" query:"control_id"`
 	SetParameters    []ParameterValue             `json:"set_parameters" query:"set_parameters"`
@@ -104,10 +104,10 @@ type ImplementedRequirement struct {
 type ControlDefinitionStatement struct {
 	Uuid model.Uuid `json:"uuid" query:"uuid"`
 
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
+	Title       string           `json:"title,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
 
 	StatementId      string       `json:"statement_id" query:"statement_id"`
 	ResponsibleRoles []model.Uuid `json:"responsible_roles" query:"responsible_roles"`

@@ -9,10 +9,10 @@ type User struct {
 	AuthorizedPrivileges []CommonAuthorizedPrivilege `json:"authorized-privileges,omitempty"`
 
 	// A summary of the user's purpose within the system.
-	Description string `json:"description,omitempty"`
-	model.Props
-	model.Links
-	model.Remarks
+	Description string           `json:"description,omitempty"`
+	Props       []model.Property `json:"props,omitempty"`
+	Links       []model.Link     `json:"links,omitempty"`
+	Remarks     string           `json:"remarks,omitempty"`
 
 	RoleIds []string `json:"role-ids,omitempty"`
 
