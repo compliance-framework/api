@@ -1,4 +1,4 @@
-package api
+package handler
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/domain/service"
