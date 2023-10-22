@@ -5,10 +5,13 @@ type Plan struct {
 	Uuid
 	Metadata Metadata `json:"metadata"`
 
+	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
 	Assets Assets `json:"assets"`
 
+	// Subjects Identifies system elements being assessed, such as components, inventory items, and locations. In the assessment plan, this identifies a planned assessment subject. In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment. Any subjects not identified in this
 	Subjects []SubjectSelection `json:"subjects"`
 
+	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
 	BackMatter BackMatter `json:"backMatter"`
 
 	// Reference to a System Security Plan
@@ -18,9 +21,14 @@ type Plan struct {
 	// Reference to LocalDefinition
 	LocalDefinitions LocalDefinition `json:"localDefinitions"`
 
-	ReviewedControls   []ControlsAndObjectives `json:"reviewedControls"`
-	Tasks              []Uuid                  `json:"tasks"`
-	TermsAndConditions []Part                  `json:"termsAndConditions"`
+	// ReviewedControls Identifies the controls being assessed and their control objectives.
+	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
+
+	// Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.
+	Tasks []Uuid `json:"tasks"`
+
+	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
+	TermsAndConditions []Part `json:"termsAndConditions"`
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
@@ -29,7 +37,7 @@ type Assets struct {
 	Components []Uuid `json:"components"`
 
 	// Used to represent the toolset used to perform aspects of the assessment.
-	Platforms []Platform `json:"platforms"`
+	Platforms []Uuid `json:"platforms"`
 }
 
 type Platform struct {
