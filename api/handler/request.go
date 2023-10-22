@@ -24,7 +24,7 @@ func (r *createCatalogRequest) bind(ctx echo.Context, c *domain.Catalog) error {
 	return nil
 }
 
-// createPlanRequest defines the request payload for method CreatePlan
+// createPlanRequest defines the request payload for method Create
 // TODO: Using minimal data for now, we might need to expand it later
 type createPlanRequest struct {
 	Title string `json:"title" validate:"required"`
@@ -35,5 +35,18 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 		return err
 	}
 	p.Title = r.Title
+	return nil
+}
+
+type addAssetRequest struct {
+	AssetUuid string `json:"assetUuid" validate:"required"`
+	Type      string `json:"type" validate:"required"`
+}
+
+func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
 	return nil
 }

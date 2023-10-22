@@ -59,10 +59,26 @@ func NewPlan() *Plan {
 	return &Plan{
 		Uuid:     NewUuid(),
 		Metadata: metadata,
+		Assets: Assets{
+			Components: []Uuid{},
+			Platforms:  []Uuid{},
+		},
 	}
 }
 
 func (p *Plan) AddSubjects(subjectIds []Uuid) {
+}
+
+func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
+	if assetType == "component" {
+		p.Assets.Components = append(p.Assets.Components, assetUuid)
+	} else if assetType == "platform" {
+		p.Assets.Platforms = append(p.Assets.Components, assetUuid)
+	}
+}
+
+func (p *Plan) AddPlatformAsset(assetUuid Uuid) {
+	p.Assets.Platforms = append(p.Assets.Platforms, assetUuid)
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.

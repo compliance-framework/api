@@ -37,7 +37,7 @@ func main() {
 	controlHandler.Register(server.API())
 
 	planStore := mongo.NewPlanStore()
-	planHandler := handler.NewPlanHandler(planStore)
+	planHandler := handler.NewPlanHandler(sugar, planStore, bus.Publish)
 	planHandler.Register(server.API())
 
 	checkErr(server.Start(":8080"))
