@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	mw "github.com/compliance-framework/configuration-service/api/middleware"
+	_ "github.com/compliance-framework/configuration-service/docs"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 type Server struct {
@@ -18,6 +20,7 @@ func NewServer(ctx context.Context) *Server {
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
 	e.Validator = mw.NewValidator()
+	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	return &Server{
 		ctx:  ctx,
