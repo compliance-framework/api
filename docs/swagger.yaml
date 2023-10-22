@@ -1,0 +1,58 @@
+definitions:
+  api.Error:
+    properties:
+      errors:
+        additionalProperties: true
+        type: object
+    type: object
+  catalog.catalogIdResponse:
+    properties:
+      id:
+        type: string
+    type: object
+  catalog.createCatalogRequest:
+    properties:
+      catalog:
+        properties:
+          title:
+            type: string
+        required:
+        - title
+        type: object
+    type: object
+info:
+  contact: {}
+paths:
+  /api/catalog:
+    post:
+      consumes:
+      - application/json
+      description: Create a catalog with the given title
+      parameters:
+      - description: Catalog to add
+        in: body
+        name: catalog
+        required: true
+        schema:
+          $ref: '#/definitions/catalog.createCatalogRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/catalog.catalogIdResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a catalog
+swagger: "2.0"
