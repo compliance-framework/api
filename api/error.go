@@ -12,7 +12,7 @@ type Error struct {
 	Errors map[string]interface{} `json:"errors"`
 }
 
-func NewE(err error) Error {
+func NewError(err error) Error {
 	e := Error{}
 	e.Errors = make(map[string]interface{})
 	var v *echo.HTTPError
