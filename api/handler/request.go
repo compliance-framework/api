@@ -1,4 +1,4 @@
-package catalog
+package handler
 
 import (
 	"github.com/compliance-framework/configuration-service/domain"

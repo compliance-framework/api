@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"github.com/compliance-framework/configuration-service/api"
-	"github.com/compliance-framework/configuration-service/api/handler/catalog"
+	"github.com/compliance-framework/configuration-service/api/handler"
 	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.uber.org/zap"
 	"log"
@@ -27,7 +27,7 @@ func main() {
 
 	server := api.NewServer(ctx)
 	catalogStore := mongo.NewCatalogStore()
-	controlHandler := catalog.NewCatalogHandler(catalogStore)
+	controlHandler := handler.NewCatalogHandler(catalogStore)
 	controlHandler.Register(server.API())
 	checkErr(server.Start(":8080"))
 }
