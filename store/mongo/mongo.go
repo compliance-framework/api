@@ -2,6 +2,9 @@ package mongo
 
 import (
 	"context"
+	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"sync"
@@ -58,34 +61,57 @@ func Collection(name string) *mongo.Collection {
 	return db.Collection(name)
 }
 
-func InsertOne(ctx context.Context, collection string, document interface{}) (interface{}, error) {
+func InsertOne(ctx context.Context, collection string, document interface{}) (string, error) {
 	result, err := db.Collection(collection).InsertOne(ctx, document)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return result.InsertedID, nil
+	return fmt.Sprintf("%v", result.InsertedID), nil
+
 }
 
-func InsertMany(ctx context.Context, collection string, documents []interface{}) ([]interface{}, error) {
+func InsertMany(ctx context.Context, collection string, documents []interface{}) ([]string, error) {
 	result, err := db.Collection(collection).InsertMany(ctx, documents)
 	if err != nil {
 		return nil, err
 	}
 
-	return result.InsertedIDs, nil
-}
-
-func FindOne(ctx context.Context, collection string, filter interface{}) (interface{}, error) {
-	result := db.Collection(collection).FindOne(ctx, filter)
-	if result.Err() != nil {
-		return nil, result.Err()
+	var ids []string
+	for _, id := range result.InsertedIDs {
+		ids = append(ids, fmt.Sprintf("%v", id))
 	}
 
-	var document interface{}
+	return ids, nil
+}
+
+func FindById[T any](ctx context.Context, collection string, id string) (T, error) {
+	var t T
+
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return t, err
+	}
+
+	result, err := FindOne[T](ctx, collection, bson.M{"_id": objectId})
+	if err != nil {
+		return t, err
+	}
+
+	return result, nil
+}
+
+func FindOne[T any](ctx context.Context, collection string, filter interface{}) (T, error) {
+	var t T
+	result := db.Collection(collection).FindOne(ctx, filter)
+	if result.Err() != nil {
+		return t, result.Err()
+	}
+
+	var document T
 	err := result.Decode(&document)
 	if err != nil {
-		return nil, err
+		return t, err
 	}
 
 	return document, nil
@@ -106,13 +132,13 @@ func FindMany(ctx context.Context, collection string, filter interface{}) ([]int
 	return documents, nil
 }
 
-func UpdateOne(ctx context.Context, collection string, filter interface{}, update interface{}) (interface{}, error) {
+func UpdateOne(ctx context.Context, collection string, filter interface{}, update interface{}) (string, error) {
 	result, err := db.Collection(collection).UpdateOne(ctx, filter, update)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return result.UpsertedID, nil
+	return fmt.Sprintf("%v", result.UpsertedID), nil
 }
 
 func UpdateMany(ctx context.Context, collection string, filter interface{}, update interface{}) (int64, error) {
