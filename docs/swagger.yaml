@@ -5,12 +5,12 @@ definitions:
         additionalProperties: true
         type: object
     type: object
-  catalog.catalogIdResponse:
+  handler.catalogIdResponse:
     properties:
       id:
         type: string
     type: object
-  catalog.createCatalogRequest:
+  handler.createCatalogRequest:
     properties:
       catalog:
         properties:
@@ -34,14 +34,14 @@ paths:
         name: catalog
         required: true
         schema:
-          $ref: '#/definitions/catalog.createCatalogRequest'
+          $ref: '#/definitions/handler.createCatalogRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/catalog.catalogIdResponse'
+            $ref: '#/definitions/handler.catalogIdResponse'
         "401":
           description: Unauthorized
           schema:

@@ -32,7 +32,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/catalog.createCatalogRequest"
+                            "$ref": "#/definitions/handler.createCatalogRequest"
                         }
                     }
                 ],
@@ -40,7 +40,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/catalog.catalogIdResponse"
+                            "$ref": "#/definitions/handler.catalogIdResponse"
                         }
                     },
                     "401": {
@@ -75,7 +75,7 @@ const docTemplate = `{
                 }
             }
         },
-        "catalog.catalogIdResponse": {
+        "handler.catalogIdResponse": {
             "type": "object",
             "properties": {
                 "id": {
@@ -83,7 +83,7 @@ const docTemplate = `{
                 }
             }
         },
-        "catalog.createCatalogRequest": {
+        "handler.createCatalogRequest": {
             "type": "object",
             "properties": {
                 "catalog": {
