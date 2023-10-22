@@ -63,6 +63,55 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/plan": {
+            "post": {
+                "description": "Creates a new plan in the system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Create a plan",
+                "parameters": [
+                    {
+                        "description": "Plan to add",
+                        "name": "plan",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createPlanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.planIdResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -79,6 +128,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
+                    "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
                     "type": "string"
                 }
             }
@@ -96,6 +146,26 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                }
+            }
+        },
+        "handler.createPlanRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.planIdResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
+                    "type": "string"
                 }
             }
         }

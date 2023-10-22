@@ -7,20 +7,20 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type CatalogStoreMongo struct {
+type PlanStoreMongo struct {
 	collection *mongo.Collection
 }
 
-func (c *CatalogStoreMongo) CreateCatalog(catalog *domain.Catalog) (interface{}, error) {
+func (c *PlanStoreMongo) CreatePlan(catalog *domain.Plan) (interface{}, error) {
 	result, err := c.collection.InsertOne(context.TODO(), catalog)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return result.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
-func NewCatalogStore() *CatalogStoreMongo {
-	return &CatalogStoreMongo{
-		collection: Collection("catalog"),
+func NewPlanStore() *PlanStoreMongo {
+	return &PlanStoreMongo{
+		collection: Collection("plan"),
 	}
 }

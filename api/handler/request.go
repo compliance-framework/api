@@ -5,6 +5,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// createCatalogRequest defines the request payload for method CreateCatalog
 type createCatalogRequest struct {
 	Catalog struct {
 		Title string `json:"title" validate:"required"`
@@ -20,5 +21,19 @@ func (r *createCatalogRequest) bind(ctx echo.Context, c *domain.Catalog) error {
 		return err
 	}
 	c.Title = r.Catalog.Title
+	return nil
+}
+
+// createPlanRequest defines the request payload for method CreatePlan
+// TODO: Using minimal data for now, we might need to expand it later
+type createPlanRequest struct {
+	Title string `json:"title" validate:"required"`
+}
+
+func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+	p.Title = r.Title
 	return nil
 }

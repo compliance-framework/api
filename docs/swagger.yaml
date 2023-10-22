@@ -8,6 +8,10 @@ definitions:
   handler.catalogIdResponse:
     properties:
       id:
+        description: |-
+          The unique identifier of the catalog.
+          Required: true
+          Example: "123abc"
         type: string
     type: object
   handler.createCatalogRequest:
@@ -19,6 +23,22 @@ definitions:
         required:
         - title
         type: object
+    type: object
+  handler.createPlanRequest:
+    properties:
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  handler.planIdResponse:
+    properties:
+      id:
+        description: |-
+          The unique identifier of the plan.
+          Required: true
+          Example: "456def"
+        type: string
     type: object
 info:
   contact: {}
@@ -55,4 +75,36 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a catalog
+  /api/plan:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new plan in the system
+      parameters:
+      - description: Plan to add
+        in: body
+        name: plan
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.planIdResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a plan
 swagger: "2.0"
