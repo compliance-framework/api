@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"github.com/compliance-framework/configuration-service/api"
-	"github.com/compliance-framework/configuration-service/api/handler"
+	"github.com/compliance-framework/configuration-service/api/handler/catalog"
 	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.uber.org/zap"
 	"log"
@@ -19,7 +19,7 @@ func main() {
 	}
 	sugar := logger.Sugar()
 
-	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://mongo:27017")
+	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://localhost:27017")
 	err = mongo.Connect(ctx, mongoUri, "cf")
 	if err != nil {
 		sugar.Fatalf("error connecting to mongo: %v", err)
@@ -27,7 +27,7 @@ func main() {
 
 	server := api.NewServer(ctx)
 	catalogStore := mongo.NewCatalogStore()
-	controlHandler := handler.NewCatalogHandler(catalogStore)
+	controlHandler := catalog.NewCatalogHandler(catalogStore)
 	controlHandler.Register(server.API())
 	checkErr(server.Start(":8080"))
 }
