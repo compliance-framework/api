@@ -2,7 +2,7 @@ package catalog
 
 import (
 	"github.com/compliance-framework/configuration-service/api"
-	"github.com/compliance-framework/configuration-service/domain/model/catalog"
+	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/store"
 	"github.com/labstack/echo/v4"
 	"net/http"
@@ -32,7 +32,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 // @Failure 500 {object} api.Error
 // @Router /api/catalog [post]
 func (h *CatalogHandler) CreateCatalog(ctx echo.Context) error {
-	var c catalog.Catalog
+	var c domain.Catalog
 	req := newCreateCatalogRequest()
 	if err := req.bind(ctx, &c); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))

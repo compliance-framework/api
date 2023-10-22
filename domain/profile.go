@@ -1,18 +1,14 @@
-package profile
-
-import (
-	model2 "github.com/compliance-framework/configuration-service/domain/model"
-)
+package domain
 
 // Profile is a collection of controls and metadata that can be used to create a new overlay or baseline.
 // Note: The "Merge" and "Modify" are being skipped for now, as it doesn't make any sense to store the instructions for merging and modifying, rather than the result of applying them. They can be added as audit logs, holding all the details of the merge and modify operations.
 type Profile struct {
-	Uuid model2.Uuid `json:"uuid"`
+	Uuid Uuid `json:"uuid"`
 
-	model2.Metadata
+	Metadata
 
-	Imports    []Import          `json:"imports"`
-	BackMatter model2.BackMatter `json:"backmatter"`
+	Imports    []Import   `json:"imports"`
+	BackMatter BackMatter `json:"backmatter"`
 }
 
 // Import Designates a referenced source catalog or profile that provides a source of control information for use in creating a new overlay or baseline.
@@ -24,10 +20,10 @@ type Import struct {
 	ExcludeControls []Selection `json:"exclude_controls"`
 }
 
-// Selection Selects a control or controls from an imported control set (Profile | Catalog).
-type Selection struct {
-	WithChildControls bool          `json:"with_child_controls"`
-	WithIds           []model2.Uuid `json:"with_ids"`
+// ProfileSelection Selects a control or controls from an imported control set (Profile | Catalog).
+type ProfileSelection struct {
+	WithChildControls bool   `json:"with_child_controls"`
+	WithIds           []Uuid `json:"with_ids"`
 	Matching          []struct {
 		Pattern string `json:"pattern"`
 	} `json:"matching"`

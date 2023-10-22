@@ -1,9 +1,6 @@
-package ssp
+package domain
 
 import (
-	"github.com/compliance-framework/configuration-service/domain/model"
-	"github.com/compliance-framework/configuration-service/domain/model/component"
-	"github.com/compliance-framework/configuration-service/domain/model/identity"
 	"time"
 )
 
@@ -25,11 +22,11 @@ func (os OperationalStatus) String() string {
 // It can also contain links to additional resources and arbitrary properties.
 // For example, the boundary of a cloud-based service might include the cloud infrastructure, network components, and hosted applications.
 type AuthorizationBoundary struct {
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	// Diagrams is an optional collection of visual representations of the boundary.
 	Diagrams []Diagram `json:"diagrams,omitempty"`
@@ -38,11 +35,11 @@ type AuthorizationBoundary struct {
 // DataFlow describes the logical flow of information within the system and across its boundaries.
 // For example, this could represent how data flows from user interfaces to backend services in a web application.
 type DataFlow struct {
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	// Description is a summary of the system's data flow.
 	Diagrams []Diagram `json:"diagrams,omitempty"`
@@ -51,11 +48,11 @@ type DataFlow struct {
 // Diagram provides a visual representation of the system, or some aspect of it.
 // For example, a diagram could illustrate the system's network architecture.
 type Diagram struct {
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	// Caption provides a brief annotation for the diagram.
 	Caption string `json:"caption,omitempty"`
@@ -64,90 +61,90 @@ type Diagram struct {
 }
 
 type Impact struct {
-	Props                   []model.Property `json:"props"`
-	Links                   []model.Link     `json:"links"`
-	Base                    string           `json:"base"`
-	Selected                string           `json:"selected"`
-	AdjustmentJustification string           `json:"adjustment_justification"`
+	Props                   []Property `json:"props"`
+	Links                   []Link     `json:"links"`
+	Base                    string     `json:"base"`
+	Selected                string     `json:"selected"`
+	AdjustmentJustification string     `json:"adjustment_justification"`
 }
 
 // InventoryItem A single managed inventory item within the system.
 type InventoryItem struct {
-	Uuid model.Uuid `json:"uuid"`
+	Uuid Uuid `json:"uuid"`
 
 	// A summary of the inventory item stating its purpose within the system.
-	ImplementedComponents []component.Component `json:"implemented-components,omitempty"`
+	ImplementedComponents []Component `json:"implemented-components,omitempty"`
 
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	// Reference to Party docs
-	ResponsibleParties []model.Uuid `json:"responsible-parties,omitempty"`
+	ResponsibleParties []Uuid `json:"responsible-parties,omitempty"`
 }
 
 // LeveragedAuthorization A description of another authorized system from which this system inherits capabilities that satisfy security requirements. Another term for this concept is a common catalog provider.
 type LeveragedAuthorization struct {
-	Uuid model.Uuid `json:"uuid"`
+	Uuid Uuid `json:"uuid"`
 
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	DateAuthorized string `json:"date-authorized"`
 
 	// A machine-oriented identifier reference to the party that manages the leveraged system.
-	Party model.Uuid `json:"party-uuid"`
+	Party Uuid `json:"party-uuid"`
 }
 
 // NetworkArchitecture A description of the system's network architecture, optionally supplemented by diagrams that illustrate the network architecture.
 type NetworkArchitecture struct {
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	Diagrams []Diagram `json:"diagrams,omitempty"`
 }
 
 type Statement struct {
 	// TODO: By-components
-	Uuid model.Uuid `json:"uuid"`
-	Id   string     `json:"id"`
+	Uuid Uuid   `json:"uuid"`
+	Id   string `json:"id"`
 
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
-	ResponsibleRoles []model.Uuid `json:"responsibleRoles"`
+	ResponsibleRoles []Uuid `json:"responsibleRoles"`
 }
 
 // SystemCharacteristics Contains the characteristics of the system, such as its name, purpose, and security impact level.
 type SystemCharacteristics struct {
-	Uuid model.Uuid `json:"uuid"`
+	Uuid Uuid `json:"uuid"`
 
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
-	model.Metadata
+	Metadata
 
 	AuthorizationBoundary AuthorizationBoundary `json:"authorization_boundary"`
-	ControlImplementation []model.Uuid          `json:"control_implementation"`
+	ControlImplementation []Uuid                `json:"control_implementation"`
 	DataFlow              DataFlow              `json:"data_flow"`
 	DateAuthorized        time.Time             `json:"date_authorized"`
-	ImportProfile         []model.Uuid          `json:"import_profile"`
+	ImportProfile         []Uuid                `json:"import_profile"`
 	NetworkArchitecture   NetworkArchitecture   `json:"network_architecture"`
-	ResponsibleParties    []model.Uuid          `json:"responsible_parties"`
+	ResponsibleParties    []Uuid                `json:"responsible_parties"`
 	SecurityImpactLevel   SecurityImpactLevel   `json:"security_impact_level"`
 
 	// The overall information system sensitivity categorization, such as defined by FIPS-199.
@@ -173,33 +170,33 @@ type SecurityImpactLevel struct {
 
 // SystemImplementation Provides information as to how the system is implemented.
 type SystemImplementation struct {
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
-	Components              []component.Component    `json:"components"`
+	Components              []Component              `json:"components"`
 	InventoryItems          []InventoryItem          `json:"inventory-items,omitempty"`
 	LeveragedAuthorizations []LeveragedAuthorization `json:"leveraged-authorizations,omitempty"`
-	Users                   []identity.User          `json:"users"`
+	Users                   []User                   `json:"users"`
 }
 
 type SystemInformation struct {
 	// Contains details about one information type that is stored, processed, or transmitted by the system, such as privacy information, and those defined in NIST SP 800-60.
 	InformationTypes []InformationType `json:"information_types"`
-	Links            []model.Link      `json:"links"`
-	Props            []model.Property  `json:"props"`
-	Uuid             model.Uuid        `json:"uuid"`
+	Links            []Link            `json:"links"`
+	Props            []Property        `json:"props"`
+	Uuid             Uuid              `json:"uuid"`
 }
 
 type InformationType struct {
-	Uuid        model.Uuid       `json:"uuid"`
-	Title       string           `json:"title,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Props       []model.Property `json:"props,omitempty"`
-	Links       []model.Link     `json:"links,omitempty"`
-	Remarks     string           `json:"remarks,omitempty"`
+	Uuid        Uuid       `json:"uuid"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	AvailabilityImpact    Impact                          `json:"availability_impact"`
 	Categorizations       []InformationTypeCategorization `json:"categorizations"`
@@ -213,14 +210,14 @@ type InformationTypeCategorization struct {
 }
 
 type SystemSecurityPlan struct {
-	Uuid       model.Uuid       `json:"uuid"`
-	BackMatter model.BackMatter `json:"backmatter"`
-	model.Metadata
+	Uuid       Uuid       `json:"uuid"`
+	BackMatter BackMatter `json:"backmatter"`
+	Metadata
 
 	// Reference to the control implementation
-	ControlImplementation []model.Uuid `json:"control_implementation"`
+	ControlImplementation []Uuid `json:"control_implementation"`
 
 	// Reference to a profile
-	ImportProfile         model.Uuid            `json:"import_profile"`
+	ImportProfile         Uuid                  `json:"import_profile"`
 	SystemCharacteristics SystemCharacteristics `json:"system_characteristics"`
 }

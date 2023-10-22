@@ -7,4 +7,4 @@ Notes:
 
 - If a property has a []Uuid type parameter, it indicates that this property will hold the Ids of other model objects.
 */
-package model
+package domain

@@ -2,7 +2,7 @@ package mongo
 
 import (
 	"context"
-	"github.com/compliance-framework/configuration-service/domain/model/catalog"
+	"github.com/compliance-framework/configuration-service/domain"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -10,7 +10,7 @@ type CatalogStoreMongo struct {
 	collection *mongo.Collection
 }
 
-func (c *CatalogStoreMongo) CreateCatalog(catalog *catalog.Catalog) (interface{}, error) {
+func (c *CatalogStoreMongo) CreateCatalog(catalog *domain.Catalog) (interface{}, error) {
 	result, err := c.collection.InsertOne(context.TODO(), catalog)
 	if err != nil {
 		return nil, err

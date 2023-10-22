@@ -1,4 +1,4 @@
-package model
+package domain
 
 // Resource represents a resource associated with content in the containing document instance.
 type Resource struct {

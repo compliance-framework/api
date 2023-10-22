@@ -1,4 +1,4 @@
-package model
+package domain
 
 // Part An annotated, markup-based textual element of a catalog's or catalog group's definition, or a child of another part.
 type Part struct {

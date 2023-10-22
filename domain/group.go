@@ -1,10 +1,6 @@
-package model
+package domain
 
-import (
-	"time"
-)
-
-type Action struct {
+type Group struct {
 	Uuid Uuid `json:"uuid"`
 
 	Title       string     `json:"title,omitempty"`
@@ -13,8 +9,7 @@ type Action struct {
 	Links       []Link     `json:"links,omitempty"`
 	Remarks     string     `json:"remarks,omitempty"`
 
-	Date                  time.Time `json:"date"`
-	ResponsiblePartyUuids []string  `json:"responsiblePartyUuids"`
-	System                string    `json:"system"`
-	Type                  string    `json:"type"`
+	Class  string      `json:"class"`
+	Params []Parameter `json:"params"`
+	Groups []Uuid      `json:"groups"`
 }
