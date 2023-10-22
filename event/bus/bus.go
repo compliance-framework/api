@@ -2,6 +2,7 @@ package bus
 
 import (
 	"encoding/json"
+	"github.com/compliance-framework/configuration-service/event"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"sync"
@@ -37,9 +38,9 @@ func Listen(server string, l *zap.SugaredLogger) error {
 	return nil
 }
 
-func Subscribe[T any](topic string) (chan T, error) {
+func Subscribe[T any](topic event.TopicType) (chan T, error) {
 	ch := make(chan T)
-	_, err := conn.Subscribe(topic, func(m *nats.Msg) {
+	_, err := conn.Subscribe(string(topic), func(m *nats.Msg) {
 		var msg T
 		err := json.Unmarshal(m.Data, &msg)
 		if err != nil {
@@ -57,12 +58,12 @@ func Subscribe[T any](topic string) (chan T, error) {
 	return ch, nil
 }
 
-func Publish[T any](msg T, topic string) error {
+func Publish(msg interface{}, topic event.TopicType) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	return conn.Publish(topic, data)
+	return conn.Publish(string(topic), data)
 }
 
 func Close() {
