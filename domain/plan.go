@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // Plan An assessment plan, such as those provided by a FedRAMP assessor.
 // Here are some real-world examples for Assets, Platforms, Subjects and Inventory Items within an OSCAL Assessment Plan:
@@ -8,8 +11,39 @@ import "time"
 // 2. Platforms: This could be the retail company's online E-commerce platform which hosts their online store, and where transactions occur. The platform might involve web servers, database servers, or a cloud environment.
 // 3. Subjects: If the company is performing a security assessment, the subject could be the encryption method or security protocols used to protect the customer data while in transit or at rest in the database.
 // 4. Inventory Items: These could be the individual servers or workstations used within the company. Inventory workstations are the physical machines or software applications used by employees that may have vulnerabilities or exposure to risk that need to be tracked and mitigated.
+//
+// Relation between Tasks, Activities and Steps:
+//
+// Scenario: Conducting a cybersecurity assessment of an organization's systems.
+//
+// 1. Task: The major task could be "Conduct vulnerability scanning on servers."
+// 2. Activity: Within this task, an activity could be "Prepare servers for vulnerability scan."
+// 3. Step: The steps that make up this activity could be things like:
+//   - "Identify all servers"
+//   - "Ensure necessary permissions are in place for scanning"
+//   - "Check that scanning software is properly installed and updated."
+//
+// Another activity under the same task could be "Execute vulnerability scanning," and steps for that activity might include:
+//
+// 1. "Begin scanning process through scanning software."
+// 2. "Monitor progress of scan."
+// 3. "Document any issues or vulnerabilities identified."
+//
+// The process would continue like this with tasks broken down into activities, and activities broken down into steps.
+//
+// These concepts still apply in the context of automated tools or systems. In fact, the OSCAL model is designed to support both manual and automated processes.
+// 1.	Task: The major task could be “Automated Compliance Checking”
+// 2.	Activity: This task could have multiple activities such as:
+// ▪	“Configure Automated Tool with necessary parameters”
+// ▪	“Run Compliance Check”
+// ▪	“Collect and Analyze Compliance Data”
+// 3.	Step: In each of these activities, there are several subprocesses or actions (Steps). For example, under “Configure Automated Tool with necessary parameters”, the steps could be:
+// ▪	“Define the criteria based on selected standards”
+// ▪	“Set the scope or target systems for the assessment”
+// ▪	“Specify the output (report) format”
+// In context of an automated compliance check, the description of Task, Activity, and Step provides a systematic plan or procedure that the tool is expected to follow. This breakdown of tasks, activities, and steps could also supply useful context and explain the tool’s operation and results to system admins, auditors or other stakeholders. It also allows for easier troubleshooting in the event of problems.
 type Plan struct {
-	Uuid
+	Uuid Uuid `json:"uuid"`
 
 	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
 	Title string `json:"title,omitempty"`
@@ -76,7 +110,7 @@ func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
 	}
 }
 
-func (p *Plan) Scheduled() bool {
+func (p *Plan) Ready() bool {
 	// If there are no subjects, there's nothing to run.
 	if len(p.Subjects) == 0 {
 		return false
@@ -112,6 +146,63 @@ func (p *Plan) Scheduled() bool {
 	return false
 }
 
+func (p *Plan) AddTask(task Task) error {
+	// Validate the task
+	if task.Title == "" {
+		return errors.New("task title cannot be empty")
+	}
+
+	if task.Type != TaskTypeMilestone && task.Type != TaskTypeAction {
+		return errors.New("task type must be either 'milestone' or 'action'")
+	}
+
+	// Add the task to the Tasks slice
+	p.Tasks = append(p.Tasks, task)
+
+	return nil
+}
+
+func (p *Plan) AddSubjects(subject SubjectSelection) error {
+	// Validate the subject
+	if subject.Title == "" {
+		return errors.New("subject title cannot be empty")
+	}
+
+	// Check if only one of Query, Labels, Expressions, and Ids is set
+	fieldsSet := 0
+	if len(subject.Ids) > 0 {
+		fieldsSet++
+	}
+	if subject.Query != "" {
+		fieldsSet++
+	}
+	if len(subject.Expressions) > 0 {
+		fieldsSet++
+	}
+	if len(subject.Labels) > 0 {
+		fieldsSet++
+	}
+
+	// If more than one is set, unset the others based on the priority order
+	if fieldsSet > 1 {
+		if len(subject.Ids) > 0 {
+			subject.Query = ""
+			subject.Expressions = nil
+			subject.Labels = nil
+		} else if subject.Query != "" {
+			subject.Expressions = nil
+			subject.Labels = nil
+		} else if len(subject.Expressions) > 0 {
+			subject.Labels = nil
+		}
+	}
+
+	// Add the subject to the Subjects slice
+	p.Subjects = append(p.Subjects, subject)
+
+	return nil
+}
+
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
@@ -122,7 +213,7 @@ type Assets struct {
 }
 
 type Platform struct {
-	Uuid
+	Uuid        Uuid       `json:"uuid"`
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`
@@ -178,6 +269,7 @@ type LocalDefinition struct {
 
 // Objective A local objective is a security control or requirement that is specific to the system or organization under assessment.
 type Objective struct {
+	Uuid        Uuid       `json:"uuid"`
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`
@@ -200,7 +292,7 @@ const (
 )
 
 type Subject struct {
-	Uuid
+	Uuid        Uuid        `json:"uuid"`
 	Type        SubjectType `json:"type"`
 	Title       string      `json:"title,omitempty"`
 	Description string      `json:"description,omitempty"`
@@ -233,6 +325,7 @@ const (
 )
 
 type Task struct {
+	Uuid        Uuid       `json:"uuid"`
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`
