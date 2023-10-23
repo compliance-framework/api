@@ -1,69 +1,47 @@
 package main
 
 import (
+	"context"
+	"github.com/compliance-framework/configuration-service/api"
+	"github.com/compliance-framework/configuration-service/api/handler"
+	"github.com/compliance-framework/configuration-service/event/bus"
+	"github.com/compliance-framework/configuration-service/service"
+	"github.com/compliance-framework/configuration-service/store/mongo"
+	"go.uber.org/zap"
 	"log"
 	"os"
-	"sync"
-
-	"github.com/compliance-framework/configuration-service/internal/jobs"
-	"github.com/compliance-framework/configuration-service/internal/server"
-	"github.com/compliance-framework/configuration-service/internal/stores/mongo"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"go.uber.org/zap"
 )
 
 func main() {
-	var wg sync.WaitGroup
+	ctx := context.Background()
 
-	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://mongo:27017")
-	natsUri := getEnvironmentVariable("NATS_URI", "nats://nats:4222")
-
-	driver := &mongo.MongoDriver{Url: mongoUri, Database: "cf"}
 	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := logger.Sugar()
-	e := echo.New()
-	e.Use(middleware.Logger())
 
-	job := jobs.RuntimeJobManager{Log: sugar, Driver: driver}
-	checkErr(job.Init())
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		job.Run()
-	}()
+	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://localhost:27017")
+	err = mongo.Connect(ctx, mongoUri, "cf")
+	if err != nil {
+		sugar.Fatalf("error connecting to mongo: %v", err)
+	}
 
-	sub := jobs.EventSubscriber{Log: sugar}
-	checkErr(sub.Connect(natsUri))
-	ch := sub.Subscribe("assessment.result")
+	err = bus.Listen("nats://localhost:4222", sugar)
+	if err != nil {
+		sugar.Fatalf("error connecting to nats: %v", err)
+	}
 
-	process := jobs.EventProcessor{Log: sugar, Driver: driver}
-	checkErr(process.Init(ch))
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		process.Run()
-	}()
+	server := api.NewServer(ctx)
+	catalogStore := mongo.NewCatalogStore()
+	controlHandler := handler.NewCatalogHandler(catalogStore)
+	controlHandler.Register(server.API())
 
-	pub := jobs.EventPublisher{Log: sugar}
-	checkErr(pub.Connect(natsUri))
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		pub.Run()
-	}()
+	planService := service.NewPlanService(bus.Publish)
+	planHandler := handler.NewPlanHandler(sugar, planService)
+	planHandler.Register(server.API())
 
-	sv := server.Server{Driver: driver}
-	checkErr(sv.RegisterOSCAL(e))
-	checkErr(sv.RegisterRuntime(e))
-	checkErr(sv.RegisterProcess(e))
-
-	checkErr(e.Start(":8080"))
-
-	wg.Wait()
+	checkErr(server.Start(":8080"))
 }
 
 func getEnvironmentVariable(key, fallback string) string {

@@ -40,7 +40,7 @@ all: build
 # entire set of makefiles included in this invocation, looking for lines of the
 # file as xyz: ## something, and then pretty-format the target and help. Then,
 # if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
+# More info on the usage of ANSI catalog characters for terminal formatting:
 # https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
 # More info on the awk command:
 # http://linuxcommand.org/lc3_adv_awk.php
@@ -86,3 +86,6 @@ debug: ## Run docker-compose with debug
 .PHONY: debug.stop
 debug.stop: ## Run docker-compose with debug
 	@docker-compose -f ./tests/docker-compose.yml down
+
+swag:
+	@swag init
