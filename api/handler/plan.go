@@ -3,8 +3,7 @@ package handler
 import (
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
-	"github.com/compliance-framework/configuration-service/event"
-	"github.com/compliance-framework/configuration-service/store"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"net/http"
@@ -14,9 +13,8 @@ import (
 //  publish the events from the domain services, following the business logic.
 
 type PlanHandler struct {
-	store     store.PlanStore
-	publisher event.Publisher
-	sugar     *zap.SugaredLogger
+	service *service.PlanService
+	sugar   *zap.SugaredLogger
 }
 
 func (h *PlanHandler) Register(api *echo.Group) {
@@ -24,11 +22,10 @@ func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("/plan/:id/assets", h.AddAsset)
 }
 
-func NewPlanHandler(l *zap.SugaredLogger, s store.PlanStore, p event.Publisher) *PlanHandler {
+func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 	return &PlanHandler{
-		sugar:     l,
-		store:     s,
-		publisher: p,
+		sugar:   l,
+		service: s,
 	}
 }
 
@@ -56,9 +53,9 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	// Attempt to create the plan in the store
+	// Attempt to create the plan in the service
 	// If there's an error, return a 500 status code with the error message
-	id, err := h.store.Create(p)
+	id, err := h.service.Create(p)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -66,14 +63,14 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	// Publish an event indicating that a plan was created
 	// If there's an error, log it
 	// TODO: Should only publish when the Timing and the Subjects are set
-	err = h.publisher(event.PlanCreated{Uuid: p.Uuid}, event.TopicTypePlan)
-	if err != nil {
-		h.sugar.Errorf("error publishing event: %v", err)
-	}
+	//err = h.publisher(event.PlanCreated{Uuid: p.Uuid}, event.TopicTypePlan)
+	//if err != nil {
+	//	h.sugar.Errorf("error publishing event: %v", err)
+	//}
 
 	// If everything went well, return a 201 status code with the ID of the created plan
 	return ctx.JSON(http.StatusCreated, planIdResponse{
-		Id: id.(string),
+		Id: id,
 	})
 }
 
@@ -91,7 +88,7 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 // @Failure 500 {object} api.Response "Internal Server Error"
 // @Router /plans/{id}/assets [post]
 func (h *PlanHandler) AddAsset(ctx echo.Context) error {
-	plan, err := h.store.GetById(ctx.Param("id"))
+	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	} else if plan == nil {
@@ -104,7 +101,7 @@ func (h *PlanHandler) AddAsset(ctx echo.Context) error {
 	}
 
 	plan.AddAsset(domain.Uuid(req.AssetUuid), req.Type)
-	err = h.store.Update(plan)
+	err = h.service.Update(plan)
 	if err != nil {
 		return err
 	}

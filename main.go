@@ -5,6 +5,7 @@ import (
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/api/handler"
 	"github.com/compliance-framework/configuration-service/event/bus"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.uber.org/zap"
 	"log"
@@ -36,8 +37,8 @@ func main() {
 	controlHandler := handler.NewCatalogHandler(catalogStore)
 	controlHandler.Register(server.API())
 
-	planStore := mongo.NewPlanStore()
-	planHandler := handler.NewPlanHandler(sugar, planStore, bus.Publish)
+	planService := service.NewPlanService(bus.Publish)
+	planHandler := handler.NewPlanHandler(sugar, planService)
 	planHandler.Register(server.API())
 
 	checkErr(server.Start(":8080"))

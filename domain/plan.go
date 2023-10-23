@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // Plan An assessment plan, such as those provided by a FedRAMP assessor.
 // Here are some real-world examples for Assets, Platforms, Subjects and Inventory Items within an OSCAL Assessment Plan:
 // 1. Assets: This could be something like a customer database within a retail company. It's an asset because it's crucial to the business operation, storing all the essential customer details such as addresses, contact information, and purchase history.
@@ -37,7 +39,7 @@ type Plan struct {
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
 
 	// Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.
-	Tasks []Uuid `json:"tasks"`
+	Tasks []Task `json:"tasks"`
 
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions"`
@@ -66,15 +68,48 @@ func NewPlan() *Plan {
 	}
 }
 
-func (p *Plan) AddSubjects(subjectIds []Uuid) {
-}
-
 func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
 	if assetType == "component" {
 		p.Assets.Components = append(p.Assets.Components, assetUuid)
 	} else if assetType == "platform" {
 		p.Assets.Platforms = append(p.Assets.Components, assetUuid)
 	}
+}
+
+func (p *Plan) Scheduled() bool {
+	// If there are no subjects, there's nothing to run.
+	if len(p.Subjects) == 0 {
+		return false
+	}
+
+	// Check if the tasks have a schedule for the future.
+	for _, task := range p.Tasks {
+		timing := task.Timing
+
+		// Check OnDateCondition
+		if timing.OnDate != nil {
+			taskDate, err := time.Parse("2006-01-02", timing.OnDate.Date)
+			if err != nil {
+				continue
+			}
+			if taskDate.After(time.Now()) {
+				return true
+			}
+		}
+
+		// Check WithinDateRangeCondition
+		if timing.WithinDateRange != nil {
+			startDate, err := time.Parse("2006-01-02", timing.WithinDateRange.Start)
+			if err != nil {
+				continue
+			}
+			if startDate.After(time.Now()) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
@@ -198,13 +233,11 @@ const (
 )
 
 type Task struct {
-	Uuid
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`
-
-	Links   []Link `json:"links,omitempty"`
-	Remarks string `json:"remarks,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
 
 	Type             TaskType           `json:"type"`
 	Activities       []Activity         `json:"activities"`
