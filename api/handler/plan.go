@@ -65,6 +65,7 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 
 	// Publish an event indicating that a plan was created
 	// If there's an error, log it
+	// TODO: Should only publish when the Timing and the Subjects are set
 	err = h.publisher(event.PlanCreated{Uuid: p.Uuid}, event.TopicTypePlan)
 	if err != nil {
 		h.sugar.Errorf("error publishing event: %v", err)

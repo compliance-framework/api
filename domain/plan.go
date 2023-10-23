@@ -77,10 +77,6 @@ func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
 	}
 }
 
-func (p *Plan) AddPlatformAsset(assetUuid Uuid) {
-	p.Assets.Platforms = append(p.Assets.Platforms, assetUuid)
-}
-
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
