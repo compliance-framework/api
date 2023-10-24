@@ -85,6 +85,7 @@ type createSubjectSelectionRequest struct {
 
 func (r *createSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
 	// Check if Query, Labels, Ids or Expressions are set
+	// The service runs this check as well, but we want to return a 422 error before that
 	if s.Query == "" && len(s.Labels) == 0 && len(s.Ids) == 0 && len(s.Expressions) == 0 {
 		return errors.New("at least one of Query, Labels, Ids or Expressions must be set")
 	}

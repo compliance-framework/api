@@ -18,8 +18,12 @@ type PlanHandler struct {
 }
 
 func (h *PlanHandler) Register(api *echo.Group) {
+	// TODO: Most of the methods require other ops like delete and update
+
 	api.POST("/plan", h.CreatePlan)
 	api.POST("/plan/:id/assets", h.AddAsset)
+	api.POST("/plan/:id/tasks", h.CreateTask)
+	api.POST("/plan/:id/task/:taskId/subjects", h.CreateSubjectSelection)
 }
 
 func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
@@ -60,14 +64,6 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Publish an event indicating that a plan was created
-	// If there's an error, log it
-	// TODO: Should only publish when the Timing and the Subjects are set
-	//err = h.publisher(event.PlanCreated{Uuid: p.Uuid}, event.TopicTypePlan)
-	//if err != nil {
-	//	h.sugar.Errorf("error publishing event: %v", err)
-	//}
-
 	// If everything went well, return a 201 status code with the ID of the created plan
 	return ctx.JSON(http.StatusCreated, planIdResponse{
 		Id: id,
@@ -76,7 +72,7 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 
 // AddAsset godoc
 // @Summary Add asset to a plan
-// @Description This method adds an asset to a specific plan by its ID.
+// @Description This method adds an existing asset to a specific plan by its ID.
 // @Tags Plan
 // @Accept  json
 // @Produce  json
@@ -104,6 +100,90 @@ func (h *PlanHandler) AddAsset(ctx echo.Context) error {
 	err = h.service.Update(plan)
 	if err != nil {
 		return err
+	}
+
+	return ctx.JSON(http.StatusOK, nil)
+}
+
+// CreateTask godoc
+// @Summary Creates a new task for a specific plan
+// @Description This method creates a new task and adds it to a specific plan.
+// @Tags Plan
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Plan ID"
+// @Param task body createTaskRequest true "Task to add"
+// @Success 200 {object} api.Response "Successfully added the task to the plan"
+// @Failure 404 {object} api.Response "Plan not found"
+// @Failure 422 {object} api.Response "Unprocessable Entity: Error binding the request"
+// @Failure 500 {object} api.Response "Internal Server Error"
+// @Router /plans/{id}/tasks [post]
+func (h *PlanHandler) CreateTask(ctx echo.Context) error {
+	plan, err := h.service.GetById(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	} else if plan == nil {
+		return ctx.JSON(http.StatusNotFound, api.NotFound())
+	}
+
+	req := &createTaskRequest{}
+	if err := ctx.Bind(req); err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	task := domain.Task{
+		Uuid:        domain.NewUuid(),
+		Title:       req.Title,
+		Description: req.Description,
+	}
+	err = plan.AddTask(task)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	err = h.service.Update(plan)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, nil)
+}
+
+// CreateSubjectSelection godoc
+// @Summary Create subject selection
+// @Description This function is used to create a subject selection for a given plan.
+// @Tags Plan
+// @Accept  json
+// @Produce  json
+// @Param id path int true "Plan ID"
+// @Param taskId path int true "Task ID"
+// @Param selection body createSubjectSelectionRequest true "Subject Selection"
+// @Success 200 {object} api.SuccessResponse "Successfully created subject selection"
+// @Failure 404 {object} api.ErrorResponse "Plan not found"
+// @Failure 500 {object} api.ErrorResponse "Internal server error"
+// @Router /plans/{id}/tasks/{taskId}/subjects [post]
+func (h *PlanHandler) CreateSubjectSelection(ctx echo.Context) error {
+	plan, err := h.service.GetById(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	} else if plan == nil {
+		return ctx.JSON(http.StatusNotFound, api.NotFound())
+	}
+
+	var selection domain.SubjectSelection
+	req := &createSubjectSelectionRequest{}
+	if err = req.bind(ctx, &selection); err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	err = plan.AddSubjectsToTask(domain.Uuid(ctx.Param("taskId")).String(), selection)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	err = h.service.Update(plan)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, nil)
