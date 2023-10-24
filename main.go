@@ -41,6 +41,10 @@ func main() {
 	planHandler := handler.NewPlanHandler(sugar, planService)
 	planHandler.Register(server.API())
 
+	metadataService := service.NewMetadataService()
+	metadataHandler := handler.NewMetadataHandler(metadataService)
+	metadataHandler.Register(server.API())
+
 	checkErr(server.Start(":8080"))
 }
 

@@ -5,6 +5,32 @@ definitions:
         additionalProperties: true
         type: object
     type: object
+  handler.addAssetRequest:
+    properties:
+      assetUuid:
+        type: string
+      type:
+        type: string
+    required:
+    - assetUuid
+    - type
+    type: object
+  handler.attachMetadataRequest:
+    properties:
+      collection:
+        type: string
+      revisionDescription:
+        type: string
+      revisionRemarks:
+        type: string
+      revisionTitle:
+        type: string
+      uuid:
+        type: string
+    required:
+    - collection
+    - uuid
+    type: object
   handler.catalogIdResponse:
     properties:
       id:
@@ -29,6 +55,49 @@ definitions:
       title:
         type: string
     required:
+    - title
+    type: object
+  handler.createSubjectSelectionRequest:
+    properties:
+      description:
+        type: string
+      expressions:
+        items:
+          properties:
+            key:
+              type: string
+            operator:
+              type: string
+            values:
+              items:
+                type: string
+              type: array
+          type: object
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      query:
+        type: string
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  handler.createTaskRequest:
+    properties:
+      description:
+        type: string
+      title:
+        description: 'TODO: We are keeping it minimal for now for the demo'
+        type: string
+    required:
+    - description
     - title
     type: object
   handler.planIdResponse:
@@ -75,6 +144,40 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a catalog
+  /api/metadata/revisions:
+    post:
+      consumes:
+      - application/json
+      description: This method attaches metadata to a specific revision.
+      parameters:
+      - description: Revision that will be attached
+        in: body
+        name: revision
+        required: true
+        schema:
+          $ref: '#/definitions/handler.attachMetadataRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: 'Bad Request: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Object not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Attaches metadata to a specific revision
+      tags:
+      - Metadata
   /api/plan:
     post:
       consumes:
@@ -107,4 +210,111 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a plan
+  /plans/{id}/assets:
+    post:
+      consumes:
+      - application/json
+      description: This method adds an existing asset to a specific plan by its ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Asset to add
+        in: body
+        name: asset
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addAssetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully added the asset to the plan
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Plan not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: 'Unprocessable Entity: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Add asset to a plan
+      tags:
+      - Plan
+  /plans/{id}/tasks:
+    post:
+      consumes:
+      - application/json
+      description: This method creates a new task and adds it to a specific plan.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Task to add
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully added the task to the plan
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Plan not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: 'Unprocessable Entity: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Creates a new task for a specific plan
+      tags:
+      - Plan
+  /plans/{id}/tasks/{taskId}/subjects:
+    post:
+      consumes:
+      - application/json
+      description: This function is used to create a subject selection for a given
+        plan.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Task ID
+        in: path
+        name: taskId
+        required: true
+        type: integer
+      - description: Subject Selection
+        in: body
+        name: selection
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createSubjectSelectionRequest'
+      produces:
+      - application/json
+      responses: {}
+      summary: Create subject selection
+      tags:
+      - Plan
 swagger: "2.0"

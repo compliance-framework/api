@@ -109,3 +109,24 @@ func (r *createSubjectSelectionRequest) bind(ctx echo.Context, s *domain.Subject
 	s.Ids = r.Ids
 	return nil
 }
+
+// createSubjectRequest defines the request payload for method CreateSubject
+type attachMetadataRequest struct {
+	Uuid                string `json:"uuid" validate:"required"`
+	Collection          string `json:"collection" validate:"required"`
+	RevisionTitle       string `json:"revisionTitle,omitempty"`
+	RevisionDescription string `json:"revisionDescription,omitempty"`
+	RevisionRemarks     string `json:"revisionRemarks,omitempty"`
+}
+
+func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	rev.Title = r.RevisionTitle
+	rev.Description = r.RevisionDescription
+	rev.Remarks = r.RevisionRemarks
+
+	return nil
+}
