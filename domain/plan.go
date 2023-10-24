@@ -166,6 +166,18 @@ func (p *Plan) AddSubjectsToTask(taskId string, subject SubjectSelection) error 
 		return errors.New("no tasks found")
 	}
 
+	// Check if the task with the given id exists
+	taskExists := false
+	for _, task := range p.Tasks {
+		if task.Uuid.String() == taskId {
+			taskExists = true
+			break
+		}
+	}
+	if !taskExists {
+		return errors.New("task not found")
+	}
+
 	// Validate the subject
 	if subject.Title == "" {
 		return errors.New("subject title cannot be empty")
