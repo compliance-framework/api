@@ -54,11 +54,6 @@ type Plan struct {
 	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
 	Assets Assets `json:"assets"`
 
-	// Subjects Identifies system elements being assessed, such as components, inventory items, and locations. In the assessment plan, this identifies a planned assessment subject. In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment. Any subjects not identified in this
-	// We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
-	// The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
-	Subjects []SubjectSelection `json:"subjects"`
-
 	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
 	BackMatter BackMatter `json:"backMatter"`
 
@@ -111,13 +106,17 @@ func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
 }
 
 func (p *Plan) Ready() bool {
-	// If there are no subjects, there's nothing to run.
-	if len(p.Subjects) == 0 {
+	// If there are no Tasks then there's nothing to run.
+	if len(p.Tasks) == 0 {
 		return false
 	}
 
-	// Check if the tasks have a schedule for the future.
+	// Check if the tasks have a schedule for the future and at least one subject.
 	for _, task := range p.Tasks {
+		if len(task.Subjects) == 0 {
+			continue
+		}
+
 		timing := task.Timing
 
 		// Check OnDateCondition
@@ -162,7 +161,11 @@ func (p *Plan) AddTask(task Task) error {
 	return nil
 }
 
-func (p *Plan) AddSubjects(subject SubjectSelection) error {
+func (p *Plan) AddSubjectsToTask(taskId string, subject SubjectSelection) error {
+	if len(p.Tasks) == 0 {
+		return errors.New("no tasks found")
+	}
+
 	// Validate the subject
 	if subject.Title == "" {
 		return errors.New("subject title cannot be empty")
@@ -198,7 +201,12 @@ func (p *Plan) AddSubjects(subject SubjectSelection) error {
 	}
 
 	// Add the subject to the Subjects slice
-	p.Subjects = append(p.Subjects, subject)
+	for i, task := range p.Tasks {
+		if task.Uuid.String() == taskId {
+			p.Tasks[i].Subjects = append(p.Tasks[i].Subjects, subject)
+			return nil
+		}
+	}
 
 	return nil
 }
@@ -332,13 +340,18 @@ type Task struct {
 	Links       []Link     `json:"links,omitempty"`
 	Remarks     string     `json:"remarks,omitempty"`
 
-	Type             TaskType           `json:"type"`
-	Activities       []Activity         `json:"activities"`
-	Dependencies     []TaskDependency   `json:"dependencies"`
-	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
-	Subjects         []SubjectSelection `json:"subjects"`
-	Tasks            []Uuid             `json:"tasks"`
-	Timing           EventTiming        `json:"timing"`
+	Type             TaskType         `json:"type"`
+	Activities       []Activity       `json:"activities"`
+	Dependencies     []TaskDependency `json:"dependencies"`
+	ResponsibleRoles []Uuid           `json:"responsibleRoles"`
+
+	// Subjects Identifies system elements being assessed, such as components, inventory items, and locations. In the assessment plan, this identifies a planned assessment subject. In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment. Any subjects not identified in this
+	// We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
+	// The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
+	Subjects []SubjectSelection `json:"subjects"`
+
+	Tasks  []Uuid      `json:"tasks"`
+	Timing EventTiming `json:"timing"`
 }
 
 type TaskDependency struct {
