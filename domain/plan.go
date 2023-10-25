@@ -117,26 +117,22 @@ func (p *Plan) Ready() bool {
 			continue
 		}
 
-		timing := task.Timing
+		schedule := task.Schedule
 
-		// Check OnDateCondition
-		if timing.OnDate != nil {
-			taskDate, err := time.Parse("2006-01-02", timing.OnDate.Date)
-			if err != nil {
-				continue
-			}
-			if taskDate.After(time.Now()) {
-				return true
-			}
+		// Check if the task's start time is in the future
+		if schedule.Start.After(time.Now()) {
+			return true
 		}
 
-		// Check WithinDateRangeCondition
-		if timing.WithinDateRange != nil {
-			startDate, err := time.Parse("2006-01-02", timing.WithinDateRange.Start)
-			if err != nil {
-				continue
-			}
-			if startDate.After(time.Now()) {
+		// Check if the task's end time is in the future
+		if schedule.End != nil && schedule.End.After(time.Now()) {
+			return true
+		}
+
+		// Check if the task's next occurrence is in the future
+		if schedule.Repeat != nil {
+			nextOccurrence := schedule.Start.Add(schedule.Repeat.Interval)
+			if nextOccurrence.After(time.Now()) {
 				return true
 			}
 		}
@@ -311,6 +307,9 @@ const (
 	SubjectTypeUser          SubjectType = "user"
 )
 
+// Subject Identifies system elements being assessed, such as components, inventory items, and locations.
+// In the assessment plan, this identifies a planned assessment subject.
+// In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
 type Subject struct {
 	Uuid        Uuid        `json:"uuid"`
 	Type        SubjectType `json:"type"`
@@ -321,7 +320,9 @@ type Subject struct {
 	Remarks     string      `json:"remarks,omitempty"`
 }
 
-// SubjectSelection Acts as a selector. It can hold either a Subject or a Selection.
+// SubjectSelection Identifies system elements being assessed, such as components, inventory items, and locations by specifying a selection criteria.
+// We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
+// The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
 type SubjectSelection struct {
 	Title       string                   `json:"title,omitempty"`
 	Description string                   `json:"description,omitempty"`
@@ -345,25 +346,19 @@ const (
 )
 
 type Task struct {
-	Uuid        Uuid       `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
-	Remarks     string     `json:"remarks,omitempty"`
-
-	Type             TaskType         `json:"type"`
-	Activities       []Activity       `json:"activities"`
-	Dependencies     []TaskDependency `json:"dependencies"`
-	ResponsibleRoles []Uuid           `json:"responsibleRoles"`
-
-	// Subjects Identifies system elements being assessed, such as components, inventory items, and locations. In the assessment plan, this identifies a planned assessment subject. In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment. Any subjects not identified in this
-	// We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
-	// The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
-	Subjects []SubjectSelection `json:"subjects"`
-
-	Tasks  []Uuid      `json:"tasks"`
-	Timing EventTiming `json:"timing"`
+	Uuid             Uuid               `json:"uuid"`
+	Title            string             `json:"title,omitempty"`
+	Description      string             `json:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty"`
+	Type             TaskType           `json:"type"`
+	Activities       []Activity         `json:"activities"`
+	Dependencies     []TaskDependency   `json:"dependencies"`
+	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
+	Subjects         []SubjectSelection `json:"subjects"`
+	Tasks            []Uuid             `json:"tasks"`
+	Schedule         Schedule           `json:"schedule"`
 }
 
 type TaskDependency struct {
@@ -371,38 +366,27 @@ type TaskDependency struct {
 	Remarks string `json:"remarks"`
 }
 
-// EventTiming The timing under which the task is intended to occur.
-type EventTiming struct {
-	// The task is intended to occur at the specified frequency.
-	AtFrequency *FrequencyCondition `json:"at-frequency,omitempty"`
+// Schedule represents when a task should be executed.
+// A task scheduled for a specific time would have a Schedule with Start set to that time, and End and Repeat left as nil.
+// A task scheduled for a specific date range would have a Schedule with Start and End set to the start and end of that range, and Repeat left as nil.
+// A task scheduled to repeat every day starting from a specific date would have a Schedule with Start set to the start date, End left as nil, and Repeat set to {Interval: 24 * time.Hour}.
+// A task scheduled to repeat every day within a specific date range would have a Schedule with Start and End set to the start and end of that range, and Repeat set to {Interval: 24 * time.Hour}.
+type Schedule struct {
+	// Start is the earliest time the task should be executed.
+	Start time.Time `json:"start"`
 
-	// The task is intended to occur on the specified date.
-	OnDate *OnDateCondition `json:"on-date,omitempty"`
+	// End is the latest time the task should be executed. If End is nil, the task should be executed exactly at Start.
+	End *time.Time `json:"end,omitempty"`
 
-	// The task is intended to occur within the specified date range.
-	WithinDateRange *WithinDateRangeCondition `json:"within-date-range,omitempty"`
+	// Repeat specifies how often the task should be repeated after Start.
+	Repeat *Repeat `json:"repeat,omitempty"`
 }
 
-// FrequencyCondition The task is intended to occur at the specified frequency.
-type FrequencyCondition struct {
-	// The task must occur after the specified period has elapsed.
-	Period int `json:"period"`
+// Repeat specifies how often a task should be repeated.
+type Repeat struct {
+	// Interval is the duration between each execution of the task.
+	Interval time.Duration `json:"interval"`
 
-	// The unit of time for the period.
-	Unit string `json:"unit"`
-}
-
-// OnDateCondition The task is intended to occur on the specified date.
-type OnDateCondition struct {
-	// The task must occur on the specified date.
-	Date string `json:"date"`
-}
-
-// WithinDateRangeCondition The task is intended to occur within the specified date range.
-type WithinDateRangeCondition struct {
-	// The task must occur on or before the specified date.
-	End string `json:"end"`
-
-	// The task must occur on or after the specified date.
-	Start string `json:"start"`
+	// Until specifies the latest time the task should be repeated. If Until is nil, the task is repeated indefinitely.
+	Until *time.Time `json:"until,omitempty"`
 }
