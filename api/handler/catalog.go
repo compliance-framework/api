@@ -23,6 +23,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 // CreateCatalog godoc
 // @Summary 		Create a catalog
 // @Description 	Create a catalog with the given title
+// @Tags 			Catalog
 // @Accept  		json
 // @Produce  		json
 // @Param   		catalog body createCatalogRequest true "Catalog to add"

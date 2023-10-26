@@ -43,8 +43,16 @@ func (s *PlanService) Update(plan *domain.Plan) error {
 		return err
 	}
 
+	jobSpec, err := plan.JobSpecification()
+	if err != nil {
+		return err
+	}
+
 	if plan.Ready() {
-		err = s.publisher(event.PlanUpdated{Uuid: plan.Uuid}, event.TopicTypePlan)
+		published := event.PlanPublished{
+			JobSpecification: jobSpec,
+		}
+		err = s.publisher(published, event.TopicTypePlan)
 		if err != nil {
 			return err
 		}

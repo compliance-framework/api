@@ -21,13 +21,14 @@ func main() {
 	}
 	sugar := logger.Sugar()
 
-	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://localhost:27017")
+	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://mongo:27017")
 	err = mongo.Connect(ctx, mongoUri, "cf")
 	if err != nil {
 		sugar.Fatalf("error connecting to mongo: %v", err)
 	}
 
-	err = bus.Listen("nats://localhost:4222", sugar)
+	busUri := getEnvironmentVariable("NATS_URI", "nats://nats:4222")
+	err = bus.Listen(busUri, sugar)
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}

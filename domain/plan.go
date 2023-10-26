@@ -1,9 +1,6 @@
 package domain
 
-import (
-	"errors"
-	"time"
-)
+import "errors"
 
 // Plan An assessment plan, such as those provided by a FedRAMP assessor.
 // Here are some real-world examples for Assets, Platforms, Subjects and Inventory Items within an OSCAL Assessment Plan:
@@ -105,43 +102,16 @@ func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
 	}
 }
 
-func (p *Plan) Ready() bool {
-	// If there are no Tasks then there's nothing to run.
-	if len(p.Tasks) == 0 {
-		return false
-	}
-
-	// Check if the tasks have a schedule for the future and at least one subject.
+func (p *Plan) GetTask(id Uuid) *Task {
 	for _, task := range p.Tasks {
-		if len(task.Subjects) == 0 {
-			continue
-		}
-
-		schedule := task.Schedule
-
-		// Check if the task's start time is in the future
-		if schedule.Start.After(time.Now()) {
-			return true
-		}
-
-		// Check if the task's end time is in the future
-		if schedule.End != nil && schedule.End.After(time.Now()) {
-			return true
-		}
-
-		// Check if the task's next occurrence is in the future
-		if schedule.Repeat != nil {
-			nextOccurrence := schedule.Start.Add(schedule.Repeat.Interval)
-			if nextOccurrence.After(time.Now()) {
-				return true
-			}
+		if task.Uuid == id {
+			return &task
 		}
 	}
-
-	return false
+	return nil
 }
 
-func (p *Plan) AddTask(task Task) error {
+func (p *Plan) CreateTask(task Task) error {
 	// Validate the task
 	if task.Title == "" {
 		return errors.New("task title cannot be empty")
@@ -157,66 +127,142 @@ func (p *Plan) AddTask(task Task) error {
 	return nil
 }
 
-func (p *Plan) AddSubjectsToTask(taskId string, subject SubjectSelection) error {
+func (p *Plan) Ready() bool {
+	// If there are no Tasks then there's nothing to run.
 	if len(p.Tasks) == 0 {
-		return errors.New("no tasks found")
+		return false
 	}
 
-	// Check if the task with the given id exists
-	taskExists := false
+	// Check if the tasks have a schedule for the future and at least one subject.
 	for _, task := range p.Tasks {
-		if task.Uuid.String() == taskId {
-			taskExists = true
-			break
+		if task.Subjects.Query == "" && len(task.Subjects.Labels) == 0 && len(task.Subjects.Ids) == 0 && len(task.Subjects.Expressions) == 0 && len(task.Schedule) == 0 {
+			continue
 		}
 	}
-	if !taskExists {
-		return errors.New("task not found")
+
+	return false
+}
+
+func (p *Plan) JobSpecification() (JobSpecification, error) {
+	// Step 1: Create an empty JobSpecification
+	jobSpec := JobSpecification{}
+
+	// Step 2: Set RuntimeUuid to a new UUID
+	jobSpec.RuntimeUuid = NewUuid().String()
+
+	// Step 3: Create an AssessmentPlanInformation from the Plan
+	planInfo := AssessmentPlanInformation{
+		Uuid:  p.Uuid.String(),
+		Title: p.Title,
 	}
 
-	// Validate the subject
-	if subject.Title == "" {
-		return errors.New("subject title cannot be empty")
+	// Step 3.2: For each Task in the Plan, create a TaskInformation
+	for _, task := range p.Tasks {
+		taskInfo := TaskInformation{
+			Uuid:     task.Uuid.String(),
+			Title:    task.Title,
+			Selector: task.Subjects,
+		}
+
+		// Step 3.2.2: For each Activity in the Task, create an ActivityInformation
+		for _, activity := range task.Activities {
+			activityInfo := ActivityInformation{
+				Uuid:     activity.Uuid.String(),
+				Title:    activity.Title,
+				Provider: activity.Provider,
+			}
+			taskInfo.Activities = append(taskInfo.Activities, activityInfo)
+		}
+
+		planInfo.Tasks = append(planInfo.Tasks, taskInfo)
+	}
+
+	// Step 4: Set Plan in the JobSpecification to the created AssessmentPlanInformation
+	jobSpec.Plan = planInfo
+
+	// Step 5: Return the JobSpecification
+	return jobSpec, nil
+}
+
+type TaskType string
+
+const (
+	TaskTypeMilestone TaskType = "milestone"
+	TaskTypeAction    TaskType = "action"
+)
+
+type Task struct {
+	Uuid             Uuid             `json:"uuid"`
+	Title            string           `json:"title,omitempty"`
+	Description      string           `json:"description,omitempty"`
+	Props            []Property       `json:"props,omitempty"`
+	Links            []Link           `json:"links,omitempty"`
+	Remarks          string           `json:"remarks,omitempty"`
+	Type             TaskType         `json:"type"`
+	Activities       []Activity       `json:"activities"`
+	Dependencies     []TaskDependency `json:"dependencies"`
+	ResponsibleRoles []Uuid           `json:"responsibleRoles"`
+	Subjects         SubjectSelection `json:"subjects"`
+	Tasks            []Uuid           `json:"tasks"`
+	Schedule         []string         `json:"schedule"`
+}
+
+func (t *Task) AddSubject(subjects SubjectSelection) error {
+	// Validate the subjects
+	if subjects.Title == "" {
+		return errors.New("subjects title cannot be empty")
 	}
 
 	// Check if only one of Query, Labels, Expressions, and Ids is set
 	fieldsSet := 0
-	if len(subject.Ids) > 0 {
+	if len(subjects.Ids) > 0 {
 		fieldsSet++
 	}
-	if subject.Query != "" {
+	if subjects.Query != "" {
 		fieldsSet++
 	}
-	if len(subject.Expressions) > 0 {
+	if len(subjects.Expressions) > 0 {
 		fieldsSet++
 	}
-	if len(subject.Labels) > 0 {
+	if len(subjects.Labels) > 0 {
 		fieldsSet++
 	}
 
 	// If more than one is set, unset the others based on the priority order
 	if fieldsSet > 1 {
-		if len(subject.Ids) > 0 {
-			subject.Query = ""
-			subject.Expressions = nil
-			subject.Labels = nil
-		} else if subject.Query != "" {
-			subject.Expressions = nil
-			subject.Labels = nil
-		} else if len(subject.Expressions) > 0 {
-			subject.Labels = nil
+		if len(subjects.Ids) > 0 {
+			subjects.Query = ""
+			subjects.Expressions = nil
+			subjects.Labels = nil
+		} else if subjects.Query != "" {
+			subjects.Expressions = nil
+			subjects.Labels = nil
+		} else if len(subjects.Expressions) > 0 {
+			subjects.Labels = nil
 		}
 	}
 
-	// Add the subject to the Subjects slice
-	for i, task := range p.Tasks {
-		if task.Uuid.String() == taskId {
-			p.Tasks[i].Subjects = append(p.Tasks[i].Subjects, subject)
-			return nil
-		}
-	}
+	// Add the subjects to the Subjects slice
+	t.Subjects = subjects
 
 	return nil
+}
+
+func (t *Task) AddActivity(activity Activity) error {
+	// Validate the activity
+	if activity.Title == "" {
+		return errors.New("activity title cannot be empty")
+	}
+
+	// Add the activity to the Activities slice
+	t.Activities = append(t.Activities, activity)
+
+	return nil
+}
+
+type TaskDependency struct {
+	TaskId  Uuid   `json:"taskUuid"`
+	Remarks string `json:"remarks"`
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
@@ -338,55 +384,25 @@ type SubjectMatchExpression struct {
 	Values   []string `json:"values"`
 }
 
-type TaskType string
-
-const (
-	TaskTypeMilestone TaskType = "milestone"
-	TaskTypeAction    TaskType = "action"
-)
-
-type Task struct {
-	Uuid             Uuid               `json:"uuid"`
-	Title            string             `json:"title,omitempty"`
-	Description      string             `json:"description,omitempty"`
-	Props            []Property         `json:"props,omitempty"`
-	Links            []Link             `json:"links,omitempty"`
-	Remarks          string             `json:"remarks,omitempty"`
-	Type             TaskType           `json:"type"`
-	Activities       []Activity         `json:"activities"`
-	Dependencies     []TaskDependency   `json:"dependencies"`
-	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
-	Subjects         []SubjectSelection `json:"subjects"`
-	Tasks            []Uuid             `json:"tasks"`
-	Schedule         Schedule           `json:"schedule"`
+type Activity struct {
+	Uuid             Uuid                  `json:"uuid"`
+	Title            string                `json:"title,omitempty"`
+	Description      string                `json:"description,omitempty"`
+	Props            []Property            `json:"props,omitempty"`
+	Links            []Link                `json:"links,omitempty"`
+	Remarks          string                `json:"remarks,omitempty"`
+	ResponsibleRoles []Uuid                `json:"responsibleRoles"`
+	Steps            []Step                `json:"steps"`
+	Provider         ProviderConfiguration `json:"provider"`
 }
 
-type TaskDependency struct {
-	TaskId  Uuid   `json:"taskUuid"`
-	Remarks string `json:"remarks"`
-}
-
-// Schedule represents when a task should be executed.
-// A task scheduled for a specific time would have a Schedule with Start set to that time, and End and Repeat left as nil.
-// A task scheduled for a specific date range would have a Schedule with Start and End set to the start and end of that range, and Repeat left as nil.
-// A task scheduled to repeat every day starting from a specific date would have a Schedule with Start set to the start date, End left as nil, and Repeat set to {Interval: 24 * time.Hour}.
-// A task scheduled to repeat every day within a specific date range would have a Schedule with Start and End set to the start and end of that range, and Repeat set to {Interval: 24 * time.Hour}.
-type Schedule struct {
-	// Start is the earliest time the task should be executed.
-	Start time.Time `json:"start"`
-
-	// End is the latest time the task should be executed. If End is nil, the task should be executed exactly at Start.
-	End *time.Time `json:"end,omitempty"`
-
-	// Repeat specifies how often the task should be repeated after Start.
-	Repeat *Repeat `json:"repeat,omitempty"`
-}
-
-// Repeat specifies how often a task should be repeated.
-type Repeat struct {
-	// Interval is the duration between each execution of the task.
-	Interval time.Duration `json:"interval"`
-
-	// Until specifies the latest time the task should be repeated. If Until is nil, the task is repeated indefinitely.
-	Until *time.Time `json:"until,omitempty"`
+type Step struct {
+	Uuid             Uuid        `json:"uuid"`
+	Title            string      `json:"title,omitempty"`
+	Description      string      `json:"description,omitempty"`
+	Props            []Property  `json:"props,omitempty"`
+	Links            []Link      `json:"links,omitempty"`
+	Remarks          string      `json:"remarks,omitempty"`
+	ResponsibleRoles []Uuid      `json:"responsibleRoles"`
+	Objectives       []Objective `json:"objectives"`
 }

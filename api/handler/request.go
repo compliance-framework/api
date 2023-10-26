@@ -69,8 +69,8 @@ func (r *createTaskRequest) bind(ctx echo.Context, t *domain.Task) error {
 	return nil
 }
 
-// createSubjectSelectionRequest defines the request payload for method CreateSubjectSelection
-type createSubjectSelectionRequest struct {
+// setSubjectSelectionRequest defines the request payload for method SetSubjectSelection
+type setSubjectSelectionRequest struct {
 	Title       string            `json:"title,omitempty" validate:"required"`
 	Description string            `json:"description,omitempty"`
 	Query       string            `json:"query"`
@@ -83,7 +83,7 @@ type createSubjectSelectionRequest struct {
 	Ids []string `json:"ids,omitempty"`
 }
 
-func (r *createSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
+func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
 	// Check if Query, Labels, Ids or Expressions are set
 	// The service runs this check as well, but we want to return a 422 error before that
 	if s.Query == "" && len(s.Labels) == 0 && len(s.Ids) == 0 && len(s.Expressions) == 0 {
@@ -110,6 +110,15 @@ func (r *createSubjectSelectionRequest) bind(ctx echo.Context, s *domain.Subject
 	return nil
 }
 
+// setScheduleRequest defines the request payload for method SetSchedule
+type setScheduleRequest struct {
+	Schedule []string `json:"schedule"`
+}
+
+func (r *setScheduleRequest) bind(ctx echo.Context) error {
+	return ctx.Bind(r)
+}
+
 // createSubjectRequest defines the request payload for method CreateSubject
 type attachMetadataRequest struct {
 	Uuid                string `json:"uuid" validate:"required"`
@@ -128,5 +137,32 @@ func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) err
 	rev.Description = r.RevisionDescription
 	rev.Remarks = r.RevisionRemarks
 
+	return nil
+}
+
+// createActivityRequest defines the request payload for method CreateActivity
+type createActivityRequest struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Provider    struct {
+		Name    string            `json:"name"`
+		Package string            `json:"package"`
+		Version string            `json:"version"`
+		Params  map[string]string `json:"params"`
+	} `json:"provider"`
+}
+
+func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+	a.Title = r.Title
+	a.Description = r.Description
+	a.Provider = domain.ProviderConfiguration{
+		Name:    r.Provider.Name,
+		Package: r.Provider.Package,
+		Version: r.Provider.Version,
+		Params:  r.Provider.Params,
+	}
 	return nil
 }

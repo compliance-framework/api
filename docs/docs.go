@@ -24,6 +24,9 @@ const docTemplate = `{
                 "produces": [
                     "application/json"
                 ],
+                "tags": [
+                    "Catalog"
+                ],
                 "summary": "Create a catalog",
                 "parameters": [
                     {
@@ -125,6 +128,9 @@ const docTemplate = `{
                 "produces": [
                     "application/json"
                 ],
+                "tags": [
+                    "Plan"
+                ],
                 "summary": "Create a plan",
                 "parameters": [
                     {
@@ -165,7 +171,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/plans/{id}/assets": {
+        "/api/plan/{id}/assets": {
             "post": {
                 "description": "This method adds an existing asset to a specific plan by its ID.",
                 "consumes": [
@@ -200,7 +206,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully added the asset to the plan",
                         "schema": {
-                            "$ref": "#/definitions/api.Error"
+                            "type": "string"
                         }
                     },
                     "404": {
@@ -224,7 +230,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/plans/{id}/tasks": {
+        "/api/plan/{id}/tasks": {
             "post": {
                 "description": "This method creates a new task and adds it to a specific plan.",
                 "consumes": [
@@ -259,7 +265,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Successfully added the task to the plan",
                         "schema": {
-                            "$ref": "#/definitions/api.Error"
+                            "type": "string"
                         }
                     },
                     "404": {
@@ -283,7 +289,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/plans/{id}/tasks/{taskId}/subjects": {
+        "/api/plan/{id}/tasks/{taskId}/subjects": {
             "post": {
                 "description": "This function is used to create a subject selection for a given plan.",
                 "consumes": [
@@ -321,7 +327,26 @@ const docTemplate = `{
                         }
                     }
                 ],
-                "responses": {}
+                "responses": {
+                    "200": {
+                        "description": "Successfully created subject selection",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         }
     },
