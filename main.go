@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Valgard/godotenv"
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/api/handler"
 	"github.com/compliance-framework/configuration-service/event/bus"
@@ -12,6 +13,17 @@ import (
 	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.uber.org/zap"
 )
+
+const (
+	DefaultMongoURI = "mongodb://localhost:27017"
+	DefaultNATSURI  = "nats://localhost:4222"
+	DefaultPort     = ":8080"
+)
+
+type Config struct {
+	MongoURI string
+	NATSURI  string
+}
 
 func main() {
 	ctx := context.Background()
@@ -21,15 +33,13 @@ func main() {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := logger.Sugar()
-
-	mongoUri := getEnvironmentVariable("MONGO_URI", "mongodb://localhost:27017")
-	err = mongo.Connect(ctx, mongoUri, "cf")
+	config := loadConfig()
+	err = mongo.Connect(ctx, config.MongoURI, "cf")
 	if err != nil {
 		sugar.Fatalf("error connecting to mongo: %v", err)
 	}
 
-	busUri := getEnvironmentVariable("NATS_URI", "nats://localhost:4222")
-	err = bus.Listen(busUri, sugar)
+	err = bus.Listen(config.NATSURI, sugar)
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
@@ -47,15 +57,30 @@ func main() {
 	metadataHandler := handler.NewMetadataHandler(metadataService)
 	metadataHandler.Register(server.API())
 
-	checkErr(server.Start(":8080"))
+	checkErr(server.Start(DefaultPort))
 }
 
-func getEnvironmentVariable(key, fallback string) string {
-	value, exists := os.LookupEnv(key)
-	if !exists {
-		value = fallback
+func loadConfig() (config Config) {
+	dotenv := godotenv.New()
+	if err := dotenv.Load(".env"); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
 	}
-	return value
+
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = DefaultMongoURI
+	}
+
+	natsURI := os.Getenv("NATS_URI")
+	if natsURI == "" {
+		natsURI = DefaultNATSURI
+	}
+
+	config = Config{
+		MongoURI: mongoURI,
+		NATSURI:  natsURI,
+	}
+	return config
 }
 
 func checkErr(err error) {
