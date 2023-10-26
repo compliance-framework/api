@@ -1,0 +1,22 @@
+# Use the official Golang image to create a build artifact.
+# This is based on Debian.
+FROM golang:1.21
+
+# Create and change to the app directory.
+WORKDIR /app
+
+# Retrieve application dependencies.
+COPY go.* ./
+RUN go mod download
+
+# Copy local code to the container image.
+COPY . ./
+
+# Make sure the swagger.yaml file is in the same directory as your Dockerfile, or adjust the path accordingly
+COPY ./docs/swagger.yaml /app/swagger.yaml
+
+# Open port 8080 to traffic
+EXPOSE 8080
+
+# Specify the command to run on container start.
+CMD ["go", "run", "main.go"]
