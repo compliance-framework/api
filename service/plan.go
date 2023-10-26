@@ -30,11 +30,11 @@ func (s *PlanService) GetById(id string) (*domain.Plan, error) {
 }
 
 func (s *PlanService) Create(plan *domain.Plan) (string, error) {
-	result, err := s.planCollection.InsertOne(context.TODO(), plan)
+	_, err := s.planCollection.InsertOne(context.TODO(), plan)
 	if err != nil {
 		return "", err
 	}
-	return result.InsertedID.(primitive.ObjectID).Hex(), nil
+	return plan.Uuid.String(), nil
 }
 
 func (s *PlanService) Update(plan *domain.Plan) error {
