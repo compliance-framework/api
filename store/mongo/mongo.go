@@ -78,7 +78,7 @@ func InsertMany(ctx context.Context, collection string, documents []interface{})
 		return nil, err
 	}
 
-	var ids []string
+	var ids []string = make([]string, 0)
 	for _, id := range result.InsertedIDs {
 		ids = append(ids, fmt.Sprintf("%v", id))
 	}
@@ -124,13 +124,13 @@ func FindMany[T any](ctx context.Context, collection string, filter interface{})
 		return nil, err
 	}
 
-	var documents []T = make([]T, 0)
-	err = cursor.All(ctx, &documents)
+	var results []T = make([]T, 0)
+	err = cursor.All(ctx, &results)
 	if err != nil {
 		return nil, err
 	}
 
-	return documents, nil
+	return results, nil
 }
 
 func UpdateOne(ctx context.Context, collection string, filter interface{}, update interface{}) (string, error) {
