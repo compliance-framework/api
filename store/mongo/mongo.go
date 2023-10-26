@@ -3,11 +3,12 @@ package mongo
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"sync"
 )
 
 var (
@@ -77,7 +78,7 @@ func InsertMany(ctx context.Context, collection string, documents []interface{})
 		return nil, err
 	}
 
-	var ids []string
+	var ids []string = make([]string, 0)
 	for _, id := range result.InsertedIDs {
 		ids = append(ids, fmt.Sprintf("%v", id))
 	}
@@ -117,19 +118,19 @@ func FindOne[T any](ctx context.Context, collection string, filter interface{}) 
 	return document, nil
 }
 
-func FindMany(ctx context.Context, collection string, filter interface{}) ([]interface{}, error) {
+func FindMany[T any](ctx context.Context, collection string, filter interface{}) ([]T, error) {
 	cursor, err := db.Collection(collection).Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	var documents []interface{}
-	err = cursor.All(ctx, &documents)
+	var results []T = make([]T, 0)
+	err = cursor.All(ctx, &results)
 	if err != nil {
 		return nil, err
 	}
 
-	return documents, nil
+	return results, nil
 }
 
 func UpdateOne(ctx context.Context, collection string, filter interface{}, update interface{}) (string, error) {
@@ -168,13 +169,13 @@ func DeleteMany(ctx context.Context, collection string, filter interface{}) (int
 	return result.DeletedCount, nil
 }
 
-func Aggregate(ctx context.Context, collection string, stages []interface{}) ([]interface{}, error) {
-	cursor, err := db.Collection(collection).Aggregate(ctx, stages)
+func Aggregate[T any](ctx context.Context, collection string, pipeline []interface{}) ([]T, error) {
+	cursor, err := db.Collection(collection).Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 
-	var results []interface{}
+	var results []T = make([]T, 0)
 	if err = cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
