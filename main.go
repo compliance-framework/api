@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
+
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/api/handler"
 	"github.com/compliance-framework/configuration-service/event/bus"
 	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.uber.org/zap"
-	"log"
-	"os"
 )
 
 func main() {
@@ -27,7 +28,8 @@ func main() {
 		sugar.Fatalf("error connecting to mongo: %v", err)
 	}
 
-	err = bus.Listen("nats://localhost:4222", sugar)
+	busUri := getEnvironmentVariable("NATS_URI", "nats://localhost:4222")
+	err = bus.Listen(busUri, sugar)
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
