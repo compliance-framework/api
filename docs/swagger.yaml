@@ -144,6 +144,8 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a catalog
+      tags:
+      - Catalog
   /api/metadata/revisions:
     post:
       consumes:
@@ -210,7 +212,9 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a plan
-  /plans/{id}/assets:
+      tags:
+      - Plan
+  /api/plan/{id}/assets:
     post:
       consumes:
       - application/json
@@ -233,7 +237,7 @@ paths:
         "200":
           description: Successfully added the asset to the plan
           schema:
-            $ref: '#/definitions/api.Error'
+            type: string
         "404":
           description: Plan not found
           schema:
@@ -249,7 +253,7 @@ paths:
       summary: Add asset to a plan
       tags:
       - Plan
-  /plans/{id}/tasks:
+  /api/plan/{id}/tasks:
     post:
       consumes:
       - application/json
@@ -272,7 +276,7 @@ paths:
         "200":
           description: Successfully added the task to the plan
           schema:
-            $ref: '#/definitions/api.Error'
+            type: string
         "404":
           description: Plan not found
           schema:
@@ -288,7 +292,7 @@ paths:
       summary: Creates a new task for a specific plan
       tags:
       - Plan
-  /plans/{id}/tasks/{taskId}/subjects:
+  /api/plan/{id}/tasks/{taskId}/subjects:
     post:
       consumes:
       - application/json
@@ -313,7 +317,19 @@ paths:
           $ref: '#/definitions/handler.createSubjectSelectionRequest'
       produces:
       - application/json
-      responses: {}
+      responses:
+        "200":
+          description: Successfully created subject selection
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.Error'
       summary: Create subject selection
       tags:
       - Plan

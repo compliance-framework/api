@@ -41,8 +41,8 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 
 // addTaskRequest defines the request payload for method CreateTask
 type addAssetRequest struct {
-	AssetUuid string `json:"assetUuid" validate:"required"`
-	Type      string `json:"type" validate:"required"`
+	AssetId string `json:"assetId" validate:"required"`
+	Type    string `json:"type" validate:"required"`
 }
 
 func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error {
@@ -56,21 +56,23 @@ func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error {
 // createTaskRequest defines the request payload for method CreateTask
 type createTaskRequest struct {
 	// TODO: We are keeping it minimal for now for the demo
-	Title       string `json:"title,omitempty" validate:"required"`
-	Description string `json:"description,omitempty" validate:"required"`
+	Title       string `json:"title" validate:"required"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type" validate:"required"`
 }
 
-func (r *createTaskRequest) bind(ctx echo.Context, t *domain.Task) error {
+func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
 	t.Title = r.Title
 	t.Description = r.Description
+	t.Type = domain.TaskType(r.Type)
 	return nil
 }
 
-// createSubjectSelectionRequest defines the request payload for method CreateSubjectSelection
-type createSubjectSelectionRequest struct {
+// setSubjectSelectionRequest defines the request payload for method SetSubjectSelection
+type setSubjectSelectionRequest struct {
 	Title       string            `json:"title,omitempty" validate:"required"`
 	Description string            `json:"description,omitempty"`
 	Query       string            `json:"query"`
@@ -83,20 +85,21 @@ type createSubjectSelectionRequest struct {
 	Ids []string `json:"ids,omitempty"`
 }
 
-func (r *createSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
+func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	s.Title = r.Title
+	s.Description = r.Description
+	s.Query = r.Query
+	s.Labels = r.Labels
+
 	// Check if Query, Labels, Ids or Expressions are set
 	// The service runs this check as well, but we want to return a 422 error before that
 	if s.Query == "" && len(s.Labels) == 0 && len(s.Ids) == 0 && len(s.Expressions) == 0 {
 		return errors.New("at least one of Query, Labels, Ids or Expressions must be set")
 	}
-
-	if err := ctx.Bind(r); err != nil {
-		return err
-	}
-	s.Title = r.Title
-	s.Description = r.Description
-	s.Query = r.Query
-	s.Labels = r.Labels
 
 	for _, expression := range r.Expressions {
 		s.Expressions = append(s.Expressions, domain.SubjectMatchExpression{
@@ -110,9 +113,18 @@ func (r *createSubjectSelectionRequest) bind(ctx echo.Context, s *domain.Subject
 	return nil
 }
 
+// setScheduleRequest defines the request payload for method SetSchedule
+type setScheduleRequest struct {
+	Schedule []string `json:"schedule"`
+}
+
+func (r *setScheduleRequest) bind(ctx echo.Context) error {
+	return ctx.Bind(r)
+}
+
 // createSubjectRequest defines the request payload for method CreateSubject
 type attachMetadataRequest struct {
-	Uuid                string `json:"uuid" validate:"required"`
+	Id                  string `json:"id" validate:"required"`
 	Collection          string `json:"collection" validate:"required"`
 	RevisionTitle       string `json:"revisionTitle,omitempty"`
 	RevisionDescription string `json:"revisionDescription,omitempty"`
@@ -128,5 +140,32 @@ func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) err
 	rev.Description = r.RevisionDescription
 	rev.Remarks = r.RevisionRemarks
 
+	return nil
+}
+
+// createActivityRequest defines the request payload for method CreateActivity
+type createActivityRequest struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Provider    struct {
+		Name    string            `json:"name"`
+		Package string            `json:"package"`
+		Version string            `json:"version"`
+		Params  map[string]string `json:"params"`
+	} `json:"provider"`
+}
+
+func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+	a.Title = r.Title
+	a.Description = r.Description
+	a.Provider = domain.ProviderConfiguration{
+		Name:    r.Provider.Name,
+		Package: r.Provider.Package,
+		Version: r.Provider.Version,
+		Params:  r.Provider.Params,
+	}
 	return nil
 }

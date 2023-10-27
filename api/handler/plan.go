@@ -9,21 +9,17 @@ import (
 	"net/http"
 )
 
-// TODO: Publishing the events from the handler is not a good idea. We should
-//  publish the events from the domain services, following the business logic.
-
 type PlanHandler struct {
 	service *service.PlanService
 	sugar   *zap.SugaredLogger
 }
 
 func (h *PlanHandler) Register(api *echo.Group) {
-	// TODO: Most of the methods require other ops like delete and update
-
 	api.POST("/plan", h.CreatePlan)
-	api.POST("/plan/:id/assets", h.AddAsset)
+	api.POST("/plan/:id/assets", h.CreateAsset)
 	api.POST("/plan/:id/tasks", h.CreateTask)
-	api.POST("/plan/:id/task/:taskId/subjects", h.CreateSubjectSelection)
+	api.POST("/plan/:id/task/:taskId/subjects", h.SetSubjectSelection)
+	api.POST("/plan/:id/task/:taskId/activity", h.CreateActivity)
 }
 
 func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
@@ -36,6 +32,7 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 // CreatePlan godoc
 // @Summary 		Create a plan
 // @Description 	Creates a new plan in the system
+// @Tags 			Plan
 // @Accept  		json
 // @Produce  		json
 // @Param   		plan body createPlanRequest true "Plan to add"
@@ -70,20 +67,20 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	})
 }
 
-// AddAsset godoc
-// @Summary Add asset to a plan
-// @Description This method adds an existing asset to a specific plan by its ID.
-// @Tags Plan
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Plan ID"
-// @Param asset body addAssetRequest true "Asset to add"
-// @Success 200 {object} api.Response "Successfully added the asset to the plan"
-// @Failure 404 {object} api.Response "Plan not found"
-// @Failure 422 {object} api.Response "Unprocessable Entity: Error binding the request"
-// @Failure 500 {object} api.Response "Internal Server Error"
-// @Router /plans/{id}/assets [post]
-func (h *PlanHandler) AddAsset(ctx echo.Context) error {
+// CreateAsset godoc
+// @Summary 			Add asset to a plan
+// @Description 		This method adds an existing asset to a specific plan by its ID.
+// @Tags 				Plan
+// @Accept  			json
+// @Produce  			json
+// @Param 				id path string true "Plan ID"
+// @Param 				asset body addAssetRequest true "Asset to add"
+// @Success 			200 {object} string "Successfully added the asset to the plan"
+// @Failure 			404 {object} api.Error "Plan not found"
+// @Failure 			422 {object} api.Error "Unprocessable Entity: Error binding the request"
+// @Failure 			500 {object} api.Error "Internal Server Error"
+// @Router 				/api/plan/{id}/assets [post]
+func (h *PlanHandler) CreateAsset(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -96,7 +93,10 @@ func (h *PlanHandler) AddAsset(ctx echo.Context) error {
 		return err
 	}
 
-	plan.AddAsset(domain.Uuid(req.AssetUuid), req.Type)
+	err = plan.AddAsset(req.AssetId, req.Type)
+	if err != nil {
+		return err
+	}
 	err = h.service.Update(plan)
 	if err != nil {
 		return err
@@ -113,11 +113,11 @@ func (h *PlanHandler) AddAsset(ctx echo.Context) error {
 // @Produce  json
 // @Param id path string true "Plan ID"
 // @Param task body createTaskRequest true "Task to add"
-// @Success 200 {object} api.Response "Successfully added the task to the plan"
-// @Failure 404 {object} api.Response "Plan not found"
-// @Failure 422 {object} api.Response "Unprocessable Entity: Error binding the request"
-// @Failure 500 {object} api.Response "Internal Server Error"
-// @Router /plans/{id}/tasks [post]
+// @Success 200 {object} string "Successfully added the task to the plan"
+// @Failure 404 {object} api.Error "Plan not found"
+// @Failure 422 {object} api.Error "Unprocessable Entity: Error binding the request"
+// @Failure 500 {object} api.Error "Internal Server Error"
+// @Router /api/plan/{id}/tasks [post]
 func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
@@ -126,17 +126,13 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NotFound())
 	}
 
+	t := domain.Task{}
 	req := &createTaskRequest{}
-	if err := ctx.Bind(req); err != nil {
+	if err := req.Bind(ctx, &t); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	task := domain.Task{
-		Uuid:        domain.NewUuid(),
-		Title:       req.Title,
-		Description: req.Description,
-	}
-	err = plan.AddTask(task)
+	newTask, err := plan.CreateTask(t)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -146,10 +142,12 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, nil)
+	return ctx.JSON(http.StatusCreated, planIdResponse{
+		Id: newTask.Id.Hex(),
+	})
 }
 
-// CreateSubjectSelection godoc
+// SetSubjectSelection godoc
 // @Summary Create subject selection
 // @Description This function is used to create a subject selection for a given plan.
 // @Tags Plan
@@ -157,12 +155,12 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 // @Produce  json
 // @Param id path int true "Plan ID"
 // @Param taskId path int true "Task ID"
-// @Param selection body createSubjectSelectionRequest true "Subject Selection"
-// @Success 200 {object} api.SuccessResponse "Successfully created subject selection"
-// @Failure 404 {object} api.ErrorResponse "Plan not found"
-// @Failure 500 {object} api.ErrorResponse "Internal server error"
-// @Router /plans/{id}/tasks/{taskId}/subjects [post]
-func (h *PlanHandler) CreateSubjectSelection(ctx echo.Context) error {
+// @Param selection body setSubjectSelectionRequest true "Subject Selection"
+// @Success 200 {object} string "Successfully created subject selection"
+// @Failure 404 {object} api.Error
+// @Failure 500 {object} api.Error "Internal server error"
+// @Router /api/plan/{id}/tasks/{taskId}/subjects [post]
+func (h *PlanHandler) SetSubjectSelection(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -171,12 +169,52 @@ func (h *PlanHandler) CreateSubjectSelection(ctx echo.Context) error {
 	}
 
 	var selection domain.SubjectSelection
-	req := &createSubjectSelectionRequest{}
+	req := &setSubjectSelectionRequest{}
 	if err = req.bind(ctx, &selection); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	err = plan.AddSubjectsToTask(domain.Uuid(ctx.Param("taskId")).String(), selection)
+	err = h.service.SetSubjectForTask(ctx.Param("taskId"), ctx.Param("id"), selection)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, nil)
+}
+
+// CreateActivity godoc
+// @Summary Create activity
+// @Description This function is used to create an activity for a given task.
+// @Tags Plan
+// @Accept  json
+// @Produce  json
+// @Param id path int true "Plan ID"
+// @Param taskId path int true "Task ID"
+// @Param activity body createActivityRequest true "Activity"
+// @Success 200 {object} string "Successfully created activity"
+// @Failure 404 {object} apiError
+// @Failure 500 {object} apiError "Internal server error"
+// @Router /api/plan/{id}/tasks/{taskId}/activity [post]
+func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
+	plan, err := h.service.GetById(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	} else if plan == nil {
+		return ctx.JSON(http.StatusNotFound, api.NotFound())
+	}
+
+	var activity domain.Activity
+	req := &createActivityRequest{}
+	if err = req.bind(ctx, &activity); err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	task := plan.GetTask(ctx.Param("taskId"))
+	if task == nil {
+		return ctx.JSON(http.StatusNotFound, api.NotFound())
+	}
+
+	err = task.AddActivity(activity)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

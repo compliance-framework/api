@@ -2,7 +2,7 @@ package domain
 
 import (
 	"errors"
-	"time"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Plan An assessment plan, such as those provided by a FedRAMP assessor.
@@ -43,7 +43,7 @@ import (
 // ▪	“Specify the output (report) format”
 // In context of an automated compliance check, the description of Task, Activity, and Step provides a systematic plan or procedure that the tool is expected to follow. This breakdown of tasks, activities, and steps could also supply useful context and explain the tool’s operation and results to system admins, auditors or other stakeholders. It also allows for easier troubleshooting in the event of problems.
 type Plan struct {
-	Uuid Uuid `json:"uuid"`
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 
 	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
 	Title string `json:"title,omitempty"`
@@ -58,7 +58,7 @@ type Plan struct {
 	BackMatter BackMatter `json:"backMatter"`
 
 	// Reference to a System Security Plan
-	ImportSSP Uuid `json:"importSSP"`
+	ImportSSP string `json:"importSSP"`
 
 	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
 	// Reference to LocalDefinition
@@ -81,28 +81,64 @@ func NewPlan() *Plan {
 		Revisions: []Revision{revision},
 		Actions: []Action{
 			{
-				Uuid:  NewUuid(),
+				Id:    primitive.NewObjectID(),
 				Title: "Create",
 			},
 		},
 	}
 
 	return &Plan{
-		Uuid:     NewUuid(),
 		Metadata: metadata,
+		Tasks:    make([]Task, 0),
 		Assets: Assets{
-			Components: []Uuid{},
-			Platforms:  []Uuid{},
+			Components: []primitive.ObjectID{},
+			Platforms:  []primitive.ObjectID{},
 		},
 	}
 }
 
-func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
-	if assetType == "component" {
-		p.Assets.Components = append(p.Assets.Components, assetUuid)
-	} else if assetType == "platform" {
-		p.Assets.Platforms = append(p.Assets.Components, assetUuid)
+func (p *Plan) AddAsset(assetId string, assetType string) error {
+	oid, err := primitive.ObjectIDFromHex(assetId)
+	if err != nil {
+		return err
 	}
+	if assetType == "component" {
+		p.Assets.Components = append(p.Assets.Components, oid)
+	} else if assetType == "platform" {
+		p.Assets.Platforms = append(p.Assets.Components, oid)
+	}
+	return nil
+}
+
+func (p *Plan) GetTask(id string) *Task {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil
+	}
+	for _, task := range p.Tasks {
+		if task.Id == oid {
+			return &task
+		}
+	}
+	return nil
+}
+
+func (p *Plan) CreateTask(task Task) (*Task, error) {
+	task.Id = primitive.NewObjectID()
+
+	// Validate the task
+	if task.Title == "" {
+		return nil, errors.New("task title cannot be empty")
+	}
+
+	if task.Type != TaskTypeMilestone && task.Type != TaskTypeAction {
+		return nil, errors.New("task type must be either 'milestone' or 'action'")
+	}
+
+	// Add the task to the Tasks slice
+	p.Tasks = append(p.Tasks, task)
+
+	return &task, nil
 }
 
 func (p *Plan) Ready() bool {
@@ -113,136 +149,102 @@ func (p *Plan) Ready() bool {
 
 	// Check if the tasks have a schedule for the future and at least one subject.
 	for _, task := range p.Tasks {
-		if len(task.Subjects) == 0 {
+		if task.Subjects.Query == "" && len(task.Subjects.Labels) == 0 && len(task.Subjects.Ids) == 0 && len(task.Subjects.Expressions) == 0 && len(task.Schedule) == 0 {
 			continue
-		}
-
-		timing := task.Timing
-
-		// Check OnDateCondition
-		if timing.OnDate != nil {
-			taskDate, err := time.Parse("2006-01-02", timing.OnDate.Date)
-			if err != nil {
-				continue
-			}
-			if taskDate.After(time.Now()) {
-				return true
-			}
-		}
-
-		// Check WithinDateRangeCondition
-		if timing.WithinDateRange != nil {
-			startDate, err := time.Parse("2006-01-02", timing.WithinDateRange.Start)
-			if err != nil {
-				continue
-			}
-			if startDate.After(time.Now()) {
-				return true
-			}
 		}
 	}
 
 	return false
 }
 
-func (p *Plan) AddTask(task Task) error {
-	// Validate the task
-	if task.Title == "" {
-		return errors.New("task title cannot be empty")
+func (p *Plan) JobSpecification() (JobSpecification, error) {
+	jobSpec := JobSpecification{
+		Id:    p.Id.Hex(),
+		Title: p.Title,
 	}
 
-	if task.Type != TaskTypeMilestone && task.Type != TaskTypeAction {
-		return errors.New("task type must be either 'milestone' or 'action'")
+	for _, task := range p.Tasks {
+		taskInfo := TaskInformation{
+			Id:       task.Id.Hex(),
+			Title:    task.Title,
+			Selector: task.Subjects,
+		}
+
+		for _, activity := range task.Activities {
+			activityInfo := ActivityInformation{
+				Id:       activity.Id,
+				Title:    activity.Title,
+				Provider: activity.Provider,
+			}
+			taskInfo.Activities = append(taskInfo.Activities, activityInfo)
+		}
+
+		jobSpec.Tasks = append(jobSpec.Tasks, taskInfo)
 	}
 
-	// Add the task to the Tasks slice
-	p.Tasks = append(p.Tasks, task)
+	return jobSpec, nil
+}
+
+type TaskType string
+
+const (
+	TaskTypeMilestone TaskType = "milestone"
+	TaskTypeAction    TaskType = "action"
+)
+
+type Task struct {
+	Id               primitive.ObjectID `json:"id"`
+	Title            string             `json:"title,omitempty"`
+	Description      string             `json:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty"`
+	Type             TaskType           `json:"type"`
+	Activities       []Activity         `json:"activities"`
+	Dependencies     []TaskDependency   `json:"dependencies"`
+	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
+	Subjects         SubjectSelection   `json:"subjects"`
+	Tasks            []Uuid             `json:"tasks"`
+	Schedule         []string           `json:"schedule"`
+}
+
+func (t *Task) AddActivity(activity Activity) error {
+	// Validate the activity
+	if activity.Title == "" {
+		return errors.New("activity title cannot be empty")
+	}
+
+	// Add the activity to the Activities slice
+	t.Activities = append(t.Activities, activity)
 
 	return nil
 }
 
-func (p *Plan) AddSubjectsToTask(taskId string, subject SubjectSelection) error {
-	if len(p.Tasks) == 0 {
-		return errors.New("no tasks found")
-	}
-
-	// Check if the task with the given id exists
-	taskExists := false
-	for _, task := range p.Tasks {
-		if task.Uuid.String() == taskId {
-			taskExists = true
-			break
-		}
-	}
-	if !taskExists {
-		return errors.New("task not found")
-	}
-
-	// Validate the subject
-	if subject.Title == "" {
-		return errors.New("subject title cannot be empty")
-	}
-
-	// Check if only one of Query, Labels, Expressions, and Ids is set
-	fieldsSet := 0
-	if len(subject.Ids) > 0 {
-		fieldsSet++
-	}
-	if subject.Query != "" {
-		fieldsSet++
-	}
-	if len(subject.Expressions) > 0 {
-		fieldsSet++
-	}
-	if len(subject.Labels) > 0 {
-		fieldsSet++
-	}
-
-	// If more than one is set, unset the others based on the priority order
-	if fieldsSet > 1 {
-		if len(subject.Ids) > 0 {
-			subject.Query = ""
-			subject.Expressions = nil
-			subject.Labels = nil
-		} else if subject.Query != "" {
-			subject.Expressions = nil
-			subject.Labels = nil
-		} else if len(subject.Expressions) > 0 {
-			subject.Labels = nil
-		}
-	}
-
-	// Add the subject to the Subjects slice
-	for i, task := range p.Tasks {
-		if task.Uuid.String() == taskId {
-			p.Tasks[i].Subjects = append(p.Tasks[i].Subjects, subject)
-			return nil
-		}
-	}
-
-	return nil
+type TaskDependency struct {
+	TaskId  primitive.ObjectID `json:"taskUuid"`
+	Remarks string             `json:"remarks"`
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
-	Components []Uuid `json:"components"`
+	Components []primitive.ObjectID `json:"components"`
 
 	// Used to represent the toolset used to perform aspects of the assessment.
-	Platforms []Uuid `json:"platforms"`
+	Platforms []primitive.ObjectID `json:"platforms"`
 }
 
 type Platform struct {
-	Uuid        Uuid       `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
 
 	Links   []Link `json:"links,omitempty"`
 	Remarks string `json:"remarks,omitempty"`
 
 	// Reference to component.Component
-	UsesComponents []Uuid `json:"usesComponents"`
+	UsesComponents []string `json:"usesComponents"`
 }
 
 type ControlsAndObjectives struct {
@@ -262,43 +264,43 @@ type ObjectiveSelection struct {
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`
 
-	Links      []Link `json:"links,omitempty"`
-	Remarks    string `json:"remarks,omitempty"`
-	IncludeAll bool   `json:"includeAll"`
-	Exclude    []Uuid `json:"exclude"`
-	Include    []Uuid `json:"include"`
+	Links      []Link   `json:"links,omitempty"`
+	Remarks    string   `json:"remarks,omitempty"`
+	IncludeAll bool     `json:"includeAll"`
+	Exclude    []string `json:"exclude"`
+	Include    []string `json:"include"`
 }
 
 type LocalDefinition struct {
 	Remarks string `json:"remarks,omitempty"`
 
 	// Reference to Activity
-	Activities []Uuid `json:"activities"`
+	Activities []string `json:"activities"`
 
 	// Reference to component.Component
-	Components []Uuid `json:"components"`
+	Components []primitive.ObjectID `json:"components"`
 
 	// Reference to ssp.InventoryItem
-	InventoryItems []Uuid `json:"inventoryItems"`
+	InventoryItems []primitive.ObjectID `json:"inventoryItems"`
 
 	Objectives []Objective `json:"objectives"`
 
 	// Reference to identity.User
-	Users []Uuid `json:"users"`
+	Users []primitive.ObjectID `json:"users"`
 }
 
 // Objective A local objective is a security control or requirement that is specific to the system or organization under assessment.
 type Objective struct {
-	Uuid        Uuid       `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
 
 	Links   []Link `json:"links,omitempty"`
 	Remarks string `json:"remarks,omitempty"`
 	Parts   []Part `json:"parts,omitempty"`
 
-	Control Uuid `json:"control"`
+	Control primitive.ObjectID `json:"control"`
 }
 
 type SubjectType string
@@ -311,17 +313,22 @@ const (
 	SubjectTypeUser          SubjectType = "user"
 )
 
+// Subject Identifies system elements being assessed, such as components, inventory items, and locations.
+// In the assessment plan, this identifies a planned assessment subject.
+// In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
 type Subject struct {
-	Uuid        Uuid        `json:"uuid"`
-	Type        SubjectType `json:"type"`
-	Title       string      `json:"title,omitempty"`
-	Description string      `json:"description,omitempty"`
-	Props       []Property  `json:"props,omitempty"`
-	Links       []Link      `json:"links,omitempty"`
-	Remarks     string      `json:"remarks,omitempty"`
+	Id          primitive.ObjectID `json:"id"`
+	Type        SubjectType        `json:"type"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty"`
 }
 
-// SubjectSelection Acts as a selector. It can hold either a Subject or a Selection.
+// SubjectSelection Identifies system elements being assessed, such as components, inventory items, and locations by specifying a selection criteria.
+// We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
+// The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
 type SubjectSelection struct {
 	Title       string                   `json:"title,omitempty"`
 	Description string                   `json:"description,omitempty"`
@@ -337,72 +344,13 @@ type SubjectMatchExpression struct {
 	Values   []string `json:"values"`
 }
 
-type TaskType string
-
-const (
-	TaskTypeMilestone TaskType = "milestone"
-	TaskTypeAction    TaskType = "action"
-)
-
-type Task struct {
-	Uuid        Uuid       `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
-	Remarks     string     `json:"remarks,omitempty"`
-
-	Type             TaskType         `json:"type"`
-	Activities       []Activity       `json:"activities"`
-	Dependencies     []TaskDependency `json:"dependencies"`
-	ResponsibleRoles []Uuid           `json:"responsibleRoles"`
-
-	// Subjects Identifies system elements being assessed, such as components, inventory items, and locations. In the assessment plan, this identifies a planned assessment subject. In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment. Any subjects not identified in this
-	// We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
-	// The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
-	Subjects []SubjectSelection `json:"subjects"`
-
-	Tasks  []Uuid      `json:"tasks"`
-	Timing EventTiming `json:"timing"`
-}
-
-type TaskDependency struct {
-	TaskId  Uuid   `json:"taskUuid"`
-	Remarks string `json:"remarks"`
-}
-
-// EventTiming The timing under which the task is intended to occur.
-type EventTiming struct {
-	// The task is intended to occur at the specified frequency.
-	AtFrequency *FrequencyCondition `json:"at-frequency,omitempty"`
-
-	// The task is intended to occur on the specified date.
-	OnDate *OnDateCondition `json:"on-date,omitempty"`
-
-	// The task is intended to occur within the specified date range.
-	WithinDateRange *WithinDateRangeCondition `json:"within-date-range,omitempty"`
-}
-
-// FrequencyCondition The task is intended to occur at the specified frequency.
-type FrequencyCondition struct {
-	// The task must occur after the specified period has elapsed.
-	Period int `json:"period"`
-
-	// The unit of time for the period.
-	Unit string `json:"unit"`
-}
-
-// OnDateCondition The task is intended to occur on the specified date.
-type OnDateCondition struct {
-	// The task must occur on the specified date.
-	Date string `json:"date"`
-}
-
-// WithinDateRangeCondition The task is intended to occur within the specified date range.
-type WithinDateRangeCondition struct {
-	// The task must occur on or before the specified date.
-	End string `json:"end"`
-
-	// The task must occur on or after the specified date.
-	Start string `json:"start"`
+type Activity struct {
+	Id               string                `json:"id"`
+	Title            string                `json:"title,omitempty"`
+	Description      string                `json:"description,omitempty"`
+	Props            []Property            `json:"props,omitempty"`
+	Links            []Link                `json:"links,omitempty"`
+	Remarks          string                `json:"remarks,omitempty"`
+	ResponsibleRoles []string              `json:"responsibleRoles"`
+	Provider         ProviderConfiguration `json:"provider"`
 }
