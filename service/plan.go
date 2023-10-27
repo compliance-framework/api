@@ -38,6 +38,19 @@ func (s *PlanService) Create(plan *domain.Plan) (string, error) {
 	return result.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
+func (s *PlanService) SetSubjectForTask(taskId string, planId string, subject domain.SubjectSelection) error {
+	pid, _ := primitive.ObjectIDFromHex(planId)
+	tid, _ := primitive.ObjectIDFromHex(taskId)
+
+	filter := bson.D{{"_id", pid}, {"tasks.id", tid}}
+	update := bson.D{{"$set", bson.D{{"tasks.$.subject", subject}}}}
+	_, err := s.planCollection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *PlanService) Update(plan *domain.Plan) error {
 	_, err := s.planCollection.ReplaceOne(context.Background(), bson.D{{"_id", plan.Id}}, plan)
 	if err != nil {

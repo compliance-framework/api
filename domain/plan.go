@@ -208,47 +208,6 @@ type Task struct {
 	Schedule         []string           `json:"schedule"`
 }
 
-func (t *Task) AddSubject(subjects SubjectSelection) error {
-	// Validate the subjects
-	if subjects.Title == "" {
-		return errors.New("subjects title cannot be empty")
-	}
-
-	// Check if only one of Query, Labels, Expressions, and Ids is set
-	fieldsSet := 0
-	if len(subjects.Ids) > 0 {
-		fieldsSet++
-	}
-	if subjects.Query != "" {
-		fieldsSet++
-	}
-	if len(subjects.Expressions) > 0 {
-		fieldsSet++
-	}
-	if len(subjects.Labels) > 0 {
-		fieldsSet++
-	}
-
-	// If more than one is set, unset the others based on the priority order
-	if fieldsSet > 1 {
-		if len(subjects.Ids) > 0 {
-			subjects.Query = ""
-			subjects.Expressions = nil
-			subjects.Labels = nil
-		} else if subjects.Query != "" {
-			subjects.Expressions = nil
-			subjects.Labels = nil
-		} else if len(subjects.Expressions) > 0 {
-			subjects.Labels = nil
-		}
-	}
-
-	// Add the subjects to the Subjects slice
-	t.Subjects = subjects
-
-	return nil
-}
-
 func (t *Task) AddActivity(activity Activity) error {
 	// Validate the activity
 	if activity.Title == "" {

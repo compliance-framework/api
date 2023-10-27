@@ -93,7 +93,10 @@ func (h *PlanHandler) CreateAsset(ctx echo.Context) error {
 		return err
 	}
 
-	plan.AddAsset(req.AssetId, req.Type)
+	err = plan.AddAsset(req.AssetId, req.Type)
+	if err != nil {
+		return err
+	}
 	err = h.service.Update(plan)
 	if err != nil {
 		return err
@@ -171,17 +174,7 @@ func (h *PlanHandler) SetSubjectSelection(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	task := plan.GetTask(ctx.Param("taskId"))
-	if task == nil {
-		return ctx.JSON(http.StatusNotFound, api.NotFound())
-	}
-
-	err = task.AddSubject(selection)
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	err = h.service.Update(plan)
+	err = h.service.SetSubjectForTask(ctx.Param("taskId"), ctx.Param("id"), selection)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
