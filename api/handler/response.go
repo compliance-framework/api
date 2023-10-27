@@ -17,3 +17,12 @@ type planIdResponse struct {
 	// Example: "456def"
 	Id string `json:"id"`
 }
+
+// sspIdResponse is a struct that holds the ID of a SSP.
+// swagger:model
+type sspIdResponse struct {
+	// The unique identifier of the ssp.
+	// Required: true
+	// Example: "789ghi"
+	Id string `json:"id"`
+}

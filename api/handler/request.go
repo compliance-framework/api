@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/labstack/echo/v4"
 )
@@ -22,6 +23,19 @@ func (r *createCatalogRequest) bind(ctx echo.Context, c *domain.Catalog) error {
 		return err
 	}
 	c.Title = r.Catalog.Title
+	return nil
+}
+
+type createSSPRequest struct {
+	Title string `json:"title" validate:"required"`
+}
+
+func (r *createSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	ssp.Title = r.Title
 	return nil
 }
 
