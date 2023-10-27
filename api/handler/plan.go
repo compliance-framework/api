@@ -93,7 +93,7 @@ func (h *PlanHandler) CreateAsset(ctx echo.Context) error {
 		return err
 	}
 
-	plan.AddAsset(domain.Uuid(req.AssetUuid), req.Type)
+	plan.AddAsset(req.AssetId, req.Type)
 	err = h.service.Update(plan)
 	if err != nil {
 		return err
@@ -123,17 +123,13 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NotFound())
 	}
 
+	t := domain.Task{}
 	req := &createTaskRequest{}
-	if err := ctx.Bind(req); err != nil {
+	if err := req.Bind(ctx, &t); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	task := domain.Task{
-		Uuid:        domain.NewUuid(),
-		Title:       req.Title,
-		Description: req.Description,
-	}
-	err = plan.CreateTask(task)
+	newTask, err := plan.CreateTask(t)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -143,7 +139,9 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, nil)
+	return ctx.JSON(http.StatusCreated, planIdResponse{
+		Id: newTask.Id.Hex(),
+	})
 }
 
 // SetSubjectSelection godoc
@@ -173,7 +171,7 @@ func (h *PlanHandler) SetSubjectSelection(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	task := plan.GetTask(domain.Uuid(ctx.Param("taskId")))
+	task := plan.GetTask(ctx.Param("taskId"))
 	if task == nil {
 		return ctx.JSON(http.StatusNotFound, api.NotFound())
 	}
@@ -218,7 +216,7 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	task := plan.GetTask(domain.Uuid(ctx.Param("taskId")))
+	task := plan.GetTask(ctx.Param("taskId"))
 	if task == nil {
 		return ctx.JSON(http.StatusNotFound, api.NotFound())
 	}

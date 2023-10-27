@@ -12,5 +12,6 @@ type Subscriber[T any] func(topic TopicType) (chan T, error)
 type Publisher func(msg interface{}, topic TopicType) error
 
 type PlanPublished struct {
+	RuntimeId string
 	domain.JobSpecification
 }

@@ -42,7 +42,7 @@ func (h *MetadataHandler) AttachMetadata(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	err := h.service.AttachMetadata(req.Uuid, req.Collection, revision)
+	err := h.service.AttachMetadata(req.Id, req.Collection, revision)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

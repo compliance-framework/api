@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 // Plan An assessment plan, such as those provided by a FedRAMP assessor.
 // Here are some real-world examples for Assets, Platforms, Subjects and Inventory Items within an OSCAL Assessment Plan:
@@ -40,7 +43,7 @@ import "errors"
 // ▪	“Specify the output (report) format”
 // In context of an automated compliance check, the description of Task, Activity, and Step provides a systematic plan or procedure that the tool is expected to follow. This breakdown of tasks, activities, and steps could also supply useful context and explain the tool’s operation and results to system admins, auditors or other stakeholders. It also allows for easier troubleshooting in the event of problems.
 type Plan struct {
-	Uuid Uuid `json:"uuid"`
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 
 	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
 	Title string `json:"title,omitempty"`
@@ -55,7 +58,7 @@ type Plan struct {
 	BackMatter BackMatter `json:"backMatter"`
 
 	// Reference to a System Security Plan
-	ImportSSP Uuid `json:"importSSP"`
+	ImportSSP string `json:"importSSP"`
 
 	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
 	// Reference to LocalDefinition
@@ -78,53 +81,64 @@ func NewPlan() *Plan {
 		Revisions: []Revision{revision},
 		Actions: []Action{
 			{
-				Uuid:  NewUuid(),
+				Id:    primitive.NewObjectID(),
 				Title: "Create",
 			},
 		},
 	}
 
 	return &Plan{
-		Uuid:     NewUuid(),
 		Metadata: metadata,
+		Tasks:    make([]Task, 0),
 		Assets: Assets{
-			Components: []Uuid{},
-			Platforms:  []Uuid{},
+			Components: []primitive.ObjectID{},
+			Platforms:  []primitive.ObjectID{},
 		},
 	}
 }
 
-func (p *Plan) AddAsset(assetUuid Uuid, assetType string) {
-	if assetType == "component" {
-		p.Assets.Components = append(p.Assets.Components, assetUuid)
-	} else if assetType == "platform" {
-		p.Assets.Platforms = append(p.Assets.Components, assetUuid)
+func (p *Plan) AddAsset(assetId string, assetType string) error {
+	oid, err := primitive.ObjectIDFromHex(assetId)
+	if err != nil {
+		return err
 	}
+	if assetType == "component" {
+		p.Assets.Components = append(p.Assets.Components, oid)
+	} else if assetType == "platform" {
+		p.Assets.Platforms = append(p.Assets.Components, oid)
+	}
+	return nil
 }
 
-func (p *Plan) GetTask(id Uuid) *Task {
+func (p *Plan) GetTask(id string) *Task {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil
+	}
 	for _, task := range p.Tasks {
-		if task.Uuid == id {
+		if task.Id == oid {
 			return &task
 		}
 	}
 	return nil
 }
 
-func (p *Plan) CreateTask(task Task) error {
+func (p *Plan) CreateTask(task Task) (*Task, error) {
+	task.Id = primitive.NewObjectID()
+
 	// Validate the task
 	if task.Title == "" {
-		return errors.New("task title cannot be empty")
+		return nil, errors.New("task title cannot be empty")
 	}
 
 	if task.Type != TaskTypeMilestone && task.Type != TaskTypeAction {
-		return errors.New("task type must be either 'milestone' or 'action'")
+		return nil, errors.New("task type must be either 'milestone' or 'action'")
 	}
 
 	// Add the task to the Tasks slice
 	p.Tasks = append(p.Tasks, task)
 
-	return nil
+	return &task, nil
 }
 
 func (p *Plan) Ready() bool {
@@ -144,43 +158,30 @@ func (p *Plan) Ready() bool {
 }
 
 func (p *Plan) JobSpecification() (JobSpecification, error) {
-	// Step 1: Create an empty JobSpecification
-	jobSpec := JobSpecification{}
-
-	// Step 2: Set RuntimeUuid to a new UUID
-	jobSpec.RuntimeUuid = NewUuid().String()
-
-	// Step 3: Create an AssessmentPlanInformation from the Plan
-	planInfo := AssessmentPlanInformation{
-		Uuid:  p.Uuid.String(),
+	jobSpec := JobSpecification{
+		Id:    p.Id.Hex(),
 		Title: p.Title,
 	}
 
-	// Step 3.2: For each Task in the Plan, create a TaskInformation
 	for _, task := range p.Tasks {
 		taskInfo := TaskInformation{
-			Uuid:     task.Uuid.String(),
+			Id:       task.Id.Hex(),
 			Title:    task.Title,
 			Selector: task.Subjects,
 		}
 
-		// Step 3.2.2: For each Activity in the Task, create an ActivityInformation
 		for _, activity := range task.Activities {
 			activityInfo := ActivityInformation{
-				Uuid:     activity.Uuid.String(),
+				Id:       activity.Id,
 				Title:    activity.Title,
 				Provider: activity.Provider,
 			}
 			taskInfo.Activities = append(taskInfo.Activities, activityInfo)
 		}
 
-		planInfo.Tasks = append(planInfo.Tasks, taskInfo)
+		jobSpec.Tasks = append(jobSpec.Tasks, taskInfo)
 	}
 
-	// Step 4: Set Plan in the JobSpecification to the created AssessmentPlanInformation
-	jobSpec.Plan = planInfo
-
-	// Step 5: Return the JobSpecification
 	return jobSpec, nil
 }
 
@@ -192,19 +193,19 @@ const (
 )
 
 type Task struct {
-	Uuid             Uuid             `json:"uuid"`
-	Title            string           `json:"title,omitempty"`
-	Description      string           `json:"description,omitempty"`
-	Props            []Property       `json:"props,omitempty"`
-	Links            []Link           `json:"links,omitempty"`
-	Remarks          string           `json:"remarks,omitempty"`
-	Type             TaskType         `json:"type"`
-	Activities       []Activity       `json:"activities"`
-	Dependencies     []TaskDependency `json:"dependencies"`
-	ResponsibleRoles []Uuid           `json:"responsibleRoles"`
-	Subjects         SubjectSelection `json:"subjects"`
-	Tasks            []Uuid           `json:"tasks"`
-	Schedule         []string         `json:"schedule"`
+	Id               primitive.ObjectID `json:"id"`
+	Title            string             `json:"title,omitempty"`
+	Description      string             `json:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty"`
+	Type             TaskType           `json:"type"`
+	Activities       []Activity         `json:"activities"`
+	Dependencies     []TaskDependency   `json:"dependencies"`
+	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
+	Subjects         SubjectSelection   `json:"subjects"`
+	Tasks            []Uuid             `json:"tasks"`
+	Schedule         []string           `json:"schedule"`
 }
 
 func (t *Task) AddSubject(subjects SubjectSelection) error {
@@ -261,30 +262,30 @@ func (t *Task) AddActivity(activity Activity) error {
 }
 
 type TaskDependency struct {
-	TaskId  Uuid   `json:"taskUuid"`
-	Remarks string `json:"remarks"`
+	TaskId  primitive.ObjectID `json:"taskUuid"`
+	Remarks string             `json:"remarks"`
 }
 
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
-	Components []Uuid `json:"components"`
+	Components []primitive.ObjectID `json:"components"`
 
 	// Used to represent the toolset used to perform aspects of the assessment.
-	Platforms []Uuid `json:"platforms"`
+	Platforms []primitive.ObjectID `json:"platforms"`
 }
 
 type Platform struct {
-	Uuid        Uuid       `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
 
 	Links   []Link `json:"links,omitempty"`
 	Remarks string `json:"remarks,omitempty"`
 
 	// Reference to component.Component
-	UsesComponents []Uuid `json:"usesComponents"`
+	UsesComponents []string `json:"usesComponents"`
 }
 
 type ControlsAndObjectives struct {
@@ -304,43 +305,43 @@ type ObjectiveSelection struct {
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`
 
-	Links      []Link `json:"links,omitempty"`
-	Remarks    string `json:"remarks,omitempty"`
-	IncludeAll bool   `json:"includeAll"`
-	Exclude    []Uuid `json:"exclude"`
-	Include    []Uuid `json:"include"`
+	Links      []Link   `json:"links,omitempty"`
+	Remarks    string   `json:"remarks,omitempty"`
+	IncludeAll bool     `json:"includeAll"`
+	Exclude    []string `json:"exclude"`
+	Include    []string `json:"include"`
 }
 
 type LocalDefinition struct {
 	Remarks string `json:"remarks,omitempty"`
 
 	// Reference to Activity
-	Activities []Uuid `json:"activities"`
+	Activities []string `json:"activities"`
 
 	// Reference to component.Component
-	Components []Uuid `json:"components"`
+	Components []primitive.ObjectID `json:"components"`
 
 	// Reference to ssp.InventoryItem
-	InventoryItems []Uuid `json:"inventoryItems"`
+	InventoryItems []primitive.ObjectID `json:"inventoryItems"`
 
 	Objectives []Objective `json:"objectives"`
 
 	// Reference to identity.User
-	Users []Uuid `json:"users"`
+	Users []primitive.ObjectID `json:"users"`
 }
 
 // Objective A local objective is a security control or requirement that is specific to the system or organization under assessment.
 type Objective struct {
-	Uuid        Uuid       `json:"uuid"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
 
 	Links   []Link `json:"links,omitempty"`
 	Remarks string `json:"remarks,omitempty"`
 	Parts   []Part `json:"parts,omitempty"`
 
-	Control Uuid `json:"control"`
+	Control primitive.ObjectID `json:"control"`
 }
 
 type SubjectType string
@@ -357,13 +358,13 @@ const (
 // In the assessment plan, this identifies a planned assessment subject.
 // In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
 type Subject struct {
-	Uuid        Uuid        `json:"uuid"`
-	Type        SubjectType `json:"type"`
-	Title       string      `json:"title,omitempty"`
-	Description string      `json:"description,omitempty"`
-	Props       []Property  `json:"props,omitempty"`
-	Links       []Link      `json:"links,omitempty"`
-	Remarks     string      `json:"remarks,omitempty"`
+	Id          primitive.ObjectID `json:"id"`
+	Type        SubjectType        `json:"type"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty"`
 }
 
 // SubjectSelection Identifies system elements being assessed, such as components, inventory items, and locations by specifying a selection criteria.
@@ -385,24 +386,12 @@ type SubjectMatchExpression struct {
 }
 
 type Activity struct {
-	Uuid             Uuid                  `json:"uuid"`
+	Id               string                `json:"id"`
 	Title            string                `json:"title,omitempty"`
 	Description      string                `json:"description,omitempty"`
 	Props            []Property            `json:"props,omitempty"`
 	Links            []Link                `json:"links,omitempty"`
 	Remarks          string                `json:"remarks,omitempty"`
-	ResponsibleRoles []Uuid                `json:"responsibleRoles"`
-	Steps            []Step                `json:"steps"`
+	ResponsibleRoles []string              `json:"responsibleRoles"`
 	Provider         ProviderConfiguration `json:"provider"`
-}
-
-type Step struct {
-	Uuid             Uuid        `json:"uuid"`
-	Title            string      `json:"title,omitempty"`
-	Description      string      `json:"description,omitempty"`
-	Props            []Property  `json:"props,omitempty"`
-	Links            []Link      `json:"links,omitempty"`
-	Remarks          string      `json:"remarks,omitempty"`
-	ResponsibleRoles []Uuid      `json:"responsibleRoles"`
-	Objectives       []Objective `json:"objectives"`
 }

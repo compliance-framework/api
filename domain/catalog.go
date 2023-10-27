@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
 
@@ -29,7 +30,7 @@ func NewCatalog(title string) Catalog {
 		Revisions: []Revision{firstRevision},
 		Actions: []Action{
 			{
-				Uuid:  NewUuid(),
+				Id:    primitive.NewObjectID(),
 				Title: "Create",
 			},
 		},

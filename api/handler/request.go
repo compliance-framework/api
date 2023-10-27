@@ -41,8 +41,8 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 
 // addTaskRequest defines the request payload for method CreateTask
 type addAssetRequest struct {
-	AssetUuid string `json:"assetUuid" validate:"required"`
-	Type      string `json:"type" validate:"required"`
+	AssetId string `json:"assetId" validate:"required"`
+	Type    string `json:"type" validate:"required"`
 }
 
 func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error {
@@ -56,16 +56,18 @@ func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error {
 // createTaskRequest defines the request payload for method CreateTask
 type createTaskRequest struct {
 	// TODO: We are keeping it minimal for now for the demo
-	Title       string `json:"title,omitempty" validate:"required"`
-	Description string `json:"description,omitempty" validate:"required"`
+	Title       string `json:"title" validate:"required"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type" validate:"required"`
 }
 
-func (r *createTaskRequest) bind(ctx echo.Context, t *domain.Task) error {
+func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
 	t.Title = r.Title
 	t.Description = r.Description
+	t.Type = domain.TaskType(r.Type)
 	return nil
 }
 
@@ -84,19 +86,20 @@ type setSubjectSelectionRequest struct {
 }
 
 func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	s.Title = r.Title
+	s.Description = r.Description
+	s.Query = r.Query
+	s.Labels = r.Labels
+
 	// Check if Query, Labels, Ids or Expressions are set
 	// The service runs this check as well, but we want to return a 422 error before that
 	if s.Query == "" && len(s.Labels) == 0 && len(s.Ids) == 0 && len(s.Expressions) == 0 {
 		return errors.New("at least one of Query, Labels, Ids or Expressions must be set")
 	}
-
-	if err := ctx.Bind(r); err != nil {
-		return err
-	}
-	s.Title = r.Title
-	s.Description = r.Description
-	s.Query = r.Query
-	s.Labels = r.Labels
 
 	for _, expression := range r.Expressions {
 		s.Expressions = append(s.Expressions, domain.SubjectMatchExpression{
@@ -121,7 +124,7 @@ func (r *setScheduleRequest) bind(ctx echo.Context) error {
 
 // createSubjectRequest defines the request payload for method CreateSubject
 type attachMetadataRequest struct {
-	Uuid                string `json:"uuid" validate:"required"`
+	Id                  string `json:"id" validate:"required"`
 	Collection          string `json:"collection" validate:"required"`
 	RevisionTitle       string `json:"revisionTitle,omitempty"`
 	RevisionDescription string `json:"revisionDescription,omitempty"`

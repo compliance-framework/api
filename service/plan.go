@@ -5,6 +5,7 @@ import (
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -30,15 +31,18 @@ func (s *PlanService) GetById(id string) (*domain.Plan, error) {
 }
 
 func (s *PlanService) Create(plan *domain.Plan) (string, error) {
-	_, err := s.planCollection.InsertOne(context.TODO(), plan)
+	result, err := s.planCollection.InsertOne(context.TODO(), plan)
 	if err != nil {
 		return "", err
 	}
-	return plan.Uuid.String(), nil
+	return result.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
 func (s *PlanService) Update(plan *domain.Plan) error {
-	_, err := s.planCollection.ReplaceOne(context.Background(), primitive.M{"uuid": plan.Uuid}, plan)
+	_, err := s.planCollection.ReplaceOne(context.Background(), bson.D{{"_id", plan.Id}}, plan)
+	if err != nil {
+		return err
+	}
 	if err != nil {
 		return err
 	}
