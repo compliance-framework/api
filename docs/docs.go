@@ -147,7 +147,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.planIdResponse"
+                            "$ref": "#/definitions/handler.idResponse"
                         }
                     },
                     "401": {
@@ -289,6 +289,66 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/plan/{id}/tasks/{taskId}/activities": {
+            "post": {
+                "description": "This function is used to create an activity for a given task.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Create activity",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Task ID",
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Activity",
+                        "name": "activity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createActivityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "201"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/api/plan/{id}/tasks/{taskId}/subjects": {
             "post": {
                 "description": "This function is used to create a subject selection for a given plan.",
@@ -323,7 +383,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createSubjectSelectionRequest"
+                            "$ref": "#/definitions/handler.setSubjectSelectionRequest"
                         }
                     }
                 ],
@@ -363,11 +423,11 @@ const docTemplate = `{
         "handler.addAssetRequest": {
             "type": "object",
             "required": [
-                "assetUuid",
+                "assetId",
                 "type"
             ],
             "properties": {
-                "assetUuid": {
+                "assetId": {
                     "type": "string"
                 },
                 "type": {
@@ -379,10 +439,13 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "collection",
-                "uuid"
+                "id"
             ],
             "properties": {
                 "collection": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "string"
                 },
                 "revisionDescription": {
@@ -393,9 +456,6 @@ const docTemplate = `{
                 },
                 "revisionTitle": {
                     "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
                 }
             }
         },
@@ -404,6 +464,37 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createActivityRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "package": {
+                            "type": "string"
+                        },
+                        "params": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
+                        "version": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -435,7 +526,35 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.createSubjectSelectionRequest": {
+        "handler.createTaskRequest": {
+            "type": "object",
+            "required": [
+                "title",
+                "type"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "title": {
+                    "description": "TODO: We are keeping it minimal for now for the demo",
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.idResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.setSubjectSelectionRequest": {
             "type": "object",
             "required": [
                 "title"
@@ -480,31 +599,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.createTaskRequest": {
-            "type": "object",
-            "required": [
-                "description",
-                "title"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "title": {
-                    "description": "TODO: We are keeping it minimal for now for the demo",
-                    "type": "string"
-                }
-            }
-        },
-        "handler.planIdResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
                     "type": "string"
                 }
             }

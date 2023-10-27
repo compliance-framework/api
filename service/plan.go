@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
@@ -38,7 +39,71 @@ func (s *PlanService) Create(plan *domain.Plan) (string, error) {
 	return result.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
-func (s *PlanService) SetSubjectForTask(taskId string, planId string, subject domain.SubjectSelection) error {
+func (s *PlanService) CreateTask(planId string, task domain.Task) (string, error) {
+	// Validate the task
+	if task.Title == "" {
+		return "", errors.New("task title cannot be empty")
+	}
+
+	if task.Type != domain.TaskTypeMilestone && task.Type != domain.TaskTypeAction {
+		return "", errors.New("task type must be either 'milestone' or 'action'")
+	}
+
+	task.Activities = []domain.Activity{}
+
+	pid, err := primitive.ObjectIDFromHex(planId)
+	if err != nil {
+		return "", err
+	}
+	task.Id = primitive.NewObjectID()
+	filter := bson.D{{"_id", pid}}
+
+	update := bson.M{
+		"$push": bson.M{
+			"tasks": task,
+		},
+	}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
+	if err != nil {
+		return "", err
+	}
+
+	return task.Id.Hex(), nil
+}
+
+func (s *PlanService) CreateActivity(planId string, taskId string, activity domain.Activity) (string, error) {
+	pid, err := primitive.ObjectIDFromHex(planId)
+	if err != nil {
+		return "", err
+	}
+	tid, err := primitive.ObjectIDFromHex(taskId)
+	if err != nil {
+		return "", err
+	}
+
+	activity.Id = primitive.NewObjectID()
+	filter := bson.D{{"_id", pid}, {"tasks.id", tid}}
+
+	var p domain.Plan
+	err = s.planCollection.FindOne(context.Background(), filter).Decode(&p)
+	if err != nil {
+		return "", err
+	}
+
+	update := bson.M{
+		"$push": bson.M{
+			"tasks.0.activities": activity,
+		},
+	}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
+	if err != nil {
+		return "", err
+	}
+
+	return activity.Id.Hex(), nil
+}
+
+func (s *PlanService) SetSubjectsForActivity(taskId string, planId string, activityId string, subject domain.SubjectSelection) error {
 	pid, _ := primitive.ObjectIDFromHex(planId)
 	tid, _ := primitive.ObjectIDFromHex(taskId)
 

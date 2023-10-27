@@ -13,5 +13,7 @@ type Publisher func(msg interface{}, topic TopicType) error
 
 type PlanPublished struct {
 	RuntimeId string
+	// Type holds the type of the event: created / updated / deleted
+	Type string
 	domain.JobSpecification
 }

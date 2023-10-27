@@ -71,7 +71,7 @@ func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 	return nil
 }
 
-// setSubjectSelectionRequest defines the request payload for method SetSubjectSelection
+// setSubjectSelectionRequest defines the request payload for method SetSubjectsForActivity
 type setSubjectSelectionRequest struct {
 	Title       string            `json:"title,omitempty" validate:"required"`
 	Description string            `json:"description,omitempty"`

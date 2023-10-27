@@ -89,7 +89,7 @@ func NewPlan() *Plan {
 
 	return &Plan{
 		Metadata: metadata,
-		Tasks:    make([]Task, 0),
+		Tasks:    []Task{},
 		Assets: Assets{
 			Components: []primitive.ObjectID{},
 			Platforms:  []primitive.ObjectID{},
@@ -123,38 +123,25 @@ func (p *Plan) GetTask(id string) *Task {
 	return nil
 }
 
-func (p *Plan) CreateTask(task Task) (*Task, error) {
-	task.Id = primitive.NewObjectID()
-
-	// Validate the task
-	if task.Title == "" {
-		return nil, errors.New("task title cannot be empty")
-	}
-
-	if task.Type != TaskTypeMilestone && task.Type != TaskTypeAction {
-		return nil, errors.New("task type must be either 'milestone' or 'action'")
-	}
-
-	// Add the task to the Tasks slice
-	p.Tasks = append(p.Tasks, task)
-
-	return &task, nil
-}
-
 func (p *Plan) Ready() bool {
 	// If there are no Tasks then there's nothing to run.
 	if len(p.Tasks) == 0 {
 		return false
 	}
 
-	// Check if the tasks have a schedule for the future and at least one subject.
+	// Check if the tasks have at least one activity and all activities have valid subjects.
 	for _, task := range p.Tasks {
-		if task.Subjects.Query == "" && len(task.Subjects.Labels) == 0 && len(task.Subjects.Ids) == 0 && len(task.Subjects.Expressions) == 0 && len(task.Schedule) == 0 {
-			continue
+		if len(task.Activities) == 0 {
+			return false
+		}
+		for _, activity := range task.Activities {
+			if !activity.Subjects.Valid() {
+				return false
+			}
 		}
 	}
 
-	return false
+	return true
 }
 
 func (p *Plan) JobSpecification() (JobSpecification, error) {
@@ -165,16 +152,16 @@ func (p *Plan) JobSpecification() (JobSpecification, error) {
 
 	for _, task := range p.Tasks {
 		taskInfo := TaskInformation{
-			Id:       task.Id.Hex(),
-			Title:    task.Title,
-			Selector: task.Subjects,
+			Id:    task.Id.Hex(),
+			Title: task.Title,
 		}
 
 		for _, activity := range task.Activities {
 			activityInfo := ActivityInformation{
-				Id:       activity.Id,
+				Id:       activity.Id.Hex(),
 				Title:    activity.Title,
 				Provider: activity.Provider,
+				Selector: activity.Subjects,
 			}
 			taskInfo.Activities = append(taskInfo.Activities, activityInfo)
 		}
@@ -203,9 +190,12 @@ type Task struct {
 	Activities       []Activity         `json:"activities"`
 	Dependencies     []TaskDependency   `json:"dependencies"`
 	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
-	Subjects         SubjectSelection   `json:"subjects"`
-	Tasks            []Uuid             `json:"tasks"`
-	Schedule         []string           `json:"schedule"`
+
+	// Subjects hold all the subjects that the activities act upon.
+	Subjects []primitive.ObjectID `json:"subjects"`
+
+	Tasks    []Uuid   `json:"tasks"`
+	Schedule []string `json:"schedule"`
 }
 
 func (t *Task) AddActivity(activity Activity) error {
@@ -332,10 +322,14 @@ type Subject struct {
 type SubjectSelection struct {
 	Title       string                   `json:"title,omitempty"`
 	Description string                   `json:"description,omitempty"`
-	Query       string                   `yaml:"query" json:"query"`
-	Labels      map[string]string        `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Expressions []SubjectMatchExpression `yaml:"expressions,omitempty" json:"expressions,omitempty"`
-	Ids         []string                 `yaml:"ids,omitempty" json:"ids,omitempty"`
+	Query       string                   `json:"query,omitempty"`
+	Labels      map[string]string        `json:"labels,omitempty"`
+	Expressions []SubjectMatchExpression `json:"expressions,omitempty"`
+	Ids         []string                 `json:"ids,omitempty"`
+}
+
+func (s *SubjectSelection) Valid() bool {
+	return s.Query != "" || len(s.Labels) > 0 || len(s.Expressions) > 0 || len(s.Ids) > 0
 }
 
 type SubjectMatchExpression struct {
@@ -345,12 +339,13 @@ type SubjectMatchExpression struct {
 }
 
 type Activity struct {
-	Id               string                `json:"id"`
+	Id               primitive.ObjectID    `json:"id"`
 	Title            string                `json:"title,omitempty"`
 	Description      string                `json:"description,omitempty"`
 	Props            []Property            `json:"props,omitempty"`
 	Links            []Link                `json:"links,omitempty"`
 	Remarks          string                `json:"remarks,omitempty"`
 	ResponsibleRoles []string              `json:"responsibleRoles"`
+	Subjects         SubjectSelection      `json:"subjects"`
 	Provider         ProviderConfiguration `json:"provider"`
 }
