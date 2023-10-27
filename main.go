@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"github.com/joho/godotenv"
 	"log"
 	"os"
 
-	"github.com/Valgard/godotenv"
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/api/handler"
 	"github.com/compliance-framework/configuration-service/event/bus"
@@ -61,8 +61,7 @@ func main() {
 }
 
 func loadConfig() (config Config) {
-	dotenv := godotenv.New()
-	if err := dotenv.Load(".env"); err != nil {
+	if err := godotenv.Load(".env"); err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
