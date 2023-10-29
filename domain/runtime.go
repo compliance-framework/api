@@ -32,9 +32,8 @@ type TaskInformation struct {
 }
 
 type ActivityInformation struct {
-	Id       string                `json:"id"`
-	Title    string                `json:"title"`
-	Selector SubjectSelection      `json:"selector"`
-	Provider ProviderConfiguration `json:"provider"`
-	Params   map[string]string     `json:"params" yaml:"params"`
+	Id       string           `json:"id"`
+	Title    string           `json:"title"`
+	Selector SubjectSelection `json:"selector"`
+	Provider Provider         `json:"provider"`
 }

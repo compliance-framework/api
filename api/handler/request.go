@@ -182,11 +182,11 @@ func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error
 
 	a.Title = r.Title
 	a.Description = r.Description
-	a.Provider = domain.ProviderConfiguration{
-		Name:    r.Provider.Name,
-		Package: r.Provider.Package,
-		Version: r.Provider.Version,
-		Params:  r.Provider.Params,
+	a.Provider = domain.Provider{
+		Name:          r.Provider.Name,
+		Package:       r.Provider.Package,
+		Version:       r.Provider.Version,
+		Configuration: r.Provider.Params,
 	}
 	a.Subjects = domain.SubjectSelection{
 		Title:       r.Subjects.Title,

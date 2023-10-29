@@ -95,23 +95,26 @@ type Finding struct {
 }
 
 type LogEntry struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-
-	Links   []Link `json:"links,omitempty"`
-	Remarks string `json:"remarks,omitempty"`
-
-	Start    time.Time `json:"start"`
-	End      time.Time `json:"end"`
-	LoggedBy []Uuid    `json:"loggedBy"`
-
-	// Reference to Task(s)
-	RelatedTasks []Uuid `json:"relatedTasks"`
+	Timestamp time.Time `json:"timestamp"`
+	Type      string    `json:"type"`
+	Details   string    `json:"details"`
+	//Title       string     `json:"title,omitempty"`
+	//Description string     `json:"description,omitempty"`
+	//Props       []Property `json:"props,omitempty"`
+	//
+	//Links   []Link `json:"links,omitempty"`
+	//Remarks string `json:"remarks,omitempty"`
+	//
+	//Start    time.Time `json:"start"`
+	//End      time.Time `json:"end"`
+	//LoggedBy []Uuid    `json:"loggedBy"`
+	//
+	//// Reference to Task(s)
+	//RelatedTasks []Uuid `json:"relatedTasks"`
 }
 
 type Observation struct {
-	UUid        Uuid       `json:"uuid"`
+	Id          string     `json:"id"`
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Props       []Property `json:"props,omitempty"`

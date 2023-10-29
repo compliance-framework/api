@@ -340,13 +340,13 @@ type SubjectMatchExpression struct {
 }
 
 type Activity struct {
-	Id               primitive.ObjectID    `json:"id"`
-	Title            string                `json:"title,omitempty"`
-	Description      string                `json:"description,omitempty"`
-	Props            []Property            `json:"props,omitempty"`
-	Links            []Link                `json:"links,omitempty"`
-	Remarks          string                `json:"remarks,omitempty"`
-	ResponsibleRoles []string              `json:"responsibleRoles"`
-	Subjects         SubjectSelection      `json:"subjects"`
-	Provider         ProviderConfiguration `json:"provider"`
+	Id               primitive.ObjectID `json:"id"`
+	Title            string             `json:"title,omitempty"`
+	Description      string             `json:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty"`
+	ResponsibleRoles []string           `json:"responsibleRoles"`
+	Subjects         SubjectSelection   `json:"subjects"`
+	Provider         Provider           `json:"provider"`
 }
