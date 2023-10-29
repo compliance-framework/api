@@ -45,31 +45,31 @@ import (
 type Plan struct {
 	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 
-	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
-	Title string `json:"title,omitempty"`
+	// Status The status of the assessment plan, such as "active" or "inactive".
+	// These statuses are subject to change.
+	Status string `json:"status,omitempty"`
 
 	// We might switch to struct embedding for fields like Metadata, Props, etc.
 	Metadata Metadata `json:"metadata"`
 
-	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
-	Assets Assets `json:"assets"`
-
-	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
-	BackMatter BackMatter `json:"backMatter"`
-
-	// Reference to a System Security Plan
-	ImportSSP string `json:"importSSP"`
-
-	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
-	// Reference to LocalDefinition
-	LocalDefinitions LocalDefinition `json:"localDefinitions"`
-
-	// ReviewedControls Identifies the controls being assessed and their control objectives.
-	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
-
 	// Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.
 	Tasks []Task `json:"tasks"`
 
+	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
+	Title string `json:"title,omitempty"`
+
+	// The following fields are part of the OSCAL spec, but we don't use them yet.
+	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
+	Assets Assets `json:"assets"`
+	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
+	BackMatter BackMatter `json:"backMatter"`
+	// Reference to a System Security Plan
+	ImportSSP string `json:"importSSP"`
+	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
+	// Reference to LocalDefinition
+	LocalDefinitions LocalDefinition `json:"localDefinitions"`
+	// ReviewedControls Identifies the controls being assessed and their control objectives.
+	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions"`
 }
@@ -94,6 +94,7 @@ func NewPlan() *Plan {
 			Components: []primitive.ObjectID{},
 			Platforms:  []primitive.ObjectID{},
 		},
+		Status: "inactive",
 	}
 }
 
@@ -144,7 +145,7 @@ func (p *Plan) Ready() bool {
 	return true
 }
 
-func (p *Plan) JobSpecification() (JobSpecification, error) {
+func (p *Plan) JobSpecification() JobSpecification {
 	jobSpec := JobSpecification{
 		Id:    p.Id.Hex(),
 		Title: p.Title,
@@ -169,7 +170,7 @@ func (p *Plan) JobSpecification() (JobSpecification, error) {
 		jobSpec.Tasks = append(jobSpec.Tasks, taskInfo)
 	}
 
-	return jobSpec, nil
+	return jobSpec
 }
 
 type TaskType string

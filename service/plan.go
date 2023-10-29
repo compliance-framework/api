@@ -103,29 +103,27 @@ func (s *PlanService) CreateActivity(planId string, taskId string, activity doma
 	return activity.Id.Hex(), nil
 }
 
-func (s *PlanService) Update(plan *domain.Plan) error {
-	_, err := s.planCollection.ReplaceOne(context.Background(), bson.D{{"_id", plan.Id}}, plan)
+func (s *PlanService) ActivatePlan(planId string) error {
+	plan, err := s.GetById(planId)
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
+	plan.Status = "active"
 
-	jobSpec, err := plan.JobSpecification()
+	job := plan.JobSpecification()
+	_ = s.publisher(event.PlanEvent{
+		Type:             "activated",
+		JobSpecification: job,
+	}, event.TopicTypePlan)
+
+	// Update the plan document and set its status to active
+	pid, err := primitive.ObjectIDFromHex(planId)
 	if err != nil {
 		return err
 	}
-
-	if plan.Ready() {
-		published := event.PlanPublished{
-			JobSpecification: jobSpec,
-		}
-		err = s.publisher(published, event.TopicTypePlan)
-		if err != nil {
-			return err
-		}
-	}
+	filter := bson.D{{"_id", pid}}
+	update := bson.M{"$set": bson.M{"status": "active"}}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
 
 	return nil
 }

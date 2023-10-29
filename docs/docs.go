@@ -171,65 +171,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/plan/{id}/assets": {
-            "post": {
-                "description": "This method adds an existing asset to a specific plan by its ID.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Add asset to a plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Asset to add",
-                        "name": "asset",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.addAssetRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully added the asset to the plan",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "Plan not found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity: Error binding the request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
         "/api/plan/{id}/tasks": {
             "post": {
                 "description": "This method creates a new task and adds it to a specific plan.",
@@ -349,9 +290,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/plan/{id}/tasks/{taskId}/subjects": {
-            "post": {
-                "description": "This function is used to create a subject selection for a given plan.",
+        "/plan/{id}/activate": {
+            "put": {
+                "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
                 "consumes": [
                     "application/json"
                 ],
@@ -361,47 +302,22 @@ const docTemplate = `{
                 "tags": [
                     "Plan"
                 ],
-                "summary": "Create subject selection",
+                "summary": "Activate a plan",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Plan ID",
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Task ID",
-                        "name": "taskId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Subject Selection",
-                        "name": "selection",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.setSubjectSelectionRequest"
-                        }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "Successfully created subject selection",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
+                    "204": {
+                        "description": "No Content"
                     },
                     "500": {
-                        "description": "Internal server error",
+                        "description": "Internal server error. The plan could not be activated.",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -417,21 +333,6 @@ const docTemplate = `{
                 "errors": {
                     "type": "object",
                     "additionalProperties": true
-                }
-            }
-        },
-        "handler.addAssetRequest": {
-            "type": "object",
-            "required": [
-                "assetId",
-                "type"
-            ],
-            "properties": {
-                "assetId": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
                 }
             }
         },
@@ -470,12 +371,21 @@ const docTemplate = `{
         },
         "handler.createActivityRequest": {
             "type": "object",
+            "required": [
+                "provider",
+                "title"
+            ],
             "properties": {
                 "description": {
                     "type": "string"
                 },
                 "provider": {
                     "type": "object",
+                    "required": [
+                        "name",
+                        "package",
+                        "version"
+                    ],
                     "properties": {
                         "name": {
                             "type": "string"
@@ -490,6 +400,56 @@ const docTemplate = `{
                             }
                         },
                         "version": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "subjects": {
+                    "type": "object",
+                    "required": [
+                        "description",
+                        "title"
+                    ],
+                    "properties": {
+                        "description": {
+                            "type": "string"
+                        },
+                        "expressions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "key": {
+                                        "type": "string"
+                                    },
+                                    "operator": {
+                                        "type": "string"
+                                    },
+                                    "values": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "ids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "labels": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
+                        "query": {
+                            "type": "string"
+                        },
+                        "title": {
                             "type": "string"
                         }
                     }
@@ -550,55 +510,6 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
-                    "type": "string"
-                }
-            }
-        },
-        "handler.setSubjectSelectionRequest": {
-            "type": "object",
-            "required": [
-                "title"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "expressions": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "key": {
-                                "type": "string"
-                            },
-                            "operator": {
-                                "type": "string"
-                            },
-                            "values": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "query": {
-                    "type": "string"
-                },
-                "title": {
                     "type": "string"
                 }
             }

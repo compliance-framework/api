@@ -16,8 +16,8 @@ type PlanHandler struct {
 
 func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("/plan", h.CreatePlan)
-	api.POST("/plan/:id/assets", h.CreateAsset)
 	api.POST("/plan/:id/tasks", h.CreateTask)
+	api.PUT("/plan/:id/activate", h.ActivatePlan)
 	api.POST("/plan/:id/tasks/:taskId/activities", h.CreateActivity)
 }
 
@@ -64,44 +64,6 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, idResponse{
 		Id: id,
 	})
-}
-
-// CreateAsset godoc
-// @Summary 			Add asset to a plan
-// @Description 		This method adds an existing asset to a specific plan by its ID.
-// @Tags 				Plan
-// @Accept  			json
-// @Produce  			json
-// @Param 				id path string true "Plan ID"
-// @Param 				asset body addAssetRequest true "Asset to add"
-// @Success 			200 {object} string "Successfully added the asset to the plan"
-// @Failure 			404 {object} api.Error "Plan not found"
-// @Failure 			422 {object} api.Error "Unprocessable Entity: Error binding the request"
-// @Failure 			500 {object} api.Error "Internal Server Error"
-// @Router 				/api/plan/{id}/assets [post]
-func (h *PlanHandler) CreateAsset(ctx echo.Context) error {
-	plan, err := h.service.GetById(ctx.Param("id"))
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	} else if plan == nil {
-		return ctx.JSON(http.StatusNotFound, api.NotFound())
-	}
-
-	req := &addAssetRequest{}
-	if err := ctx.Bind(req); err != nil {
-		return err
-	}
-
-	err = plan.AddAsset(req.AssetId, req.Type)
-	if err != nil {
-		return err
-	}
-	err = h.service.Update(plan)
-	if err != nil {
-		return err
-	}
-
-	return ctx.JSON(http.StatusOK, nil)
 }
 
 // CreateTask godoc
@@ -176,4 +138,23 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, idResponse{
 		Id: activityId,
 	})
+}
+
+// ActivatePlan activates a plan with the given ID.
+// @Summary 	Activate a plan
+// @Description Activate a plan by its ID. If the plan is already active, no action will be taken.
+// @Tags Plan
+// @Accept  	json
+// @Produce  	json
+// @Param   	id path string true "Plan ID"
+// @Success 	204
+// @Failure 	500 {object} api.Error "Internal server error. The plan could not be activated."
+// @Router 		/plan/{id}/activate [put]
+func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
+	err := h.service.ActivatePlan(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusOK)
 }
