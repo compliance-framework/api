@@ -22,7 +22,7 @@ const (
 
 type Config struct {
 	MongoURI string
-	NATSURI  string
+	NatsURI  string
 }
 
 func main() {
@@ -39,7 +39,7 @@ func main() {
 		sugar.Fatalf("error connecting to mongo: %v", err)
 	}
 
-	err = bus.Listen(config.NATSURI, sugar)
+	err = bus.Listen(config.NatsURI, sugar)
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
@@ -77,7 +77,7 @@ func loadConfig() (config Config) {
 
 	config = Config{
 		MongoURI: mongoURI,
-		NATSURI:  natsURI,
+		NatsURI:  natsURI,
 	}
 	return config
 }
