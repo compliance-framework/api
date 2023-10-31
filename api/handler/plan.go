@@ -19,6 +19,7 @@ func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("/plan/:id/tasks", h.CreateTask)
 	api.PUT("/plan/:id/activate", h.ActivatePlan)
 	api.POST("/plan/:id/tasks/:taskId/activities", h.CreateActivity)
+	api.GET("/plan/:id/results", h.Results)
 }
 
 func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
@@ -157,4 +158,22 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(http.StatusOK)
+}
+
+// Results Returns the assessment results related with the plan with the given ID.
+// @Summary 	Return the assessment results
+// @Description Return the assessment results related with the plan with the given ID.
+// @Tags Plan
+// @Produce  	json
+// @Param   	id path string true "Plan ID"
+// @Success 	204
+// @Failure 	500 {object} api.Error "Internal server error. The plan could not be activated."
+// @Router 		/plan/{id}/results [get]
+func (h *PlanHandler) Results(ctx echo.Context) error {
+	results, err := h.service.GetResults(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, results)
 }

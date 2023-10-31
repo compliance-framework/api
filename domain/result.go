@@ -57,8 +57,8 @@ type Result struct {
 //	Statement: I hereby attest to the accuracy and completeness of the assessment results
 //	for the production server environment dated 2023-10-30.
 type Attestation struct {
-	Parts              []Part `json:"parts"`
-	ResponsibleParties []Uuid `json:"responsibleParties"`
+	Parts              []Part               `json:"parts"`
+	ResponsibleParties []primitive.ObjectID `json:"responsibleParties"`
 }
 
 // Characterization provides a classification or description of the nature
@@ -112,8 +112,8 @@ type Finding struct {
 	Props                   []Property           `json:"props,omitempty"`
 	Links                   []Link               `json:"links,omitempty"`
 	Remarks                 string               `json:"remarks,omitempty"`
-	ImplementationStatement Uuid                 `json:"implementationStatementUuid"`
-	Origins                 []Uuid               `json:"origins"`
+	ImplementationStatement primitive.ObjectID   `json:"implementationStatementId"`
+	Origins                 []primitive.ObjectID `json:"origins"`
 	RelatedObservations     []primitive.ObjectID `json:"relatedObservations"`
 	RelatedRisks            []primitive.ObjectID `json:"relatedRisks"`
 	Target                  []primitive.ObjectID `json:"target"`
@@ -200,7 +200,7 @@ type Origin struct {
 //	Impact: High - This could compromise the integrity of the system.
 //	Likelihood: Medium - Based on past updates and the frequency of potentially harmful updates.
 type Risk struct {
-	Id                primitive.ObjectID `json:"uuid"`
+	Id                primitive.ObjectID `json:"id"`
 	Title             string             `json:"title,omitempty"`
 	Description       string             `json:"description,omitempty"`
 	Props             []Property         `json:"props,omitempty"`
