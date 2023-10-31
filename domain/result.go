@@ -143,6 +143,25 @@ type LogEntry struct {
 	LoggedBy    []primitive.ObjectID `json:"loggedBy"`
 }
 
+// Evidence represents data or records collected during an assessment to support
+// findings, observations, or attestations within the OSCAL assessment context.
+// Evidence can include documents, screenshots, logs, or any other proof that
+// verifies the state or behavior of a system.
+//
+// Example:
+//
+//	Evidence Type: Screenshot
+//	Description: Screenshot showing that the auto-update feature is enabled.
+//	URL: path/to/screenshot.png
+type Evidence struct {
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty"`
+}
+
 // Observation represents a note or remark made by an assessor about something
 // they noticed during the assessment. It is a neutral statement that captures
 // what was seen or understood without necessarily assigning a value judgment.
@@ -159,6 +178,7 @@ type Observation struct {
 	Remarks     string             `json:"remarks,omitempty"`
 	Collected   time.Time          `json:"collected"`
 	Expires     time.Time          `json:"expires"`
+	Evidences   []Evidence         `json:"evidences"`
 }
 
 type Origin struct {
