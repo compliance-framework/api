@@ -28,7 +28,7 @@ func (h *SSPHandler) Register(api *echo.Group) {
 // @Accept  		json
 // @Produce  		json
 // @Param   		SSP body CreateSSPRequest true "SSP to add"
-// @Success 		201 {object} sspIdResponse
+// @Success 		201 {object} idResponse
 // @Failure 		401 {object} api.Error
 // @Failure 		422 {object} api.Error
 // @Failure 		500 {object} api.Error
@@ -46,7 +46,7 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, sspIdResponse{
+	return ctx.JSON(http.StatusCreated, idResponse{
 		Id: id.(string),
 	})
 }
