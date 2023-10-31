@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/labstack/echo/v4"
 )
+
 type SSPHandler struct {
 	service *service.SSPService
 }
@@ -17,21 +18,21 @@ func NewSSPHandler() *SSPHandler {
 }
 
 func (h *SSPHandler) Register(api *echo.Group) {
-	api.POST("/systemsecurityplan", h.CreateSSP)
+	api.POST("/ssp", h.CreateSSP)
 }
 
-// CreateCatalog godoc
-// @Summary 		Create a catalog
-// @Description 	Create a catalog with the given title
-// @Tags 			Catalog
+// CreateSSP godoc
+// @Summary 		Create a SSP
+// @Description 	Create a SSP with the given title
+// @Tags 			SSP
 // @Accept  		json
 // @Produce  		json
-// @Param   		catalog body createCatalogRequest true "Catalog to add"
-// @Success 		201 {object} catalogIdResponse
+// @Param   		SSP body CreateSSPRequest true "SSP to add"
+// @Success 		201 {object} sspIdResponse
 // @Failure 		401 {object} api.Error
 // @Failure 		422 {object} api.Error
 // @Failure 		500 {object} api.Error
-// @Router 			/api/catalog [post]
+// @Router 			/api/ssp [post]
 func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	var ssp domain.SystemSecurityPlan
 	req := createSSPRequest{}
