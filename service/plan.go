@@ -127,3 +127,7 @@ func (s *PlanService) ActivatePlan(planId string) error {
 
 	return nil
 }
+
+func (s *PlanService) SaveResults(planId string) error {
+	panic("implement me")
+}

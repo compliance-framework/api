@@ -5,6 +5,27 @@ import (
 	"time"
 )
 
+// In the realm of security and compliance assessments, "Risks" are identified and articulated based on the information presented in "Findings" and "Observations." Here's a breakdown of the process:
+//
+// Observations:
+//
+// Observations are typically the raw data or facts identified during the assessment. They capture what the assessor noticed, without necessarily assigning a value judgment.
+// For instance, an observation might note that a certain server lacks a recent security patch.
+// Findings:
+//
+// Findings are derived from observations and are more evaluative. They indicate whether an observation has implications for compliance, security, or other assessment criteria.
+// Building on the previous example, a finding might state that the server's lack of a recent security patch makes it vulnerable to a specific known exploit.
+// Risks:
+//
+// Risks are broader evaluations that consider the potential consequences and implications of findings. They look at the potential harm or impact that might result if the issues noted in findings aren't addressed.
+// Continuing with our example, a risk might point out that the server's vulnerability could lead to a data breach, potentially exposing sensitive customer data and incurring legal penalties.
+// In this sequence:
+//
+// Observations provide the factual basis.
+// Findings offer an evaluative judgment based on those facts.
+// Risks project forward to estimate the potential consequences and impacts of those findings.
+// After an assessment, the risks identified based on findings and observations are typically used to prioritize remediation efforts. The most critical or high-impact risks might be addressed first, followed by less severe ones. This process helps organizations manage their security postures effectively and allocate resources where they are most needed.
+
 type Result struct {
 	Id               primitive.ObjectID      `json:"id"`
 	Title            string                  `json:"title,omitempty"`
@@ -85,17 +106,17 @@ type Facet struct {
 //	of manually vetting and approving system updates. This poses a potential security risk
 //	as unvetted updates could introduce vulnerabilities.
 type Finding struct {
-	Id                      primitive.ObjectID `json:"id"`
-	Title                   string             `json:"title,omitempty"`
-	Description             string             `json:"description,omitempty"`
-	Props                   []Property         `json:"props,omitempty"`
-	Links                   []Link             `json:"links,omitempty"`
-	Remarks                 string             `json:"remarks,omitempty"`
-	ImplementationStatement Uuid               `json:"implementationStatementUuid"`
-	Origins                 []Uuid             `json:"origins"`
-	RelatedObservations     []Uuid             `json:"relatedObservations"`
-	RelatedRisks            []Uuid             `json:"relatedRisks"`
-	Target                  []Uuid             `json:"target"`
+	Id                      primitive.ObjectID   `json:"id"`
+	Title                   string               `json:"title,omitempty"`
+	Description             string               `json:"description,omitempty"`
+	Props                   []Property           `json:"props,omitempty"`
+	Links                   []Link               `json:"links,omitempty"`
+	Remarks                 string               `json:"remarks,omitempty"`
+	ImplementationStatement Uuid                 `json:"implementationStatementUuid"`
+	Origins                 []Uuid               `json:"origins"`
+	RelatedObservations     []primitive.ObjectID `json:"relatedObservations"`
+	RelatedRisks            []primitive.ObjectID `json:"relatedRisks"`
+	Target                  []primitive.ObjectID `json:"target"`
 }
 
 // LogEntry represents a record in an assessment log that documents a specific
@@ -130,19 +151,19 @@ type LogEntry struct {
 //
 //	During the system configuration review, it was observed that the "auto-update" feature was enabled.
 type Observation struct {
-	Id          string     `json:"id"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
-	Remarks     string     `json:"remarks,omitempty"`
-	Collected   time.Time  `json:"collected"`
-	Expires     time.Time  `json:"expires"`
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty"`
+	Collected   time.Time          `json:"collected"`
+	Expires     time.Time          `json:"expires"`
 }
 
 type Origin struct {
-	Actors       []Uuid `json:"actors"`
-	RelatedTasks []Uuid `json:"relatedTasks"`
+	Actors       []primitive.ObjectID `json:"actors"`
+	RelatedTasks []primitive.ObjectID `json:"relatedTasks"`
 }
 
 // Risk represents a potential event or circumstance that may exploit a vulnerability
@@ -159,7 +180,7 @@ type Origin struct {
 //	Impact: High - This could compromise the integrity of the system.
 //	Likelihood: Medium - Based on past updates and the frequency of potentially harmful updates.
 type Risk struct {
-	UUid              Uuid               `json:"uuid"`
+	Id                primitive.ObjectID `json:"uuid"`
 	Title             string             `json:"title,omitempty"`
 	Description       string             `json:"description,omitempty"`
 	Props             []Property         `json:"props,omitempty"`
@@ -180,13 +201,13 @@ type Risk struct {
 //	Type: System Component
 //	Description: Primary web server running in the production environment.
 type Target struct {
-	Title       string       `json:"title,omitempty"`
-	Description string       `json:"description,omitempty"`
-	Props       []Property   `json:"props,omitempty"`
-	Links       []Link       `json:"links,omitempty"`
-	Remarks     string       `json:"remarks,omitempty"`
-	TargetId    Uuid         `json:"targetId"`
-	Status      TargetStatus `json:"status"`
+	TargetId    primitive.ObjectID `json:"targetId"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty"`
+	Status      TargetStatus       `json:"status"`
 }
 
 type TargetStatus struct {

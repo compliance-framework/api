@@ -28,7 +28,8 @@ type ResultEvent struct {
 	Error        error  `json:"error"`
 	Results      struct {
 		Observations []domain.Observation `json:"observations"`
+		Findings     []domain.Finding     `json:"findings"`
 		Risks        []domain.Risk        `json:"risks"`
-		//Logs         []domain.LogEntry    `json:"logs"`
+		Logs         []domain.LogEntry    `json:"logs"`
 	} `json:"results"`
 }
