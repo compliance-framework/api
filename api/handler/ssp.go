@@ -1,10 +1,10 @@
 package handler
 
 import (
-	service "command-line-arguments/Users/eb/workspace/compliance-framework/configuration-service/service/ssp.go"
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/api"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/labstack/echo/v4"
 )
@@ -13,8 +13,8 @@ type SSPHandler struct {
 	service *service.SSPService
 }
 
-func NewSSPHandler() *SSPHandler {
-	return &SSPHandler{}
+func NewSSPHandler(sspService *service.SSPService) *SSPHandler {
+	return &SSPHandler{service: sspService}
 }
 
 func (h *SSPHandler) Register(api *echo.Group) {
