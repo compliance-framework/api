@@ -147,7 +147,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.planIdResponse"
+                            "$ref": "#/definitions/handler.idResponse"
                         }
                     },
                     "401": {
@@ -158,65 +158,6 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/plan/{id}/assets": {
-            "post": {
-                "description": "This method adds an existing asset to a specific plan by its ID.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Add asset to a plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Asset to add",
-                        "name": "asset",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.addAssetRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully added the asset to the plan",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "Plan not found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity: Error binding the request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -289,9 +230,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/plan/{id}/tasks/{taskId}/subjects": {
+        "/api/plan/{id}/tasks/{taskId}/activities": {
             "post": {
-                "description": "This function is used to create a subject selection for a given plan.",
+                "description": "This function is used to create an activity for a given task.",
                 "consumes": [
                     "application/json"
                 ],
@@ -301,7 +242,7 @@ const docTemplate = `{
                 "tags": [
                     "Plan"
                 ],
-                "summary": "Create subject selection",
+                "summary": "Create activity",
                 "parameters": [
                     {
                         "type": "integer",
@@ -318,20 +259,20 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Subject Selection",
-                        "name": "selection",
+                        "description": "Activity",
+                        "name": "activity",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createSubjectSelectionRequest"
+                            "$ref": "#/definitions/handler.createActivityRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Successfully created subject selection",
+                        "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "type": "201"
                         }
                     },
                     "404": {
@@ -342,6 +283,41 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/activate": {
+            "put": {
+                "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Activate a plan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal server error. The plan could not be activated.",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -360,29 +336,17 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.addAssetRequest": {
-            "type": "object",
-            "required": [
-                "assetUuid",
-                "type"
-            ],
-            "properties": {
-                "assetUuid": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.attachMetadataRequest": {
             "type": "object",
             "required": [
                 "collection",
-                "uuid"
+                "id"
             ],
             "properties": {
                 "collection": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "string"
                 },
                 "revisionDescription": {
@@ -393,9 +357,6 @@ const docTemplate = `{
                 },
                 "revisionTitle": {
                     "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
                 }
             }
         },
@@ -404,6 +365,96 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createActivityRequest": {
+            "type": "object",
+            "required": [
+                "provider",
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "package",
+                        "version"
+                    ],
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "package": {
+                            "type": "string"
+                        },
+                        "params": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
+                        "version": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "subjects": {
+                    "type": "object",
+                    "required": [
+                        "description",
+                        "title"
+                    ],
+                    "properties": {
+                        "description": {
+                            "type": "string"
+                        },
+                        "expressions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "key": {
+                                        "type": "string"
+                                    },
+                                    "operator": {
+                                        "type": "string"
+                                    },
+                                    "values": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "ids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "labels": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
+                        "query": {
+                            "type": "string"
+                        },
+                        "title": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -435,60 +486,11 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.createSubjectSelectionRequest": {
-            "type": "object",
-            "required": [
-                "title"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "expressions": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "key": {
-                                "type": "string"
-                            },
-                            "operator": {
-                                "type": "string"
-                            },
-                            "values": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "query": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.createTaskRequest": {
             "type": "object",
             "required": [
-                "description",
-                "title"
+                "title",
+                "type"
             ],
             "properties": {
                 "description": {
@@ -497,10 +499,13 @@ const docTemplate = `{
                 "title": {
                     "description": "TODO: We are keeping it minimal for now for the demo",
                     "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
-        "handler.planIdResponse": {
+        "handler.idResponse": {
             "type": "object",
             "properties": {
                 "id": {

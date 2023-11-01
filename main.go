@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/compliance-framework/configuration-service/event"
+	"github.com/compliance-framework/configuration-service/result"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
@@ -22,7 +24,7 @@ const (
 
 type Config struct {
 	MongoURI string
-	NATSURI  string
+	NatsURI  string
 }
 
 func main() {
@@ -39,10 +41,13 @@ func main() {
 		sugar.Fatalf("error connecting to mongo: %v", err)
 	}
 
-	err = bus.Listen(config.NATSURI, sugar)
+	err = bus.Listen(config.NatsURI, sugar)
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
+
+	resultProcessor := result.NewProcessor(bus.Subscribe[event.ResultEvent])
+	resultProcessor.Listen()
 
 	server := api.NewServer(ctx)
 	catalogStore := mongo.NewCatalogStore()
@@ -77,7 +82,7 @@ func loadConfig() (config Config) {
 
 	config = Config{
 		MongoURI: mongoURI,
-		NATSURI:  natsURI,
+		NatsURI:  natsURI,
 	}
 	return config
 }

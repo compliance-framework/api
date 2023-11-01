@@ -86,7 +86,7 @@ func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 	return nil
 }
 
-// setSubjectSelectionRequest defines the request payload for method SetSubjectSelection
+// setSubjectSelectionRequest defines the request payload for method SetSubjectsForActivity
 type setSubjectSelectionRequest struct {
 	Title       string            `json:"title,omitempty" validate:"required"`
 	Description string            `json:"description,omitempty"`
@@ -160,27 +160,63 @@ func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) err
 
 // createActivityRequest defines the request payload for method CreateActivity
 type createActivityRequest struct {
-	Title       string `json:"title,omitempty"`
+	Title       string `json:"title,omitempty" validate:"required"`
 	Description string `json:"description,omitempty"`
 	Provider    struct {
-		Name    string            `json:"name"`
-		Package string            `json:"package"`
-		Version string            `json:"version"`
-		Params  map[string]string `json:"params"`
-	} `json:"provider"`
+		Name    string            `json:"name" validate:"required"`
+		Package string            `json:"package" validate:"required"`
+		Version string            `json:"version" validate:"required"`
+		Params  map[string]string `json:"params,omitempty"`
+	} `json:"provider" validate:"required"`
+	Subjects struct {
+		Title       string            `json:"title" validate:"required"`
+		Description string            `json:"description" validate:"required"`
+		Query       string            `json:"query,omitempty"`
+		Labels      map[string]string `json:"labels,omitempty"`
+		Expressions []struct {
+			Key      string   `json:"key"`
+			Operator string   `json:"operator"`
+			Values   []string `json:"values"`
+		} `json:"expressions,omitempty"`
+		Ids []string `json:"ids,omitempty"`
+	}
 }
 
 func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
+
+	if err := ctx.Validate(r); err != nil {
+		return err
+	}
+
+	if r.Subjects.Ids == nil && r.Subjects.Expressions == nil && r.Subjects.Query == "" && r.Subjects.Labels == nil {
+		return errors.New("at least one of Query, Labels, Ids or Expressions must be set")
+	}
+
 	a.Title = r.Title
 	a.Description = r.Description
-	a.Provider = domain.ProviderConfiguration{
-		Name:    r.Provider.Name,
-		Package: r.Provider.Package,
-		Version: r.Provider.Version,
-		Params:  r.Provider.Params,
+	a.Provider = domain.Provider{
+		Name:          r.Provider.Name,
+		Package:       r.Provider.Package,
+		Version:       r.Provider.Version,
+		Configuration: r.Provider.Params,
+	}
+	a.Subjects = domain.SubjectSelection{
+		Title:       r.Subjects.Title,
+		Description: r.Subjects.Description,
+		Query:       r.Subjects.Query,
+		Labels:      r.Subjects.Labels,
+		Ids:         r.Subjects.Ids,
+		Expressions: []domain.SubjectMatchExpression{},
+	}
+	for _, expression := range r.Subjects.Expressions {
+		a.Subjects.Expressions = append(a.Subjects.Expressions, domain.SubjectMatchExpression{
+			Key:      expression.Key,
+			Operator: expression.Operator,
+			Values:   expression.Values,
+		})
 	}
 	return nil
 }

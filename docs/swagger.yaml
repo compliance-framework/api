@@ -5,19 +5,11 @@ definitions:
         additionalProperties: true
         type: object
     type: object
-  handler.addAssetRequest:
-    properties:
-      assetUuid:
-        type: string
-      type:
-        type: string
-    required:
-    - assetUuid
-    - type
-    type: object
   handler.attachMetadataRequest:
     properties:
       collection:
+        type: string
+      id:
         type: string
       revisionDescription:
         type: string
@@ -25,11 +17,9 @@ definitions:
         type: string
       revisionTitle:
         type: string
-      uuid:
-        type: string
     required:
     - collection
-    - uuid
+    - id
     type: object
   handler.catalogIdResponse:
     properties:
@@ -39,6 +29,66 @@ definitions:
           Required: true
           Example: "123abc"
         type: string
+    type: object
+  handler.createActivityRequest:
+    properties:
+      description:
+        type: string
+      provider:
+        properties:
+          name:
+            type: string
+          package:
+            type: string
+          params:
+            additionalProperties:
+              type: string
+            type: object
+          version:
+            type: string
+        required:
+        - name
+        - package
+        - version
+        type: object
+      subjects:
+        properties:
+          description:
+            type: string
+          expressions:
+            items:
+              properties:
+                key:
+                  type: string
+                operator:
+                  type: string
+                values:
+                  items:
+                    type: string
+                  type: array
+              type: object
+            type: array
+          ids:
+            items:
+              type: string
+            type: array
+          labels:
+            additionalProperties:
+              type: string
+            type: object
+          query:
+            type: string
+          title:
+            type: string
+        required:
+        - description
+        - title
+        type: object
+      title:
+        type: string
+    required:
+    - provider
+    - title
     type: object
   handler.createCatalogRequest:
     properties:
@@ -57,38 +107,6 @@ definitions:
     required:
     - title
     type: object
-  handler.createSubjectSelectionRequest:
-    properties:
-      description:
-        type: string
-      expressions:
-        items:
-          properties:
-            key:
-              type: string
-            operator:
-              type: string
-            values:
-              items:
-                type: string
-              type: array
-          type: object
-        type: array
-      ids:
-        items:
-          type: string
-        type: array
-      labels:
-        additionalProperties:
-          type: string
-        type: object
-      query:
-        type: string
-      title:
-        type: string
-    required:
-    - title
-    type: object
   handler.createTaskRequest:
     properties:
       description:
@@ -96,11 +114,13 @@ definitions:
       title:
         description: 'TODO: We are keeping it minimal for now for the demo'
         type: string
+      type:
+        type: string
     required:
-    - description
     - title
+    - type
     type: object
-  handler.planIdResponse:
+  handler.idResponse:
     properties:
       id:
         description: |-
@@ -198,7 +218,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.planIdResponse'
+            $ref: '#/definitions/handler.idResponse'
         "401":
           description: Unauthorized
           schema:
@@ -212,45 +232,6 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a plan
-      tags:
-      - Plan
-  /api/plan/{id}/assets:
-    post:
-      consumes:
-      - application/json
-      description: This method adds an existing asset to a specific plan by its ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Asset to add
-        in: body
-        name: asset
-        required: true
-        schema:
-          $ref: '#/definitions/handler.addAssetRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully added the asset to the plan
-          schema:
-            type: string
-        "404":
-          description: Plan not found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: 'Unprocessable Entity: Error binding the request'
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Add asset to a plan
       tags:
       - Plan
   /api/plan/{id}/tasks:
@@ -292,12 +273,11 @@ paths:
       summary: Creates a new task for a specific plan
       tags:
       - Plan
-  /api/plan/{id}/tasks/{taskId}/subjects:
+  /api/plan/{id}/tasks/{taskId}/activities:
     post:
       consumes:
       - application/json
-      description: This function is used to create a subject selection for a given
-        plan.
+      description: This function is used to create an activity for a given task.
       parameters:
       - description: Plan ID
         in: path
@@ -309,19 +289,19 @@ paths:
         name: taskId
         required: true
         type: integer
-      - description: Subject Selection
+      - description: Activity
         in: body
-        name: selection
+        name: activity
         required: true
         schema:
-          $ref: '#/definitions/handler.createSubjectSelectionRequest'
+          $ref: '#/definitions/handler.createActivityRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: Successfully created subject selection
+          description: OK
           schema:
-            type: string
+            type: "201"
         "404":
           description: Not Found
           schema:
@@ -330,7 +310,31 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Create subject selection
+      summary: Create activity
+      tags:
+      - Plan
+  /plan/{id}/activate:
+    put:
+      consumes:
+      - application/json
+      description: Activate a plan by its ID. If the plan is already active, no action
+        will be taken.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal server error. The plan could not be activated.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Activate a plan
       tags:
       - Plan
 swagger: "2.0"

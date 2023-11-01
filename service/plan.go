@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
@@ -38,42 +39,95 @@ func (s *PlanService) Create(plan *domain.Plan) (string, error) {
 	return result.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
-func (s *PlanService) SetSubjectForTask(taskId string, planId string, subject domain.SubjectSelection) error {
-	pid, _ := primitive.ObjectIDFromHex(planId)
-	tid, _ := primitive.ObjectIDFromHex(taskId)
+func (s *PlanService) CreateTask(planId string, task domain.Task) (string, error) {
+	// Validate the task
+	if task.Title == "" {
+		return "", errors.New("task title cannot be empty")
+	}
 
+	if task.Type != domain.TaskTypeMilestone && task.Type != domain.TaskTypeAction {
+		return "", errors.New("task type must be either 'milestone' or 'action'")
+	}
+
+	task.Activities = []domain.Activity{}
+
+	pid, err := primitive.ObjectIDFromHex(planId)
+	if err != nil {
+		return "", err
+	}
+	task.Id = primitive.NewObjectID()
+	filter := bson.D{{"_id", pid}}
+
+	update := bson.M{
+		"$push": bson.M{
+			"tasks": task,
+		},
+	}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
+	if err != nil {
+		return "", err
+	}
+
+	return task.Id.Hex(), nil
+}
+
+func (s *PlanService) CreateActivity(planId string, taskId string, activity domain.Activity) (string, error) {
+	pid, err := primitive.ObjectIDFromHex(planId)
+	if err != nil {
+		return "", err
+	}
+	tid, err := primitive.ObjectIDFromHex(taskId)
+	if err != nil {
+		return "", err
+	}
+
+	activity.Id = primitive.NewObjectID()
 	filter := bson.D{{"_id", pid}, {"tasks.id", tid}}
-	update := bson.D{{"$set", bson.D{{"tasks.$.subject", subject}}}}
-	_, err := s.planCollection.UpdateOne(context.Background(), filter, update)
+
+	var p domain.Plan
+	err = s.planCollection.FindOne(context.Background(), filter).Decode(&p)
+	if err != nil {
+		return "", err
+	}
+
+	update := bson.M{
+		"$push": bson.M{
+			"tasks.0.activities": activity,
+		},
+	}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
+	if err != nil {
+		return "", err
+	}
+
+	return activity.Id.Hex(), nil
+}
+
+func (s *PlanService) ActivatePlan(planId string) error {
+	plan, err := s.GetById(planId)
 	if err != nil {
 		return err
 	}
+	plan.Status = "active"
+
+	job := plan.JobSpecification()
+	_ = s.publisher(event.PlanEvent{
+		Type:             "activated",
+		JobSpecification: job,
+	}, event.TopicTypePlan)
+
+	// Update the plan document and set its status to active
+	pid, err := primitive.ObjectIDFromHex(planId)
+	if err != nil {
+		return err
+	}
+	filter := bson.D{{"_id", pid}}
+	update := bson.M{"$set": bson.M{"status": "active"}}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
+
 	return nil
 }
 
-func (s *PlanService) Update(plan *domain.Plan) error {
-	_, err := s.planCollection.ReplaceOne(context.Background(), bson.D{{"_id", plan.Id}}, plan)
-	if err != nil {
-		return err
-	}
-	if err != nil {
-		return err
-	}
-
-	jobSpec, err := plan.JobSpecification()
-	if err != nil {
-		return err
-	}
-
-	if plan.Ready() {
-		published := event.PlanPublished{
-			JobSpecification: jobSpec,
-		}
-		err = s.publisher(published, event.TopicTypePlan)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+func (s *PlanService) SaveResults(planId string) error {
+	panic("implement me")
 }

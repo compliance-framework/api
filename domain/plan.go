@@ -45,31 +45,31 @@ import (
 type Plan struct {
 	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 
-	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
-	Title string `json:"title,omitempty"`
+	// Status The status of the assessment plan, such as "active" or "inactive".
+	// These statuses are subject to change.
+	Status string `json:"status,omitempty"`
 
 	// We might switch to struct embedding for fields like Metadata, Props, etc.
 	Metadata Metadata `json:"metadata"`
 
-	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
-	Assets Assets `json:"assets"`
-
-	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
-	BackMatter BackMatter `json:"backMatter"`
-
-	// Reference to a System Security Plan
-	ImportSSP string `json:"importSSP"`
-
-	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
-	// Reference to LocalDefinition
-	LocalDefinitions LocalDefinition `json:"localDefinitions"`
-
-	// ReviewedControls Identifies the controls being assessed and their control objectives.
-	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
-
 	// Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.
 	Tasks []Task `json:"tasks"`
 
+	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
+	Title string `json:"title,omitempty"`
+
+	// The following fields are part of the OSCAL spec, but we don't use them yet.
+	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
+	Assets Assets `json:"assets"`
+	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
+	BackMatter BackMatter `json:"backMatter"`
+	// Reference to a System Security Plan
+	ImportSSP string `json:"importSSP"`
+	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
+	// Reference to LocalDefinition
+	LocalDefinitions LocalDefinition `json:"localDefinitions"`
+	// ReviewedControls Identifies the controls being assessed and their control objectives.
+	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions"`
 }
@@ -89,11 +89,12 @@ func NewPlan() *Plan {
 
 	return &Plan{
 		Metadata: metadata,
-		Tasks:    make([]Task, 0),
+		Tasks:    []Task{},
 		Assets: Assets{
 			Components: []primitive.ObjectID{},
 			Platforms:  []primitive.ObjectID{},
 		},
+		Status: "inactive",
 	}
 }
 
@@ -123,41 +124,28 @@ func (p *Plan) GetTask(id string) *Task {
 	return nil
 }
 
-func (p *Plan) CreateTask(task Task) (*Task, error) {
-	task.Id = primitive.NewObjectID()
-
-	// Validate the task
-	if task.Title == "" {
-		return nil, errors.New("task title cannot be empty")
-	}
-
-	if task.Type != TaskTypeMilestone && task.Type != TaskTypeAction {
-		return nil, errors.New("task type must be either 'milestone' or 'action'")
-	}
-
-	// Add the task to the Tasks slice
-	p.Tasks = append(p.Tasks, task)
-
-	return &task, nil
-}
-
 func (p *Plan) Ready() bool {
 	// If there are no Tasks then there's nothing to run.
 	if len(p.Tasks) == 0 {
 		return false
 	}
 
-	// Check if the tasks have a schedule for the future and at least one subject.
+	// Check if the tasks have at least one activity and all activities have valid subjects.
 	for _, task := range p.Tasks {
-		if task.Subjects.Query == "" && len(task.Subjects.Labels) == 0 && len(task.Subjects.Ids) == 0 && len(task.Subjects.Expressions) == 0 && len(task.Schedule) == 0 {
-			continue
+		if len(task.Activities) == 0 {
+			return false
+		}
+		for _, activity := range task.Activities {
+			if !activity.Subjects.Valid() {
+				return false
+			}
 		}
 	}
 
-	return false
+	return true
 }
 
-func (p *Plan) JobSpecification() (JobSpecification, error) {
+func (p *Plan) JobSpecification() JobSpecification {
 	jobSpec := JobSpecification{
 		Id:    p.Id.Hex(),
 		Title: p.Title,
@@ -165,16 +153,16 @@ func (p *Plan) JobSpecification() (JobSpecification, error) {
 
 	for _, task := range p.Tasks {
 		taskInfo := TaskInformation{
-			Id:       task.Id.Hex(),
-			Title:    task.Title,
-			Selector: task.Subjects,
+			Id:    task.Id.Hex(),
+			Title: task.Title,
 		}
 
 		for _, activity := range task.Activities {
 			activityInfo := ActivityInformation{
-				Id:       activity.Id,
+				Id:       activity.Id.Hex(),
 				Title:    activity.Title,
 				Provider: activity.Provider,
+				Selector: activity.Subjects,
 			}
 			taskInfo.Activities = append(taskInfo.Activities, activityInfo)
 		}
@@ -182,7 +170,7 @@ func (p *Plan) JobSpecification() (JobSpecification, error) {
 		jobSpec.Tasks = append(jobSpec.Tasks, taskInfo)
 	}
 
-	return jobSpec, nil
+	return jobSpec
 }
 
 type TaskType string
@@ -203,9 +191,12 @@ type Task struct {
 	Activities       []Activity         `json:"activities"`
 	Dependencies     []TaskDependency   `json:"dependencies"`
 	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
-	Subjects         SubjectSelection   `json:"subjects"`
-	Tasks            []Uuid             `json:"tasks"`
-	Schedule         []string           `json:"schedule"`
+
+	// Subjects hold all the subjects that the activities act upon.
+	Subjects []primitive.ObjectID `json:"subjects"`
+
+	Tasks    []Uuid   `json:"tasks"`
+	Schedule []string `json:"schedule"`
 }
 
 func (t *Task) AddActivity(activity Activity) error {
@@ -332,10 +323,14 @@ type Subject struct {
 type SubjectSelection struct {
 	Title       string                   `json:"title,omitempty"`
 	Description string                   `json:"description,omitempty"`
-	Query       string                   `yaml:"query" json:"query"`
-	Labels      map[string]string        `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Expressions []SubjectMatchExpression `yaml:"expressions,omitempty" json:"expressions,omitempty"`
-	Ids         []string                 `yaml:"ids,omitempty" json:"ids,omitempty"`
+	Query       string                   `json:"query,omitempty"`
+	Labels      map[string]string        `json:"labels,omitempty"`
+	Expressions []SubjectMatchExpression `json:"expressions,omitempty"`
+	Ids         []string                 `json:"ids,omitempty"`
+}
+
+func (s *SubjectSelection) Valid() bool {
+	return s.Query != "" || len(s.Labels) > 0 || len(s.Expressions) > 0 || len(s.Ids) > 0
 }
 
 type SubjectMatchExpression struct {
@@ -345,12 +340,13 @@ type SubjectMatchExpression struct {
 }
 
 type Activity struct {
-	Id               string                `json:"id"`
-	Title            string                `json:"title,omitempty"`
-	Description      string                `json:"description,omitempty"`
-	Props            []Property            `json:"props,omitempty"`
-	Links            []Link                `json:"links,omitempty"`
-	Remarks          string                `json:"remarks,omitempty"`
-	ResponsibleRoles []string              `json:"responsibleRoles"`
-	Provider         ProviderConfiguration `json:"provider"`
+	Id               primitive.ObjectID `json:"id"`
+	Title            string             `json:"title,omitempty"`
+	Description      string             `json:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty"`
+	ResponsibleRoles []string           `json:"responsibleRoles"`
+	Subjects         SubjectSelection   `json:"subjects"`
+	Provider         Provider           `json:"provider"`
 }
