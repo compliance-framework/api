@@ -1,28 +1,19 @@
 package handler
 
-// catalogIdResponse is a struct that holds the ID of a catalog.
+// idResponse is a struct that holds the ID of a model.
 // swagger:model
-type catalogIdResponse struct {
-	// The unique identifier of the catalog.
-	// Required: true
-	// Example: "123abc"
-	Id string `json:"id"`
-}
-
-// planIdResponse is a struct that holds the ID of a plan.
-// swagger:model
-type planIdResponse struct {
+type idResponse struct {
 	// The unique identifier of the plan.
 	// Required: true
 	// Example: "456def"
 	Id string `json:"id"`
 }
 
-// sspIdResponse is a struct that holds the ID of a SSP.
+// catalogIdResponse is a struct that holds the ID of a catalog.
 // swagger:model
-type sspIdResponse struct {
-	// The unique identifier of the ssp.
+type catalogIdResponse struct {
+	// The unique identifier of the catalog.
 	// Required: true
-	// Example: "789ghi"
+	// Example: "123abc"
 	Id string `json:"id"`
 }
