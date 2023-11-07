@@ -290,6 +290,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/ssp": {
+            "post": {
+                "description": "Create a SSP with the given title",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP"
+                ],
+                "summary": "Create a SSP",
+                "parameters": [
+                    {
+                        "description": "SSP to add",
+                        "name": "SSP",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createSSPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.idResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/plan/{id}/activate": {
             "put": {
                 "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
@@ -324,6 +376,44 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/plan/{id}/results": {
+            "get": {
+                "description": "Return the assessment results related with the plan with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the assessment results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Result"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error. The plan could not be activated.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -333,6 +423,650 @@ const docTemplate = `{
                 "errors": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "domain.Attestation": {
+            "type": "object",
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "responsibleParties": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.Characterization": {
+            "type": "object",
+            "properties": {
+                "facets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Facet"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "origin": {
+                    "$ref": "#/definitions/domain.Origin"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                }
+            }
+        },
+        "domain.ControlsAndObjectives": {
+            "type": "object",
+            "properties": {
+                "controlSelections": {
+                    "$ref": "#/definitions/domain.Selection"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ObjectiveSelection"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Evidence": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Facet": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "system": {
+                    "description": "One of: http://fedramp.gov, http://fedramp.gov/ns/oscal, http://csrc.nist.gov/ns/oscal, http://csrc.nist.gov/ns/oscal/unknown, http://cve.mitre.org, http://www.first.org/cvss/v2.0, http://www.first.org/cvss/v3.0, http://www.first.org/cvss/v3.1",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Finding": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "implementationStatementId": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "relatedObservations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "relatedRisks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Link": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "mediaType": {
+                    "type": "string"
+                },
+                "rel": {
+                    "type": "string"
+                },
+                "resourceFragment": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.LocalDefinition": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "description": "Reference to Activity",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "components": {
+                    "description": "Reference to component.Component",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inventoryItems": {
+                    "description": "Reference to ssp.InventoryItem",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Objective"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "users": {
+                    "description": "Reference to identity.User",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.LogEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "loggedBy": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.Objective": {
+            "type": "object",
+            "properties": {
+                "control": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ObjectiveSelection": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Observation": {
+            "type": "object",
+            "properties": {
+                "collected": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidences": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Evidence"
+                    }
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Origin": {
+            "type": "object",
+            "properties": {
+                "actors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "relatedTasks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.Part": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "description": "An optional textual providing a sub-type or characterization of the part's name, or a category to which the part belongs.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "A unique identifier for the part.",
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "name": {
+                    "description": "A textual label that uniquely identifies the part's semantic type, which exists in a value space qualified by the ns.",
+                    "type": "string"
+                },
+                "ns": {
+                    "description": "An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.",
+                    "type": "string"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "prose": {
+                    "description": "Permits multiple paragraphs, lists, tables etc.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "An optional name given to the part, which may be used by a tool for display and navigation.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Property": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Result": {
+            "type": "object",
+            "properties": {
+                "assessmentLogEntries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.LogEntry"
+                    }
+                },
+                "attestations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Attestation"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Finding"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "localDefinitions": {
+                    "$ref": "#/definitions/domain.LocalDefinition"
+                },
+                "observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Observation"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "reviewedControls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ControlsAndObjectives"
+                    }
+                },
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Risk"
+                    }
+                },
+                "start": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Risk": {
+            "type": "object",
+            "properties": {
+                "characterizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Characterization"
+                    }
+                },
+                "deadline": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Selection": {
+            "type": "object",
+            "properties": {
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
                 }
             }
         },
@@ -476,6 +1210,17 @@ const docTemplate = `{
             }
         },
         "handler.createPlanRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createSSPRequest": {
             "type": "object",
             "required": [
                 "title"

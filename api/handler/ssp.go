@@ -27,7 +27,7 @@ func (h *SSPHandler) Register(api *echo.Group) {
 // @Tags 			SSP
 // @Accept  		json
 // @Produce  		json
-// @Param   		SSP body CreateSSPRequest true "SSP to add"
+// @Param   		SSP body createSSPRequest true "SSP to add"
 // @Success 		201 {object} idResponse
 // @Failure 		401 {object} api.Error
 // @Failure 		422 {object} api.Error

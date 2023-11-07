@@ -1,12 +1,13 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type PlanHandler struct {
@@ -166,7 +167,7 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 // @Tags Plan
 // @Produce  	json
 // @Param   	id path string true "Plan ID"
-// @Success 	204
+// @Success 	200 {object} []domain.Result
 // @Failure 	500 {object} api.Error "Internal server error. The plan could not be activated."
 // @Router 		/plan/{id}/results [get]
 func (h *PlanHandler) Results(ctx echo.Context) error {
