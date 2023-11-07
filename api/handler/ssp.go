@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/api"
-	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/domain"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
 )
 
@@ -47,6 +47,6 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusCreated, idResponse{
-		Id: id.(string),
+		Id: id,
 	})
 }
