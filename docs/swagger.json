@@ -1,8 +1,13 @@
 {
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "description": "This is the API for the Compliance Framework Configuration Service.",
+        "title": "Compliance Framework Configuration Service API",
+        "contact": {},
+        "version": "1.0"
     },
+    "host": "localhost:8080",
+    "basePath": "http://localhost:8080/api",
     "paths": {
         "/api/catalog": {
             "post": {
@@ -1248,5 +1253,9 @@
                 }
             }
         }
+    },
+    "externalDocs": {
+        "description": "OpenAPI",
+        "url": "https://swagger.io/resources/open-api/"
     }
 }

@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
+
 	"github.com/compliance-framework/configuration-service/event"
 	"github.com/compliance-framework/configuration-service/result"
 	"github.com/joho/godotenv"
-	"log"
-	"os"
 
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/api/handler"
@@ -27,6 +28,15 @@ type Config struct {
 	NatsURI  string
 }
 
+//	@title			Compliance Framework Configuration Service API
+//	@version		1.0
+//	@description	This is the API for the Compliance Framework Configuration Service.
+
+//	@host		localhost:8080
+//	@BasePath	http://localhost:8080/api
+
+// @externalDocs.description	OpenAPI
+// @externalDocs.url			https://swagger.io/resources/open-api/
 func main() {
 	ctx := context.Background()
 
