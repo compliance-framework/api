@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/store"
 	"github.com/labstack/echo/v4"
-	"net/http"
 )
 
 type CatalogHandler struct {
@@ -31,7 +32,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 // @Failure 		401 {object} api.Error
 // @Failure 		422 {object} api.Error
 // @Failure 		500 {object} api.Error
-// @Router 			/api/catalog [post]
+// @Router 			/catalog [post]
 func (h *CatalogHandler) CreateCatalog(ctx echo.Context) error {
 	var c domain.Catalog
 	req := newCreateCatalogRequest()

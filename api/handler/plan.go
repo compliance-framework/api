@@ -41,7 +41,7 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 // @Failure 		401 {object} api.Error
 // @Failure 		422 {object} api.Error
 // @Failure 		500 {object} api.Error
-// @Router 			/api/plan [post]
+// @Router 			/plan [post]
 func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	// Initialize a new plan object
 	p := domain.NewPlan()
@@ -80,7 +80,7 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 // @Failure 404 {object} api.Error "Plan not found"
 // @Failure 422 {object} api.Error "Unprocessable Entity: Error binding the request"
 // @Failure 500 {object} api.Error "Internal Server Error"
-// @Router /api/plan/{id}/tasks [post]
+// @Router /plan/{id}/tasks [post]
 func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
@@ -117,7 +117,7 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 // @Success 200 201 {object} idResponse
 // @Failure 404 {object} api.Error
 // @Failure 500 {object} api.Error "Internal server error"
-// @Router /api/plan/{id}/tasks/{taskId}/activities [post]
+// @Router /plan/{id}/tasks/{taskId}/activities [post]
 func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {

@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
-	"net/http"
 )
 
 type MetadataHandler struct {
@@ -33,7 +34,7 @@ func (h *MetadataHandler) Register(api *echo.Group) {
 // @Failure 400 {object} api.Error "Bad Request: Error binding the request"
 // @Failure 404 {object} api.Error "Object not found"
 // @Failure 500 {object} api.Error "Internal Server Error"
-// @Router /api/metadata/revisions [post]
+// @Router /metadata/revisions [post]
 func (h *MetadataHandler) AttachMetadata(c echo.Context) error {
 	var revision domain.Revision
 	req := attachMetadataRequest{}

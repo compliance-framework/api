@@ -33,7 +33,7 @@ type Config struct {
 //	@description	This is the API for the Compliance Framework Configuration Service.
 
 //	@host		localhost:8080
-//	@BasePath	http://localhost:8080/api
+//	@BasePath	/api
 
 // @externalDocs.description	OpenAPI
 // @externalDocs.url			https://swagger.io/resources/open-api/

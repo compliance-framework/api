@@ -1,4 +1,4 @@
-basePath: http://localhost:8080/api
+basePath: /api
 definitions:
   api.Error:
     properties:
@@ -580,7 +580,7 @@ info:
   title: Compliance Framework Configuration Service API
   version: "1.0"
 paths:
-  /api/catalog:
+  /catalog:
     post:
       consumes:
       - application/json
@@ -614,7 +614,7 @@ paths:
       summary: Create a catalog
       tags:
       - Catalog
-  /api/metadata/revisions:
+  /metadata/revisions:
     post:
       consumes:
       - application/json
@@ -648,7 +648,7 @@ paths:
       summary: Attaches metadata to a specific revision
       tags:
       - Metadata
-  /api/plan:
+  /plan:
     post:
       consumes:
       - application/json
@@ -682,119 +682,6 @@ paths:
       summary: Create a plan
       tags:
       - Plan
-  /api/plan/{id}/tasks:
-    post:
-      consumes:
-      - application/json
-      description: This method creates a new task and adds it to a specific plan.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Task to add
-        in: body
-        name: task
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createTaskRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully added the task to the plan
-          schema:
-            type: string
-        "404":
-          description: Plan not found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: 'Unprocessable Entity: Error binding the request'
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Creates a new task for a specific plan
-      tags:
-      - Plan
-  /api/plan/{id}/tasks/{taskId}/activities:
-    post:
-      consumes:
-      - application/json
-      description: This function is used to create an activity for a given task.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Task ID
-        in: path
-        name: taskId
-        required: true
-        type: integer
-      - description: Activity
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createActivityRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: "201"
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create activity
-      tags:
-      - Plan
-  /api/ssp:
-    post:
-      consumes:
-      - application/json
-      description: Create a SSP with the given title
-      parameters:
-      - description: SSP to add
-        in: body
-        name: SSP
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createSSPRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.idResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a SSP
-      tags:
-      - SSP
   /plan/{id}/activate:
     put:
       consumes:
@@ -845,4 +732,117 @@ paths:
       summary: Return the assessment results
       tags:
       - Plan
+  /plan/{id}/tasks:
+    post:
+      consumes:
+      - application/json
+      description: This method creates a new task and adds it to a specific plan.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Task to add
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully added the task to the plan
+          schema:
+            type: string
+        "404":
+          description: Plan not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: 'Unprocessable Entity: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Creates a new task for a specific plan
+      tags:
+      - Plan
+  /plan/{id}/tasks/{taskId}/activities:
+    post:
+      consumes:
+      - application/json
+      description: This function is used to create an activity for a given task.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Task ID
+        in: path
+        name: taskId
+        required: true
+        type: integer
+      - description: Activity
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createActivityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: "201"
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create activity
+      tags:
+      - Plan
+  /ssp:
+    post:
+      consumes:
+      - application/json
+      description: Create a SSP with the given title
+      parameters:
+      - description: SSP to add
+        in: body
+        name: SSP
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createSSPRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.idResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a SSP
+      tags:
+      - SSP
 swagger: "2.0"
