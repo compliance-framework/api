@@ -31,17 +31,17 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 }
 
 // CreatePlan godoc
-// @Summary 		Create a plan
-// @Description 	Creates a new plan in the system
-// @Tags 			Plan
-// @Accept  		json
-// @Produce  		json
-// @Param   		plan body createPlanRequest true "Plan to add"
-// @Success 		201 {object} idResponse
-// @Failure 		401 {object} api.Error
-// @Failure 		422 {object} api.Error
-// @Failure 		500 {object} api.Error
-// @Router 			/plan [post]
+//	@Summary		Create a plan
+//	@Description	Creates a new plan in the system
+//	@Tags			Plan
+//	@Accept			json
+//	@Produce		json
+//	@Param			plan	body		createPlanRequest	true	"Plan to add"
+//	@Success		201		{object}	idResponse
+//	@Failure		401		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/plan [post]
 func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	// Initialize a new plan object
 	p := domain.NewPlan()
@@ -69,18 +69,18 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 }
 
 // CreateTask godoc
-// @Summary Creates a new task for a specific plan
-// @Description This method creates a new task and adds it to a specific plan.
-// @Tags Plan
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Plan ID"
-// @Param task body createTaskRequest true "Task to add"
-// @Success 200 {object} string "Successfully added the task to the plan"
-// @Failure 404 {object} api.Error "Plan not found"
-// @Failure 422 {object} api.Error "Unprocessable Entity: Error binding the request"
-// @Failure 500 {object} api.Error "Internal Server Error"
-// @Router /plan/{id}/tasks [post]
+//	@Summary		Creates a new task for a specific plan
+//	@Description	This method creates a new task and adds it to a specific plan.
+//	@Tags			Plan
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"Plan ID"
+//	@Param			task	body		createTaskRequest	true	"Task to add"
+//	@Success		200		{object}	string				"Successfully added the task to the plan"
+//	@Failure		404		{object}	api.Error			"Plan not found"
+//	@Failure		422		{object}	api.Error			"Unprocessable Entity: Error binding the request"
+//	@Failure		500		{object}	api.Error			"Internal Server Error"
+//	@Router			/plan/{id}/tasks [post]
 func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
@@ -106,18 +106,18 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 }
 
 // CreateActivity godoc
-// @Summary Create activity
-// @Description This function is used to create an activity for a given task.
-// @Tags Plan
-// @Accept  json
-// @Produce  json
-// @Param id path int true "Plan ID"
-// @Param taskId path int true "Task ID"
-// @Param activity body createActivityRequest true "Activity"
-// @Success 200 201 {object} idResponse
-// @Failure 404 {object} api.Error
-// @Failure 500 {object} api.Error "Internal server error"
-// @Router /plan/{id}/tasks/{taskId}/activities [post]
+//	@Summary		Create activity
+//	@Description	This function is used to create an activity for a given task.
+//	@Tags			Plan
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int						true	"Plan ID"
+//	@Param			taskId		path		int						true	"Task ID"
+//	@Param			activity	body		createActivityRequest	true	"Activity"
+//	@Success		200			201			{object}				idResponse
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error	"Internal server error"
+//	@Router			/plan/{id}/tasks/{taskId}/activities [post]
 func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
@@ -143,15 +143,15 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 }
 
 // ActivatePlan activates a plan with the given ID.
-// @Summary 	Activate a plan
-// @Description Activate a plan by its ID. If the plan is already active, no action will be taken.
-// @Tags Plan
-// @Accept  	json
-// @Produce  	json
-// @Param   	id path string true "Plan ID"
-// @Success 	204
-// @Failure 	500 {object} api.Error "Internal server error. The plan could not be activated."
-// @Router 		/plan/{id}/activate [put]
+//	@Summary		Activate a plan
+//	@Description	Activate a plan by its ID. If the plan is already active, no action will be taken.
+//	@Tags			Plan
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	string	true	"Plan ID"
+//	@Success		204
+//	@Failure		500	{object}	api.Error	"Internal server error. The plan could not be activated."
+//	@Router			/plan/{id}/activate [put]
 func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 	err := h.service.ActivatePlan(ctx.Param("id"))
 	if err != nil {
@@ -162,14 +162,14 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 }
 
 // Results Returns the assessment results related with the plan with the given ID.
-// @Summary 	Return the assessment results
-// @Description Return the assessment results related with the plan with the given ID.
-// @Tags Plan
-// @Produce  	json
-// @Param   	id path string true "Plan ID"
-// @Success 	200 {object} []domain.Result
-// @Failure 	500 {object} api.Error "Internal server error. The plan could not be activated."
-// @Router 		/plan/{id}/results [get]
+//	@Summary		Return the assessment results
+//	@Description	Return the assessment results related with the plan with the given ID.
+//	@Tags			Plan
+//	@Produce		json
+//	@Param			id	path		string	true	"Plan ID"
+//	@Success		200	{object}	[]domain.Result
+//	@Failure		500	{object}	api.Error	"Internal server error. The plan could not be activated."
+//	@Router			/plan/{id}/results [get]
 func (h *PlanHandler) Results(ctx echo.Context) error {
 	results, err := h.service.GetResults(ctx.Param("id"))
 	if err != nil {

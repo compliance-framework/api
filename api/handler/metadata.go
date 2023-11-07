@@ -24,17 +24,17 @@ func (h *MetadataHandler) Register(api *echo.Group) {
 }
 
 // AttachMetadata godoc
-// @Summary Attaches metadata to a specific revision
-// @Description This method attaches metadata to a specific revision.
-// @Tags Metadata
-// @Accept  json
-// @Produce  json
-// @Param revision body attachMetadataRequest true "Revision that will be attached"
-// @Success 200 {string} string "OK"
-// @Failure 400 {object} api.Error "Bad Request: Error binding the request"
-// @Failure 404 {object} api.Error "Object not found"
-// @Failure 500 {object} api.Error "Internal Server Error"
-// @Router /metadata/revisions [post]
+//	@Summary		Attaches metadata to a specific revision
+//	@Description	This method attaches metadata to a specific revision.
+//	@Tags			Metadata
+//	@Accept			json
+//	@Produce		json
+//	@Param			revision	body		attachMetadataRequest	true	"Revision that will be attached"
+//	@Success		200			{string}	string					"OK"
+//	@Failure		400			{object}	api.Error				"Bad Request: Error binding the request"
+//	@Failure		404			{object}	api.Error				"Object not found"
+//	@Failure		500			{object}	api.Error				"Internal Server Error"
+//	@Router			/metadata/revisions [post]
 func (h *MetadataHandler) AttachMetadata(c echo.Context) error {
 	var revision domain.Revision
 	req := attachMetadataRequest{}
