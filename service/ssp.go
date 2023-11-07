@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"github.com/compliance-framework/configuration-service/domain"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson" 
 )
+
+var ErrSSPNotFound = errors.New("SSP not found")
 
 type SSPService struct {
 	sspCollection *mongo.Collection

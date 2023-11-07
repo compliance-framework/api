@@ -4,10 +4,9 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/api"
-	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/domain"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type SSPHandler struct {
@@ -50,7 +49,7 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, idResponse{
 		Id: id,
 	})
-} 
+}
 
 // GetSSP godoc
 // @Summary     Get an SSP by ID
@@ -68,7 +67,7 @@ func (h *SSPHandler) GetSSP(ctx echo.Context) error {
 
 	ssp, err := h.service.GetByID(id)
 	if err != nil {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, ssp)
@@ -93,12 +92,12 @@ func (h *SSPHandler) UpdateSSP(ctx echo.Context) error {
 	req := updateSSPRequest{}
 
 	if err := req.bind(ctx, &ssp); err != nil {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	updatedSSP, err := h.service.Update(id, &ssp)
 	if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, updatedSSP)
@@ -119,7 +118,7 @@ func (h *SSPHandler) DeleteSSP(ctx echo.Context) error {
 	id := ctx.Param("id")
 
 	if err := h.service.Delete(id); err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
