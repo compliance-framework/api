@@ -15,10 +15,11 @@ type PlanHandler struct {
 }
 
 func (h *PlanHandler) Register(api *echo.Group) {
-	api.POST("/plan", h.CreatePlan)
-	api.POST("/plan/:id/tasks", h.CreateTask)
-	api.PUT("/plan/:id/activate", h.ActivatePlan)
-	api.POST("/plan/:id/tasks/:taskId/activities", h.CreateActivity)
+	planGroup := api.Group("/plan")
+	planGroup.POST("", h.CreatePlan)
+	planGroup.POST("/:id/tasks", h.CreateTask)
+	planGroup.PUT(":id/activate", h.ActivatePlan)
+	planGroup.POST(":id/tasks/:taskId/activities", h.CreateActivity)
 }
 
 func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
