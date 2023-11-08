@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"github.com/compliance-framework/configuration-service/runtime"
 	"log"
 	"os"
 
 	"github.com/compliance-framework/configuration-service/event"
-	"github.com/compliance-framework/configuration-service/result"
 	"github.com/joho/godotenv"
 
 	"github.com/compliance-framework/configuration-service/api"
@@ -56,7 +56,7 @@ func main() {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
 
-	resultProcessor := result.NewProcessor(bus.Subscribe[event.ResultEvent])
+	resultProcessor := runtime.NewProcessor(bus.Subscribe[event.ResultEvent])
 	resultProcessor.Listen()
 
 	server := api.NewServer(ctx, sugar)
