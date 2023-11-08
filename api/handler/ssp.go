@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/api"
-	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/domain"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
 )
 
@@ -22,8 +22,8 @@ func (h *SSPHandler) Register(api *echo.Group) {
 }
 
 // CreateSSP godoc
-// @Summary 		Create a SSP
-// @Description 	Create a SSP with the given title
+// @Summary 		Create an SSP
+// @Description 	Create an SSP with the given title
 // @Tags 			SSP
 // @Accept  		json
 // @Produce  		json
@@ -47,6 +47,6 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusCreated, idResponse{
-		Id: id.(string),
+		Id: id,
 	})
 }

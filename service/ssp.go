@@ -3,9 +3,7 @@ package service
 import (
 	"context"
 	"github.com/compliance-framework/configuration-service/domain"
-	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -15,7 +13,7 @@ type SSPService struct {
 }
 
 func NewSSPService() *SSPService {
-	return &SSPService {
+	return &SSPService{
 		sspCollection: mongoStore.Collection("ssp"),
 	}
 }
