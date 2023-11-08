@@ -210,9 +210,9 @@ type InformationTypeCategorization struct {
 }
 
 type SystemSecurityPlan struct {
+	Title      string     `json:"title"`
 	Uuid       Uuid       `json:"uuid"`
 	BackMatter BackMatter `json:"backmatter"`
-	Title      string     `json:"title"`
 	Metadata
 
 	// Reference to the control implementation

@@ -158,8 +158,8 @@ func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) err
 	return nil
 }
 
-// createActivityRequest defines the request payload for method CreateActivity
-type createActivityRequest struct {
+// CreateActivityRequest defines the request payload for method CreateActivity
+type CreateActivityRequest struct {
 	Title       string `json:"title,omitempty" validate:"required"`
 	Description string `json:"description,omitempty"`
 	Provider    struct {
@@ -182,7 +182,7 @@ type createActivityRequest struct {
 	}
 }
 
-func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error {
+func (r *CreateActivityRequest) bind(ctx echo.Context, a *domain.Activity) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}

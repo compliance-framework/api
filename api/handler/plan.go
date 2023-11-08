@@ -15,12 +15,11 @@ type PlanHandler struct {
 	sugar   *zap.SugaredLogger
 }
 
-func (h *PlanHandler) Register(api *echo.Group) {
-	api.POST("/plan", h.CreatePlan)
-	api.POST("/plan/:id/tasks", h.CreateTask)
-	api.PUT("/plan/:id/activate", h.ActivatePlan)
-	api.POST("/plan/:id/tasks/:taskId/activities", h.CreateActivity)
-	api.GET("/plan/:id/results", h.Results)
+func (h *PlanHandler) Register(group *echo.Group) {
+	group.POST("", h.CreatePlan)
+	group.POST("/:id/tasks", h.CreateTask)
+	group.PUT(":id/activate", h.ActivatePlan)
+	group.POST(":id/tasks/:taskId/activities", h.CreateActivity)
 }
 
 func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
@@ -31,13 +30,14 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 }
 
 // CreatePlan godoc
+//
 //	@Summary		Create a plan
 //	@Description	Creates a new plan in the system
 //	@Tags			Plan
 //	@Accept			json
 //	@Produce		json
 //	@Param			plan	body		createPlanRequest	true	"Plan to add"
-//	@Success		201		{object}	idResponse
+//	@Success		201		{object}	IdResponse
 //	@Failure		401		{object}	api.Error
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -63,12 +63,13 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	}
 
 	// If everything went well, return a 201 status code with the ID of the created plan
-	return ctx.JSON(http.StatusCreated, idResponse{
+	return ctx.JSON(http.StatusCreated, IdResponse{
 		Id: id,
 	})
 }
 
 // CreateTask godoc
+//
 //	@Summary		Creates a new task for a specific plan
 //	@Description	This method creates a new task and adds it to a specific plan.
 //	@Tags			Plan
@@ -100,12 +101,13 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, idResponse{
+	return ctx.JSON(http.StatusCreated, IdResponse{
 		Id: taskId,
 	})
 }
 
 // CreateActivity godoc
+//
 //	@Summary		Create activity
 //	@Description	This function is used to create an activity for a given task.
 //	@Tags			Plan
@@ -113,8 +115,8 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id			path		int						true	"Plan ID"
 //	@Param			taskId		path		int						true	"Task ID"
-//	@Param			activity	body		createActivityRequest	true	"Activity"
-//	@Success		200			201			{object}				idResponse
+//	@Param			activity	body		CreateActivityRequest	true	"Activity"
+//	@Success		201			{object}				IdResponse
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error	"Internal server error"
 //	@Router			/plan/{id}/tasks/{taskId}/activities [post]
@@ -127,7 +129,7 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 	}
 
 	var activity domain.Activity
-	req := &createActivityRequest{}
+	req := &CreateActivityRequest{}
 	if err = req.bind(ctx, &activity); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
@@ -137,12 +139,13 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, idResponse{
+	return ctx.JSON(http.StatusCreated, IdResponse{
 		Id: activityId,
 	})
 }
 
 // ActivatePlan activates a plan with the given ID.
+//
 //	@Summary		Activate a plan
 //	@Description	Activate a plan by its ID. If the plan is already active, no action will be taken.
 //	@Tags			Plan
@@ -162,6 +165,7 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 }
 
 // Results Returns the assessment results related with the plan with the given ID.
+//
 //	@Summary		Return the assessment results
 //	@Description	Return the assessment results related with the plan with the given ID.
 //	@Tags			Plan

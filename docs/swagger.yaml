@@ -439,32 +439,7 @@ definitions:
       includeAll:
         type: boolean
     type: object
-  handler.attachMetadataRequest:
-    properties:
-      collection:
-        type: string
-      id:
-        type: string
-      revisionDescription:
-        type: string
-      revisionRemarks:
-        type: string
-      revisionTitle:
-        type: string
-    required:
-    - collection
-    - id
-    type: object
-  handler.catalogIdResponse:
-    properties:
-      id:
-        description: |-
-          The unique identifier of the catalog.
-          Required: true
-          Example: "123abc"
-        type: string
-    type: object
-  handler.createActivityRequest:
+  handler.CreateActivityRequest:
     properties:
       description:
         type: string
@@ -524,6 +499,40 @@ definitions:
     - provider
     - title
     type: object
+  handler.IdResponse:
+    properties:
+      id:
+        description: |-
+          The unique identifier of the plan.
+          Required: true
+          Example: "456def"
+        type: string
+    type: object
+  handler.attachMetadataRequest:
+    properties:
+      collection:
+        type: string
+      id:
+        type: string
+      revisionDescription:
+        type: string
+      revisionRemarks:
+        type: string
+      revisionTitle:
+        type: string
+    required:
+    - collection
+    - id
+    type: object
+  handler.catalogIdResponse:
+    properties:
+      id:
+        description: |-
+          The unique identifier of the catalog.
+          Required: true
+          Example: "123abc"
+        type: string
+    type: object
   handler.createCatalogRequest:
     properties:
       catalog:
@@ -560,15 +569,6 @@ definitions:
     required:
     - title
     - type
-    type: object
-  handler.idResponse:
-    properties:
-      id:
-        description: |-
-          The unique identifier of the plan.
-          Required: true
-          Example: "456def"
-        type: string
     type: object
 externalDocs:
   description: OpenAPI
@@ -666,7 +666,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.idResponse'
+            $ref: '#/definitions/handler.IdResponse'
         "401":
           description: Unauthorized
           schema:
@@ -792,14 +792,14 @@ paths:
         name: activity
         required: true
         schema:
-          $ref: '#/definitions/handler.createActivityRequest'
+          $ref: '#/definitions/handler.CreateActivityRequest'
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
-            type: "201"
+            $ref: '#/definitions/handler.IdResponse'
         "404":
           description: Not Found
           schema:
@@ -829,7 +829,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.idResponse'
+            $ref: '#/definitions/handler.IdResponse'
         "401":
           description: Unauthorized
           schema:

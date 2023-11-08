@@ -22,13 +22,14 @@ func (h *SSPHandler) Register(api *echo.Group) {
 }
 
 // CreateSSP godoc
+//
 //	@Summary		Create a SSP
 //	@Description	Create a SSP with the given title
 //	@Tags			SSP
 //	@Accept			json
 //	@Produce		json
 //	@Param			SSP	body		createSSPRequest	true	"SSP to add"
-//	@Success		201	{object}	idResponse
+//	@Success		201	{object}	IdResponse
 //	@Failure		401	{object}	api.Error
 //	@Failure		422	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -46,7 +47,7 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, idResponse{
+	return ctx.JSON(http.StatusCreated, IdResponse{
 		Id: id,
 	})
 }

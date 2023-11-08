@@ -147,7 +147,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
+                            "$ref": "#/definitions/handler.IdResponse"
                         }
                     },
                     "401": {
@@ -337,15 +337,15 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createActivityRequest"
+                            "$ref": "#/definitions/handler.CreateActivityRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
-                            "type": "201"
+                            "$ref": "#/definitions/handler.IdResponse"
                         }
                     },
                     "404": {
@@ -391,7 +391,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
+                            "$ref": "#/definitions/handler.IdResponse"
                         }
                     },
                     "401": {
@@ -1070,40 +1070,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.attachMetadataRequest": {
-            "type": "object",
-            "required": [
-                "collection",
-                "id"
-            ],
-            "properties": {
-                "collection": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "revisionDescription": {
-                    "type": "string"
-                },
-                "revisionRemarks": {
-                    "type": "string"
-                },
-                "revisionTitle": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.catalogIdResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
-                    "type": "string"
-                }
-            }
-        },
-        "handler.createActivityRequest": {
+        "handler.CreateActivityRequest": {
             "type": "object",
             "required": [
                 "provider",
@@ -1193,6 +1160,48 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.IdResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.attachMetadataRequest": {
+            "type": "object",
+            "required": [
+                "collection",
+                "id"
+            ],
+            "properties": {
+                "collection": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "revisionDescription": {
+                    "type": "string"
+                },
+                "revisionRemarks": {
+                    "type": "string"
+                },
+                "revisionTitle": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.catalogIdResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
+                    "type": "string"
+                }
+            }
+        },
         "handler.createCatalogRequest": {
             "type": "object",
             "properties": {
@@ -1246,15 +1255,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.idResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
                     "type": "string"
                 }
             }
