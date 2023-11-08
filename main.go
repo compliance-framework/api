@@ -59,7 +59,7 @@ func main() {
 	resultProcessor := result.NewProcessor(bus.Subscribe[event.ResultEvent])
 	resultProcessor.Listen()
 
-	server := api.NewServer(ctx)
+	server := api.NewServer(ctx, sugar)
 	catalogStore := mongo.NewCatalogStore()
 	controlHandler := handler.NewCatalogHandler(catalogStore)
 	controlHandler.Register(server.API())
@@ -71,6 +71,8 @@ func main() {
 	metadataService := service.NewMetadataService()
 	metadataHandler := handler.NewMetadataHandler(metadataService)
 	metadataHandler.Register(server.API())
+
+	server.PrintRoutes()
 
 	checkErr(server.Start(DefaultPort))
 }

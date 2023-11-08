@@ -22,17 +22,17 @@ func (h *SSPHandler) Register(api *echo.Group) {
 }
 
 // CreateSSP godoc
-//	@Summary		Create a SSP
-//	@Description	Create a SSP with the given title
-//	@Tags			SSP
-//	@Accept			json
-//	@Produce		json
-//	@Param			SSP	body		createSSPRequest	true	"SSP to add"
-//	@Success		201	{object}	idResponse
-//	@Failure		401	{object}	api.Error
-//	@Failure		422	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router			/ssp [post]
+// @Summary 		Create an SSP
+// @Description 	Create an SSP with the given title
+// @Tags 			SSP
+// @Accept  		json
+// @Produce  		json
+// @Param   		SSP body CreateSSPRequest true "SSP to add"
+// @Success 		201 {object} idResponse
+// @Failure 		401 {object} api.Error
+// @Failure 		422 {object} api.Error
+// @Failure 		500 {object} api.Error
+// @Router 			/api/ssp [post]
 func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	var ssp domain.SystemSecurityPlan
 	req := createSSPRequest{}
