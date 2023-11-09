@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/compliance-framework/configuration-service/domain"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )

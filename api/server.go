@@ -7,15 +7,17 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
+	"go.uber.org/zap"
 )
 
 type Server struct {
-	ctx  context.Context
-	echo *echo.Echo
+	ctx   context.Context
+	echo  *echo.Echo
+	sugar *zap.SugaredLogger
 }
 
 // NewServer initializes the echo server with necessary routes and configurations.
-func NewServer(ctx context.Context) *Server {
+func NewServer(ctx context.Context, s *zap.SugaredLogger) *Server {
 	e := echo.New()
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
@@ -23,8 +25,9 @@ func NewServer(ctx context.Context) *Server {
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	return &Server{
-		ctx:  ctx,
-		echo: e,
+		ctx:   ctx,
+		echo:  e,
+		sugar: s,
 	}
 }
 
@@ -44,4 +47,10 @@ func (s *Server) Stop() error {
 
 func (s *Server) API() *echo.Group {
 	return s.echo.Group("/api")
+}
+
+func (s *Server) PrintRoutes() {
+	for _, route := range s.echo.Routes() {
+		s.sugar.Infof("%s %s", route.Method, route.Path)
+	}
 }
