@@ -116,7 +116,7 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id			path		int						true	"Plan ID"
 //	@Param			taskId		path		int						true	"Task ID"
-//	@Param			activity	body		CreateActivityRequest	true	"Activity"
+//	@Param			activity	body		createActivityRequest	true	"Activity"
 //	@Success		201			{object}	IdResponse
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error	"Internal server error"
@@ -130,7 +130,7 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 	}
 
 	var activity domain.Activity
-	req := &CreateActivityRequest{}
+	req := &createActivityRequest{}
 	if err = req.bind(ctx, &activity); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}

@@ -337,7 +337,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.CreateActivityRequest"
+                            "$ref": "#/definitions/handler.createActivityRequest"
                         }
                     }
                 ],
@@ -893,12 +893,6 @@ const docTemplate = `{
                     "description": "An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.",
                     "type": "string"
                 },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Part"
-                    }
-                },
                 "props": {
                     "type": "array",
                     "items": {
@@ -1070,7 +1064,49 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.CreateActivityRequest": {
+        "handler.IdResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.attachMetadataRequest": {
+            "type": "object",
+            "required": [
+                "collection",
+                "id"
+            ],
+            "properties": {
+                "collection": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "revisionDescription": {
+                    "type": "string"
+                },
+                "revisionRemarks": {
+                    "type": "string"
+                },
+                "revisionTitle": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.catalogIdResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createActivityRequest": {
             "type": "object",
             "required": [
                 "provider",
@@ -1156,48 +1192,6 @@ const docTemplate = `{
                     }
                 },
                 "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.IdResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
-                    "type": "string"
-                }
-            }
-        },
-        "handler.attachMetadataRequest": {
-            "type": "object",
-            "required": [
-                "collection",
-                "id"
-            ],
-            "properties": {
-                "collection": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "revisionDescription": {
-                    "type": "string"
-                },
-                "revisionRemarks": {
-                    "type": "string"
-                },
-                "revisionTitle": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.catalogIdResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
                     "type": "string"
                 }
             }

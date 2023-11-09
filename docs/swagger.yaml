@@ -321,10 +321,6 @@ definitions:
         description: An optional namespace qualifying the part's name. This allows
           different organizations to associate distinct semantics with the same name.
         type: string
-      parts:
-        items:
-          $ref: '#/definitions/domain.Part'
-        type: array
       props:
         items:
           $ref: '#/definitions/domain.Property'
@@ -439,7 +435,41 @@ definitions:
       includeAll:
         type: boolean
     type: object
-  handler.CreateActivityRequest:
+  handler.IdResponse:
+    properties:
+      id:
+        description: |-
+          The unique identifier of the plan.
+          Required: true
+          Example: "456def"
+        type: string
+    type: object
+  handler.attachMetadataRequest:
+    properties:
+      collection:
+        type: string
+      id:
+        type: string
+      revisionDescription:
+        type: string
+      revisionRemarks:
+        type: string
+      revisionTitle:
+        type: string
+    required:
+    - collection
+    - id
+    type: object
+  handler.catalogIdResponse:
+    properties:
+      id:
+        description: |-
+          The unique identifier of the catalog.
+          Required: true
+          Example: "123abc"
+        type: string
+    type: object
+  handler.createActivityRequest:
     properties:
       description:
         type: string
@@ -498,40 +528,6 @@ definitions:
     required:
     - provider
     - title
-    type: object
-  handler.IdResponse:
-    properties:
-      id:
-        description: |-
-          The unique identifier of the plan.
-          Required: true
-          Example: "456def"
-        type: string
-    type: object
-  handler.attachMetadataRequest:
-    properties:
-      collection:
-        type: string
-      id:
-        type: string
-      revisionDescription:
-        type: string
-      revisionRemarks:
-        type: string
-      revisionTitle:
-        type: string
-    required:
-    - collection
-    - id
-    type: object
-  handler.catalogIdResponse:
-    properties:
-      id:
-        description: |-
-          The unique identifier of the catalog.
-          Required: true
-          Example: "123abc"
-        type: string
     type: object
   handler.createCatalogRequest:
     properties:
@@ -792,7 +788,7 @@ paths:
         name: activity
         required: true
         schema:
-          $ref: '#/definitions/handler.CreateActivityRequest'
+          $ref: '#/definitions/handler.createActivityRequest'
       produces:
       - application/json
       responses:

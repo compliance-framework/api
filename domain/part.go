@@ -15,7 +15,6 @@ type Part struct {
 
 	// An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.
 	Ns    string     `json:"ns,omitempty"`
-	Parts []Part     `json:"parts,omitempty"`
 	Props []Property `json:"props,omitempty"`
 
 	// Permits multiple paragraphs, lists, tables etc.
