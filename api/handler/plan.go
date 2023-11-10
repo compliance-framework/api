@@ -40,6 +40,7 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 }
 
 // CreatePlan godoc
+//
 //	@Summary		Create a plan
 //	@Description	Creates a new plan in the system
 //	@Tags			Plan
@@ -78,6 +79,7 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 }
 
 // CreateTask godoc
+//
 //	@Summary		Creates a new task for a specific plan
 //	@Description	This method creates a new task and adds it to a specific plan.
 //	@Tags			Plan
@@ -115,6 +117,7 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 }
 
 // CreateActivity godoc
+//
 //	@Summary		Create activity
 //	@Description	This function is used to create an activity for a given task.
 //	@Tags			Plan
@@ -152,6 +155,7 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 }
 
 // ActivatePlan activates a plan with the given ID.
+//
 //	@Summary		Activate a plan
 //	@Description	Activate a plan by its ID. If the plan is already active, no action will be taken.
 //	@Tags			Plan
@@ -171,6 +175,7 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 }
 
 // Results Returns the assessment results related with the plan with the given ID.
+//
 //	@Summary		Return the assessment results
 //	@Description	Return the assessment results related with the plan with the given ID.
 //	@Tags			Plan
@@ -189,6 +194,7 @@ func (h *PlanHandler) Results(ctx echo.Context) error {
 }
 
 // Summary Returns the summary of the result with the given ID.
+//
 //	@Summary		Return the result summary
 //	@Description	Return the summary of the result with the given ID.
 //	@Tags			Plan
@@ -207,6 +213,7 @@ func (h *PlanHandler) Summary(c echo.Context) error {
 }
 
 // ComplianceStatusByTargets Returns the compliance status by targets of the result with the given ID.
+//
 //	@Summary		Return the compliance status by targets
 //	@Description	Return the compliance status by targets of the result with the given ID.
 //	@Tags			Plan
@@ -226,6 +233,7 @@ func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
 }
 
 // ComplianceOverTime Returns the compliance over time of the result with the given ID.
+//
 //	@Summary		Return the compliance over time
 //	@Description	Return the compliance over time of the result with the given ID.
 //	@Tags			Plan
@@ -245,6 +253,7 @@ func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
 }
 
 // RemediationVsTime Returns the remediation versus time of the result with the given ID.
+//
 //	@Summary		Return the remediation versus time
 //	@Description	Return the remediation versus time of the result with the given ID.
 //	@Tags			Plan
@@ -256,11 +265,15 @@ func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
 //	@Router			/api/plan/{id}/results/{resultId}/remediation-vs-time [get]
 func (h *PlanHandler) RemediationVsTime(c echo.Context) error {
 	result, err := h.service.RemediationVsTime(c.Param("id"), c.Param("resultId"))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	return c.JSON(http.StatusOK, result)
 }
 
 // Findings Returns the findings of the result with the given ID.
+//
 //	@Summary		Return the findings
 //	@Description	Return the findings of the result with the given ID.
 //	@Tags			Plan
@@ -280,6 +293,7 @@ func (h *PlanHandler) Findings(c echo.Context) error {
 }
 
 // Observations Returns the observations of the result with the given ID.
+//
 //	@Summary		Return the observations
 //	@Description	Return the observations of the result with the given ID.
 //	@Tags			Plan
@@ -299,6 +313,7 @@ func (h *PlanHandler) Observations(c echo.Context) error {
 }
 
 // Risks Returns the risks of the result with the given ID.
+//
 //	@Summary		Return the risks
 //	@Description	Return the risks of the result with the given ID.
 //	@Tags			Plan
