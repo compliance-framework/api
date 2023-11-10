@@ -155,8 +155,9 @@ func (p *Plan) JobSpecification() JobSpecification {
 
 	for _, task := range p.Tasks {
 		taskInfo := TaskInformation{
-			Id:    task.Id.Hex(),
-			Title: task.Title,
+			Id:       task.Id.Hex(),
+			Title:    task.Title,
+			Schedule: task.Schedule,
 		}
 
 		for _, activity := range task.Activities {
@@ -197,8 +198,8 @@ type Task struct {
 	// Subjects hold all the subjects that the activities act upon.
 	Subjects []primitive.ObjectID `json:"subjects"`
 
-	Tasks    []Uuid   `json:"tasks"`
-	Schedule []string `json:"schedule"`
+	Tasks    []Uuid `json:"tasks"`
+	Schedule string `json:"schedule"`
 }
 
 func (t *Task) AddActivity(activity Activity) error {

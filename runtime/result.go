@@ -1,5 +1,7 @@
 package runtime
 
+import "time"
+
 type ExecutionStatus int
 type LogType int
 
@@ -22,13 +24,13 @@ type ResultEvent struct {
 }
 
 type Observation struct {
-	Id          string `json:"id"`
-	SubjectId   string `json:"subjectId"`
-	Collected   string `json:"collected"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Expires     string `json:"expires"`
-	Remarks     string `json:"remarks"`
+	Id          string    `json:"id"`
+	SubjectId   string    `json:"subjectId"`
+	Collected   time.Time `json:"collected"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Expires     time.Time `json:"expires"`
+	Remarks     string    `json:"remarks"`
 }
 
 type Risk struct {
