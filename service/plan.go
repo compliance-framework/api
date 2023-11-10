@@ -273,10 +273,19 @@ func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary
 	}, nil
 }
 
+type State string
+
+const (
+	Pass          State = "pass"
+	Warn          State = "warn"
+	Fail          State = "fail"
+	Indeterminate State = "indeterminate"
+)
+
 type ComplianceStatusByTargets struct {
-	Control    string `json:"control"`
-	Target     string `json:"target"`
-	Compliance string `json:"compliance"`
+	Control    string  `json:"control"`
+	Target     string  `json:"target"`
+	Compliance []State `json:"compliance"`
 }
 
 func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
@@ -284,42 +293,42 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 		{
 			Control:    "Server Security Control",
 			Target:     "Production Server",
-			Compliance: "pass",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "warn", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Database Integrity Control",
 			Target:     "Main Database",
-			Compliance: "fail",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Network Access Control",
 			Target:     "Corporate Network",
-			Compliance: "indeterminate",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Data Encryption Standard",
 			Target:     "User Data Store",
-			Compliance: "pass",
+			Compliance: []State{"pass", "fail", "warn", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Application Security Protocol",
 			Target:     "Customer Facing App",
-			Compliance: "fail",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "warn"},
 		},
 		{
 			Control:    "Firewall Configuration",
 			Target:     "Internal Network",
-			Compliance: "pass",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Physical Security Measures",
 			Target:     "Data Center",
-			Compliance: "pass",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "User Authentication System",
 			Target:     "Employee Portal",
-			Compliance: "fail",
+			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 	}, nil
 }

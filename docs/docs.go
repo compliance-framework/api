@@ -1520,7 +1520,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "compliance": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.State"
+                    }
                 },
                 "control": {
                     "type": "string"
@@ -1595,6 +1598,21 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "service.State": {
+            "type": "string",
+            "enum": [
+                "pass",
+                "warn",
+                "fail",
+                "indeterminate"
+            ],
+            "x-enum-varnames": [
+                "Pass",
+                "Warn",
+                "Fail",
+                "Indeterminate"
+            ]
         },
         "service.riskLevels": {
             "type": "object",

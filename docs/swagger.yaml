@@ -571,7 +571,9 @@ definitions:
   service.ComplianceStatusByTargets:
     properties:
       compliance:
-        type: string
+        items:
+          $ref: '#/definitions/service.State'
+        type: array
       control:
         type: string
       target:
@@ -620,6 +622,18 @@ definitions:
       remediation:
         type: string
     type: object
+  service.State:
+    enum:
+    - pass
+    - warn
+    - fail
+    - indeterminate
+    type: string
+    x-enum-varnames:
+    - Pass
+    - Warn
+    - Fail
+    - Indeterminate
   service.riskLevels:
     properties:
       high:
