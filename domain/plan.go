@@ -72,6 +72,8 @@ type Plan struct {
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions"`
+
+	Results []Result `json:"results"`
 }
 
 func NewPlan() *Plan {

@@ -129,8 +129,24 @@ func (s *PlanService) ActivatePlan(planId string) error {
 	return nil
 }
 
-func (s *PlanService) SaveResults(planId string) error {
-	panic("implement me")
+func (s *PlanService) AddResult(planId string, result Result) error {
+	pid, err := primitive.ObjectIDFromHex(planId)
+	if err != nil {
+		return err
+	}
+	filter := bson.D{{"_id", pid}}
+
+	update := bson.M{
+		"$push": bson.M{
+			"results": result,
+		},
+	}
+	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *PlanService) GetResults(planId string) ([]Result, error) {
@@ -139,6 +155,208 @@ func (s *PlanService) GetResults(planId string) ([]Result, error) {
 		return nil, err
 	}
 	return []Result{result}, nil
+}
+
+func (s *PlanService) Findings(planId string, resultId string) ([]Result, error) {
+	pipeline := bson.A{
+		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
+		bson.D{
+			{"$project",
+				bson.D{
+					{"_id", 0},
+				},
+			},
+		},
+	}
+
+	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []Result
+	if err = cursor.All(context.Background(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func (s *PlanService) Observations(planId string, resultId string) ([]Result, error) {
+	pipeline := bson.A{
+		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
+		bson.D{
+			{"$project",
+				bson.D{
+					{"_id", 0},
+				},
+			},
+		},
+	}
+
+	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []Result
+	if err = cursor.All(context.Background(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func (s *PlanService) Risks(planId string, resultId string) ([]Result, error) {
+	pipeline := bson.A{
+		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
+		bson.D{
+			{"$project",
+				bson.D{
+					{"_id", 0},
+				},
+			},
+		},
+	}
+
+	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []Result
+	if err = cursor.All(context.Background(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func (s *PlanService) ResultSummary(planId string, resultId string) (string, error) {
+	return `{
+		"summary": {
+			"published": "2022-12-01T00:00:00Z",
+			"endDate": "2022-12-31T23:59:59Z",
+			"description": "Monthly security assessment of the production environment.",
+			"status": "Completed",
+			"numControls": 50,
+			"numSubjects": 10,
+			"numObservations": 30,
+			"numRisks": 5,
+			"riskScore": 3.2,
+			"complianceStatus": "80%",
+			"riskLevels": {
+				"low": 2,
+				"medium": 2,
+				"high": 1
+			}
+		}
+	}`, nil
+}
+
+func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) (string, error) {
+	return `[{
+				"control": "Server Security Control",
+				"target": "Production Server",
+				"compliance": "pass"
+			},
+			{
+				"control": "Database Integrity Control",
+				"target": "Main Database",
+				"compliance": "fail"
+			},
+			{
+				"control": "Network Access Control",
+				"target": "Corporate Network",
+				"compliance": "indeterminate"
+			},
+			{
+				"control": "Data Encryption Standard",
+				"target": "User Data Store",
+				"compliance": "pass"
+			},
+			{
+				"control": "Application Security Protocol",
+				"target": "Customer Facing App",
+				"compliance": "fail"
+			},
+			{
+				"control": "Firewall Configuration",
+				"target": "Internal Network",
+				"compliance": "pass"
+			},
+			{
+				"control": "Physical Security Measures",
+				"target": "Data Center",
+				"compliance": "pass"
+			},
+			{
+				"control": "User Authentication System",
+				"target": "Employee Portal",
+				"compliance": "fail"
+			}]
+	`, nil
+}
+
+func (s *PlanService) ComplianceOverTime(planId string, resultId string) (string, error) {
+	return `[{
+				"date": "2022-12-01T00:00:00Z",
+				"findings": "80",
+				"observations": "30",
+				"risks": "5"
+			},
+			{
+				"date": "2022-12-02T00:00:00Z",
+				"findings": "15",
+				"observations": "10",
+				"risks": "2"
+			},
+			{
+				"date": "2022-12-03T00:00:00Z",
+				"findings": "3",
+				"observations": "5",
+				"risks": "1"
+			},
+			{
+				"date": "2022-12-04T00:00:00Z",
+				"findings": "10",	
+				"observations": "5",	
+				"risks": "0"
+			}]`, nil
+}
+
+func (s *PlanService) RemediationVsTime(planId string, resultId string) (string, error) {
+	return `[
+				{
+					"control": "Database Integrity Control",
+					"remediation": "30 days"
+				},
+				{
+					"control": "Network Access Control",
+					"remediation": "15 days"
+				},
+				{
+					"control": "Data Encryption Standard",
+					"remediation": "45 days"
+				},
+				{
+					"control": "Application Security Protocol",
+					"remediation": "20 days"
+				},
+				{
+					"control": "Firewall Configuration",
+					"remediation": "10 days"
+				},
+				{
+					"control": "Physical Security Measures",
+					"remediation": "60 days"
+				},
+				{
+					"control": "User Authentication System",
+					"remediation": "25 days"
+				}
+			]
+			`, nil
 }
 
 func (s *PlanService) createMockData() (Result, error) {

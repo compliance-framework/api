@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/compliance-framework/configuration-service/event"
 	"github.com/joho/godotenv"
 
 	"github.com/compliance-framework/configuration-service/api"
@@ -56,7 +55,7 @@ func main() {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
 
-	resultProcessor := runtime.NewProcessor(bus.Subscribe[event.ResultEvent])
+	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ResultEvent])
 	resultProcessor.Listen()
 
 	server := api.NewServer(ctx, sugar)
