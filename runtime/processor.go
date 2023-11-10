@@ -31,9 +31,31 @@ func (r *Processor) Listen() {
 			case msg := <-ch:
 				fmt.Printf("Received message: %v\n", msg)
 
+				observations := make([]domain.Observation, len(msg.Results.Observations))
+				for i, o := range msg.Results.Observations {
+					observations[i] = domain.Observation{
+						Id:          primitive.NewObjectID(),
+						Collected:   o.Collected,
+						Title:       o.Title,
+						Description: o.Description,
+						Expires:     o.Expires,
+						Remarks:     o.Remarks,
+					}
+				}
+
+				risks := make([]domain.Risk, len(msg.Results.Risks))
+				for i, r := range msg.Results.Risks {
+					risks[i] = domain.Risk{
+						Id:          primitive.NewObjectID(),
+						Description: r.Description,
+					}
+				}
+
 				// TODO: This should happen inside the domain package
 				result := domain.Result{
-					Id: primitive.NewObjectID(),
+					Id:           primitive.NewObjectID(),
+					Observations: observations,
+					Risks:        risks,
 				}
 				err := r.svc.AddResult(msg.AssessmentId, result)
 				if err != nil {
