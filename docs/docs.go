@@ -289,7 +289,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/plan/{id}/results/{resultId}/compliance-status": {
+        "/plan/{id}/results/{resultId}/compliance-status-by-targets": {
             "get": {
                 "description": "Return the compliance status by targets of the result with the given ID.",
                 "produces": [

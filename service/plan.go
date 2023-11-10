@@ -253,10 +253,10 @@ type RiskScore struct {
 }
 
 type PlanSummary struct {
-	Published        string `json:"published"`
-	EndDate          string `json:"endDate"`
-	Description      string `json:"description"`
-	Status           string
+	Published        string     `json:"published"`
+	EndDate          string     `json:"endDate"`
+	Description      string     `json:"description"`
+	Status           string     `json:"status"`
 	NumControls      int        `json:"numControls"`
 	NumSubjects      int        `json:"numSubjects"`
 	NumObservations  int        `json:"numObservations"`

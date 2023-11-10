@@ -222,7 +222,7 @@ func (h *PlanHandler) Summary(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]service.ComplianceStatusByTargets
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/compliance-status [get]
+//	@Router			/plan/{id}/results/{resultId}/compliance-status-by-targets [get]
 func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
 	result, err := h.service.ComplianceStatusByTargets(c.Param("id"), c.Param("resultId"))
 	if err != nil {
