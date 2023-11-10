@@ -3,13 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
+
 	. "github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"time"
 )
 
 type PlanService struct {
@@ -157,7 +158,7 @@ func (s *PlanService) GetResults(planId string) ([]Result, error) {
 	return []Result{result}, nil
 }
 
-func (s *PlanService) Findings(planId string, resultId string) ([]Result, error) {
+func (s *PlanService) Findings(planId string, resultId string) ([]Finding, error) {
 	pipeline := bson.A{
 		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
 		bson.D{
@@ -174,15 +175,15 @@ func (s *PlanService) Findings(planId string, resultId string) ([]Result, error)
 		return nil, err
 	}
 
-	var results []Result
-	if err = cursor.All(context.Background(), &results); err != nil {
+	var findings []Finding
+	if err = cursor.All(context.Background(), &findings); err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	return findings, nil
 }
 
-func (s *PlanService) Observations(planId string, resultId string) ([]Result, error) {
+func (s *PlanService) Observations(planId string, resultId string) ([]Observation, error) {
 	pipeline := bson.A{
 		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
 		bson.D{
@@ -199,15 +200,15 @@ func (s *PlanService) Observations(planId string, resultId string) ([]Result, er
 		return nil, err
 	}
 
-	var results []Result
-	if err = cursor.All(context.Background(), &results); err != nil {
+	var observations []Observation
+	if err = cursor.All(context.Background(), &observations); err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	return observations, nil
 }
 
-func (s *PlanService) Risks(planId string, resultId string) ([]Result, error) {
+func (s *PlanService) Risks(planId string, resultId string) ([]Risk, error) {
 	pipeline := bson.A{
 		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
 		bson.D{
@@ -224,139 +225,181 @@ func (s *PlanService) Risks(planId string, resultId string) ([]Result, error) {
 		return nil, err
 	}
 
-	var results []Result
-	if err = cursor.All(context.Background(), &results); err != nil {
+	var risks []Risk
+	if err = cursor.All(context.Background(), &risks); err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	return risks, nil
 }
 
-func (s *PlanService) ResultSummary(planId string, resultId string) (string, error) {
-	return `{
-		"summary": {
-			"published": "2022-12-01T00:00:00Z",
-			"endDate": "2022-12-31T23:59:59Z",
-			"description": "Monthly security assessment of the production environment.",
-			"status": "Completed",
-			"numControls": 50,
-			"numSubjects": 10,
-			"numObservations": 30,
-			"numRisks": 5,
-			"riskScore": 3.2,
-			"complianceStatus": "80%",
-			"riskLevels": {
-				"low": 2,
-				"medium": 2,
-				"high": 1
-			}
-		}
-	}`, nil
+type riskLevels struct {
+	Low    int `json:"low"`
+	Medium int `json:"medium"`
+	High   int `json:"high"`
 }
 
-func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) (string, error) {
-	return `[{
-				"control": "Server Security Control",
-				"target": "Production Server",
-				"compliance": "pass"
-			},
-			{
-				"control": "Database Integrity Control",
-				"target": "Main Database",
-				"compliance": "fail"
-			},
-			{
-				"control": "Network Access Control",
-				"target": "Corporate Network",
-				"compliance": "indeterminate"
-			},
-			{
-				"control": "Data Encryption Standard",
-				"target": "User Data Store",
-				"compliance": "pass"
-			},
-			{
-				"control": "Application Security Protocol",
-				"target": "Customer Facing App",
-				"compliance": "fail"
-			},
-			{
-				"control": "Firewall Configuration",
-				"target": "Internal Network",
-				"compliance": "pass"
-			},
-			{
-				"control": "Physical Security Measures",
-				"target": "Data Center",
-				"compliance": "pass"
-			},
-			{
-				"control": "User Authentication System",
-				"target": "Employee Portal",
-				"compliance": "fail"
-			}]
-	`, nil
+type PlanSummary struct {
+	Published        string `json:"published"`
+	EndDate          string `json:"endDate"`
+	Description      string `json:"description"`
+	Status           string
+	NumControls      int        `json:"numControls"`
+	NumSubjects      int        `json:"numSubjects"`
+	NumObservations  int        `json:"numObservations"`
+	NumRisks         int        `json:"numRisks"`
+	RiskScore        float64    `json:"riskScore"`
+	ComplianceStatus string     `json:"complianceStatus"`
+	RiskLevels       riskLevels `json:"riskLevels"`
 }
 
-func (s *PlanService) ComplianceOverTime(planId string, resultId string) (string, error) {
-	return `[{
-				"date": "2022-12-01T00:00:00Z",
-				"findings": "80",
-				"observations": "30",
-				"risks": "5"
-			},
-			{
-				"date": "2022-12-02T00:00:00Z",
-				"findings": "15",
-				"observations": "10",
-				"risks": "2"
-			},
-			{
-				"date": "2022-12-03T00:00:00Z",
-				"findings": "3",
-				"observations": "5",
-				"risks": "1"
-			},
-			{
-				"date": "2022-12-04T00:00:00Z",
-				"findings": "10",	
-				"observations": "5",	
-				"risks": "0"
-			}]`, nil
+func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
+	return PlanSummary{
+		Published:        "2022-12-01T00:00:00Z",
+		EndDate:          "2022-12-31T23:59:59Z",
+		Description:      "Monthly security assessment of the production environment.",
+		Status:           "Completed",
+		NumControls:      50,
+		NumSubjects:      10,
+		NumObservations:  30,
+		NumRisks:         5,
+		RiskScore:        3.2,
+		ComplianceStatus: "80%",
+		RiskLevels: riskLevels{
+			Low:    2,
+			Medium: 2,
+			High:   1,
+		},
+	}, nil
 }
 
-func (s *PlanService) RemediationVsTime(planId string, resultId string) (string, error) {
-	return `[
-				{
-					"control": "Database Integrity Control",
-					"remediation": "30 days"
-				},
-				{
-					"control": "Network Access Control",
-					"remediation": "15 days"
-				},
-				{
-					"control": "Data Encryption Standard",
-					"remediation": "45 days"
-				},
-				{
-					"control": "Application Security Protocol",
-					"remediation": "20 days"
-				},
-				{
-					"control": "Firewall Configuration",
-					"remediation": "10 days"
-				},
-				{
-					"control": "Physical Security Measures",
-					"remediation": "60 days"
-				},
-				{
-					"control": "User Authentication System",
-					"remediation": "25 days"
-				}
-			]
-			`, nil
+type ComplianceStatusByTargets struct {
+	Control    string `json:"control"`
+	Target     string `json:"target"`
+	Compliance string `json:"compliance"`
+}
+
+func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
+	return []ComplianceStatusByTargets{
+		{
+			Control:    "Server Security Control",
+			Target:     "Production Server",
+			Compliance: "pass",
+		},
+		{
+			Control:    "Database Integrity Control",
+			Target:     "Main Database",
+			Compliance: "fail",
+		},
+		{
+			Control:    "Network Access Control",
+			Target:     "Corporate Network",
+			Compliance: "indeterminate",
+		},
+		{
+			Control:    "Data Encryption Standard",
+			Target:     "User Data Store",
+			Compliance: "pass",
+		},
+		{
+			Control:    "Application Security Protocol",
+			Target:     "Customer Facing App",
+			Compliance: "fail",
+		},
+		{
+			Control:    "Firewall Configuration",
+			Target:     "Internal Network",
+			Compliance: "pass",
+		},
+		{
+			Control:    "Physical Security Measures",
+			Target:     "Data Center",
+			Compliance: "pass",
+		},
+		{
+			Control:    "User Authentication System",
+			Target:     "Employee Portal",
+			Compliance: "fail",
+		},
+	}, nil
+}
+
+type ComplianceStatusOverTime struct {
+	Date         string `json:"date"`
+	Findings     int    `json:"findings"`
+	Observations int    `json:"observations"`
+	Risks        int    `json:"risks"`
+}
+
+func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]ComplianceStatusOverTime, error) {
+	return []ComplianceStatusOverTime{
+		{
+			Date:         "2022-12-01T00:00:00Z",
+			Findings:     80,
+			Observations: 30,
+			Risks:        5,
+		},
+		{
+			Date:         "2022-12-02T00:00:00Z",
+			Findings:     15,
+			Observations: 10,
+			Risks:        2,
+		},
+		{
+			Date:         "2022-12-03T00:00:00Z",
+			Findings:     3,
+			Observations: 5,
+			Risks:        1,
+		},
+		{
+			Date:         "2022-12-04T00:00:00Z",
+			Findings:     10,
+			Observations: 5,
+			Risks:        0,
+		},
+	}, nil
+}
+
+type RemediationVsTime struct {
+	Control     string `json:"control"`
+	Remediation string `json:"remediation"`
+}
+
+func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]RemediationVsTime, error) {
+	return []RemediationVsTime{
+		{
+			Control:     "Server Security Control",
+			Remediation: "3 days",
+		},
+		{
+			Control:     "Database Integrity Control",
+			Remediation: "1 day",
+		},
+		{
+			Control:     "Network Access Control",
+			Remediation: "2 days",
+		},
+		{
+			Control:     "Data Encryption Standard",
+			Remediation: "1 day",
+		},
+		{
+			Control:     "Application Security Protocol",
+			Remediation: "3 days",
+		},
+		{
+			Control:     "Firewall Configuration",
+			Remediation: "1 day",
+		},
+		{
+			Control:     "Physical Security Measures",
+			Remediation: "1 day",
+		},
+		{
+			Control:     "User Authentication System",
+			Remediation: "2 days",
+		},
+	}, nil
 }
 
 func (s *PlanService) createMockData() (Result, error) {

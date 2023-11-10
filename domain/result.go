@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // In the realm of security and compliance assessments, "Risks" are identified and articulated based on the information presented in "Findings" and "Observations." Here's a breakdown of the process:
@@ -30,6 +31,7 @@ type Result struct {
 	Id               primitive.ObjectID      `json:"id"`
 	Title            string                  `json:"title,omitempty"`
 	Description      string                  `json:"description,omitempty"`
+	Potato           string                  `json:"potato,omitempty"`
 	Props            []Property              `json:"props,omitempty"`
 	Links            []Link                  `json:"links,omitempty"`
 	Remarks          string                  `json:"remarks,omitempty"`

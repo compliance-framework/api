@@ -378,6 +378,8 @@ definitions:
         items:
           $ref: '#/definitions/domain.Observation'
         type: array
+      potato:
+        type: string
       props:
         items:
           $ref: '#/definitions/domain.Property'
@@ -434,15 +436,6 @@ definitions:
         type: array
       includeAll:
         type: boolean
-    type: object
-  handler.IdResponse:
-    properties:
-      id:
-        description: |-
-          The unique identifier of the plan.
-          Required: true
-          Example: "456def"
-        type: string
     type: object
   handler.attachMetadataRequest:
     properties:
@@ -566,6 +559,76 @@ definitions:
     - title
     - type
     type: object
+  handler.idResponse:
+    properties:
+      id:
+        description: |-
+          The unique identifier of the plan.
+          Required: true
+          Example: "456def"
+        type: string
+    type: object
+  service.ComplianceStatusByTargets:
+    properties:
+      compliance:
+        type: string
+      control:
+        type: string
+      target:
+        type: string
+    type: object
+  service.ComplianceStatusOverTime:
+    properties:
+      date:
+        type: string
+      findings:
+        type: integer
+      observations:
+        type: integer
+      risks:
+        type: integer
+    type: object
+  service.PlanSummary:
+    properties:
+      complianceStatus:
+        type: string
+      description:
+        type: string
+      endDate:
+        type: string
+      numControls:
+        type: integer
+      numObservations:
+        type: integer
+      numRisks:
+        type: integer
+      numSubjects:
+        type: integer
+      published:
+        type: string
+      riskLevels:
+        $ref: '#/definitions/service.riskLevels'
+      riskScore:
+        type: number
+      status:
+        type: string
+    type: object
+  service.RemediationVsTime:
+    properties:
+      control:
+        type: string
+      remediation:
+        type: string
+    type: object
+  service.riskLevels:
+    properties:
+      high:
+        type: integer
+      low:
+        type: integer
+      medium:
+        type: integer
+    type: object
 externalDocs:
   description: OpenAPI
   url: https://swagger.io/resources/open-api/
@@ -576,6 +639,413 @@ info:
   title: Compliance Framework Configuration Service API
   version: "1.0"
 paths:
+  /api/plan:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new plan in the system
+      parameters:
+      - description: Plan to add
+        in: body
+        name: plan
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.idResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a plan
+      tags:
+      - Plan
+  /api/plan/{id}/activate:
+    put:
+      consumes:
+      - application/json
+      description: Activate a plan by its ID. If the plan is already active, no action
+        will be taken.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal server error. The plan could not be activated.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Activate a plan
+      tags:
+      - Plan
+  /api/plan/{id}/results:
+    get:
+      description: Return the assessment results related with the plan with the given
+        ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Result'
+            type: array
+        "500":
+          description: Internal server error. The plan could not be activated.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the assessment results
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/compliance-over-time:
+    get:
+      description: Return the compliance over time of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.ComplianceStatusOverTime'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the compliance over time
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/compliance-status:
+    get:
+      description: Return the compliance status by targets of the result with the
+        given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.ComplianceStatusByTargets'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the compliance status by targets
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/findings:
+    get:
+      description: Return the findings of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Finding'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the findings
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/observations:
+    get:
+      description: Return the observations of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Observation'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the observations
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/remediation-vs-time:
+    get:
+      description: Return the remediation versus time of the result with the given
+        ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.RemediationVsTime'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the remediation versus time
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/risks:
+    get:
+      description: Return the risks of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Risk'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the risks
+      tags:
+      - Plan
+  /api/plan/{id}/results/{resultId}/summary:
+    get:
+      description: Return the summary of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.PlanSummary'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the result summary
+      tags:
+      - Plan
+  /api/plan/{id}/tasks:
+    post:
+      consumes:
+      - application/json
+      description: This method creates a new task and adds it to a specific plan.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Task to add
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully added the task to the plan
+          schema:
+            type: string
+        "404":
+          description: Plan not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: 'Unprocessable Entity: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Creates a new task for a specific plan
+      tags:
+      - Plan
+  /api/plan/{id}/tasks/{taskId}/activities:
+    post:
+      consumes:
+      - application/json
+      description: This function is used to create an activity for a given task.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Task ID
+        in: path
+        name: taskId
+        required: true
+        type: integer
+      - description: Activity
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createActivityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: "201"
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create activity
+      tags:
+      - Plan
+  /api/ssp:
+    post:
+      consumes:
+      - application/json
+      description: Create an SSP with the given title
+      parameters:
+      - description: SSP to add
+        in: body
+        name: SSP
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createSSPRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.idResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create an SSP
+      tags:
+      - SSP
   /catalog:
     post:
       consumes:
@@ -644,201 +1114,4 @@ paths:
       summary: Attaches metadata to a specific revision
       tags:
       - Metadata
-  /plan:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new plan in the system
-      parameters:
-      - description: Plan to add
-        in: body
-        name: plan
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createPlanRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.IdResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a plan
-      tags:
-      - Plan
-  /plan/{id}/activate:
-    put:
-      consumes:
-      - application/json
-      description: Activate a plan by its ID. If the plan is already active, no action
-        will be taken.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "500":
-          description: Internal server error. The plan could not be activated.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Activate a plan
-      tags:
-      - Plan
-  /plan/{id}/results:
-    get:
-      description: Return the assessment results related with the plan with the given
-        ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Result'
-            type: array
-        "500":
-          description: Internal server error. The plan could not be activated.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the assessment results
-      tags:
-      - Plan
-  /plan/{id}/tasks:
-    post:
-      consumes:
-      - application/json
-      description: This method creates a new task and adds it to a specific plan.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Task to add
-        in: body
-        name: task
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createTaskRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully added the task to the plan
-          schema:
-            type: string
-        "404":
-          description: Plan not found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: 'Unprocessable Entity: Error binding the request'
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Creates a new task for a specific plan
-      tags:
-      - Plan
-  /plan/{id}/tasks/{taskId}/activities:
-    post:
-      consumes:
-      - application/json
-      description: This function is used to create an activity for a given task.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Task ID
-        in: path
-        name: taskId
-        required: true
-        type: integer
-      - description: Activity
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createActivityRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.IdResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create activity
-      tags:
-      - Plan
-  /ssp:
-    post:
-      consumes:
-      - application/json
-      description: Create a SSP with the given title
-      parameters:
-      - description: SSP to add
-        in: body
-        name: SSP
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createSSPRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.IdResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a SSP
-      tags:
-      - SSP
 swagger: "2.0"
