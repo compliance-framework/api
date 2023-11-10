@@ -468,6 +468,10 @@ definitions:
         type: string
       provider:
         properties:
+          configuration:
+            additionalProperties:
+              type: string
+            type: object
           name:
             type: string
           package:
@@ -550,12 +554,15 @@ definitions:
     properties:
       description:
         type: string
+      schedule:
+        type: string
       title:
         description: 'TODO: We are keeping it minimal for now for the demo'
         type: string
       type:
         type: string
     required:
+    - schedule
     - title
     - type
     type: object
@@ -1096,10 +1103,10 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
-            type: "201"
+            $ref: '#/definitions/handler.idResponse'
         "404":
           description: Not Found
           schema:

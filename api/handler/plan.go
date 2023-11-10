@@ -126,7 +126,7 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 //	@Param			id			path		int						true	"Plan ID"
 //	@Param			taskId		path		int						true	"Task ID"
 //	@Param			activity	body		createActivityRequest	true	"Activity"
-//	@Success		200			201			{object}				idResponse
+//	@Success		201			{object}	idResponse
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error	"Internal server error"
 //	@Router			/plan/{id}/tasks/{taskId}/activities [post]

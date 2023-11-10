@@ -654,10 +654,10 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
-                            "type": "201"
+                            "$ref": "#/definitions/handler.idResponse"
                         }
                     },
                     "404": {
@@ -1378,6 +1378,12 @@ const docTemplate = `{
                         "version"
                     ],
                     "properties": {
+                        "configuration": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
                         "name": {
                             "type": "string"
                         },
@@ -1491,11 +1497,15 @@ const docTemplate = `{
         "handler.createTaskRequest": {
             "type": "object",
             "required": [
+                "schedule",
                 "title",
                 "type"
             ],
             "properties": {
                 "description": {
+                    "type": "string"
+                },
+                "schedule": {
                     "type": "string"
                 },
                 "title": {
