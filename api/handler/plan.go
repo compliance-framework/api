@@ -51,7 +51,7 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 //	@Failure		401		{object}	api.Error
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Router			/api/plan [post]
+//	@Router			/plan [post]
 func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	// Initialize a new plan object
 	p := domain.NewPlan()
@@ -91,7 +91,7 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error			"Plan not found"
 //	@Failure		422		{object}	api.Error			"Unprocessable Entity: Error binding the request"
 //	@Failure		500		{object}	api.Error			"Internal Server Error"
-//	@Router			/api/plan/{id}/tasks [post]
+//	@Router			/plan/{id}/tasks [post]
 func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
@@ -129,7 +129,7 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 //	@Success		200			201			{object}				idResponse
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error	"Internal server error"
-//	@Router			/api/plan/{id}/tasks/{taskId}/activities [post]
+//	@Router			/plan/{id}/tasks/{taskId}/activities [post]
 func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 	plan, err := h.service.GetById(ctx.Param("id"))
 	if err != nil {
@@ -164,7 +164,7 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 //	@Param			id	path	string	true	"Plan ID"
 //	@Success		204
 //	@Failure		500	{object}	api.Error	"Internal server error. The plan could not be activated."
-//	@Router			/api/plan/{id}/activate [put]
+//	@Router			/plan/{id}/activate [put]
 func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 	err := h.service.ActivatePlan(ctx.Param("id"))
 	if err != nil {
@@ -183,7 +183,7 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 //	@Param			id	path		string	true	"Plan ID"
 //	@Success		200	{object}	[]domain.Result
 //	@Failure		500	{object}	api.Error	"Internal server error. The plan could not be activated."
-//	@Router			/api/plan/{id}/results [get]
+//	@Router			/plan/{id}/results [get]
 func (h *PlanHandler) Results(ctx echo.Context) error {
 	results, err := h.service.GetResults(ctx.Param("id"))
 	if err != nil {
@@ -203,7 +203,7 @@ func (h *PlanHandler) Results(ctx echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	service.PlanSummary
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/summary [get]
+//	@Router			/plan/{id}/results/{resultId}/summary [get]
 func (h *PlanHandler) Summary(c echo.Context) error {
 	result, err := h.service.ResultSummary(c.Param("id"), c.Param("resultId"))
 	if err != nil {
@@ -222,7 +222,7 @@ func (h *PlanHandler) Summary(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]service.ComplianceStatusByTargets
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/compliance-status [get]
+//	@Router			/plan/{id}/results/{resultId}/compliance-status [get]
 func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
 	result, err := h.service.ComplianceStatusByTargets(c.Param("id"), c.Param("resultId"))
 	if err != nil {
@@ -242,7 +242,7 @@ func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]service.ComplianceStatusOverTime
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/compliance-over-time [get]
+//	@Router			/plan/{id}/results/{resultId}/compliance-over-time [get]
 func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
 	result, err := h.service.ComplianceOverTime(c.Param("id"), c.Param("resultId"))
 	if err != nil {
@@ -262,7 +262,7 @@ func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]service.RemediationVsTime
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/remediation-vs-time [get]
+//	@Router			/plan/{id}/results/{resultId}/remediation-vs-time [get]
 func (h *PlanHandler) RemediationVsTime(c echo.Context) error {
 	result, err := h.service.RemediationVsTime(c.Param("id"), c.Param("resultId"))
 	if err != nil {
@@ -282,7 +282,7 @@ func (h *PlanHandler) RemediationVsTime(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]domain.Finding
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/findings [get]
+//	@Router			/plan/{id}/results/{resultId}/findings [get]
 func (h *PlanHandler) Findings(c echo.Context) error {
 	findings, err := h.service.Findings(c.Param("id"), c.Param("resultId"))
 	if err != nil {
@@ -302,7 +302,7 @@ func (h *PlanHandler) Findings(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]domain.Observation
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/observations [get]
+//	@Router			/plan/{id}/results/{resultId}/observations [get]
 func (h *PlanHandler) Observations(c echo.Context) error {
 	observations, err := h.service.Observations(c.Param("id"), c.Param("resultId"))
 	if err != nil {
@@ -322,7 +322,7 @@ func (h *PlanHandler) Observations(c echo.Context) error {
 //	@Param			resultId	path		string	true	"Result ID"
 //	@Success		200			{object}	[]domain.Risk
 //	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/api/plan/{id}/results/{resultId}/risks [get]
+//	@Router			/plan/{id}/results/{resultId}/risks [get]
 func (h *PlanHandler) Risks(c echo.Context) error {
 	risks, err := h.service.Risks(c.Param("id"), c.Param("resultId"))
 	if err != nil {
