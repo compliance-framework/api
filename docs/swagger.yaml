@@ -572,7 +572,7 @@ definitions:
     properties:
       compliance:
         items:
-          $ref: '#/definitions/service.State'
+          $ref: '#/definitions/service.RiskState'
         type: array
       control:
         type: string
@@ -593,7 +593,7 @@ definitions:
   service.PlanSummary:
     properties:
       complianceStatus:
-        type: string
+        type: number
       description:
         type: string
       endDate:
@@ -609,9 +609,9 @@ definitions:
       published:
         type: string
       riskLevels:
-        $ref: '#/definitions/service.riskLevels'
+        $ref: '#/definitions/service.RiskLevels'
       riskScore:
-        type: number
+        $ref: '#/definitions/service.RiskScore'
       status:
         type: string
     type: object
@@ -622,7 +622,33 @@ definitions:
       remediation:
         type: string
     type: object
-  service.State:
+  service.RiskLevels:
+    properties:
+      high:
+        type: integer
+      low:
+        type: integer
+      medium:
+        type: integer
+    type: object
+  service.RiskScore:
+    properties:
+      score:
+        type: integer
+      severity:
+        $ref: '#/definitions/service.RiskSeverity'
+    type: object
+  service.RiskSeverity:
+    enum:
+    - medium
+    - low
+    - high
+    type: string
+    x-enum-varnames:
+    - Medium
+    - Low
+    - High
+  service.RiskState:
     enum:
     - pass
     - warn
@@ -634,15 +660,6 @@ definitions:
     - Warn
     - Fail
     - Indeterminate
-  service.riskLevels:
-    properties:
-      high:
-        type: integer
-      low:
-        type: integer
-      medium:
-        type: integer
-    type: object
 externalDocs:
   description: OpenAPI
   url: https://swagger.io/resources/open-api/

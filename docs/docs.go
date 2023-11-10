@@ -1522,7 +1522,7 @@ const docTemplate = `{
                 "compliance": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/service.State"
+                        "$ref": "#/definitions/service.RiskState"
                     }
                 },
                 "control": {
@@ -1554,7 +1554,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "complianceStatus": {
-                    "type": "string"
+                    "type": "number"
                 },
                 "description": {
                     "type": "string"
@@ -1578,10 +1578,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "riskLevels": {
-                    "$ref": "#/definitions/service.riskLevels"
+                    "$ref": "#/definitions/service.RiskLevels"
                 },
                 "riskScore": {
-                    "type": "number"
+                    "$ref": "#/definitions/service.RiskScore"
                 },
                 "status": {
                     "type": "string"
@@ -1599,7 +1599,45 @@ const docTemplate = `{
                 }
             }
         },
-        "service.State": {
+        "service.RiskLevels": {
+            "type": "object",
+            "properties": {
+                "high": {
+                    "type": "integer"
+                },
+                "low": {
+                    "type": "integer"
+                },
+                "medium": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.RiskScore": {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "integer"
+                },
+                "severity": {
+                    "$ref": "#/definitions/service.RiskSeverity"
+                }
+            }
+        },
+        "service.RiskSeverity": {
+            "type": "string",
+            "enum": [
+                "medium",
+                "low",
+                "high"
+            ],
+            "x-enum-varnames": [
+                "Medium",
+                "Low",
+                "High"
+            ]
+        },
+        "service.RiskState": {
             "type": "string",
             "enum": [
                 "pass",
@@ -1613,20 +1651,6 @@ const docTemplate = `{
                 "Fail",
                 "Indeterminate"
             ]
-        },
-        "service.riskLevels": {
-            "type": "object",
-            "properties": {
-                "high": {
-                    "type": "integer"
-                },
-                "low": {
-                    "type": "integer"
-                },
-                "medium": {
-                    "type": "integer"
-                }
-            }
         }
     },
     "externalDocs": {

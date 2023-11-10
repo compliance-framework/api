@@ -233,10 +233,23 @@ func (s *PlanService) Risks(planId string, resultId string) ([]Risk, error) {
 	return risks, nil
 }
 
-type riskLevels struct {
+type RiskSeverity string
+
+const (
+	Medium RiskSeverity = "medium"
+	Low    RiskSeverity = "low"
+	High   RiskSeverity = "high"
+)
+
+type RiskLevels struct {
 	Low    int `json:"low"`
 	Medium int `json:"medium"`
 	High   int `json:"high"`
+}
+
+type RiskScore struct {
+	Score    int          `json:"score"`
+	Severity RiskSeverity `json:"severity"`
 }
 
 type PlanSummary struct {
@@ -248,24 +261,27 @@ type PlanSummary struct {
 	NumSubjects      int        `json:"numSubjects"`
 	NumObservations  int        `json:"numObservations"`
 	NumRisks         int        `json:"numRisks"`
-	RiskScore        float64    `json:"riskScore"`
-	ComplianceStatus string     `json:"complianceStatus"`
-	RiskLevels       riskLevels `json:"riskLevels"`
+	RiskScore        RiskScore  `json:"riskScore"`
+	ComplianceStatus float64    `json:"complianceStatus"`
+	RiskLevels       RiskLevels `json:"riskLevels"`
 }
 
 func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
 	return PlanSummary{
-		Published:        "2022-12-01T00:00:00Z",
-		EndDate:          "2022-12-31T23:59:59Z",
-		Description:      "Monthly security assessment of the production environment.",
-		Status:           "Completed",
-		NumControls:      50,
-		NumSubjects:      10,
-		NumObservations:  30,
-		NumRisks:         5,
-		RiskScore:        3.2,
-		ComplianceStatus: "80%",
-		RiskLevels: riskLevels{
+		Published:       "2022-12-01T00:00:00Z",
+		EndDate:         "2022-12-31T23:59:59Z",
+		Description:     "Monthly security assessment of the production environment.",
+		Status:          "Completed",
+		NumControls:     50,
+		NumSubjects:     10,
+		NumObservations: 30,
+		NumRisks:        5,
+		RiskScore: RiskScore{
+			Score:    75,
+			Severity: "medium",
+		},
+		ComplianceStatus: 0.67,
+		RiskLevels: RiskLevels{
 			Low:    2,
 			Medium: 2,
 			High:   1,
@@ -273,19 +289,19 @@ func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary
 	}, nil
 }
 
-type State string
+type RiskState string
 
 const (
-	Pass          State = "pass"
-	Warn          State = "warn"
-	Fail          State = "fail"
-	Indeterminate State = "indeterminate"
+	Pass          RiskState = "pass"
+	Warn          RiskState = "warn"
+	Fail          RiskState = "fail"
+	Indeterminate RiskState = "indeterminate"
 )
 
 type ComplianceStatusByTargets struct {
-	Control    string  `json:"control"`
-	Target     string  `json:"target"`
-	Compliance []State `json:"compliance"`
+	Control    string      `json:"control"`
+	Target     string      `json:"target"`
+	Compliance []RiskState `json:"compliance"`
 }
 
 func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
@@ -293,42 +309,42 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 		{
 			Control:    "Server Security Control",
 			Target:     "Production Server",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "warn", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "warn", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Database Integrity Control",
 			Target:     "Main Database",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Network Access Control",
 			Target:     "Corporate Network",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Data Encryption Standard",
 			Target:     "User Data Store",
-			Compliance: []State{"pass", "fail", "warn", "pass", "fail", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "warn", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Application Security Protocol",
 			Target:     "Customer Facing App",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "warn"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "warn"},
 		},
 		{
 			Control:    "Firewall Configuration",
 			Target:     "Internal Network",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "Physical Security Measures",
 			Target:     "Data Center",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 		{
 			Control:    "User Authentication System",
 			Target:     "Employee Portal",
-			Compliance: []State{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
+			Compliance: []RiskState{"pass", "fail", "indeterminate", "pass", "fail", "pass", "pass", "fail"},
 		},
 	}, nil
 }
