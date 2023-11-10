@@ -1,8 +1,8 @@
 package handler
 
-// idResponse is a struct that holds the ID of a model.
+// IdResponse is a struct that holds the ID of a model.
 // swagger:model
-type idResponse struct {
+type IdResponse struct {
 	// The unique identifier of the plan.
 	// Required: true
 	// Example: "456def"

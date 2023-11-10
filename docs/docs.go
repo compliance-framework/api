@@ -147,7 +147,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
+                            "$ref": "#/definitions/handler.IdResponse"
                         }
                     },
                     "401": {
@@ -342,10 +342,10 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
-                            "type": "201"
+                            "$ref": "#/definitions/handler.IdResponse"
                         }
                     },
                     "404": {
@@ -391,7 +391,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
+                            "$ref": "#/definitions/handler.IdResponse"
                         }
                     },
                     "401": {
@@ -893,12 +893,6 @@ const docTemplate = `{
                     "description": "An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.",
                     "type": "string"
                 },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Part"
-                    }
-                },
                 "props": {
                     "type": "array",
                     "items": {
@@ -1067,6 +1061,15 @@ const docTemplate = `{
                 },
                 "includeAll": {
                     "type": "boolean"
+                }
+            }
+        },
+        "handler.IdResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
+                    "type": "string"
                 }
             }
         },
@@ -1246,15 +1249,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.idResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
                     "type": "string"
                 }
             }

@@ -19,11 +19,12 @@ func NewMetadataHandler(s *service.MetadataService) *MetadataHandler {
 	}
 }
 
-func (h *MetadataHandler) Register(api *echo.Group) {
-	api.POST("/metadata/revisions", h.AttachMetadata)
+func (h *MetadataHandler) Register(group *echo.Group) {
+	group.POST("/revisions", h.AttachMetadata)
 }
 
 // AttachMetadata godoc
+//
 //	@Summary		Attaches metadata to a specific revision
 //	@Description	This method attaches metadata to a specific revision.
 //	@Tags			Metadata

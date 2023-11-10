@@ -17,11 +17,12 @@ func NewCatalogHandler(s store.CatalogStore) *CatalogHandler {
 	return &CatalogHandler{store: s}
 }
 
-func (h *CatalogHandler) Register(api *echo.Group) {
-	api.POST("/catalog", h.CreateCatalog)
+func (h *CatalogHandler) Register(group *echo.Group) {
+	group.POST("/", h.CreateCatalog)
 }
 
 // CreateCatalog godoc
+//
 //	@Summary		Create a catalog
 //	@Description	Create a catalog with the given title
 //	@Tags			Catalog
