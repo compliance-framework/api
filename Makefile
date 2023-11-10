@@ -80,11 +80,11 @@ lint: lint.check ## Run golangci-lint
 
 .PHONY: debug
 debug: ## Run docker-compose with debug
-	@docker-compose -f ./tests/docker-compose.yml up -d --build
+	@docker compose -f ./tests/docker-compose.yml up -d --build
 
 .PHONY: debug.stop
 debug.stop: ## Run docker-compose with debug
-	@docker-compose -f ./tests/docker-compose.yml down
+	@docker compose -f ./tests/docker-compose.yml down
 
 swag:
 	@swag init
