@@ -27,11 +27,11 @@ func (r *createCatalogRequest) bind(ctx echo.Context, c *domain.Catalog) error {
 }
 
 // createSSPRequest defines the request payload for method CreateSSP
-type createSSPRequest struct {
+type CreateSSPRequest struct {
 	Title string `json:"title" validate:"required"`
 }
 
-func (r *createSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan) error {
+func (r *CreateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}

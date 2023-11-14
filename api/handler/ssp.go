@@ -13,7 +13,7 @@ type SSPHandler struct {
 	service *service.SSPService
 }
 
-type updateSSPRequest struct {
+type UpdateSSPRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
@@ -40,7 +40,7 @@ func (h *SSPHandler) Register(api *echo.Group) {
 // @Router 			/api/ssp [post]
 func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	var ssp domain.SystemSecurityPlan
-	req := createSSPRequest{}
+	req := CreateSSPRequest{}
 
 	if err := req.bind(ctx, &ssp); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))

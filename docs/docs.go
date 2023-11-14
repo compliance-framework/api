@@ -290,6 +290,201 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/ssp": {
+            "post": {
+                "description": "Create an SSP with the given title",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP"
+                ],
+                "summary": "Create an SSP",
+                "parameters": [
+                    {
+                        "description": "SSP to add",
+                        "name": "SSP",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateSSPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.idResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ssp/{id}": {
+            "get": {
+                "description": "Get an SSP by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP"
+                ],
+                "summary": "Get an SSP by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.SystemSecurityPlan"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update an SSP with the given ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP"
+                ],
+                "summary": "Update an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "SSP to update",
+                        "name": "SSP",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateSSPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.SystemSecurityPlan"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an SSP with the given ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP"
+                ],
+                "summary": "Delete an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/plan/{id}/activate": {
             "put": {
                 "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
@@ -333,6 +528,725 @@ const docTemplate = `{
                 "errors": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "domain.Action": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsiblePartyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "system": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.AuthorizationBoundary": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "diagrams": {
+                    "description": "Diagrams is an optional collection of visual representations of the boundary.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Diagram"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.BackMatter": {
+            "type": "object",
+            "properties": {
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Resource"
+                    }
+                }
+            }
+        },
+        "domain.Base64": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "description": "Name of the file before it was encoded as Base64.",
+                    "type": "string"
+                },
+                "media-type": {
+                    "description": "A label that indicates the nature of a resource.",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "The Base64 encoded value.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Citation": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "description": "Links associated with the citation.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "description": "Properties of the citation.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "text": {
+                    "description": "A line of citation text.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DataFlow": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "diagrams": {
+                    "description": "Description is a summary of the system's data flow.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Diagram"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Diagram": {
+            "type": "object",
+            "properties": {
+                "caption": {
+                    "description": "Caption provides a brief annotation for the diagram.",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "description": "Uuid is a machine-oriented, globally unique identifier that can be used to reference this diagram elsewhere in this or other OSCAL instances.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DocumentIdentifier": {
+            "type": "object",
+            "properties": {
+                "identifier": {
+                    "description": "The document identifier.",
+                    "type": "string"
+                },
+                "scheme": {
+                    "description": "Qualifies the kind of document identifier using a URI."
+                }
+            }
+        },
+        "domain.Impact": {
+            "type": "object",
+            "properties": {
+                "adjustment_justification": {
+                    "type": "string"
+                },
+                "base": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "selected": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.InformationType": {
+            "type": "object",
+            "properties": {
+                "availability_impact": {
+                    "$ref": "#/definitions/domain.Impact"
+                },
+                "categorizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.InformationTypeCategorization"
+                    }
+                },
+                "confidentiality_impact": {
+                    "$ref": "#/definitions/domain.Impact"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "integrity_impact": {
+                    "$ref": "#/definitions/domain.Impact"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.InformationTypeCategorization": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "description": "NOTE: This part is a bit blurred",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "system": {
+                    "description": "This is an enum but right now it has only one value: http://doi.org/10.6028/NIST.SP.800-60v2r1",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Link": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "mediaType": {
+                    "type": "string"
+                },
+                "rel": {
+                    "type": "string"
+                },
+                "resourceFragment": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.NetworkArchitecture": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "diagrams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Diagram"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.OperationalStatus": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-varnames": [
+                "Disposition",
+                "Operational",
+                "Other",
+                "UnderDevelopment",
+                "UnderMajorModification"
+            ]
+        },
+        "domain.Property": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Resource": {
+            "type": "object",
+            "properties": {
+                "base64": {
+                    "description": "A resource encoded using the Base64 alphabet.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Base64"
+                        }
+                    ]
+                },
+                "citation": {
+                    "description": "An optional citation associated with the resource.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Citation"
+                        }
+                    ]
+                },
+                "description": {
+                    "description": "An optional short summary of the resource.",
+                    "type": "string"
+                },
+                "document-ids": {
+                    "description": "Document identifiers associated with the resource.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.DocumentIdentifier"
+                    }
+                },
+                "props": {
+                    "description": "Properties of the resource.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "description": "Remarks about the resource.",
+                    "type": "string"
+                },
+                "rlinks": {
+                    "description": "Related links of the resource.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "title": {
+                    "description": "An optional name given to the resource.",
+                    "type": "string"
+                },
+                "uuid": {
+                    "description": "A unique identifier for a resource.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Revision": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "lastModified": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "oscalVersion": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "published": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SecurityImpactLevel": {
+            "type": "object",
+            "properties": {
+                "objective_availability": {
+                    "type": "string"
+                },
+                "objective_confidentiality": {
+                    "type": "string"
+                },
+                "objective_integrity": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SystemCharacteristics": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Action"
+                    }
+                },
+                "authorization_boundary": {
+                    "$ref": "#/definitions/domain.AuthorizationBoundary"
+                },
+                "control_implementation": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "data_flow": {
+                    "$ref": "#/definitions/domain.DataFlow"
+                },
+                "date_authorized": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "import_profile": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "network_architecture": {
+                    "$ref": "#/definitions/domain.NetworkArchitecture"
+                },
+                "partyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsiblePartyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "responsible_parties": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Revision"
+                    }
+                },
+                "roleUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "security_impact_level": {
+                    "$ref": "#/definitions/domain.SecurityImpactLevel"
+                },
+                "security_sensitivity_level": {
+                    "description": "The overall information system sensitivity categorization, such as defined by FIPS-199.",
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.OperationalStatus"
+                },
+                "system_ids": {
+                    "description": "One of http://fedramp.gov/ns/oscal, https://fedramp.gov\", http://ietf.org/rfc/rfc4122\", https://ietf.org/rfc/rfc4122",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "system_information": {
+                    "$ref": "#/definitions/domain.SystemInformation"
+                },
+                "system_name": {
+                    "description": "The full name of the system.",
+                    "type": "string"
+                },
+                "system_name_short": {
+                    "description": "A short name for the system, such as an acronym, that is suitable for display in a data table or summary list.",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SystemInformation": {
+            "type": "object",
+            "properties": {
+                "information_types": {
+                    "description": "Contains details about one information type that is stored, processed, or transmitted by the system, such as privacy information, and those defined in NIST SP 800-60.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.InformationType"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SystemSecurityPlan": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Action"
+                    }
+                },
+                "backmatter": {
+                    "$ref": "#/definitions/domain.BackMatter"
+                },
+                "control_implementation": {
+                    "description": "Reference to the control implementation",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "import_profile": {
+                    "description": "Reference to a profile",
+                    "type": "string"
+                },
+                "partyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "responsiblePartyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Revision"
+                    }
+                },
+                "roleUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "system_characteristics": {
+                    "$ref": "#/definitions/domain.SystemCharacteristics"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.CreateSSPRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.UpdateSSPRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
