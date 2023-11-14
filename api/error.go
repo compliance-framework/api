@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+
 	"github.com/go-playground/validator/v10"
 
 	"github.com/labstack/echo/v4"
@@ -20,7 +21,7 @@ func NewError(err error) Error {
 	case errors.As(err, &v):
 		e.Errors["body"] = v.Message
 	default:
-		e.Errors["body"] = v.Error()
+		e.Errors["body"] = err.Error()
 	}
 	return e
 }
