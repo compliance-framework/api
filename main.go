@@ -7,6 +7,11 @@ import (
 
 	"github.com/compliance-framework/configuration-service/event"
 	"github.com/compliance-framework/configuration-service/result"
+	"github.com/compliance-framework/configuration-service/runtime"
+	"github.com/joho/godotenv"
+	"log"
+	"os"
+
 	"github.com/joho/godotenv"
 
 	"github.com/compliance-framework/configuration-service/api"
@@ -28,6 +33,15 @@ type Config struct {
 	NatsURI  string
 }
 
+//	@title			Compliance Framework Configuration Service API
+//	@version		1.0
+//	@description	This is the API for the Compliance Framework Configuration Service.
+
+//	@host		localhost:8080
+//	@BasePath	/api
+
+// @externalDocs.description	OpenAPI
+// @externalDocs.url			https://swagger.io/resources/open-api/
 func main() {
 	ctx := context.Background()
 
@@ -47,17 +61,17 @@ func main() {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
 
-	resultProcessor := result.NewProcessor(bus.Subscribe[event.ResultEvent])
+	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ResultEvent])
 	resultProcessor.Listen()
 
 	server := api.NewServer(ctx, sugar)
 	catalogStore := mongo.NewCatalogStore()
-	controlHandler := handler.NewCatalogHandler(catalogStore)
-	controlHandler.Register(server.API())
+	catalogHandler := handler.NewCatalogHandler(catalogStore)
+	catalogHandler.Register(server.API().Group("/catalog"))
 
 	planService := service.NewPlanService(bus.Publish)
 	planHandler := handler.NewPlanHandler(sugar, planService)
-	planHandler.Register(server.API())
+	planHandler.Register(server.API().Group("/plan"))
 
 	systemPlanService := service.NewSSPService()
 	systemPlanHandler := handler.NewSSPHandler(systemPlanService)
@@ -65,7 +79,7 @@ func main() {
 
 	metadataService := service.NewMetadataService()
 	metadataHandler := handler.NewMetadataHandler(metadataService)
-	metadataHandler.Register(server.API())
+	metadataHandler.Register(server.API().Group("/metadata"))
 
 	server.PrintRoutes()
 

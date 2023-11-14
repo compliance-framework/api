@@ -75,6 +75,7 @@ type createTaskRequest struct {
 	Title       string `json:"title" validate:"required"`
 	Description string `json:"description,omitempty"`
 	Type        string `json:"type" validate:"required"`
+	Schedule    string `json:"schedule" validate:"required"`
 }
 
 func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
@@ -84,6 +85,7 @@ func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 	t.Title = r.Title
 	t.Description = r.Description
 	t.Type = domain.TaskType(r.Type)
+	t.Schedule = r.Schedule
 	return nil
 }
 
@@ -166,10 +168,11 @@ type createActivityRequest struct {
 	Title       string `json:"title,omitempty" validate:"required"`
 	Description string `json:"description,omitempty"`
 	Provider    struct {
-		Name    string            `json:"name" validate:"required"`
-		Package string            `json:"package" validate:"required"`
-		Version string            `json:"version" validate:"required"`
-		Params  map[string]string `json:"params,omitempty"`
+		Name          string            `json:"name" validate:"required"`
+		Package       string            `json:"package" validate:"required"`
+		Version       string            `json:"version" validate:"required"`
+		Params        map[string]string `json:"params,omitempty"`
+		Configuration map[string]string `json:"configuration,omitempty"`
 	} `json:"provider" validate:"required"`
 	Subjects struct {
 		Title       string            `json:"title" validate:"required"`
@@ -204,7 +207,8 @@ func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error
 		Name:          r.Provider.Name,
 		Package:       r.Provider.Package,
 		Version:       r.Provider.Version,
-		Configuration: r.Provider.Params,
+		Configuration: r.Provider.Configuration,
+		Params:        r.Provider.Params,
 	}
 	a.Subjects = domain.SubjectSelection{
 		Title:       r.Subjects.Title,

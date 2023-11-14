@@ -99,3 +99,4 @@ debug.stop: ## Run docker-compose with debug
 
 swag:
 	@swag init
+	@swag fmt

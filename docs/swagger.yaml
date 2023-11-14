@@ -1,3 +1,4 @@
+basePath: /api
 definitions:
   api.Error:
     properties:
@@ -34,6 +35,39 @@ definitions:
       type:
         type: string
     type: object
+  domain.Actor:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      roleId:
+        type: string
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/domain.ActorType'
+      uuid:
+        type: string
+    type: object
+  domain.ActorType:
+    enum:
+    - tool
+    - assessment-platform
+    - party
+    type: string
+    x-enum-varnames:
+    - ActorTypeTool
+    - ActorTypeAssessmentPlatform
+    - ActorTypeParty
   domain.AuthorizationBoundary:
     properties:
       description:
@@ -75,6 +109,31 @@ definitions:
       value:
         description: The Base64 encoded value.
         type: string
+    type: object
+  domain.Characterization:
+    properties:
+      facets:
+        items:
+          $ref: '#/definitions/domain.Facet'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
     type: object
   domain.Citation:
     properties:
@@ -145,6 +204,96 @@ definitions:
         type: string
       scheme:
         description: Qualifies the kind of document identifier using a URI.
+    type: object
+  domain.Evidence:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.Facet:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      system:
+        description: 'One of: http://fedramp.gov, http://fedramp.gov/ns/oscal, http://csrc.nist.gov/ns/oscal,
+          http://csrc.nist.gov/ns/oscal/unknown, http://cve.mitre.org, http://www.first.org/cvss/v2.0,
+          http://www.first.org/cvss/v3.0, http://www.first.org/cvss/v3.1'
+        type: string
+      title:
+        type: string
+      value:
+        type: string
+    type: object
+  domain.Finding:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      implementationStatementId:
+        description: ImplementationStatementId Reference to the implementation statement
+          in the SSP to which this finding is related.
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedObservations:
+        items:
+          type: string
+        type: array
+      relatedRisks:
+        items:
+          type: string
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
+      remarks:
+        type: string
+      target:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
     type: object
   domain.Impact:
     properties:
@@ -237,6 +386,81 @@ definitions:
       title:
         type: string
     type: object
+  domain.Observation:
+    properties:
+      collected:
+        type: string
+      description:
+        type: string
+      evidences:
+        items:
+          $ref: '#/definitions/domain.Evidence'
+        type: array
+      expires:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      methods:
+        items:
+          $ref: '#/definitions/domain.ObservationMethod'
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
+      remarks:
+        type: string
+      subjects:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      types:
+        items:
+          $ref: '#/definitions/domain.ObservationType'
+        type: array
+    type: object
+  domain.ObservationMethod:
+    enum:
+    - examine
+    - interview
+    - test
+    - unknown
+    type: string
+    x-enum-varnames:
+    - ObservationMethodExamine
+    - ObservationMethodInterview
+    - ObservationMethodTest
+    - ObservationMethodUnknown
+  domain.ObservationType:
+    enum:
+    - ssp-statement-issue
+    - control-objective
+    - mitigation
+    - finding
+    - historic
+    type: string
+    x-enum-varnames:
+    - ObservationTypeSSPStatementIssue
+    - ObservationTypeControlObjective
+    - ObservationTypeMitigation
+    - ObservationTypeFinding
+    - ObservationTypeHistoric
   domain.OperationalStatus:
     enum:
     - 0
@@ -257,11 +481,11 @@ definitions:
         type: string
       group:
         type: string
+      name:
+        type: string
       ns:
         type: string
       remarks:
-        type: string
-      uuid:
         type: string
       value:
         type: string
@@ -304,6 +528,38 @@ definitions:
         description: A unique identifier for a resource.
         type: string
     type: object
+  domain.Response:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      lifecycle:
+        description: |-
+          Identifies whether this is a recommendation, such as from an assessor or tool, or an actual plan accepted by the system owner.
+          One of: recommendation, planned, completed
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
   domain.Revision:
     properties:
       description:
@@ -329,6 +585,108 @@ definitions:
       version:
         type: string
     type: object
+  domain.Risk:
+    properties:
+      characterizations:
+        items:
+          $ref: '#/definitions/domain.Characterization'
+        type: array
+      deadline:
+        type: string
+      description:
+        description: A human-readable summary of the identified risk, to include a
+          statement of how the risk impacts the system.
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      mitigatingFactors:
+        items:
+          type: string
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedObservations:
+        items:
+          type: string
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
+      remediations:
+        items:
+          $ref: '#/definitions/domain.Response'
+        type: array
+      riskLog:
+        items:
+          $ref: '#/definitions/domain.RiskLogEntry'
+        type: array
+      statement:
+        description: A summary of impact for how the risk affects the system.
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/domain.RiskStatus'
+        description: Describes the status of the risk.
+      threats:
+        items:
+          type: string
+        type: array
+      title:
+        description: The title for this risk.
+        type: string
+    type: object
+  domain.RiskLogEntry:
+    properties:
+      description:
+        type: string
+      end:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      loggedBy:
+        $ref: '#/definitions/domain.Actor'
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      start:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.RiskStatus:
+    enum:
+    - open
+    - investigating
+    - remediating
+    - deviation-requested
+    - deviation-approved
+    - closed
+    type: string
+    x-enum-varnames:
+    - RiskStatusOpen
+    - RiskStatusInvestigating
+    - RiskStatusRemediating
+    - RiskStatusDeviationRequested
+    - RiskStatusDeviationApproved
+    - RiskStatusClosed
   domain.SecurityImpactLevel:
     properties:
       objective_availability:
@@ -524,6 +882,10 @@ definitions:
         type: string
       provider:
         properties:
+          configuration:
+            additionalProperties:
+              type: string
+            type: object
           name:
             type: string
           package:
@@ -599,12 +961,15 @@ definitions:
     properties:
       description:
         type: string
+      schedule:
+        type: string
       title:
         description: 'TODO: We are keeping it minimal for now for the demo'
         type: string
       type:
         type: string
     required:
+    - schedule
     - title
     - type
     type: object
@@ -617,190 +982,108 @@ definitions:
           Example: "456def"
         type: string
     type: object
+  service.ComplianceStatusByTargets:
+    properties:
+      compliance:
+        items:
+          $ref: '#/definitions/service.RiskState'
+        type: array
+      control:
+        type: string
+      target:
+        type: string
+    type: object
+  service.ComplianceStatusOverTime:
+    properties:
+      date:
+        type: string
+      findings:
+        type: integer
+      observations:
+        type: integer
+      risks:
+        type: integer
+    type: object
+  service.PlanSummary:
+    properties:
+      complianceStatus:
+        type: number
+      description:
+        type: string
+      endDate:
+        type: string
+      numControls:
+        type: integer
+      numObservations:
+        type: integer
+      numRisks:
+        type: integer
+      numSubjects:
+        type: integer
+      published:
+        type: string
+      riskLevels:
+        $ref: '#/definitions/service.RiskLevels'
+      riskScore:
+        $ref: '#/definitions/service.RiskScore'
+      status:
+        type: string
+    type: object
+  service.RemediationVsTime:
+    properties:
+      control:
+        type: string
+      remediation:
+        type: string
+    type: object
+  service.RiskLevels:
+    properties:
+      high:
+        type: integer
+      low:
+        type: integer
+      medium:
+        type: integer
+    type: object
+  service.RiskScore:
+    properties:
+      score:
+        type: integer
+      severity:
+        $ref: '#/definitions/service.RiskSeverity'
+    type: object
+  service.RiskSeverity:
+    enum:
+    - medium
+    - low
+    - high
+    type: string
+    x-enum-varnames:
+    - Medium
+    - Low
+    - High
+  service.RiskState:
+    enum:
+    - pass
+    - warn
+    - fail
+    - indeterminate
+    type: string
+    x-enum-varnames:
+    - Pass
+    - Warn
+    - Fail
+    - Indeterminate
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:8080
 info:
   contact: {}
+  description: This is the API for the Compliance Framework Configuration Service.
+  title: Compliance Framework Configuration Service API
+  version: "1.0"
 paths:
-  /api/catalog:
-    post:
-      consumes:
-      - application/json
-      description: Create a catalog with the given title
-      parameters:
-      - description: Catalog to add
-        in: body
-        name: catalog
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createCatalogRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.catalogIdResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a catalog
-      tags:
-      - Catalog
-  /api/metadata/revisions:
-    post:
-      consumes:
-      - application/json
-      description: This method attaches metadata to a specific revision.
-      parameters:
-      - description: Revision that will be attached
-        in: body
-        name: revision
-        required: true
-        schema:
-          $ref: '#/definitions/handler.attachMetadataRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-        "400":
-          description: 'Bad Request: Error binding the request'
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Object not found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Attaches metadata to a specific revision
-      tags:
-      - Metadata
-  /api/plan:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new plan in the system
-      parameters:
-      - description: Plan to add
-        in: body
-        name: plan
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createPlanRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.idResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a plan
-      tags:
-      - Plan
-  /api/plan/{id}/tasks:
-    post:
-      consumes:
-      - application/json
-      description: This method creates a new task and adds it to a specific plan.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Task to add
-        in: body
-        name: task
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createTaskRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully added the task to the plan
-          schema:
-            type: string
-        "404":
-          description: Plan not found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: 'Unprocessable Entity: Error binding the request'
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Creates a new task for a specific plan
-      tags:
-      - Plan
-  /api/plan/{id}/tasks/{taskId}/activities:
-    post:
-      consumes:
-      - application/json
-      description: This function is used to create an activity for a given task.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Task ID
-        in: path
-        name: taskId
-        required: true
-        type: integer
-      - description: Activity
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createActivityRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: "201"
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create activity
-      tags:
-      - Plan
   /api/ssp:
     get:
       consumes:
@@ -818,39 +1101,6 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: List all SSPs
-      tags:
-      - SSP
-    post:
-      consumes:
-      - application/json
-      description: Create an SSP with the given title
-      parameters:
-      - description: SSP to add
-        in: body
-        name: SSP
-        required: true
-        schema:
-          $ref: '#/definitions/handler.CreateSSPRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.idResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create an SSP
       tags:
       - SSP
   /api/ssp/{id}:
@@ -948,6 +1198,108 @@ paths:
       summary: Update an SSP
       tags:
       - SSP
+  /catalog:
+    post:
+      consumes:
+      - application/json
+      description: Create a catalog with the given title
+      parameters:
+      - description: Catalog to add
+        in: body
+        name: catalog
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createCatalogRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.catalogIdResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a catalog
+      tags:
+      - Catalog
+  /metadata/revisions:
+    post:
+      consumes:
+      - application/json
+      description: This method attaches metadata to a specific revision.
+      parameters:
+      - description: Revision that will be attached
+        in: body
+        name: revision
+        required: true
+        schema:
+          $ref: '#/definitions/handler.attachMetadataRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: 'Bad Request: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Object not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Attaches metadata to a specific revision
+      tags:
+      - Metadata
+  /plan:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new plan in the system
+      parameters:
+      - description: Plan to add
+        in: body
+        name: plan
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.idResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a plan
+      tags:
+      - Plan
   /plan/{id}/activate:
     put:
       consumes:
@@ -970,6 +1322,295 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Activate a plan
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/compliance-over-time:
+    get:
+      description: Return the compliance over time of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.ComplianceStatusOverTime'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the compliance over time
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/compliance-status-by-targets:
+    get:
+      description: Return the compliance status by targets of the result with the
+        given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.ComplianceStatusByTargets'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the compliance status by targets
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/findings:
+    get:
+      description: Return the findings of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Finding'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the findings
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/observations:
+    get:
+      description: Return the observations of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Observation'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the observations
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/remediation-vs-time:
+    get:
+      description: Return the remediation versus time of the result with the given
+        ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.RemediationVsTime'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the remediation versus time
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/risks:
+    get:
+      description: Return the risks of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Risk'
+            type: array
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the risks
+      tags:
+      - Plan
+  /plan/{id}/results/{resultId}/summary:
+    get:
+      description: Return the summary of the result with the given ID.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.PlanSummary'
+        "500":
+          description: Internal server error.
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Return the result summary
+      tags:
+      - Plan
+  /plan/{id}/tasks:
+    post:
+      consumes:
+      - application/json
+      description: This method creates a new task and adds it to a specific plan.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Task to add
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully added the task to the plan
+          schema:
+            type: string
+        "404":
+          description: Plan not found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: 'Unprocessable Entity: Error binding the request'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Creates a new task for a specific plan
+      tags:
+      - Plan
+  /plan/{id}/tasks/{taskId}/activities:
+    post:
+      consumes:
+      - application/json
+      description: This function is used to create an activity for a given task.
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Task ID
+        in: path
+        name: taskId
+        required: true
+        type: integer
+      - description: Activity
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createActivityRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.idResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create activity
       tags:
       - Plan
 swagger: "2.0"
