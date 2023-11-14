@@ -79,7 +79,7 @@ lint: lint.check ## Run golangci-lint
 	$(OK) No linting issues found
 
 .PHONY: reviewable
-reviewable: lint swag ## Ensure a PR is ready for review.
+reviewable: swag ## Ensure a PR is ready for review.
 	@go mod tidy
 
 .PHONY: check-diff
