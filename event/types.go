@@ -17,3 +17,5 @@ type PlanEvent struct {
 	Type                    string `yaml:"type" json:"type"`
 	domain.JobSpecification `yaml:"data" json:"data"`
 }
+
+type ResultEvent struct{}

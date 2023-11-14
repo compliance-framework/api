@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+
 	. "github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
@@ -133,7 +134,7 @@ func (s *PlanService) AddResult(planId string, result Result) error {
 	if err != nil {
 		return err
 	}
-	filter := bson.D{{"_id", pid}}
+	filter := bson.D{{Key: "_id", Value: pid}}
 
 	update := bson.M{
 		"$push": bson.M{
@@ -150,11 +151,11 @@ func (s *PlanService) AddResult(planId string, result Result) error {
 
 func (s *PlanService) Findings(planId string, resultId string) ([]Finding, error) {
 	pipeline := bson.A{
-		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
+		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$tasks"}}}},
 		bson.D{
-			{"$project",
-				bson.D{
-					{"_id", 0},
+			{Key: "$project",
+				Value: bson.D{
+					{Key: "_id", Value: 0},
 				},
 			},
 		},
@@ -175,11 +176,11 @@ func (s *PlanService) Findings(planId string, resultId string) ([]Finding, error
 
 func (s *PlanService) Observations(planId string, resultId string) ([]Observation, error) {
 	pipeline := bson.A{
-		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
+		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$tasks"}}}},
 		bson.D{
-			{"$project",
-				bson.D{
-					{"_id", 0},
+			{Key: "$project",
+				Value: bson.D{
+					{Key: "_id", Value: 0},
 				},
 			},
 		},
@@ -200,11 +201,11 @@ func (s *PlanService) Observations(planId string, resultId string) ([]Observatio
 
 func (s *PlanService) Risks(planId string, resultId string) ([]Risk, error) {
 	pipeline := bson.A{
-		bson.D{{"$unwind", bson.D{{"path", "$tasks"}}}},
+		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$tasks"}}}},
 		bson.D{
-			{"$project",
-				bson.D{
-					{"_id", 0},
+			{Key: "$project",
+				Value: bson.D{
+					{Key: "_id", Value: 0},
 				},
 			},
 		},

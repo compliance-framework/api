@@ -5,13 +5,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/compliance-framework/configuration-service/event"
-	"github.com/compliance-framework/configuration-service/result"
-	"github.com/compliance-framework/configuration-service/runtime"
-	"github.com/joho/godotenv"
-	"log"
-	"os"
-
 	"github.com/joho/godotenv"
 
 	"github.com/compliance-framework/configuration-service/api"
@@ -60,9 +53,6 @@ func main() {
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
-
-	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ResultEvent])
-	resultProcessor.Listen()
 
 	server := api.NewServer(ctx, sugar)
 	catalogStore := mongo.NewCatalogStore()
