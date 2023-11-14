@@ -55,12 +55,13 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 }
 
 // addTaskRequest defines the request payload for method CreateTask
-type addAssetRequest struct {
+// TODO: these are not currently used anywhere - When it is used, remove nolints:
+type addAssetRequest struct { //nolint
 	AssetId string `json:"assetId" validate:"required"`
 	Type    string `json:"type" validate:"required"`
 }
 
-func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error {
+func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error { //nolint
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
@@ -87,7 +88,8 @@ func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 }
 
 // setSubjectSelectionRequest defines the request payload for method SetSubjectsForActivity
-type setSubjectSelectionRequest struct {
+// TODO: these are not currently used anywhere - When it is used, remove nolints:
+type setSubjectSelectionRequest struct { //nolint
 	Title       string            `json:"title,omitempty" validate:"required"`
 	Description string            `json:"description,omitempty"`
 	Query       string            `json:"query"`
@@ -100,7 +102,7 @@ type setSubjectSelectionRequest struct {
 	Ids []string `json:"ids,omitempty"`
 }
 
-func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error {
+func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error { //nolint
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
@@ -129,11 +131,12 @@ func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSel
 }
 
 // setScheduleRequest defines the request payload for method SetSchedule
-type setScheduleRequest struct {
+// TODO: these are not currently used anywhere - When it is used, remove nolints:
+type setScheduleRequest struct { //nolint
 	Schedule []string `json:"schedule"`
 }
 
-func (r *setScheduleRequest) bind(ctx echo.Context) error {
+func (r *setScheduleRequest) bind(ctx echo.Context) error { //nolint
 	return ctx.Bind(r)
 }
 
