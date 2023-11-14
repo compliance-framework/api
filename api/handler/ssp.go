@@ -13,11 +13,6 @@ type SSPHandler struct {
 	service *service.SSPService
 }
 
-type UpdateSSPRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
 func NewSSPHandler(sspService *service.SSPService) *SSPHandler {
 	return &SSPHandler{service: sspService}
 }
@@ -118,10 +113,9 @@ func (h *SSPHandler) UpdateSSP(ctx echo.Context) error {
 	var ssp domain.SystemSecurityPlan
 	req := UpdateSSPRequest{}
 
-	if err := ctx.Bind(&req); err != nil {
+	if err := req.bind(ctx, &ssp); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
 	updatedSSP, err := h.service.Update(id, &ssp)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

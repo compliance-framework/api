@@ -223,3 +223,18 @@ func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error
 	}
 	return nil
 }
+
+// updateSSPRequest defines the request payload for method UpdateSSP
+type UpdateSSPRequest struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+func (r *UpdateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	ssp.Title = r.Title
+	return nil
+}
