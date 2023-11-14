@@ -22,7 +22,6 @@ func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("/:id/tasks/:taskId/activities", h.CreateActivity)
 
 	results := api.Group("/:id/results")
-	results.GET("", h.Results)
 	results.GET("/:resultId/findings", h.Findings)
 	results.GET("/:resultId/observations", h.Observations)
 	results.GET("/:resultId/risks", h.Risks)
@@ -172,25 +171,6 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(http.StatusOK)
-}
-
-// Results Returns the assessment results related with the plan with the given ID.
-//
-//	@Summary		Return the assessment results
-//	@Description	Return the assessment results related with the plan with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id	path		string	true	"Plan ID"
-//	@Success		200	{object}	[]domain.Result
-//	@Failure		500	{object}	api.Error	"Internal server error. The plan could not be activated."
-//	@Router			/plan/{id}/results [get]
-func (h *PlanHandler) Results(ctx echo.Context) error {
-	results, err := h.service.GetResults(ctx.Param("id"))
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return ctx.JSON(http.StatusOK, results)
 }
 
 // Summary Returns the summary of the result with the given ID.

@@ -31,19 +31,18 @@ type Result struct {
 	Id               primitive.ObjectID      `json:"id"`
 	Title            string                  `json:"title,omitempty"`
 	Description      string                  `json:"description,omitempty"`
-	Potato           string                  `json:"potato,omitempty"`
-	Props            []Property              `json:"props,omitempty"`
-	Links            []Link                  `json:"links,omitempty"`
-	Remarks          string                  `json:"remarks,omitempty"`
-	LocalDefinitions LocalDefinition         `json:"localDefinitions"`
-	AssessmentLog    []LogEntry              `json:"assessmentLogEntries"`
-	Attestations     []Attestation           `json:"attestations"`
 	Start            time.Time               `json:"start"`
 	End              time.Time               `json:"end"`
-	Findings         []Finding               `json:"findings"`
-	Observations     []Observation           `json:"observations"`
+	Props            []Property              `json:"props,omitempty"`
+	Links            []Link                  `json:"links,omitempty"`
+	LocalDefinitions LocalDefinition         `json:"localDefinitions"`
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
+	AssessmentLog    []LogEntry              `json:"assessmentLogEntries"`
+	Attestations     []Attestation           `json:"attestations"`
+	Observations     []Observation           `json:"observations"`
 	Risks            []Risk                  `json:"risks"`
+	Findings         []Finding               `json:"findings"`
+	Remarks          string                  `json:"remarks,omitempty"`
 }
 
 // Attestation represents a formal assertion, declaration, or acknowledgment by an authoritative
@@ -75,7 +74,10 @@ type Characterization struct {
 	Links  []Link     `json:"links,omitempty"`
 	Props  []Property `json:"props,omitempty"`
 	Facets []Facet    `json:"facets"`
-	Origin Origin     `json:"origin"`
+
+	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	Actors []primitive.ObjectID `json:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks"`
 }
 
 // Facet represents specific aspects or dimensions of a characterization in
@@ -108,17 +110,24 @@ type Facet struct {
 //	of manually vetting and approving system updates. This poses a potential security risk
 //	as unvetted updates could introduce vulnerabilities.
 type Finding struct {
-	Id                      primitive.ObjectID   `json:"id"`
-	Title                   string               `json:"title,omitempty"`
-	Description             string               `json:"description,omitempty"`
-	Props                   []Property           `json:"props,omitempty"`
-	Links                   []Link               `json:"links,omitempty"`
-	Remarks                 string               `json:"remarks,omitempty"`
-	ImplementationStatement primitive.ObjectID   `json:"implementationStatementId"`
-	Origins                 []primitive.ObjectID `json:"origins"`
-	RelatedObservations     []primitive.ObjectID `json:"relatedObservations"`
-	RelatedRisks            []primitive.ObjectID `json:"relatedRisks"`
-	Target                  []primitive.ObjectID `json:"target"`
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty"`
+
+	// ImplementationStatementId Reference to the implementation statement in the SSP to which this finding is related.
+	ImplementationStatementId primitive.ObjectID `json:"implementationStatementId"`
+
+	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	Actors []primitive.ObjectID `json:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+
+	TargetId []primitive.ObjectID `json:"target"`
+
+	RelatedObservations []primitive.ObjectID `json:"relatedObservations"`
+	RelatedRisks        []primitive.ObjectID `json:"relatedRisks"`
 }
 
 // LogEntry represents a record in an assessment log that documents a specific
@@ -133,16 +142,18 @@ type Finding struct {
 //	Actor: Jane Smith
 //	Notes: Started the review of system settings as per the assessment plan. No anomalies observed at this time.
 type LogEntry struct {
-	Timestamp   time.Time            `json:"timestamp"`
-	Type        int32                `json:"type"`
-	Title       string               `json:"title,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Props       []Property           `json:"props,omitempty"`
-	Links       []Link               `json:"links,omitempty"`
-	Remarks     string               `json:"remarks,omitempty"`
-	Start       time.Time            `json:"start"`
-	End         time.Time            `json:"end"`
-	LoggedBy    []primitive.ObjectID `json:"loggedBy"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty"`
+
+	// Identifies the start date and time of an event.
+	Start time.Time `json:"start"`
+
+	// Identifies the end date and time of an event. If the event is a point in time, the start and end will be the same date and time.
+	End      time.Time            `json:"end"`
+	LoggedBy []primitive.ObjectID `json:"loggedBy"`
 }
 
 // Evidence represents data or records collected during an assessment to support
@@ -164,6 +175,25 @@ type Evidence struct {
 	Remarks     string             `json:"remarks,omitempty"`
 }
 
+type ObservationMethod string
+
+const (
+	ObservationMethodExamine   ObservationMethod = "examine"
+	ObservationMethodInterview ObservationMethod = "interview"
+	ObservationMethodTest      ObservationMethod = "test"
+	ObservationMethodUnknown   ObservationMethod = "unknown"
+)
+
+type ObservationType string
+
+const (
+	ObservationTypeSSPStatementIssue ObservationType = "ssp-statement-issue"
+	ObservationTypeControlObjective  ObservationType = "control-objective"
+	ObservationTypeMitigation        ObservationType = "mitigation"
+	ObservationTypeFinding           ObservationType = "finding"
+	ObservationTypeHistoric          ObservationType = "historic"
+)
+
 // Observation represents a note or remark made by an assessor about something
 // they noticed during the assessment. It is a neutral statement that captures
 // what was seen or understood without necessarily assigning a value judgment.
@@ -172,21 +202,35 @@ type Evidence struct {
 //
 //	During the system configuration review, it was observed that the "auto-update" feature was enabled.
 type Observation struct {
-	Id          primitive.ObjectID `json:"id"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
-	Links       []Link             `json:"links,omitempty"`
-	Remarks     string             `json:"remarks,omitempty"`
-	Collected   time.Time          `json:"collected"`
-	Expires     time.Time          `json:"expires"`
-	Evidences   []Evidence         `json:"evidences"`
+	Id          primitive.ObjectID  `json:"id"`
+	Title       string              `json:"title,omitempty"`
+	Description string              `json:"description,omitempty"`
+	Props       []Property          `json:"props,omitempty"`
+	Links       []Link              `json:"links,omitempty"`
+	Methods     []ObservationMethod `json:"methods"`
+	Types       []ObservationType   `json:"types"`
+
+	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	Actors []primitive.ObjectID `json:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+
+	Subjects         []primitive.ObjectID `json:"subjects"`
+	RelevantEvidence []Evidence           `json:"evidences"`
+	Collected        time.Time            `json:"collected"`
+	Expires          time.Time            `json:"expires"`
+	Remarks          string               `json:"remarks,omitempty"`
 }
 
-type Origin struct {
-	Actors       []primitive.ObjectID `json:"actors"`
-	RelatedTasks []primitive.ObjectID `json:"relatedTasks"`
-}
+type RiskStatus string
+
+const (
+	RiskStatusOpen               RiskStatus = "open"
+	RiskStatusInvestigating      RiskStatus = "investigating"
+	RiskStatusRemediating        RiskStatus = "remediating"
+	RiskStatusDeviationRequested RiskStatus = "deviation-requested"
+	RiskStatusDeviationApproved  RiskStatus = "deviation-approved"
+	RiskStatusClosed             RiskStatus = "closed"
+)
 
 // Risk represents a potential event or circumstance that may exploit a vulnerability
 // in a system or its environment. Risks often have associated impacts and likelihoods,
@@ -202,14 +246,76 @@ type Origin struct {
 //	Impact: High - This could compromise the integrity of the system.
 //	Likelihood: Medium - Based on past updates and the frequency of potentially harmful updates.
 type Risk struct {
-	Id                primitive.ObjectID `json:"id"`
-	Title             string             `json:"title,omitempty"`
-	Description       string             `json:"description,omitempty"`
-	Props             []Property         `json:"props,omitempty"`
-	Links             []Link             `json:"links,omitempty"`
-	Remarks           string             `json:"remarks,omitempty"`
-	Characterizations []Characterization `json:"characterizations"`
-	Deadline          time.Time          `json:"deadline"`
+	Id primitive.ObjectID `json:"id"`
+
+	// The title for this risk.
+	Title string `json:"title,omitempty"`
+
+	// A human-readable summary of the identified risk, to include a statement of how the risk impacts the system.
+	Description string `json:"description,omitempty"`
+
+	// A summary of impact for how the risk affects the system.
+	Statement string `json:"statement,omitempty"`
+
+	Props []Property `json:"props,omitempty"`
+	Links []Link     `json:"links,omitempty"`
+
+	// Describes the status of the risk.
+	Status RiskStatus `json:"status"`
+
+	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	Actors []primitive.ObjectID `json:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+
+	Threats             []primitive.ObjectID `json:"threats"`
+	Characterizations   []Characterization   `json:"characterizations"`
+	MitigatingFactors   []primitive.ObjectID `json:"mitigatingFactors"`
+	Deadline            time.Time            `json:"deadline"`
+	Remediations        []Response           `json:"remediations"`
+	Log                 []RiskLogEntry       `json:"riskLog"`
+	RelatedObservations []primitive.ObjectID `json:"relatedObservations"`
+}
+
+type RiskLogEntry struct {
+	Id          primitive.ObjectID `json:"id"`
+	Title       string             `json:"title,omitempty"`
+	Description string             `json:"description,omitempty"`
+	Start       time.Time          `json:"start"`
+	End         time.Time          `json:"end"`
+	Props       []Property         `json:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty"`
+	LoggedBy    Actor              `json:"loggedBy"`
+
+	// TODO: More fields should be important from the OSCAL schema
+}
+
+// MitigatingFactor Describes an existing mitigating factor that may affect the overall determination of the risk, with an optional link to an implementation statement in the SSP.
+type MitigatingFactor struct {
+	Id               primitive.ObjectID   `json:"id"`
+	ImplementationId primitive.ObjectID   `json:"implementationId"`
+	Description      string               `json:"description"`
+	Props            []Property           `json:"props,omitempty"`
+	Links            []Link               `json:"links,omitempty"`
+	Subjects         []primitive.ObjectID `json:"subjects"`
+}
+
+// Response Describes either recommended or an actual plan for addressing the risk.
+// TODO: Needs more work
+type Response struct {
+	Id primitive.ObjectID `json:"id"`
+
+	// Identifies whether this is a recommendation, such as from an assessor or tool, or an actual plan accepted by the system owner.
+	// One of: recommendation, planned, completed
+	Lifecycle string `json:"lifecycle"`
+
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Props       []Property `json:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty"`
+
+	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	Actors []primitive.ObjectID `json:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks"`
 }
 
 // Target Captures an assessor's conclusions regarding the degree to which an objective is satisfied.
@@ -219,7 +325,7 @@ type Risk struct {
 //
 // Example:
 //
-//	Target ID: server-1234
+//	TargetId ID: server-1234
 //	Type: System Component
 //	Description: Primary web server running in the production environment.
 type Target struct {
@@ -237,4 +343,10 @@ type TargetStatus struct {
 	State   string `json:"state"`
 	Reason  string `json:"reason"`
 	Remarks string `json:"remarks"`
+}
+
+type Threat struct {
+	Id     primitive.ObjectID `json:"id"`
+	System string             `json:"system"`
+	Href   string             `json:"href"`
 }
