@@ -50,6 +50,29 @@ func (s *SSPService) GetByID(id string) (*domain.SystemSecurityPlan, error) {
 	return &ssp, nil
 }
 
+func (s *SSPService) List() ([]*domain.SystemSecurityPlan, error) {
+	ctx := context.Background()
+	ssps := []*domain.SystemSecurityPlan{}
+	var tErr error
+	cur, err := s.sspCollection.Find(ctx, bson.D{})
+	if err != nil {
+		return nil, err
+	}
+	for cur.Next(ctx) {
+		ssp := &domain.SystemSecurityPlan{}
+		err = cur.Decode(&ssp)
+		if err != nil {
+			jErr := errors.Join(tErr, err)
+			if jErr != nil {
+				panic(jErr)
+			}
+		}
+		ssps = append(ssps, ssp)
+
+	}
+	return ssps, err
+}
+
 func (s *SSPService) Update(id string, ssp *domain.SystemSecurityPlan) (*domain.SystemSecurityPlan, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {

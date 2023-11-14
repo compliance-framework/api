@@ -24,6 +24,10 @@ func NewSSPHandler(sspService *service.SSPService) *SSPHandler {
 
 func (h *SSPHandler) Register(api *echo.Group) {
 	api.POST("/ssp", h.CreateSSP)
+	api.GET("/ssp", h.ListSSP)
+	api.GET("/ssp/:id", h.GetSSP)
+	api.PUT("/ssp/:id", h.UpdateSSP)
+	api.DELETE("/ssp/:id", h.DeleteSSP)
 }
 
 // CreateSSP godoc
@@ -73,6 +77,24 @@ func (h *SSPHandler) GetSSP(ctx echo.Context) error {
 	ssp, err := h.service.GetByID(id)
 	if err != nil {
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, ssp)
+}
+
+// ListSSP godoc
+// @Summary     List all SSPs
+// @Description List all SSP
+// @Tags        SSP
+// @Accept      json
+// @Produce     json
+// @Success     200 {object} domain.SystemSecurityPlan
+// @Failure     500 {object} api.Error
+// @Router      /api/ssp [get]
+func (h *SSPHandler) ListSSP(ctx echo.Context) error {
+	ssp, err := h.service.List()
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, ssp)

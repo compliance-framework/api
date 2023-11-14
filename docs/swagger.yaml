@@ -802,6 +802,24 @@ paths:
       tags:
       - Plan
   /api/ssp:
+    get:
+      consumes:
+      - application/json
+      description: List all SSP
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List all SSPs
+      tags:
+      - SSP
     post:
       consumes:
       - application/json

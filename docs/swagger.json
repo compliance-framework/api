@@ -280,6 +280,33 @@
             }
         },
         "/api/ssp": {
+            "get": {
+                "description": "List all SSP",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SSP"
+                ],
+                "summary": "List all SSPs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.SystemSecurityPlan"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
             "post": {
                 "description": "Create an SSP with the given title",
                 "consumes": [

@@ -210,7 +210,7 @@ type InformationTypeCategorization struct {
 }
 
 type SystemSecurityPlan struct {
-	Title string `json:"title"`
+	Title      string     `json:"title"`
 	Uuid       Uuid       `json:"uuid"`
 	BackMatter BackMatter `json:"backmatter"`
 	Metadata

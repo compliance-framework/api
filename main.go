@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
+
 	"github.com/compliance-framework/configuration-service/event"
 	"github.com/compliance-framework/configuration-service/result"
 	"github.com/joho/godotenv"
-	"log"
-	"os"
 
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/api/handler"
@@ -57,6 +58,10 @@ func main() {
 	planService := service.NewPlanService(bus.Publish)
 	planHandler := handler.NewPlanHandler(sugar, planService)
 	planHandler.Register(server.API())
+
+	systemPlanService := service.NewSSPService()
+	systemPlanHandler := handler.NewSSPHandler(systemPlanService)
+	systemPlanHandler.Register(server.API())
 
 	metadataService := service.NewMetadataService()
 	metadataHandler := handler.NewMetadataHandler(metadataService)
