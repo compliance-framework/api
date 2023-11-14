@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/catalog": {
+        "/catalog": {
             "post": {
                 "description": "Create a catalog with the given title",
                 "consumes": [
@@ -67,7 +67,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/metadata/revisions": {
+        "/metadata/revisions": {
             "post": {
                 "description": "This method attaches metadata to a specific revision.",
                 "consumes": [
@@ -119,7 +119,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/plan": {
+        "/plan": {
             "post": {
                 "description": "Creates a new plan in the system",
                 "consumes": [
@@ -171,7 +171,392 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/plan/{id}/tasks": {
+        "/plan/{id}/activate": {
+            "put": {
+                "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Activate a plan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal server error. The plan could not be activated.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results": {
+            "get": {
+                "description": "Return the assessment results related with the plan with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the assessment results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Result"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error. The plan could not be activated.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/compliance-over-time": {
+            "get": {
+                "description": "Return the compliance over time of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the compliance over time",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.ComplianceStatusOverTime"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/compliance-status-by-targets": {
+            "get": {
+                "description": "Return the compliance status by targets of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the compliance status by targets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.ComplianceStatusByTargets"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/findings": {
+            "get": {
+                "description": "Return the findings of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the findings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Finding"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/observations": {
+            "get": {
+                "description": "Return the observations of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the observations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Observation"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/remediation-vs-time": {
+            "get": {
+                "description": "Return the remediation versus time of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the remediation versus time",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.RemediationVsTime"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/risks": {
+            "get": {
+                "description": "Return the risks of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the risks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Risk"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/results/{resultId}/summary": {
+            "get": {
+                "description": "Return the summary of the result with the given ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Return the result summary",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.PlanSummary"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error.",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/plan/{id}/tasks": {
             "post": {
                 "description": "This method creates a new task and adds it to a specific plan.",
                 "consumes": [
@@ -230,7 +615,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/plan/{id}/tasks/{taskId}/activities": {
+        "/plan/{id}/tasks/{taskId}/activities": {
             "post": {
                 "description": "This function is used to create an activity for a given task.",
                 "consumes": [
@@ -269,10 +654,10 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
-                            "type": "201"
+                            "$ref": "#/definitions/handler.idResponse"
                         }
                     },
                     "404": {
@@ -289,41 +674,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "/plan/{id}/activate": {
-            "put": {
-                "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Activate a plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "500": {
-                        "description": "Internal server error. The plan could not be activated.",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
@@ -333,6 +683,647 @@ const docTemplate = `{
                 "errors": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "domain.Attestation": {
+            "type": "object",
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "responsibleParties": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.Characterization": {
+            "type": "object",
+            "properties": {
+                "facets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Facet"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "origin": {
+                    "$ref": "#/definitions/domain.Origin"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                }
+            }
+        },
+        "domain.ControlsAndObjectives": {
+            "type": "object",
+            "properties": {
+                "controlSelections": {
+                    "$ref": "#/definitions/domain.Selection"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ObjectiveSelection"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Evidence": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Facet": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "system": {
+                    "description": "One of: http://fedramp.gov, http://fedramp.gov/ns/oscal, http://csrc.nist.gov/ns/oscal, http://csrc.nist.gov/ns/oscal/unknown, http://cve.mitre.org, http://www.first.org/cvss/v2.0, http://www.first.org/cvss/v3.0, http://www.first.org/cvss/v3.1",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Finding": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "implementationStatementId": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "relatedObservations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "relatedRisks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Link": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "mediaType": {
+                    "type": "string"
+                },
+                "rel": {
+                    "type": "string"
+                },
+                "resourceFragment": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.LocalDefinition": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "description": "Reference to Activity",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "components": {
+                    "description": "Reference to component.Component",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inventoryItems": {
+                    "description": "Reference to ssp.InventoryItem",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Objective"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "users": {
+                    "description": "Reference to identity.User",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.LogEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "loggedBy": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.Objective": {
+            "type": "object",
+            "properties": {
+                "control": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ObjectiveSelection": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Observation": {
+            "type": "object",
+            "properties": {
+                "collected": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidences": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Evidence"
+                    }
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Origin": {
+            "type": "object",
+            "properties": {
+                "actors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "relatedTasks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.Part": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "description": "An optional textual providing a sub-type or characterization of the part's name, or a category to which the part belongs.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "A unique identifier for the part.",
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "name": {
+                    "description": "A textual label that uniquely identifies the part's semantic type, which exists in a value space qualified by the ns.",
+                    "type": "string"
+                },
+                "ns": {
+                    "description": "An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.",
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "prose": {
+                    "description": "Permits multiple paragraphs, lists, tables etc.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "An optional name given to the part, which may be used by a tool for display and navigation.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Property": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Result": {
+            "type": "object",
+            "properties": {
+                "assessmentLogEntries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.LogEntry"
+                    }
+                },
+                "attestations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Attestation"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Finding"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "localDefinitions": {
+                    "$ref": "#/definitions/domain.LocalDefinition"
+                },
+                "observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Observation"
+                    }
+                },
+                "potato": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "reviewedControls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ControlsAndObjectives"
+                    }
+                },
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Risk"
+                    }
+                },
+                "start": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Risk": {
+            "type": "object",
+            "properties": {
+                "characterizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Characterization"
+                    }
+                },
+                "deadline": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Selection": {
+            "type": "object",
+            "properties": {
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
                 }
             }
         },
@@ -387,6 +1378,12 @@ const docTemplate = `{
                         "version"
                     ],
                     "properties": {
+                        "configuration": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        },
                         "name": {
                             "type": "string"
                         },
@@ -486,14 +1483,29 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.createSSPRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.createTaskRequest": {
             "type": "object",
             "required": [
+                "schedule",
                 "title",
                 "type"
             ],
             "properties": {
                 "description": {
+                    "type": "string"
+                },
+                "schedule": {
                     "type": "string"
                 },
                 "title": {
@@ -513,18 +1525,158 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "service.ComplianceStatusByTargets": {
+            "type": "object",
+            "properties": {
+                "compliance": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.RiskState"
+                    }
+                },
+                "control": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.ComplianceStatusOverTime": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "integer"
+                },
+                "observations": {
+                    "type": "integer"
+                },
+                "risks": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.PlanSummary": {
+            "type": "object",
+            "properties": {
+                "complianceStatus": {
+                    "type": "number"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "endDate": {
+                    "type": "string"
+                },
+                "numControls": {
+                    "type": "integer"
+                },
+                "numObservations": {
+                    "type": "integer"
+                },
+                "numRisks": {
+                    "type": "integer"
+                },
+                "numSubjects": {
+                    "type": "integer"
+                },
+                "published": {
+                    "type": "string"
+                },
+                "riskLevels": {
+                    "$ref": "#/definitions/service.RiskLevels"
+                },
+                "riskScore": {
+                    "$ref": "#/definitions/service.RiskScore"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RemediationVsTime": {
+            "type": "object",
+            "properties": {
+                "control": {
+                    "type": "string"
+                },
+                "remediation": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RiskLevels": {
+            "type": "object",
+            "properties": {
+                "high": {
+                    "type": "integer"
+                },
+                "low": {
+                    "type": "integer"
+                },
+                "medium": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.RiskScore": {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "integer"
+                },
+                "severity": {
+                    "$ref": "#/definitions/service.RiskSeverity"
+                }
+            }
+        },
+        "service.RiskSeverity": {
+            "type": "string",
+            "enum": [
+                "medium",
+                "low",
+                "high"
+            ],
+            "x-enum-varnames": [
+                "Medium",
+                "Low",
+                "High"
+            ]
+        },
+        "service.RiskState": {
+            "type": "string",
+            "enum": [
+                "pass",
+                "warn",
+                "fail",
+                "indeterminate"
+            ],
+            "x-enum-varnames": [
+                "Pass",
+                "Warn",
+                "Fail",
+                "Indeterminate"
+            ]
         }
+    },
+    "externalDocs": {
+        "description": "OpenAPI",
+        "url": "https://swagger.io/resources/open-api/"
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Title:            "Compliance Framework Configuration Service API",
+	Description:      "This is the API for the Compliance Framework Configuration Service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

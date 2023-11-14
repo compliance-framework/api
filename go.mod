@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/go-playground/validator/v10 v10.15.5
 	github.com/google/uuid v1.3.1
+	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.11.2
 	github.com/nats-io/nats.go v1.31.0
 	github.com/swaggo/echo-swagger v1.4.1
@@ -26,7 +27,6 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/go-cmp v0.5.5 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/labstack/gommon v0.4.0 // indirect
