@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
@@ -56,7 +57,7 @@ func (s *PlanService) CreateTask(planId string, task domain.Task) (string, error
 		return "", err
 	}
 	task.Id = primitive.NewObjectID()
-	filter := bson.D{{"_id", pid}}
+	filter := bson.D{bson.E{Key: "_id", Value: pid}}
 
 	update := bson.M{
 		"$push": bson.M{
@@ -82,7 +83,7 @@ func (s *PlanService) CreateActivity(planId string, taskId string, activity doma
 	}
 
 	activity.Id = primitive.NewObjectID()
-	filter := bson.D{{"_id", pid}, {"tasks.id", tid}}
+	filter := bson.D{bson.E{Key: "_id", Value: pid}, bson.E{Key: "tasks.id", Value: tid}}
 
 	var p domain.Plan
 	err = s.planCollection.FindOne(context.Background(), filter).Decode(&p)
@@ -121,7 +122,7 @@ func (s *PlanService) ActivatePlan(planId string) error {
 	if err != nil {
 		return err
 	}
-	filter := bson.D{{"_id", pid}}
+	filter := bson.D{bson.E{Key: "_id", Value: pid}}
 	update := bson.M{"$set": bson.M{"status": "active"}}
 	_ = s.planCollection.FindOneAndUpdate(context.Background(), filter, update)
 

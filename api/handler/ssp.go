@@ -94,7 +94,7 @@ func (h *SSPHandler) GetSSP(ctx echo.Context) error {
 func (h *SSPHandler) UpdateSSP(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var ssp domain.SystemSecurityPlan
-	req := updateSSPRequest{}
+	req := UpdateSSPRequest{}
 
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
