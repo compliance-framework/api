@@ -72,6 +72,10 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      - name: Install Swag
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest  
+
       - name: Check Diff
         run: |
           make check-diff
