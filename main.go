@@ -55,7 +55,7 @@ func main() {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
 
-	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ResultEvent])
+	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult])
 	resultProcessor.Listen()
 
 	server := api.NewServer(ctx, sugar)

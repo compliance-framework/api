@@ -10,10 +10,10 @@ import (
 
 type Processor struct {
 	svc service.PlanService
-	sub event.Subscriber[ResultEvent]
+	sub event.Subscriber[ExecutionResult]
 }
 
-func NewProcessor(s event.Subscriber[ResultEvent]) *Processor {
+func NewProcessor(s event.Subscriber[ExecutionResult]) *Processor {
 	return &Processor{
 		sub: s,
 	}
@@ -31,33 +31,103 @@ func (r *Processor) Listen() {
 			case msg := <-ch:
 				fmt.Printf("Received message: %v\n", msg)
 
-				observations := make([]domain.Observation, len(msg.Results.Observations))
-				for i, o := range msg.Results.Observations {
+				// TODO: Create an actor for the runtime that publishes the events to store it as the origin
+				// TODO: Handle execution status
+
+				subject := domain.Subject{
+					Id:          primitive.NewObjectID(),
+					SubjectId:   msg.Subject.Id,
+					Type:        msg.Subject.Type,
+					Title:       msg.Subject.Title,
+					Description: msg.Subject.Description,
+					Props:       msg.Subject.Props,
+					Links:       msg.Subject.Links,
+					Remarks:     msg.Subject.Remarks,
+				}
+
+				err := r.svc.SaveSubject(subject)
+				if err != nil {
+					return
+				}
+
+				observations := make([]domain.Observation, len(msg.Observations))
+				for i, o := range msg.Observations {
+					evidences := make([]domain.Evidence, len(o.RelevantEvidence))
+					for j, e := range o.RelevantEvidence {
+						evidences[j] = domain.Evidence{
+							Id:          primitive.NewObjectID(),
+							Title:       e.Title,
+							Description: e.Description,
+							Props:       e.Props,
+							Links:       e.Links,
+							Remarks:     e.Remarks,
+						}
+					}
+
 					observations[i] = domain.Observation{
-						Id:          primitive.NewObjectID(),
-						Collected:   o.Collected,
-						Title:       o.Title,
-						Description: o.Description,
-						Expires:     o.Expires,
-						Remarks:     o.Remarks,
+						Id:               primitive.NewObjectID(),
+						Title:            o.Title,
+						Description:      o.Description,
+						Props:            o.Props,
+						Links:            o.Links,
+						Remarks:          o.Remarks,
+						Subjects:         []primitive.ObjectID{subject.Id},
+						Collected:        o.Collected,
+						Expires:          o.Expires,
+						RelevantEvidence: evidences,
 					}
 				}
 
-				risks := make([]domain.Risk, len(msg.Results.Risks))
-				for i, r := range msg.Results.Risks {
+				risks := make([]domain.Risk, len(msg.Risks))
+				for i, r := range msg.Risks {
 					risks[i] = domain.Risk{
 						Id:          primitive.NewObjectID(),
+						Title:       r.Title,
 						Description: r.Description,
+						Statement:   r.Statement,
+						Props:       r.Props,
+						Links:       r.Links,
+						RelatedObservations: []primitive.ObjectID{
+							observations[0].Id,
+						},
 					}
 				}
 
-				// TODO: This should happen inside the domain package
-				result := domain.Result{
-					Id:           primitive.NewObjectID(),
-					Observations: observations,
-					Risks:        risks,
+				findings := make([]domain.Finding, len(msg.Findings))
+				for i, f := range msg.Findings {
+					findings[i] = domain.Finding{
+						Id:          primitive.NewObjectID(),
+						Title:       f.Title,
+						Description: f.Description,
+						Props:       f.Props,
+						Links:       f.Links,
+						Remarks:     f.Remarks,
+						TargetId:    subject.Id,
+					}
 				}
-				err := r.svc.AddResult(msg.AssessmentId, result)
+
+				logs := make([]domain.LogEntry, len(msg.Logs))
+				for i, l := range msg.Logs {
+					logs[i] = domain.LogEntry{
+						Title:       l.Title,
+						Description: l.Description,
+						Props:       l.Props,
+						Links:       l.Links,
+						Remarks:     l.Remarks,
+					}
+				}
+
+				// TODO: Add Start and End times
+
+				result := domain.Result{
+					Id:            primitive.NewObjectID(),
+					Observations:  observations,
+					Risks:         risks,
+					Findings:      findings,
+					AssessmentLog: logs,
+				}
+
+				err = r.svc.AddResult(msg.AssessmentId, result)
 				if err != nil {
 					return
 				}
