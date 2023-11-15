@@ -265,8 +265,9 @@ definitions:
           $ref: '#/definitions/domain.Link'
         type: array
       originActors:
-        description: Actors / Tasks Identify the source of the finding, such as a
-          tool, interviewed person, or activity
+        description: |-
+          Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+          Maps to the OSCAL "origins" property
         items:
           type: string
         type: array
@@ -289,9 +290,7 @@ definitions:
       remarks:
         type: string
       target:
-        items:
-          type: string
-        type: array
+        type: string
       title:
         type: string
     type: object
