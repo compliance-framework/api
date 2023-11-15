@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
 	"github.com/compliance-framework/configuration-service/service"
@@ -9,13 +10,14 @@ import (
 )
 
 type Processor struct {
-	svc service.PlanService
+	svc *service.PlanService
 	sub event.Subscriber[ExecutionResult]
 }
 
-func NewProcessor(s event.Subscriber[ExecutionResult]) *Processor {
+func NewProcessor(s event.Subscriber[ExecutionResult], svc *service.PlanService) *Processor {
 	return &Processor{
 		sub: s,
+		svc: svc,
 	}
 }
 
