@@ -67,6 +67,10 @@ func main() {
 	planHandler := handler.NewPlanHandler(sugar, planService)
 	planHandler.Register(server.API().Group("/plan"))
 
+	systemPlanService := service.NewSSPService()
+	systemPlanHandler := handler.NewSSPHandler(systemPlanService)
+	systemPlanHandler.Register(server.API())
+
 	metadataService := service.NewMetadataService()
 	metadataHandler := handler.NewMetadataHandler(metadataService)
 	metadataHandler.Register(server.API().Group("/metadata"))

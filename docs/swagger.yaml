@@ -6,16 +6,109 @@ definitions:
         additionalProperties: true
         type: object
     type: object
-  domain.Attestation:
+  domain.Action:
     properties:
-      parts:
+      date:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      links:
         items:
-          $ref: '#/definitions/domain.Part'
+          $ref: '#/definitions/domain.Link'
         type: array
-      responsibleParties:
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      responsiblePartyUuids:
         items:
           type: string
         type: array
+      system:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  domain.Actor:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      roleId:
+        type: string
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/domain.ActorType'
+      uuid:
+        type: string
+    type: object
+  domain.ActorType:
+    enum:
+    - tool
+    - assessment-platform
+    - party
+    type: string
+    x-enum-varnames:
+    - ActorTypeTool
+    - ActorTypeAssessmentPlatform
+    - ActorTypeParty
+  domain.AuthorizationBoundary:
+    properties:
+      description:
+        type: string
+      diagrams:
+        description: Diagrams is an optional collection of visual representations
+          of the boundary.
+        items:
+          $ref: '#/definitions/domain.Diagram'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.BackMatter:
+    properties:
+      resources:
+        items:
+          $ref: '#/definitions/domain.Resource'
+        type: array
+    type: object
+  domain.Base64:
+    properties:
+      filename:
+        description: Name of the file before it was encoded as Base64.
+        type: string
+      media-type:
+        description: A label that indicates the nature of a resource.
+        type: string
+      value:
+        description: The Base64 encoded value.
+        type: string
     type: object
   domain.Characterization:
     properties:
@@ -27,26 +120,49 @@ definitions:
         items:
           $ref: '#/definitions/domain.Link'
         type: array
-      origin:
-        $ref: '#/definitions/domain.Origin'
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
       props:
         items:
           $ref: '#/definitions/domain.Property'
         type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
     type: object
-  domain.ControlsAndObjectives:
+  domain.Citation:
     properties:
-      controlSelections:
-        $ref: '#/definitions/domain.Selection'
-      description:
-        type: string
       links:
+        description: Links associated with the citation.
         items:
           $ref: '#/definitions/domain.Link'
         type: array
-      objectives:
+      props:
+        description: Properties of the citation.
         items:
-          $ref: '#/definitions/domain.ObjectiveSelection'
+          $ref: '#/definitions/domain.Property'
+        type: array
+      text:
+        description: A line of citation text.
+        type: string
+    type: object
+  domain.DataFlow:
+    properties:
+      description:
+        type: string
+      diagrams:
+        description: Description is a summary of the system's data flow.
+        items:
+          $ref: '#/definitions/domain.Diagram'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
         type: array
       props:
         items:
@@ -56,6 +172,38 @@ definitions:
         type: string
       title:
         type: string
+    type: object
+  domain.Diagram:
+    properties:
+      caption:
+        description: Caption provides a brief annotation for the diagram.
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      uuid:
+        description: Uuid is a machine-oriented, globally unique identifier that can
+          be used to reference this diagram elsewhere in this or other OSCAL instances.
+        type: string
+    type: object
+  domain.DocumentIdentifier:
+    properties:
+      identifier:
+        description: The document identifier.
+        type: string
+      scheme:
+        description: Qualifies the kind of document identifier using a URI.
     type: object
   domain.Evidence:
     properties:
@@ -109,12 +257,16 @@ definitions:
       id:
         type: string
       implementationStatementId:
+        description: ImplementationStatementId Reference to the implementation statement
+          in the SSP to which this finding is related.
         type: string
       links:
         items:
           $ref: '#/definitions/domain.Link'
         type: array
-      origins:
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
         items:
           type: string
         type: array
@@ -130,6 +282,10 @@ definitions:
         items:
           type: string
         type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
       remarks:
         type: string
       target:
@@ -137,6 +293,63 @@ definitions:
           type: string
         type: array
       title:
+        type: string
+    type: object
+  domain.Impact:
+    properties:
+      adjustment_justification:
+        type: string
+      base:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      selected:
+        type: string
+    type: object
+  domain.InformationType:
+    properties:
+      availability_impact:
+        $ref: '#/definitions/domain.Impact'
+      categorizations:
+        items:
+          $ref: '#/definitions/domain.InformationTypeCategorization'
+        type: array
+      confidentiality_impact:
+        $ref: '#/definitions/domain.Impact'
+      description:
+        type: string
+      integrity_impact:
+        $ref: '#/definitions/domain.Impact'
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  domain.InformationTypeCategorization:
+    properties:
+      ids:
+        description: 'NOTE: This part is a bit blurred'
+        items:
+          type: string
+        type: array
+      system:
+        description: 'This is an enum but right now it has only one value: http://doi.org/10.6028/NIST.SP.800-60v2r1'
         type: string
     type: object
   domain.Link:
@@ -152,103 +365,14 @@ definitions:
       text:
         type: string
     type: object
-  domain.LocalDefinition:
-    properties:
-      activities:
-        description: Reference to Activity
-        items:
-          type: string
-        type: array
-      components:
-        description: Reference to component.Component
-        items:
-          type: string
-        type: array
-      inventoryItems:
-        description: Reference to ssp.InventoryItem
-        items:
-          type: string
-        type: array
-      objectives:
-        items:
-          $ref: '#/definitions/domain.Objective'
-        type: array
-      remarks:
-        type: string
-      users:
-        description: Reference to identity.User
-        items:
-          type: string
-        type: array
-    type: object
-  domain.LogEntry:
+  domain.NetworkArchitecture:
     properties:
       description:
         type: string
-      end:
-        type: string
-      links:
+      diagrams:
         items:
-          $ref: '#/definitions/domain.Link'
+          $ref: '#/definitions/domain.Diagram'
         type: array
-      loggedBy:
-        items:
-          type: string
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/domain.Property'
-        type: array
-      remarks:
-        type: string
-      start:
-        type: string
-      timestamp:
-        type: string
-      title:
-        type: string
-      type:
-        type: integer
-    type: object
-  domain.Objective:
-    properties:
-      control:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/domain.Link'
-        type: array
-      parts:
-        items:
-          $ref: '#/definitions/domain.Part'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/domain.Property'
-        type: array
-      remarks:
-        type: string
-      title:
-        type: string
-    type: object
-  domain.ObjectiveSelection:
-    properties:
-      description:
-        type: string
-      exclude:
-        items:
-          type: string
-        type: array
-      include:
-        items:
-          type: string
-        type: array
-      includeAll:
-        type: boolean
       links:
         items:
           $ref: '#/definitions/domain.Link'
@@ -280,59 +404,77 @@ definitions:
         items:
           $ref: '#/definitions/domain.Link'
         type: array
+      methods:
+        items:
+          $ref: '#/definitions/domain.ObservationMethod'
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
       props:
         items:
           $ref: '#/definitions/domain.Property'
-        type: array
-      remarks:
-        type: string
-      title:
-        type: string
-    type: object
-  domain.Origin:
-    properties:
-      actors:
-        items:
-          type: string
         type: array
       relatedTasks:
         items:
           type: string
         type: array
-    type: object
-  domain.Part:
-    properties:
-      class:
-        description: An optional textual providing a sub-type or characterization
-          of the part's name, or a category to which the part belongs.
+      remarks:
         type: string
-      id:
-        description: A unique identifier for the part.
-        type: string
-      links:
+      subjects:
         items:
-          $ref: '#/definitions/domain.Link'
+          type: string
         type: array
-      name:
-        description: A textual label that uniquely identifies the part's semantic
-          type, which exists in a value space qualified by the ns.
-        type: string
-      ns:
-        description: An optional namespace qualifying the part's name. This allows
-          different organizations to associate distinct semantics with the same name.
-        type: string
-      props:
-        items:
-          $ref: '#/definitions/domain.Property'
-        type: array
-      prose:
-        description: Permits multiple paragraphs, lists, tables etc.
-        type: string
       title:
-        description: An optional name given to the part, which may be used by a tool
-          for display and navigation.
         type: string
+      types:
+        items:
+          $ref: '#/definitions/domain.ObservationType'
+        type: array
     type: object
+  domain.ObservationMethod:
+    enum:
+    - examine
+    - interview
+    - test
+    - unknown
+    type: string
+    x-enum-varnames:
+    - ObservationMethodExamine
+    - ObservationMethodInterview
+    - ObservationMethodTest
+    - ObservationMethodUnknown
+  domain.ObservationType:
+    enum:
+    - ssp-statement-issue
+    - control-objective
+    - mitigation
+    - finding
+    - historic
+    type: string
+    x-enum-varnames:
+    - ObservationTypeSSPStatementIssue
+    - ObservationTypeControlObjective
+    - ObservationTypeMitigation
+    - ObservationTypeFinding
+    - ObservationTypeHistoric
+  domain.OperationalStatus:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    type: integer
+    x-enum-varnames:
+    - Disposition
+    - Operational
+    - Other
+    - UnderDevelopment
+    - UnderMajorModification
   domain.Property:
     properties:
       class:
@@ -348,55 +490,99 @@ definitions:
       value:
         type: string
     type: object
-  domain.Result:
+  domain.Resource:
     properties:
-      assessmentLogEntries:
+      base64:
+        allOf:
+        - $ref: '#/definitions/domain.Base64'
+        description: A resource encoded using the Base64 alphabet.
+      citation:
+        allOf:
+        - $ref: '#/definitions/domain.Citation'
+        description: An optional citation associated with the resource.
+      description:
+        description: An optional short summary of the resource.
+        type: string
+      document-ids:
+        description: Document identifiers associated with the resource.
         items:
-          $ref: '#/definitions/domain.LogEntry'
+          $ref: '#/definitions/domain.DocumentIdentifier'
         type: array
-      attestations:
+      props:
+        description: Properties of the resource.
         items:
-          $ref: '#/definitions/domain.Attestation'
+          $ref: '#/definitions/domain.Property'
         type: array
+      remarks:
+        description: Remarks about the resource.
+        type: string
+      rlinks:
+        description: Related links of the resource.
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      title:
+        description: An optional name given to the resource.
+        type: string
+      uuid:
+        description: A unique identifier for a resource.
+        type: string
+    type: object
+  domain.Response:
+    properties:
       description:
         type: string
-      end:
-        type: string
-      findings:
-        items:
-          $ref: '#/definitions/domain.Finding'
-        type: array
       id:
+        type: string
+      lifecycle:
+        description: |-
+          Identifies whether this is a recommendation, such as from an assessor or tool, or an actual plan accepted by the system owner.
+          One of: recommendation, planned, completed
         type: string
       links:
         items:
           $ref: '#/definitions/domain.Link'
         type: array
-      localDefinitions:
-        $ref: '#/definitions/domain.LocalDefinition'
-      observations:
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
         items:
-          $ref: '#/definitions/domain.Observation'
+          type: string
         type: array
-      potato:
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
+  domain.Revision:
+    properties:
+      description:
+        type: string
+      lastModified:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      oscalVersion:
         type: string
       props:
         items:
           $ref: '#/definitions/domain.Property'
         type: array
+      published:
+        type: string
       remarks:
         type: string
-      reviewedControls:
-        items:
-          $ref: '#/definitions/domain.ControlsAndObjectives'
-        type: array
-      risks:
-        items:
-          $ref: '#/definitions/domain.Risk'
-        type: array
-      start:
-        type: string
       title:
+        type: string
+      version:
         type: string
     type: object
   domain.Risk:
@@ -408,9 +594,199 @@ definitions:
       deadline:
         type: string
       description:
+        description: A human-readable summary of the identified risk, to include a
+          statement of how the risk impacts the system.
         type: string
       id:
         type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      mitigatingFactors:
+        items:
+          type: string
+        type: array
+      originActors:
+        description: Actors / Tasks Identify the source of the finding, such as a
+          tool, interviewed person, or activity
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      relatedObservations:
+        items:
+          type: string
+        type: array
+      relatedTasks:
+        items:
+          type: string
+        type: array
+      remediations:
+        items:
+          $ref: '#/definitions/domain.Response'
+        type: array
+      riskLog:
+        items:
+          $ref: '#/definitions/domain.RiskLogEntry'
+        type: array
+      statement:
+        description: A summary of impact for how the risk affects the system.
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/domain.RiskStatus'
+        description: Describes the status of the risk.
+      threats:
+        items:
+          type: string
+        type: array
+      title:
+        description: The title for this risk.
+        type: string
+    type: object
+  domain.RiskLogEntry:
+    properties:
+      description:
+        type: string
+      end:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      loggedBy:
+        $ref: '#/definitions/domain.Actor'
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      start:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.RiskStatus:
+    enum:
+    - open
+    - investigating
+    - remediating
+    - deviation-requested
+    - deviation-approved
+    - closed
+    type: string
+    x-enum-varnames:
+    - RiskStatusOpen
+    - RiskStatusInvestigating
+    - RiskStatusRemediating
+    - RiskStatusDeviationRequested
+    - RiskStatusDeviationApproved
+    - RiskStatusClosed
+  domain.SecurityImpactLevel:
+    properties:
+      objective_availability:
+        type: string
+      objective_confidentiality:
+        type: string
+      objective_integrity:
+        type: string
+    type: object
+  domain.SystemCharacteristics:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/domain.Action'
+        type: array
+      authorization_boundary:
+        $ref: '#/definitions/domain.AuthorizationBoundary'
+      control_implementation:
+        items:
+          type: string
+        type: array
+      data_flow:
+        $ref: '#/definitions/domain.DataFlow'
+      date_authorized:
+        type: string
+      description:
+        type: string
+      import_profile:
+        items:
+          type: string
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      network_architecture:
+        $ref: '#/definitions/domain.NetworkArchitecture'
+      partyUuids:
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      responsible_parties:
+        items:
+          type: string
+        type: array
+      responsiblePartyUuids:
+        items:
+          type: string
+        type: array
+      revisions:
+        items:
+          $ref: '#/definitions/domain.Revision'
+        type: array
+      roleUuids:
+        items:
+          type: string
+        type: array
+      security_impact_level:
+        $ref: '#/definitions/domain.SecurityImpactLevel'
+      security_sensitivity_level:
+        description: The overall information system sensitivity categorization, such
+          as defined by FIPS-199.
+        type: string
+      status:
+        $ref: '#/definitions/domain.OperationalStatus'
+      system_ids:
+        description: One of http://fedramp.gov/ns/oscal, https://fedramp.gov", http://ietf.org/rfc/rfc4122",
+          https://ietf.org/rfc/rfc4122
+        items:
+          type: string
+        type: array
+      system_information:
+        $ref: '#/definitions/domain.SystemInformation'
+      system_name:
+        description: The full name of the system.
+        type: string
+      system_name_short:
+        description: A short name for the system, such as an acronym, that is suitable
+          for display in a data table or summary list.
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  domain.SystemInformation:
+    properties:
+      information_types:
+        description: Contains details about one information type that is stored, processed,
+          or transmitted by the system, such as privacy information, and those defined
+          in NIST SP 800-60.
+        items:
+          $ref: '#/definitions/domain.InformationType'
+        type: array
       links:
         items:
           $ref: '#/definitions/domain.Link'
@@ -419,23 +795,61 @@ definitions:
         items:
           $ref: '#/definitions/domain.Property'
         type: array
-      remarks:
+      uuid:
+        type: string
+    type: object
+  domain.SystemSecurityPlan:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/domain.Action'
+        type: array
+      backmatter:
+        $ref: '#/definitions/domain.BackMatter'
+      control_implementation:
+        description: Reference to the control implementation
+        items:
+          type: string
+        type: array
+      import_profile:
+        description: Reference to a profile
+        type: string
+      partyUuids:
+        items:
+          type: string
+        type: array
+      responsiblePartyUuids:
+        items:
+          type: string
+        type: array
+      revisions:
+        items:
+          $ref: '#/definitions/domain.Revision'
+        type: array
+      roleUuids:
+        items:
+          type: string
+        type: array
+      system_characteristics:
+        $ref: '#/definitions/domain.SystemCharacteristics'
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  handler.CreateSSPRequest:
+    properties:
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  handler.UpdateSSPRequest:
+    properties:
+      description:
         type: string
       title:
         type: string
-    type: object
-  domain.Selection:
-    properties:
-      exclude:
-        items:
-          type: string
-        type: array
-      include:
-        items:
-          type: string
-        type: array
-      includeAll:
-        type: boolean
     type: object
   handler.attachMetadataRequest:
     properties:
@@ -537,13 +951,6 @@ definitions:
         type: object
     type: object
   handler.createPlanRequest:
-    properties:
-      title:
-        type: string
-    required:
-    - title
-    type: object
-  handler.createSSPRequest:
     properties:
       title:
         type: string
@@ -677,6 +1084,120 @@ info:
   title: Compliance Framework Configuration Service API
   version: "1.0"
 paths:
+  /api/ssp:
+    get:
+      consumes:
+      - application/json
+      description: List all SSP
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List all SSPs
+      tags:
+      - SSP
+  /api/ssp/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an SSP with the given ID
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete an SSP
+      tags:
+      - SSP
+    get:
+      consumes:
+      - application/json
+      description: Get an SSP by its ID
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get an SSP by ID
+      tags:
+      - SSP
+    put:
+      consumes:
+      - application/json
+      description: Update an SSP with the given ID
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: SSP to update
+        in: body
+        name: SSP
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateSSPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update an SSP
+      tags:
+      - SSP
   /catalog:
     post:
       consumes:
@@ -801,32 +1322,6 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Activate a plan
-      tags:
-      - Plan
-  /plan/{id}/results:
-    get:
-      description: Return the assessment results related with the plan with the given
-        ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Result'
-            type: array
-        "500":
-          description: Internal server error. The plan could not be activated.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the assessment results
       tags:
       - Plan
   /plan/{id}/results/{resultId}/compliance-over-time:
