@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/compliance-framework/configuration-service/runtime"
 	"log"
 	"os"
 
@@ -53,6 +54,9 @@ func main() {
 	if err != nil {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
+
+	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult])
+	resultProcessor.Listen()
 
 	server := api.NewServer(ctx, sugar)
 	catalogStore := mongo.NewCatalogStore()

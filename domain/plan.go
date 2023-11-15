@@ -312,6 +312,7 @@ const (
 // In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
 type Subject struct {
 	Id          primitive.ObjectID `json:"id"`
+	SubjectId   string             `json:"subjectId"`
 	Type        SubjectType        `json:"type"`
 	Title       string             `json:"title,omitempty"`
 	Description string             `json:"description,omitempty"`

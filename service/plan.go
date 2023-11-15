@@ -13,14 +13,16 @@ import (
 )
 
 type PlanService struct {
-	planCollection *mongo.Collection
-	publisher      event.Publisher
+	planCollection    *mongo.Collection
+	subjectCollection *mongo.Collection
+	publisher         event.Publisher
 }
 
 func NewPlanService(p event.Publisher) *PlanService {
 	return &PlanService{
-		planCollection: mongoStore.Collection("plan"),
-		publisher:      p,
+		planCollection:    mongoStore.Collection("plan"),
+		subjectCollection: mongoStore.Collection("subject"),
+		publisher:         p,
 	}
 }
 
@@ -146,6 +148,14 @@ func (s *PlanService) AddResult(planId string, result Result) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *PlanService) SaveSubject(subject Subject) error {
+	_, err := s.subjectCollection.InsertOne(context.Background(), subject)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

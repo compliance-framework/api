@@ -121,10 +121,11 @@ type Finding struct {
 	ImplementationStatementId primitive.ObjectID `json:"implementationStatementId"`
 
 	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	// Maps to the OSCAL "origins" property
 	Actors []primitive.ObjectID `json:"originActors"`
 	Tasks  []primitive.ObjectID `json:"relatedTasks"`
 
-	TargetId []primitive.ObjectID `json:"target"`
+	TargetId primitive.ObjectID `json:"target"`
 
 	RelatedObservations []primitive.ObjectID `json:"relatedObservations"`
 	RelatedRisks        []primitive.ObjectID `json:"relatedRisks"`
