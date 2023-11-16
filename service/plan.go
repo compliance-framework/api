@@ -166,16 +166,23 @@ func (s *PlanService) SaveSubject(subject Subject) error {
 	return nil
 }
 
-func (s *PlanService) Findings(planId string, resultId string) ([]Finding, error) {
-	pipeline := bson.A{
-		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$tasks"}}}},
-		bson.D{
-			{Key: "$project",
-				Value: bson.D{
-					{Key: "_id", Value: 0},
-				},
+func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error) {
+	// This returns all the observations regardless of the planId and resultId
+	pipeline := mongo.Pipeline{
+		bson.D{{
+			"$project", bson.D{
+				{"_id", 0},
+				{"finding", bson.D{
+					{"$reduce", bson.D{
+						{"input", "$results.findings"},
+						{"initialValue", bson.A{}},
+						{"in", bson.D{{"$concatArrays", bson.A{"$$value", "$$this"}}}},
+					}},
+				}},
 			},
-		},
+		}},
+		bson.D{{"$unwind", "$finding"}},
+		bson.D{{"$replaceRoot", bson.D{{"newRoot", "$finding"}}}},
 	}
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
@@ -183,24 +190,31 @@ func (s *PlanService) Findings(planId string, resultId string) ([]Finding, error
 		return nil, err
 	}
 
-	var findings []Finding
-	if err = cursor.All(context.Background(), &findings); err != nil {
+	var results []bson.M
+	if err = cursor.All(context.Background(), &results); err != nil {
 		return nil, err
 	}
 
-	return findings, nil
+	return results, nil
 }
 
-func (s *PlanService) Observations(planId string, resultId string) ([]Observation, error) {
-	pipeline := bson.A{
-		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$tasks"}}}},
-		bson.D{
-			{Key: "$project",
-				Value: bson.D{
-					{Key: "_id", Value: 0},
-				},
+func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
+	// This returns all the observations regardless of the planId and resultId
+	pipeline := mongo.Pipeline{
+		bson.D{{
+			"$project", bson.D{
+				{"_id", 0},
+				{"observation", bson.D{
+					{"$reduce", bson.D{
+						{"input", "$results.observations"},
+						{"initialValue", bson.A{}},
+						{"in", bson.D{{"$concatArrays", bson.A{"$$value", "$$this"}}}},
+					}},
+				}},
 			},
-		},
+		}},
+		bson.D{{"$unwind", "$observation"}},
+		bson.D{{"$replaceRoot", bson.D{{"newRoot", "$observation"}}}},
 	}
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
@@ -208,12 +222,12 @@ func (s *PlanService) Observations(planId string, resultId string) ([]Observatio
 		return nil, err
 	}
 
-	var observations []Observation
-	if err = cursor.All(context.Background(), &observations); err != nil {
+	var results []bson.M
+	if err = cursor.All(context.Background(), &results); err != nil {
 		return nil, err
 	}
 
-	return observations, nil
+	return results, nil
 }
 
 func (s *PlanService) Risks(planId string, resultId string) ([]Risk, error) {
@@ -302,10 +316,18 @@ type RemediationVsTime struct {
 }
 
 func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
+	// Since we don't have all the data in place, this is definitely temporary (not a real query either).
+
+	var p Plan
+	err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
+	if err != nil {
+		return PlanSummary{}, err
+	}
+
 	return PlanSummary{
 		Published:       "2022-12-01T00:00:00Z",
 		EndDate:         "2022-12-31T23:59:59Z",
-		Description:     "Monthly security assessment of the production environment.",
+		Description:     p.Title,
 		Status:          "Completed",
 		NumControls:     50,
 		NumSubjects:     10,
@@ -325,6 +347,12 @@ func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary
 }
 
 func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
+	var p Plan
+	err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
+	if err != nil {
+		return []ComplianceStatusByTargets{}, err
+	}
+
 	return []ComplianceStatusByTargets{
 		{
 			Control:    "Server Security Control",
