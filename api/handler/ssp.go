@@ -32,12 +32,12 @@ func (h *SSPHandler) Register(api *echo.Group) {
 //	@Tags			SSP
 //	@Accept			json
 //	@Produce		json
-//	@Param			SSP	body		CreateSSPRequest	true	"SSP to add"
-//	@Success		201	{object}	idResponse
-//	@Failure		401	{object}	api.Error
-//	@Failure		422	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router/ssp		[post]
+//	@Param			SSP		body		CreateSSPRequest	true	"SSP to add"
+//	@Success		201		{object}	idResponse
+//	@Failure		401		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/ssp				[post]
 func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	var ssp domain.SystemSecurityPlan
 	req := CreateSSPRequest{}
@@ -57,6 +57,7 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 }
 
 // GetSSP godoc
+//
 //	@Summary		Get an SSP by ID
 //	@Description	Get an SSP by its ID
 //	@Tags			SSP
@@ -66,7 +67,7 @@ func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 //	@Success		200	{object}	domain.SystemSecurityPlan
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
-//	@Router			/api/ssp/{id} [get]
+//	@Router			/ssp/{id} [get]
 func (h *SSPHandler) GetSSP(ctx echo.Context) error {
 	id := ctx.Param("id")
 
@@ -79,6 +80,7 @@ func (h *SSPHandler) GetSSP(ctx echo.Context) error {
 }
 
 // ListSSP godoc
+//
 //	@Summary		List all SSPs
 //	@Description	List all SSP
 //	@Tags			SSP
@@ -86,7 +88,7 @@ func (h *SSPHandler) GetSSP(ctx echo.Context) error {
 //	@Produce		json
 //	@Success		200	{object}	domain.SystemSecurityPlan
 //	@Failure		500	{object}	api.Error
-//	@Router			/api/ssp [get]
+//	@Router			/ssp [get]
 func (h *SSPHandler) ListSSP(ctx echo.Context) error {
 	ssp, err := h.service.List()
 	if err != nil {
@@ -97,6 +99,7 @@ func (h *SSPHandler) ListSSP(ctx echo.Context) error {
 }
 
 // UpdateSSP godoc
+//
 //	@Summary		Update an SSP
 //	@Description	Update an SSP with the given ID
 //	@Tags			SSP
@@ -108,7 +111,7 @@ func (h *SSPHandler) ListSSP(ctx echo.Context) error {
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
-//	@Router			/api/ssp/{id} [put]
+//	@Router			/ssp/{id} [put]
 func (h *SSPHandler) UpdateSSP(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var ssp domain.SystemSecurityPlan
@@ -126,6 +129,7 @@ func (h *SSPHandler) UpdateSSP(ctx echo.Context) error {
 }
 
 // DeleteSSP godoc
+//
 //	@Summary		Delete an SSP
 //	@Description	Delete an SSP with the given ID
 //	@Tags			SSP
@@ -135,7 +139,7 @@ func (h *SSPHandler) UpdateSSP(ctx echo.Context) error {
 //	@Success		204	{object}	string
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
-//	@Router			/api/ssp/{id} [delete]
+//	@Router			/ssp/{id} [delete]
 func (h *SSPHandler) DeleteSSP(ctx echo.Context) error {
 	id := ctx.Param("id")
 
