@@ -399,23 +399,23 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 		bson.D{{Key: "$unwind", Value: "$results"}},
 		bson.D{{Key: "$project", Value: bson.M{
 			"_id": 0,
-			"Date": bson.M{
+			"date": bson.M{
 				"$dateToString": bson.M{
 					"format": "%Y-%m-%dT%H:%M:%SZ",
 					"date":   "$results.start",
 				},
 			},
-			"Findings": bson.M{
+			"findings": bson.M{
 				"$size": bson.M{
 					"$ifNull": bson.A{"$results.findings", bson.A{}},
 				},
 			},
-			"Observations": bson.M{
+			"observations": bson.M{
 				"$size": bson.M{
 					"$ifNull": bson.A{"$results.observations", bson.A{}},
 				},
 			},
-			"Risks": bson.M{
+			"risks": bson.M{
 				"$size": bson.M{
 					"$ifNull": bson.A{"$results.risks", bson.A{}},
 				},
