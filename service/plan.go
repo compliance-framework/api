@@ -393,33 +393,42 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 	}, nil
 }
 
-func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]ComplianceStatusOverTime, error) {
-	return []ComplianceStatusOverTime{
-		{
-			Date:         "2022-12-01T00:00:00Z",
-			Findings:     80,
-			Observations: 30,
-			Risks:        5,
-		},
-		{
-			Date:         "2022-12-02T00:00:00Z",
-			Findings:     15,
-			Observations: 10,
-			Risks:        2,
-		},
-		{
-			Date:         "2022-12-03T00:00:00Z",
-			Findings:     3,
-			Observations: 5,
-			Risks:        1,
-		},
-		{
-			Date:         "2022-12-04T00:00:00Z",
-			Findings:     10,
-			Observations: 5,
-			Risks:        0,
-		},
-	}, nil
+func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson.M, error) {
+	// This returns all the observations regardless of the planId and resultId
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$unwind", Value: "$results"}},
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":  0,
+			"Date": "$results.start",
+			"Findings": bson.M{
+				"$size": bson.M{
+					"$ifNull": bson.A{"$results.findings", bson.A{}},
+				},
+			},
+			"Observations": bson.M{
+				"$size": bson.M{
+					"$ifNull": bson.A{"$results.observations", bson.A{}},
+				},
+			},
+			"Risks": bson.M{
+				"$size": bson.M{
+					"$ifNull": bson.A{"$results.risks", bson.A{}},
+				},
+			},
+		}}},
+	}
+
+	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []bson.M
+	if err = cursor.All(context.Background(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]RemediationVsTime, error) {
