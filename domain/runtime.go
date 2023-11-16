@@ -18,10 +18,12 @@ package domain
 // In this scenario, the task provides the overall direction for the assessment (e.g., assessing storage security or network security on Azure),
 // while the activities break this task down into smaller, concrete steps to follow.
 type JobSpecification struct {
-	Id     string            `json:"id"`
-	PlanId string            `json:"assessment-plan-id"`
-	Title  string            `json:"title"`
-	Tasks  []TaskInformation `json:"tasks"`
+	Id          string            `json:"id" yaml:"id"`
+	Title       string            `json:"title" yaml:"title"`
+	PlanId      string            `json:"assessment-plan-id" yaml:"assessment-plan-id"`
+	ComponentId string            `json:"component-id" yaml:"component-id"`
+	ControlId   string            `json:"control-id" yaml:"control-id"`
+	Tasks       []TaskInformation `json:"tasks"`
 }
 
 type TaskInformation struct {
