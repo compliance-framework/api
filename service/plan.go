@@ -398,8 +398,13 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$unwind", Value: "$results"}},
 		bson.D{{Key: "$project", Value: bson.M{
-			"_id":  0,
-			"Date": "$results.start",
+			"_id": 0,
+			"Date": bson.M{
+				"$dateToString": bson.M{
+					"format": "%Y-%m-%dT%H:%M:%SZ",
+					"date":   "$results.start",
+				},
+			},
 			"Findings": bson.M{
 				"$size": bson.M{
 					"$ifNull": bson.A{"$results.findings", bson.A{}},
