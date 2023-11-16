@@ -131,12 +131,19 @@ func (s *PlanService) ActivatePlan(planId string) error {
 	return nil
 }
 
-func (s *PlanService) AddResult(planId string, result Result) error {
+func (s *PlanService) SaveResult(planId string, result Result) error {
 	pid, err := primitive.ObjectIDFromHex(planId)
 	if err != nil {
 		return err
 	}
-	filter := bson.D{{Key: "_id", Value: pid}}
+	filter := bson.D{bson.E{Key: "_id", Value: pid}}
+
+	// find a doc with the filter
+	var p Plan
+	err = s.planCollection.FindOne(context.Background(), filter).Decode(&p)
+	if err != nil {
+		return err
+	}
 
 	update := bson.M{
 		"$push": bson.M{
@@ -242,6 +249,15 @@ const (
 	High   RiskSeverity = "high"
 )
 
+type RiskState string
+
+const (
+	Pass          RiskState = "pass"
+	Warn          RiskState = "warn"
+	Fail          RiskState = "fail"
+	Indeterminate RiskState = "indeterminate"
+)
+
 type RiskLevels struct {
 	Low    int `json:"low"`
 	Medium int `json:"medium"`
@@ -267,6 +283,24 @@ type PlanSummary struct {
 	RiskLevels       RiskLevels `json:"riskLevels"`
 }
 
+type ComplianceStatusByTargets struct {
+	Control    string      `json:"control"`
+	Target     string      `json:"target"`
+	Compliance []RiskState `json:"compliance"`
+}
+
+type ComplianceStatusOverTime struct {
+	Date         string `json:"date"`
+	Findings     int    `json:"findings"`
+	Observations int    `json:"observations"`
+	Risks        int    `json:"risks"`
+}
+
+type RemediationVsTime struct {
+	Control     string `json:"control"`
+	Remediation string `json:"remediation"`
+}
+
 func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
 	return PlanSummary{
 		Published:       "2022-12-01T00:00:00Z",
@@ -288,21 +322,6 @@ func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary
 			High:   1,
 		},
 	}, nil
-}
-
-type RiskState string
-
-const (
-	Pass          RiskState = "pass"
-	Warn          RiskState = "warn"
-	Fail          RiskState = "fail"
-	Indeterminate RiskState = "indeterminate"
-)
-
-type ComplianceStatusByTargets struct {
-	Control    string      `json:"control"`
-	Target     string      `json:"target"`
-	Compliance []RiskState `json:"compliance"`
 }
 
 func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
@@ -350,13 +369,6 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 	}, nil
 }
 
-type ComplianceStatusOverTime struct {
-	Date         string `json:"date"`
-	Findings     int    `json:"findings"`
-	Observations int    `json:"observations"`
-	Risks        int    `json:"risks"`
-}
-
 func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]ComplianceStatusOverTime, error) {
 	return []ComplianceStatusOverTime{
 		{
@@ -384,11 +396,6 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]Comp
 			Risks:        0,
 		},
 	}, nil
-}
-
-type RemediationVsTime struct {
-	Control     string `json:"control"`
-	Remediation string `json:"remediation"`
 }
 
 func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]RemediationVsTime, error) {

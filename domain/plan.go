@@ -96,7 +96,8 @@ func NewPlan() *Plan {
 			Components: []primitive.ObjectID{},
 			Platforms:  []primitive.ObjectID{},
 		},
-		Status: "inactive",
+		Status:  "inactive",
+		Results: make([]Result, 0),
 	}
 }
 
@@ -148,9 +149,13 @@ func (p *Plan) Ready() bool {
 }
 
 func (p *Plan) JobSpecification() JobSpecification {
+	// TODO: We need to send component and control ids as well
 	jobSpec := JobSpecification{
-		Id:    p.Id.Hex(),
-		Title: p.Title,
+		Id:          p.Id.Hex(),
+		ControlId:   NewUuid().String(),
+		ComponentId: NewUuid().String(),
+		Title:       p.Title,
+		PlanId:      p.Id.Hex(),
 	}
 
 	for _, task := range p.Tasks {

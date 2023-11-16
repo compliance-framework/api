@@ -127,7 +127,7 @@ func (r *Processor) Listen() {
 				AssessmentLog: logs,
 			}
 
-			err = r.svc.AddResult(msg.AssessmentId, result)
+			err = r.svc.SaveResult(msg.AssessmentId, result)
 			if err != nil {
 				return
 			}
