@@ -168,21 +168,19 @@ func (s *PlanService) SaveSubject(subject Subject) error {
 
 func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error) {
 	// This returns all the observations regardless of the planId and resultId
-	pipeline := mongo.Pipeline{ //nolint
-		bson.D{{ //nolint
-			"$project", bson.D{ //nolint
-				{"_id", 0}, //nolint
-				{"finding", bson.D{ //nolint
-					{"$reduce", bson.D{ //nolint
-						{"input", "$results.findings"},                                 //nolint
-						{"initialValue", bson.A{}},                                     //nolint
-						{"in", bson.D{{"$concatArrays", bson.A{"$$value", "$$this"}}}}, //nolint
-					}}, //nolint
-				}}, //nolint
-			}, //nolint
-		}}, //nolint
-		bson.D{{"$unwind", "$finding"}},                           //nolint
-		bson.D{{"$replaceRoot", bson.D{{"newRoot", "$finding"}}}}, //nolint
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "finding", Value: bson.D{
+				{Key: "$reduce", Value: bson.D{
+					{Key: "input", Value: "$results.findings"},
+					{Key: "initialValue", Value: bson.A{}},
+					{Key: "in", Value: bson.D{{Key: "$concatArrays", Value: bson.A{"$$value", "$$this"}}}},
+				}},
+			}},
+		}}},
+		bson.D{{Key: "$unwind", Value: "$finding"}},
+		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$finding"}}}},
 	}
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
@@ -201,20 +199,18 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
 	// This returns all the observations regardless of the planId and resultId
 	pipeline := mongo.Pipeline{
-		bson.D{{ //nolint
-			"$project", bson.D{ //nolint
-				{"_id", 0}, //nolint
-				{"observation", bson.D{ //nolint
-					{"$reduce", bson.D{ //nolint
-						{"input", "$results.observations"},                             //nolint
-						{"initialValue", bson.A{}},                                     //nolint
-						{"in", bson.D{{"$concatArrays", bson.A{"$$value", "$$this"}}}}, //nolint
-					}}, //nolint
-				}}, //nolint
-			}, //nolint
-		}}, //nolint
-		bson.D{{"$unwind", "$observation"}},                           //nolint
-		bson.D{{"$replaceRoot", bson.D{{"newRoot", "$observation"}}}}, //nolint
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "observation", Value: bson.D{
+				{Key: "$reduce", Value: bson.D{
+					{Key: "input", Value: "$results.observations"},
+					{Key: "initialValue", Value: bson.A{}},
+					{Key: "in", Value: bson.D{{Key: "$concatArrays", Value: bson.A{"$$value", "$$this"}}}},
+				}},
+			}},
+		}}},
+		bson.D{{Key: "$unwind", Value: "$observation"}},
+		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$observation"}}}},
 	}
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
