@@ -313,9 +313,9 @@ type RemediationVsTime struct {
 
 func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
 	// Since we don't have all the data in place, this is definitely temporary (not a real query either).
-
+	// TODO: We should Look for specific Plan and Results here. First Value only for Demonstration with Mocked values.
 	var p Plan
-	err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
+	err := s.planCollection.FindOne(context.Background(), bson.D{}).Decode(&p)
 	if err != nil {
 		return PlanSummary{}, err
 	}
@@ -343,11 +343,11 @@ func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary
 }
 
 func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
-	var p Plan
-	err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
-	if err != nil {
-		return []ComplianceStatusByTargets{}, err
-	}
+	// var p Plan
+	// err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
+	// if err != nil {
+	//  	return []ComplianceStatusByTargets{}, err
+	// }
 
 	return []ComplianceStatusByTargets{
 		{
