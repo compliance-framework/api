@@ -1196,7 +1196,7 @@ const docTemplate = `{
                     }
                 },
                 "originActors": {
-                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity",
+                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity\nMaps to the OSCAL \"origins\" property",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -1230,10 +1230,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "target": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"

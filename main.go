@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/compliance-framework/configuration-service/runtime"
 	"log"
 	"os"
+
+	"github.com/compliance-framework/configuration-service/runtime"
 
 	"github.com/joho/godotenv"
 
@@ -55,9 +56,6 @@ func main() {
 		sugar.Fatalf("error connecting to nats: %v", err)
 	}
 
-	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult])
-	resultProcessor.Listen()
-
 	server := api.NewServer(ctx, sugar)
 	catalogStore := mongo.NewCatalogStore()
 	catalogHandler := handler.NewCatalogHandler(catalogStore)
@@ -66,6 +64,9 @@ func main() {
 	planService := service.NewPlanService(bus.Publish)
 	planHandler := handler.NewPlanHandler(sugar, planService)
 	planHandler.Register(server.API().Group("/plan"))
+
+	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult], planService)
+	resultProcessor.Listen()
 
 	systemPlanService := service.NewSSPService()
 	systemPlanHandler := handler.NewSSPHandler(systemPlanService)
