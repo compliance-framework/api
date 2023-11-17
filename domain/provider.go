@@ -5,4 +5,5 @@ type Provider struct {
 	Package       string            `json:"package"`
 	Version       string            `json:"version"`
 	Configuration map[string]string `json:"configuration"`
+	Params        map[string]string `json:"params"`
 }

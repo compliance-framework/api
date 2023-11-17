@@ -9,7 +9,7 @@ on:
 
 env:
   # Common versions
-  GOLANGCI_VERSION: 'v1.52.2'
+  GOLANGCI_VERSION: 'v1.53.3'
  
 jobs:
   lint:
@@ -48,6 +48,37 @@ jobs:
           skip-pkg-cache: true
           skip-build-cache: true
           args: --timeout=30m
+
+  check-diff:
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        id: setup-go
+        with:
+          go-version-file: "go.mod"
+
+      - name: Download Go modules
+        if: ${{ steps.setup-go.outputs.cache-hit != 'true' }}
+        run: go mod download
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Swag
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest  
+
+      - name: Check Diff
+        run: |
+          make check-diff
 
   unit-tests:
     runs-on: ubuntu-latest

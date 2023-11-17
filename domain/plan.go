@@ -72,6 +72,8 @@ type Plan struct {
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions"`
+
+	Results []Result `json:"results"`
 }
 
 func NewPlan() *Plan {
@@ -94,7 +96,8 @@ func NewPlan() *Plan {
 			Components: []primitive.ObjectID{},
 			Platforms:  []primitive.ObjectID{},
 		},
-		Status: "inactive",
+		Status:  "inactive",
+		Results: make([]Result, 0),
 	}
 }
 
@@ -146,15 +149,20 @@ func (p *Plan) Ready() bool {
 }
 
 func (p *Plan) JobSpecification() JobSpecification {
+	// TODO: We need to send component and control ids as well
 	jobSpec := JobSpecification{
-		Id:    p.Id.Hex(),
-		Title: p.Title,
+		Id:          p.Id.Hex(),
+		ControlId:   NewUuid().String(),
+		ComponentId: NewUuid().String(),
+		Title:       p.Title,
+		PlanId:      p.Id.Hex(),
 	}
 
 	for _, task := range p.Tasks {
 		taskInfo := TaskInformation{
-			Id:    task.Id.Hex(),
-			Title: task.Title,
+			Id:       task.Id.Hex(),
+			Title:    task.Title,
+			Schedule: task.Schedule,
 		}
 
 		for _, activity := range task.Activities {
@@ -195,8 +203,8 @@ type Task struct {
 	// Subjects hold all the subjects that the activities act upon.
 	Subjects []primitive.ObjectID `json:"subjects"`
 
-	Tasks    []Uuid   `json:"tasks"`
-	Schedule []string `json:"schedule"`
+	Tasks    []Uuid `json:"tasks"`
+	Schedule string `json:"schedule"`
 }
 
 func (t *Task) AddActivity(activity Activity) error {
@@ -309,6 +317,7 @@ const (
 // In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
 type Subject struct {
 	Id          primitive.ObjectID `json:"id"`
+	SubjectId   string             `json:"subjectId"`
 	Type        SubjectType        `json:"type"`
 	Title       string             `json:"title,omitempty"`
 	Description string             `json:"description,omitempty"`

@@ -2,12 +2,12 @@ package result
 
 import (
 	"fmt"
+
 	"github.com/compliance-framework/configuration-service/event"
-	"github.com/compliance-framework/configuration-service/service"
 )
 
 type Processor struct {
-	svc service.PlanService
+	// svc service.PlanService
 	sub event.Subscriber[event.ResultEvent]
 }
 
@@ -24,11 +24,8 @@ func (r *Processor) Listen() {
 	}
 
 	go func() {
-		for {
-			select {
-			case msg := <-ch:
-				fmt.Printf("Received message: %v\n", msg)
-			}
+		for msg := range ch {
+			fmt.Printf("Received message: %v\n", msg)
 		}
 	}()
 }

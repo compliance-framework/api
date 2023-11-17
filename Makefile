@@ -78,6 +78,17 @@ lint: lint.check ## Run golangci-lint
 	fi ; \
 	$(OK) No linting issues found
 
+.PHONY: reviewable
+reviewable: swag ## Ensure a PR is ready for review.
+	@go mod tidy
+
+.PHONY: check-diff
+check-diff: reviewable ## Ensure branch is clean.
+	@$(INFO) checking that branch is clean
+	@test -z "$$(git status --porcelain)" || (echo "$$(git status --porcelain)" && $(FAIL))
+	@$(OK) branch is clean
+
+
 .PHONY: debug
 debug: ## Run docker-compose with debug
 	@docker compose -f ./tests/docker-compose.yml up -d --build
@@ -88,3 +99,4 @@ debug.stop: ## Run docker-compose with debug
 
 swag:
 	@swag init
+	@swag fmt

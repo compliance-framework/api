@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/service"
 	"github.com/labstack/echo/v4"
-	"net/http"
 )
 
 type MetadataHandler struct {
@@ -18,22 +19,23 @@ func NewMetadataHandler(s *service.MetadataService) *MetadataHandler {
 	}
 }
 
-func (h *MetadataHandler) Register(api *echo.Group) {
-	api.POST("/metadata/revisions", h.AttachMetadata)
+func (h *MetadataHandler) Register(group *echo.Group) {
+	group.POST("/revisions", h.AttachMetadata)
 }
 
 // AttachMetadata godoc
-// @Summary Attaches metadata to a specific revision
-// @Description This method attaches metadata to a specific revision.
-// @Tags Metadata
-// @Accept  json
-// @Produce  json
-// @Param revision body attachMetadataRequest true "Revision that will be attached"
-// @Success 200 {string} string "OK"
-// @Failure 400 {object} api.Error "Bad Request: Error binding the request"
-// @Failure 404 {object} api.Error "Object not found"
-// @Failure 500 {object} api.Error "Internal Server Error"
-// @Router /api/metadata/revisions [post]
+//
+//	@Summary		Attaches metadata to a specific revision
+//	@Description	This method attaches metadata to a specific revision.
+//	@Tags			Metadata
+//	@Accept			json
+//	@Produce		json
+//	@Param			revision	body		attachMetadataRequest	true	"Revision that will be attached"
+//	@Success		200			{string}	string					"OK"
+//	@Failure		400			{object}	api.Error				"Bad Request: Error binding the request"
+//	@Failure		404			{object}	api.Error				"Object not found"
+//	@Failure		500			{object}	api.Error				"Internal Server Error"
+//	@Router			/metadata/revisions [post]
 func (h *MetadataHandler) AttachMetadata(c echo.Context) error {
 	var revision domain.Revision
 	req := attachMetadataRequest{}
