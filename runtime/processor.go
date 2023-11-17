@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
@@ -117,7 +118,7 @@ func (r *Processor) Listen() {
 				}
 			}
 
-			// TODO: Add Start and End times
+			// TODO: Start and End times should arrive from the runtime inside the message
 
 			result := domain.Result{
 				Id:            primitive.NewObjectID(),
@@ -125,6 +126,8 @@ func (r *Processor) Listen() {
 				Risks:         risks,
 				Findings:      findings,
 				AssessmentLog: logs,
+				Start:         time.Now(),
+				End:           time.Now(),
 			}
 
 			err = r.svc.SaveResult(msg.AssessmentId, result)

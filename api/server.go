@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+
 	mw "github.com/compliance-framework/configuration-service/api/middleware"
 	_ "github.com/compliance-framework/configuration-service/docs"
 	"github.com/labstack/echo/v4"
@@ -21,6 +22,10 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger) *Server {
 	e := echo.New()
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+	}))
 	e.Validator = mw.NewValidator()
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
