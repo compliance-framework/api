@@ -45,7 +45,7 @@ func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
 //	@Tags			Plan
 //	@Accept			json
 //	@Produce		json
-//	@Param			plan	body		createPlanRequest	true	"Plan to add"
+//	@Param			plan	body		createPlanRequest	true	"TEST COMMIT Plan to add"
 //	@Success		201		{object}	idResponse
 //	@Failure		401		{object}	api.Error
 //	@Failure		422		{object}	api.Error
