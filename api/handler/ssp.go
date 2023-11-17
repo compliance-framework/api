@@ -37,7 +37,7 @@ func (h *SSPHandler) Register(api *echo.Group) {
 //	@Failure		401		{object}	api.Error
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Router			/ssp																		[post]
+//	@Router			/ssp																				[post]
 func (h *SSPHandler) CreateSSP(ctx echo.Context) error {
 	var ssp domain.SystemSecurityPlan
 	req := CreateSSPRequest{}
