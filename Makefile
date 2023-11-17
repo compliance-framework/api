@@ -83,7 +83,7 @@ reviewable: swag ## Ensure a PR is ready for review.
 	@go mod tidy
 
 .PHONY: check-diff
-check-diff: reviewable ## Ensure branch is clean.
+check-diff: reviewable swag ## Ensure branch is clean.
 	@$(INFO) checking that branch is clean
 	@test -z "$$(git status --porcelain)" || (echo "$$(git status --porcelain)" && $(FAIL))
 	@$(OK) branch is clean
