@@ -18,6 +18,7 @@ FROM alpine
 WORKDIR /
 
 COPY --from=builder /configuration-service /configuration-service
+COPY .env /.env
 # Open port 8080 to traffic
 EXPOSE 8080
 
