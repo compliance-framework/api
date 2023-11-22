@@ -234,14 +234,104 @@
 					}
 				},
 				"url": {
-					"raw": "{{API_URI}}/plan/{{planId}}/results",
+					"raw": "{{API_URI}}/plan/{{planId}}/results/123456/compliance-over-time",
 					"host": [
 						"{{API_URI}}"
 					],
 					"path": [
 						"plan",
 						"{{planId}}",
-						"results"
+						"results",
+						"123456",
+						"compliance-over-time"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Observations",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Sample Assessment Plan\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{API_URI}}/plan/{{planId}}/results/123456/observations",
+					"host": [
+						"{{API_URI}}"
+					],
+					"path": [
+						"plan",
+						"{{planId}}",
+						"results",
+						"123456",
+						"observations"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Findings",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Sample Assessment Plan\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{API_URI}}/plan/{{planId}}/results/123456/findings",
+					"host": [
+						"{{API_URI}}"
+					],
+					"path": [
+						"plan",
+						"{{planId}}",
+						"results",
+						"123456",
+						"findings"
 					]
 				}
 			},
