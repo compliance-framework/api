@@ -15,11 +15,11 @@ RUN make swag
 RUN CGO_ENABLED=0 GOOS=linux go build -o /configuration-service
 
 FROM alpine
-WORKDIR /app
+WORKDIR /
 
-COPY --from=builder /configuration-service ./configuration-service
+COPY --from=builder /configuration-service /configuration-service
 # Open port 8080 to traffic
 EXPOSE 8080
 
 # Specify the command to run on container start.
-CMD ["./configuration-service"]
+CMD ["/configuration-service"]
