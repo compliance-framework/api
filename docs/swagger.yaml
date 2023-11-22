@@ -1083,120 +1083,6 @@ info:
   title: Compliance Framework Configuration Service API
   version: "1.0"
 paths:
-  /api/ssp:
-    get:
-      consumes:
-      - application/json
-      description: List all SSP
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/domain.SystemSecurityPlan'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: List all SSPs
-      tags:
-      - SSP
-  /api/ssp/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Delete an SSP with the given ID
-      parameters:
-      - description: SSP ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-          schema:
-            type: string
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Delete an SSP
-      tags:
-      - SSP
-    get:
-      consumes:
-      - application/json
-      description: Get an SSP by its ID
-      parameters:
-      - description: SSP ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/domain.SystemSecurityPlan'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Get an SSP by ID
-      tags:
-      - SSP
-    put:
-      consumes:
-      - application/json
-      description: Update an SSP with the given ID
-      parameters:
-      - description: SSP ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: SSP to update
-        in: body
-        name: SSP
-        required: true
-        schema:
-          $ref: '#/definitions/handler.UpdateSSPRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/domain.SystemSecurityPlan'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Update an SSP
-      tags:
-      - SSP
   /catalog:
     post:
       consumes:
@@ -1612,4 +1498,151 @@ paths:
       summary: Create activity
       tags:
       - Plan
+  /ssp:
+    get:
+      consumes:
+      - application/json
+      description: List all SSP
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List all SSPs
+      tags:
+      - SSP
+    post:
+      consumes:
+      - application/json
+      description: Create an SSP with the given title
+      parameters:
+      - description: SSP to add
+        in: body
+        name: SSP
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateSSPRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.idResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create an SSP
+      tags:
+      - SSP
+  /ssp/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an SSP with the given ID
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete an SSP
+      tags:
+      - SSP
+    get:
+      consumes:
+      - application/json
+      description: Get an SSP by its ID
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get an SSP by ID
+      tags:
+      - SSP
+    put:
+      consumes:
+      - application/json
+      description: Update an SSP with the given ID
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: SSP to update
+        in: body
+        name: SSP
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateSSPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.SystemSecurityPlan'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update an SSP
+      tags:
+      - SSP
 swagger: "2.0"
