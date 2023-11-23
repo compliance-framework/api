@@ -27,17 +27,17 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 }
 
 // CreateCatalog godoc
-// @Summary 		Create a catalog
-// @Description 	Create a catalog with the given title
-// @Tags 		curl -X 'PATCH' 'http://localhost:8080/api/catalog/654b70acbcd83fba9c216045' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{ "catalog": { "title": "new title" } }'	Catalog
-// @Accept  		json
-// @Produce  		json
-// @Param   		catalog body createCatalogRequest true "Catalog to add"
-// @Success 		201 {object} catalogIdResponse
-// @Failure 		401 {object} api.Error
-// @Failure 		422 {object} api.Error
-// @Failure 		500 {object} api.Error
-// @Router 			/api/catalog [post]
+//	@Summary		Create a catalog
+//	@Description	Create a catalog with the given title
+//	@Tags			curl -X 'PATCH' 'http://localhost:8080/api/catalog/654b70acbcd83fba9c216045' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{ "catalog": { "title": "new title" } }'	Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			catalog	body		createCatalogRequest	true	"Catalog to add"
+//	@Success		201		{object}	catalogIdResponse
+//	@Failure		401		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/api/catalog [post]
 func (h *CatalogHandler) CreateCatalog(ctx echo.Context) error {
 	var c domain.Catalog
 	req := newCreateCatalogRequest()

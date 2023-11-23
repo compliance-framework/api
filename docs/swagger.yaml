@@ -1083,7 +1083,7 @@ info:
   title: Compliance Framework Configuration Service API
   version: "1.0"
 paths:
-  /catalog:
+  /api/catalog:
     post:
       consumes:
       - application/json
@@ -1116,7 +1116,9 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a catalog
       tags:
-      - Catalog
+      - "curl -X 'PATCH' 'http://localhost:8080/api/catalog/654b70acbcd83fba9c216045'
+        -H 'accept: application/json' -H 'Content-Type: application/json' -d '{ \"catalog\":
+        { \"title\": \"new title\" } }'\tCatalog"
   /metadata/revisions:
     post:
       consumes:
