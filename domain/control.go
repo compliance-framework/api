@@ -1,7 +1,9 @@
 package domain
 
+import uuid "github.com/google/uuid"
+
 type Control struct {
-	Uuid Uuid `json:"uuid"`
+	Uuid uuid.UUID `json:"uuid"`
 
 	Props []Property `json:"props,omitempty"`
 	Links []Link     `json:"links,omitempty"`

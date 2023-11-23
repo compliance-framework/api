@@ -57,6 +57,7 @@ func main() {
 	}
 
 	server := api.NewServer(ctx, sugar)
+
 	catalogStore := mongo.NewCatalogStore()
 	catalogHandler := handler.NewCatalogHandler(catalogStore)
 	catalogHandler.Register(server.API().Group("/catalog"))

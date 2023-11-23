@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/catalog": {
+        "/api/catalog": {
             "post": {
                 "description": "Create a catalog with the given title",
                 "consumes": [
@@ -25,7 +25,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Catalog"
+                    "curl -X 'PATCH' 'http://localhost:8080/api/catalog/654b70acbcd83fba9c216045' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{ \"catalog\": { \"title\": \"new title\" } }'\tCatalog"
                 ],
                 "summary": "Create a catalog",
                 "parameters": [
