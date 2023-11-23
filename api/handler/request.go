@@ -26,6 +26,25 @@ func (r *createCatalogRequest) bind(ctx echo.Context, c *domain.Catalog) error {
 	return nil
 }
 
+// createControlRequest defines the request payload for method CreateControl
+type createControlRequest struct {
+	Control struct {
+		Title string `json:"title" validate:"required"`
+	}
+}
+
+func newCreateControlRequest() *createControlRequest {
+	return &createControlRequest{}
+}
+
+func (r *createControlRequest) bind(ctx echo.Context, c *domain.Control) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+	c.Title = r.Control.Title
+	return nil
+}
+
 // createSSPRequest defines the request payload for method CreateSSP
 type CreateSSPRequest struct {
 	Title string `json:"title" validate:"required"`
