@@ -98,12 +98,12 @@ debug.stop: ## Run docker-compose with debug
 	@docker compose -f ./tests/docker-compose.yml down
 
 .PHONY: dev
-dev: ## run docker-compose up
-	@docker-compose -f docker-compose.dev.yml up -d
+dev: ## run docker compose up
+	@docker compose -f docker-compose.dev.yml up -d
 
 .PHONY: dev.stop
 dev.stop: ## run docker-compose down
-	@docker-compose -f docker-compose.dev.yml down
+	@docker compose -f docker-compose.dev.yml down
 
 swag:
 	@swag init
