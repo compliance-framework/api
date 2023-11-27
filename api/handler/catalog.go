@@ -3,7 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
-
+	"errors"
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/store"
@@ -109,21 +109,30 @@ func (h *CatalogHandler) DeleteCatalog(ctx echo.Context) error {
 }
 
 func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
+	id := ctx.Param("id")
 	var c domain.Control
 	req := newCreateControlRequest()
 	if err := req.bind(ctx, &c); err != nil {
-		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+			return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	catalogId := ctx.Param("id")
-	id, err := h.store.CreateControl(catalogId, &c)
+	if h.store == nil {
+			return errors.New("store is not initialized")
+	}
+
+	controlId, err := h.store.CreateControl(id, &c)
+
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		fmt.Println("err is not equal to nil")
 	} else {
-		fmt.Println("CreateControl has been called")
+		fmt.Println("controlId: ", controlId)
+	}
+
+	if controlId == nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(errors.New("controlId is nil")))
 	}
 
 	return ctx.JSON(http.StatusCreated, catalogIdResponse{
-		Id: id.(string),
+		Id: string(controlId.(domain.Uuid)),
 	})
 }
