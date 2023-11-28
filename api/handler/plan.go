@@ -22,6 +22,7 @@ func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("/:id/tasks/:taskId/activities", h.CreateActivity)
 
 	results := api.Group("/:id/results")
+	results.GET("", h.Results)
 	results.GET("/:resultId/findings", h.Findings)
 	results.GET("/:resultId/observations", h.Observations)
 	results.GET("/:resultId/risks", h.Risks)
@@ -310,4 +311,13 @@ func (h *PlanHandler) Risks(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, risks)
+}
+
+func (h *PlanHandler) Results(c echo.Context) error {
+	results, err := h.service.Results(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return c.JSON(http.StatusOK, results)
 }
