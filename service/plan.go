@@ -472,3 +472,27 @@ func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]Remed
 		},
 	}, nil
 }
+
+func (s *PlanService) Results(planId string) ([]bson.M, error) {
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "results", Value: 1},
+		}}},
+		bson.D{{Key: "$unwind", Value: "$results"}},
+		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$results"}}}},
+	}
+
+	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []bson.M
+	if err = cursor.All(context.Background(), &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+
+}
