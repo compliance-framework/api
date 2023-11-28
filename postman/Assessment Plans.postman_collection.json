@@ -100,7 +100,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"title\": \"Check VMs for port 80\",\n  \"description\": \"This activity checks for the port\",\n  \"provider\": {\n    \"name\": \"azurecli\",\n    \"package\": \"azurecli\",\n    \"params\": {\n      \"parameter1\": \"this-is-the-parameter-value\"\n    },\n    \"configuration\": {\n      \"subscriptionId\": \"d84e5f2b-e68c-462a-9ac9-856b0103555f\"  \n    },\n    \"version\": \"1.0.0\"\n  },\n  \"subjects\": {\n      \"title\": \"VMs under Finance subscription\",\n      \"description\": \"Not all of the machines\",\n      \"labels\": {\n          \"subscription\": \"finance\",\n          \"env\": \"prod\"\n      }\n  }\n}",
+					"raw": "{\n  \"title\": \"Check VMs for port 80\",\n  \"description\": \"This activity checks for the port\",\n  \"provider\": {\n    \"name\": \"busy\",\n    \"package\": \"busy\",\n    \"params\": {\n      \"parameter1\": \"this-is-the-parameter-value\"\n    },\n    \"configuration\": {\n      \"subscriptionId\": \"d84e5f2b-e68c-462a-9ac9-856b0103555f\"  \n    },\n    \"version\": \"1.0.0\"\n  },\n  \"subjects\": {\n      \"title\": \"VMs under Finance subscription\",\n      \"description\": \"Not all of the machines\",\n      \"labels\": {\n          \"subscription\": \"finance\",\n          \"env\": \"prod\"\n      }\n  }\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -118,49 +118,6 @@
 						"tasks",
 						"{{taskId}}",
 						"activities"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Set Subjects",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							""
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"title\": \"VM Complicance Checks\",\n  \"description\": \"Virtual Machines running under X subscription\",\n  \"expressions\": [\n    {\n      \"key\": \"resourceType\",\n      \"operator\": \"eq\",\n      \"values\": [\"virtual-machine\"]\n    }\n  ],\n  \"labels\": {\n    \"env\": \"prod\"\n  }\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "{{API_URI}}/plan/{{planId}}/tasks/{{taskId}}/activities/{{activityId}}/subjects",
-					"host": [
-						"{{API_URI}}"
-					],
-					"path": [
-						"plan",
-						"{{planId}}",
-						"tasks",
-						"{{taskId}}",
-						"activities",
-						"{{activityId}}",
-						"subjects"
 					]
 				}
 			},
