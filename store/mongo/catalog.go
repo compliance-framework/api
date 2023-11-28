@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/compliance-framework/configuration-service/domain"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -82,23 +81,48 @@ func (store *CatalogStoreMongo) DeleteCatalog(id string) error {
 func (store *CatalogStoreMongo) CreateControl(catalogId string, control *domain.Control) (interface{}, error) {
 	log.Println("CreateControl called with catalogId:", catalogId)
 
+	// Create a new UUID for the control
+	control.Uuid = domain.NewUuid()
+
 	catalogObjID, err := primitive.ObjectIDFromHex(catalogId)
 	if err != nil {
-		log.Println("Error converting catalogId to ObjectID:", err)
-		return nil, err
+			log.Println("Error converting catalogId to ObjectID:", err)
+			return nil, err
 	}
-
-	control.Uuid = uuid.New() // Assign a new UUID to the control
 
 	filter := bson.M{"_id": catalogObjID}
-	update := bson.M{"$push": bson.M{"controls": *control}}
-	result, err := store.collection.UpdateOne(context.Background(), filter, update)
 
+	// Check if 'controls' field is null
+	var result bson.M
+	err = store.collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
-		log.Println("Error updating collection:", err)
-		return nil, err
+			log.Println("Error finding document:", err)
+			return nil, err
 	}
 
-	log.Println("CreateControl successful, updated count:", result.ModifiedCount)
+	// If 'controls' field is null, set it to an empty array
+	if result["controls"] == nil {
+			update := bson.M{
+					"$set": bson.M{"controls": []bson.M{}},
+			}
+			_, err = store.collection.UpdateOne(context.Background(), filter, update)
+			if err != nil {
+					log.Println("Error updating collection:", err)
+					return nil, err
+			}
+	}
+
+	// Add a control to the 'controls' array
+	update := bson.M{
+			"$push": bson.M{"controls": *control},
+	}
+	_, err = store.collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+			log.Println("Error updating collection:", err)
+			return nil, err
+	}
+
+	log.Println("Created control with Uuid:", control.Uuid)
+
 	return control.Uuid, nil // Return the UUID of the control
 }
