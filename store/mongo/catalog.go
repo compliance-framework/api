@@ -50,14 +50,24 @@ func (store *CatalogStoreMongo) GetCatalog(id string) (*domain.Catalog, error) {
 func (store *CatalogStoreMongo) UpdateCatalog(id string, catalog *domain.Catalog) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return err
+			return err
+	}
+
+	update := bson.M{}
+	if catalog.Title != "" {
+			update["title"] = catalog.Title
+	}
+	// Incomplete list of fields that can be updated
+	// Add similar checks for other fields that you want to be able to update
+
+	if len(update) == 0 {
+			return nil // No updates to apply
 	}
 
 	filter := bson.M{"_id": objID}
-	update := bson.M{"$set": catalog}
-	_, err = store.collection.UpdateOne(context.Background(), filter, update)
+	_, err = store.collection.UpdateOne(context.Background(), filter, bson.M{"$set": update})
 	if err != nil {
-		return err
+			return err
 	}
 
 	return nil
@@ -126,3 +136,4 @@ func (store *CatalogStoreMongo) CreateControl(catalogId string, control *domain.
 
 	return control.Uuid, nil // Return the UUID of the control
 }
+
