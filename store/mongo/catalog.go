@@ -137,3 +137,42 @@ func (store *CatalogStoreMongo) CreateControl(catalogId string, control *domain.
 	return control.Uuid, nil // Return the UUID of the control
 }
 
+func (store *CatalogStoreMongo) GetControl(catalogId string, controlId string) (*domain.Control, error) {
+	log.Println("GetControl called with catalogId:", catalogId, "and controlId:", controlId)
+
+	catalogObjID, err := primitive.ObjectIDFromHex(catalogId)
+	if err != nil {
+			log.Println("Error converting catalogId to ObjectID:", err)
+			return nil, err
+	}
+
+	filter := bson.M{"_id": catalogObjID}
+
+	// Check if 'controls' field is null
+	var result bson.M
+	err = store.collection.FindOne(context.Background(), filter).Decode(&result)
+	if err != nil {
+			log.Println("Error finding document:", err)
+			return nil, err
+	}
+
+	// If 'controls' field is null, return nil
+	if result["controls"] == nil {
+			log.Println("Controls field is nil")
+			return nil, nil
+	}
+
+	// If 'controls' field is not null, iterate over the array to find the control
+	var controls []domain.Control
+	controls = result["controls"].([]domain.Control)
+
+	for _, control := range controls {
+			if string(control.Uuid) == controlId {
+					log.Println("Found control with Uuid:", controlId)
+					return &control, nil
+			}
+	}
+
+	log.Println("Control not found")
+	return nil, nil
+}

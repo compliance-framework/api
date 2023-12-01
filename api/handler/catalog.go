@@ -1,9 +1,11 @@
 package handler
 
 import (
-	"fmt"
-	"net/http"
 	"errors"
+	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/store"
@@ -24,6 +26,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 	api.PATCH("/:id", h.UpdateCatalog)
 	api.DELETE("/:id", h.DeleteCatalog)
 	api.POST("/:id/controls", h.CreateControl)
+	api.GET("/:id/controls/:controlId", h.GetControl)
 }
 
 // CreateCatalog godoc
@@ -136,3 +139,26 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 		Id: string(controlId.(domain.Uuid)),
 	})
 }
+
+func (h *CatalogHandler) GetControl(ctx echo.Context) error {
+	log.Println("GetControl called")
+	id := ctx.Param("id")
+	controlId := ctx.Param("controlId")
+	log.Println("GetControl called with catalogId:", id)
+	log.Println("GetControl called with controlId:", controlId)
+
+	catalog, err := h.store.GetCatalog(id)
+	if err != nil {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	for _, control := range catalog.Controls {
+			if control.Uuid == domain.Uuid(controlId) {
+					return ctx.JSON(http.StatusOK, control)
+			}
+	}
+
+	return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("control not found")))
+}
+
+
