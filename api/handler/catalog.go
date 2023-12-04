@@ -27,6 +27,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 	api.DELETE("/:id", h.DeleteCatalog)
 	api.POST("/:id/controls", h.CreateControl)
 	api.GET("/:id/controls/:controlId", h.GetControl)
+	// api.POST("/:id/control/:controlId", h.UpdateControl)
 }
 
 // CreateCatalog godoc
@@ -141,24 +142,16 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 }
 
 func (h *CatalogHandler) GetControl(ctx echo.Context) error {
-	log.Println("GetControl called")
 	id := ctx.Param("id")
 	controlId := ctx.Param("controlId")
 	log.Println("GetControl called with catalogId:", id)
 	log.Println("GetControl called with controlId:", controlId)
 
-	catalog, err := h.store.GetCatalog(id)
+	control, err := h.store.GetControl(id, controlId)
 	if err != nil {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
-	for _, control := range catalog.Controls {
-			if control.Uuid == domain.Uuid(controlId) {
-					return ctx.JSON(http.StatusOK, control)
-			}
-	}
-
-	return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("control not found")))
+	return ctx.JSON(http.StatusOK, control)
 }
-
 

@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"log"
+	"fmt"
 
 	"github.com/compliance-framework/configuration-service/domain"
 	"go.mongodb.org/mongo-driver/bson"
@@ -138,8 +139,6 @@ func (store *CatalogStoreMongo) CreateControl(catalogId string, control *domain.
 }
 
 func (store *CatalogStoreMongo) GetControl(catalogId string, controlId string) (*domain.Control, error) {
-	log.Println("GetControl called with catalogId:", catalogId, "and controlId:", controlId)
-
 	catalogObjID, err := primitive.ObjectIDFromHex(catalogId)
 	if err != nil {
 			log.Println("Error converting catalogId to ObjectID:", err)
@@ -156,21 +155,24 @@ func (store *CatalogStoreMongo) GetControl(catalogId string, controlId string) (
 			return nil, err
 	}
 
-	// If 'controls' field is null, return nil
+	// If 'controls' field is null, return an error
 	if result["controls"] == nil {
 			log.Println("Controls field is nil")
-			return nil, nil
+			return nil, err
 	}
 
 	// If 'controls' field is not null, iterate over the array to find the control
-	var controls []domain.Control
-	controls = result["controls"].([]domain.Control)
+	controlsPrimitiveA := result["controls"].(primitive.A)
+	for _, raw := range controlsPrimitiveA {
+			controlMap := raw.(primitive.M)
+			control := domain.Control{}
+			bsonBytes, _ := bson.Marshal(controlMap)
+			bson.Unmarshal(bsonBytes, &control)
 
-	for _, control := range controls {
-			if string(control.Uuid) == controlId {
-					log.Println("Found control with Uuid:", controlId)
-					return &control, nil
-			}
+			if fmt.Sprintf("%v", control.Uuid) == controlId {
+				log.Println("Found control with Uuid:", controlId)
+				return &control, nil
+		}
 	}
 
 	log.Println("Control not found")
