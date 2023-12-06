@@ -11,4 +11,5 @@ type CatalogStore interface {
 	DeleteCatalog(id string) error
 	CreateControl(catalogId string, control *domain.Control) (interface{}, error)
 	GetControl(catalogId string, controlId string) (*domain.Control, error)
+	UpdateControl(catalogId string, controlId string, control *domain.Control) (*domain.Catalog, error)
 }

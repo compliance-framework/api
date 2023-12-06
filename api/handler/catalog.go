@@ -27,7 +27,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 	api.DELETE("/:id", h.DeleteCatalog)
 	api.POST("/:id/controls", h.CreateControl)
 	api.GET("/:id/controls/:controlId", h.GetControl)
-	// api.POST("/:id/control/:controlId", h.UpdateControl)
+	api.PUT("/:id/controls/:controlId", h.UpdateControl)
 }
 
 // CreateCatalog godoc
@@ -70,7 +70,7 @@ func (h *CatalogHandler) GetCatalog(ctx echo.Context) error {
 func (h *CatalogHandler) UpdateCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Catalog
-	req := newCreateCatalogRequest()
+	req := &UpdateCatalogRequest{}
 	if err := req.bind(ctx, &c); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
@@ -153,5 +153,27 @@ func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, control)
+}
+
+func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
+	id := ctx.Param("id")
+	controlId := ctx.Param("controlId")
+	var c domain.Control
+	req := &UpdateControlRequest{}
+	if err := req.bind(ctx, &c); err != nil {
+			return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	_, err := h.store.UpdateControl(id, controlId, &c)
+	if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	updatedControl, err := h.store.GetControl(id, controlId)
+	if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, updatedControl)
 }
 
