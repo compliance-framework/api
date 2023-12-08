@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/catalog": {
+        "/catalog": {
             "post": {
                 "description": "Create a catalog with the given title",
                 "consumes": [
@@ -44,6 +44,344 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handler.catalogIdResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalog/{id}": {
+            "get": {
+                "description": "Get a specific catalog by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Get a catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Catalog"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a specific catalog by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Delete a catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update a specific catalog by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Update a catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Catalog to update",
+                        "name": "catalog",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateCatalogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Catalog"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalog/{id}/controls": {
+            "post": {
+                "description": "Create a control with the given title",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Create a control",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Control to add",
+                        "name": "control",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createControlRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.catalogIdResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalog/{id}/controls/{controlId}": {
+            "get": {
+                "description": "Get a specific control by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Get a control",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Control"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update a specific control by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Update a control",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Control to update",
+                        "name": "control",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateControlRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Control"
                         }
                     },
                     "401": {
@@ -1023,6 +1361,44 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Catalog": {
+            "type": "object",
+            "properties": {
+                "backMatter": {
+                    "$ref": "#/definitions/domain.BackMatter"
+                },
+                "controlUuids": {
+                    "description": "Reference to controls. Controls is an array of objects in the database",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Control"
+                    }
+                },
+                "groupUuids": {
+                    "description": "Reference to groups",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "metadata": {
+                    "$ref": "#/definitions/domain.Metadata"
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Parameter"
+                    }
+                },
+                "title": {
+                    "description": "Doesn't exist in OSCAL for some reason 🤷🏻",
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Characterization": {
             "type": "object",
             "properties": {
@@ -1078,6 +1454,76 @@ const docTemplate = `{
                 },
                 "text": {
                     "description": "A line of citation text.",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Constraint": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "tests": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ConstraintTest"
+                    }
+                }
+            }
+        },
+        "domain.ConstraintTest": {
+            "type": "object",
+            "properties": {
+                "expression": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Control": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "controlUuids": {
+                    "description": "Reference to controls",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
                     "type": "string"
                 }
             }
@@ -1287,6 +1733,27 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Guideline": {
+            "type": "object",
+            "properties": {
+                "prose": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.HowManyType": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2
+            ],
+            "x-enum-varnames": [
+                "AllOf",
+                "OneOf",
+                "OneOrMore"
+            ]
+        },
         "domain.Impact": {
             "type": "object",
             "properties": {
@@ -1390,6 +1857,41 @@ const docTemplate = `{
                 },
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.Metadata": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Action"
+                    }
+                },
+                "partyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "responsiblePartyUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Revision"
+                    }
+                },
+                "roleUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1545,6 +2047,114 @@ const docTemplate = `{
                 "UnderDevelopment",
                 "UnderMajorModification"
             ]
+        },
+        "domain.Parameter": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Constraint"
+                    }
+                },
+                "guidelines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Guideline"
+                    }
+                },
+                "label": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "select": {
+                    "$ref": "#/definitions/domain.ParameterSelection"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.ParameterSelection": {
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "howMany": {
+                    "$ref": "#/definitions/domain.HowManyType"
+                }
+            }
+        },
+        "domain.Part": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "description": "An optional textual providing a sub-type or characterization of the part's name, or a category to which the part belongs.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "A unique identifier for the part.",
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "name": {
+                    "description": "A textual label that uniquely identifies the part's semantic type, which exists in a value space qualified by the ns.",
+                    "type": "string"
+                },
+                "ns": {
+                    "description": "An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.",
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "prose": {
+                    "description": "Permits multiple paragraphs, lists, tables etc.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "An optional name given to the part, which may be used by a tool for display and navigation.",
+                    "type": "string"
+                }
+            }
         },
         "domain.Property": {
             "type": "object",
@@ -2081,6 +2691,85 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.UpdateCatalogRequest": {
+            "type": "object",
+            "properties": {
+                "backMatter": {
+                    "$ref": "#/definitions/domain.BackMatter"
+                },
+                "controlUuids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Control"
+                    }
+                },
+                "groupUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "metadata": {
+                    "$ref": "#/definitions/domain.Metadata"
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Parameter"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.UpdateControlRequest": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "controlUuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.UpdateSSPRequest": {
             "type": "object",
             "properties": {
@@ -2225,6 +2914,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "catalog": {
+                    "type": "object",
+                    "required": [
+                        "title"
+                    ],
+                    "properties": {
+                        "title": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "handler.createControlRequest": {
+            "type": "object",
+            "properties": {
+                "control": {
                     "type": "object",
                     "required": [
                         "title"

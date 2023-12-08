@@ -111,7 +111,8 @@ func (store *CatalogStoreMongo) CreateControl(catalogId string, control *domain.
 	log.Println("CreateControl called with catalogId:", catalogId)
 
 	// Create a new UUID for the control
-	control.Uuid = domain.NewUuid()
+	controlId := domain.NewUuid()
+	control.Uuid = controlId
 
 	catalogObjID, err := primitive.ObjectIDFromHex(catalogId)
 	if err != nil {
@@ -151,9 +152,9 @@ func (store *CatalogStoreMongo) CreateControl(catalogId string, control *domain.
 		return nil, err
 	}
 
-	log.Println("Created control with Uuid:", control.Uuid)
+	log.Println("Created control with Uuid:", controlId)
 
-	return control.Uuid, nil // Return the UUID of the control
+	return controlId, nil // Return the UUID of the control
 }
 
 func (store *CatalogStoreMongo) GetControl(catalogId string, controlId string) (*domain.Control, error) {

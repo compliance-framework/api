@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -31,6 +30,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 }
 
 // CreateCatalog godoc
+//
 //	@Summary		Create a catalog
 //	@Description	Create a catalog with the given title
 //	@Tags			  Catalog
@@ -41,7 +41,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 //	@Failure		401		{object}	api.Error
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Router			/api/catalog [post]
+//	@Router			/catalog [post]
 func (h *CatalogHandler) CreateCatalog(ctx echo.Context) error {
 	var c domain.Catalog
 	req := newCreateCatalogRequest()
@@ -58,6 +58,18 @@ func (h *CatalogHandler) CreateCatalog(ctx echo.Context) error {
 	})
 }
 
+// GetCatalog godoc
+// @Summary Get a catalog
+// @Description Get a specific catalog by its ID
+// @Tags Catalog
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Catalog ID"
+// @Success 200 {object} domain.Catalog
+// @Failure 401 {object} api.Error
+// @Failure 404 {object} api.Error
+// @Failure 500 {object} api.Error
+// @Router /catalog/{id} [get]
 func (h *CatalogHandler) GetCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	c, err := h.store.GetCatalog(id)
@@ -67,6 +79,18 @@ func (h *CatalogHandler) GetCatalog(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, c)
 }
 
+// @Summary Update a catalog
+// @Description Update a specific catalog by its ID
+// @Tags Catalog
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Catalog ID"
+// @Param catalog body UpdateCatalogRequest true "Catalog to update"
+// @Success 200 {object} domain.Catalog
+// @Failure 401 {object} api.Error
+// @Failure 422 {object} api.Error
+// @Failure 500 {object} api.Error
+// @Router /catalog/{id} [patch]
 func (h *CatalogHandler) UpdateCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Catalog
@@ -88,6 +112,18 @@ func (h *CatalogHandler) UpdateCatalog(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, updatedCatalog)
 }
 
+// DeleteCatalog godoc
+// @Summary Delete a catalog
+// @Description Delete a specific catalog by its ID
+// @Tags Catalog
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Catalog ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} api.Error
+// @Failure 404 {object} api.Error
+// @Failure 500 {object} api.Error
+// @Router /catalog/{id} [delete]
 func (h *CatalogHandler) DeleteCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Catalog
@@ -112,28 +148,38 @@ func (h *CatalogHandler) DeleteCatalog(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, map[string]string{"message": "Catalog has been deleted"})
 }
 
+// CreateControl godoc
+// @Summary Create a control
+// @Description Create a control with the given title
+// @Tags Catalog
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Catalog ID"
+// @Param control body createControlRequest true "Control to add"
+// @Success 201 {object} catalogIdResponse
+// @Failure 401 {object} api.Error
+// @Failure 422 {object} api.Error
+// @Failure 500 {object} api.Error
+// @Router /catalog/{id}/controls [post]
 func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Control
 	req := newCreateControlRequest()
 	if err := req.bind(ctx, &c); err != nil {
-			return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
 	if h.store == nil {
-			return errors.New("store is not initialized")
+		return errors.New("store is not initialized")
 	}
 
 	controlId, err := h.store.CreateControl(id, &c)
-
 	if err != nil {
-		fmt.Println("err is not equal to nil")
-	} else {
-		fmt.Println("controlId: ", controlId)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	if controlId == nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(errors.New("controlId is nil")))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(errors.New("controlId is nil")))
 	}
 
 	return ctx.JSON(http.StatusCreated, catalogIdResponse{
@@ -141,6 +187,19 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 	})
 }
 
+// GetControl godoc
+// @Summary Get a control
+// @Description Get a specific control by its ID
+// @Tags Catalog
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Catalog ID"
+// @Param controlId path string true "Control ID"
+// @Success 200 {object} domain.Control
+// @Failure 401 {object} api.Error
+// @Failure 404 {object} api.Error
+// @Failure 500 {object} api.Error
+// @Router /catalog/{id}/controls/{controlId} [get]
 func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 	id := ctx.Param("id")
 	controlId := ctx.Param("controlId")
@@ -149,31 +208,44 @@ func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 
 	control, err := h.store.GetControl(id, controlId)
 	if err != nil {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, control)
 }
 
+// UpdateControl godoc
+// @Summary Update a control
+// @Description Update a specific control by its ID
+// @Tags Catalog
+// @Accept  json
+// @Produce  json
+// @Param id path string true "Catalog ID"
+// @Param controlId path string true "Control ID"
+// @Param control body UpdateControlRequest true "Control to update"
+// @Success 200 {object} domain.Control
+// @Failure 401 {object} api.Error
+// @Failure 422 {object} api.Error
+// @Failure 500 {object} api.Error
+// @Router /catalog/{id}/controls/{controlId} [put]
 func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 	id := ctx.Param("id")
 	controlId := ctx.Param("controlId")
 	var c domain.Control
 	req := &UpdateControlRequest{}
 	if err := req.bind(ctx, &c); err != nil {
-			return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
 	_, err := h.store.UpdateControl(id, controlId, &c)
 	if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	updatedControl, err := h.store.GetControl(id, controlId)
 	if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, updatedControl)
 }
-
