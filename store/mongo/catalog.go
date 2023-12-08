@@ -186,7 +186,11 @@ func (store *CatalogStoreMongo) GetControl(catalogId string, controlId string) (
 		controlMap := raw.(primitive.M)
 		control := domain.Control{}
 		bsonBytes, _ := bson.Marshal(controlMap)
-		bson.Unmarshal(bsonBytes, &control)
+		err = bson.Unmarshal(bsonBytes, &control)
+		if err != nil {
+			log.Println("Error unmarshalling control:", err)
+			return nil, err
+		}
 
 		if fmt.Sprintf("%v", control.Uuid) == controlId {
 			return &control, nil
