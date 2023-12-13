@@ -1043,9 +1043,8 @@ definitions:
         items:
           type: string
         type: array
-      metadata:
-        $ref: '#/definitions/domain.Metadata'
       params:
+        description: Metadata   domain.Metadata   `json:"metadata"`
         items:
           $ref: '#/definitions/domain.Parameter'
         type: array
@@ -1075,12 +1074,11 @@ definitions:
           $ref: '#/definitions/domain.Part'
         type: array
       props:
+        description: Uuid     domain.Uuid        `json:"uuid"`
         items:
           $ref: '#/definitions/domain.Property'
         type: array
       title:
-        type: string
-      uuid:
         type: string
     type: object
   handler.UpdateSSPRequest:

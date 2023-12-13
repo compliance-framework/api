@@ -2709,10 +2709,8 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "metadata": {
-                    "$ref": "#/definitions/domain.Metadata"
-                },
                 "params": {
+                    "description": "Metadata   domain.Metadata   ` + "`" + `json:\"metadata\"` + "`" + `",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Parameter"
@@ -2757,15 +2755,13 @@ const docTemplate = `{
                     }
                 },
                 "props": {
+                    "description": "Uuid     domain.Uuid        ` + "`" + `json:\"uuid\"` + "`" + `",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Property"
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "uuid": {
                     "type": "string"
                 }
             }

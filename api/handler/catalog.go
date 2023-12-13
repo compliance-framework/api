@@ -33,7 +33,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 //
 //	@Summary		Create a catalog
 //	@Description	Create a catalog with the given title
-//	@Tags			  Catalog
+//	@Tags			Catalog
 //	@Accept			json
 //	@Produce		json
 //	@Param			catalog	body		createCatalogRequest	true	"Catalog to add"
@@ -59,17 +59,17 @@ func (h *CatalogHandler) CreateCatalog(ctx echo.Context) error {
 }
 
 // GetCatalog godoc
-// @Summary Get a catalog
-// @Description Get a specific catalog by its ID
-// @Tags Catalog
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Catalog ID"
-// @Success 200 {object} domain.Catalog
-// @Failure 401 {object} api.Error
-// @Failure 404 {object} api.Error
-// @Failure 500 {object} api.Error
-// @Router /catalog/{id} [get]
+//	@Summary		Get a catalog
+//	@Description	Get a specific catalog by its ID
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		string	true	"Catalog ID"
+//	@Success		200	{object}	domain.Catalog
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/catalog/{id} [get]
 func (h *CatalogHandler) GetCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	c, err := h.store.GetCatalog(id)
@@ -79,18 +79,18 @@ func (h *CatalogHandler) GetCatalog(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, c)
 }
 
-// @Summary Update a catalog
-// @Description Update a specific catalog by its ID
-// @Tags Catalog
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Catalog ID"
-// @Param catalog body UpdateCatalogRequest true "Catalog to update"
-// @Success 200 {object} domain.Catalog
-// @Failure 401 {object} api.Error
-// @Failure 422 {object} api.Error
-// @Failure 500 {object} api.Error
-// @Router /catalog/{id} [patch]
+//	@Summary		Update a catalog
+//	@Description	Update a specific catalog by its ID
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"Catalog ID"
+//	@Param			catalog	body		UpdateCatalogRequest	true	"Catalog to update"
+//	@Success		200		{object}	domain.Catalog
+//	@Failure		401		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/catalog/{id} [patch]
 func (h *CatalogHandler) UpdateCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Catalog
@@ -113,17 +113,17 @@ func (h *CatalogHandler) UpdateCatalog(ctx echo.Context) error {
 }
 
 // DeleteCatalog godoc
-// @Summary Delete a catalog
-// @Description Delete a specific catalog by its ID
-// @Tags Catalog
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Catalog ID"
-// @Success 200 {object} map[string]string
-// @Failure 401 {object} api.Error
-// @Failure 404 {object} api.Error
-// @Failure 500 {object} api.Error
-// @Router /catalog/{id} [delete]
+//	@Summary		Delete a catalog
+//	@Description	Delete a specific catalog by its ID
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		string	true	"Catalog ID"
+//	@Success		200	{object}	map[string]string
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/catalog/{id} [delete]
 func (h *CatalogHandler) DeleteCatalog(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Catalog
@@ -149,18 +149,18 @@ func (h *CatalogHandler) DeleteCatalog(ctx echo.Context) error {
 }
 
 // CreateControl godoc
-// @Summary Create a control
-// @Description Create a control with the given title
-// @Tags Catalog
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Catalog ID"
-// @Param control body createControlRequest true "Control to add"
-// @Success 201 {object} catalogIdResponse
-// @Failure 401 {object} api.Error
-// @Failure 422 {object} api.Error
-// @Failure 500 {object} api.Error
-// @Router /catalog/{id}/controls [post]
+//	@Summary		Create a control
+//	@Description	Create a control with the given title
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"Catalog ID"
+//	@Param			control	body		createControlRequest	true	"Control to add"
+//	@Success		201		{object}	catalogIdResponse
+//	@Failure		401		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/catalog/{id}/controls [post]
 func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 	id := ctx.Param("id")
 	var c domain.Control
@@ -188,18 +188,18 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 }
 
 // GetControl godoc
-// @Summary Get a control
-// @Description Get a specific control by its ID
-// @Tags Catalog
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Catalog ID"
-// @Param controlId path string true "Control ID"
-// @Success 200 {object} domain.Control
-// @Failure 401 {object} api.Error
-// @Failure 404 {object} api.Error
-// @Failure 500 {object} api.Error
-// @Router /catalog/{id}/controls/{controlId} [get]
+//	@Summary		Get a control
+//	@Description	Get a specific control by its ID
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string	true	"Catalog ID"
+//	@Param			controlId	path		string	true	"Control ID"
+//	@Success		200			{object}	domain.Control
+//	@Failure		401			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/catalog/{id}/controls/{controlId} [get]
 func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 	id := ctx.Param("id")
 	controlId := ctx.Param("controlId")
@@ -215,19 +215,19 @@ func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 }
 
 // UpdateControl godoc
-// @Summary Update a control
-// @Description Update a specific control by its ID
-// @Tags Catalog
-// @Accept  json
-// @Produce  json
-// @Param id path string true "Catalog ID"
-// @Param controlId path string true "Control ID"
-// @Param control body UpdateControlRequest true "Control to update"
-// @Success 200 {object} domain.Control
-// @Failure 401 {object} api.Error
-// @Failure 422 {object} api.Error
-// @Failure 500 {object} api.Error
-// @Router /catalog/{id}/controls/{controlId} [put]
+//	@Summary		Update a control
+//	@Description	Update a specific control by its ID
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string					true	"Catalog ID"
+//	@Param			controlId	path		string					true	"Control ID"
+//	@Param			control		body		UpdateControlRequest	true	"Control to update"
+//	@Success		200			{object}	domain.Control
+//	@Failure		401			{object}	api.Error
+//	@Failure		422			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/catalog/{id}/controls/{controlId} [put]
 func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 	id := ctx.Param("id")
 	controlId := ctx.Param("controlId")
