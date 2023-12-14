@@ -13,7 +13,7 @@ type Catalog struct {
 	Metadata Metadata `json:"metadata"`
 
 	Params     []Parameter `json:"params"`
-	Controls   []Uuid      `json:"controlUuids"` // Reference to controls
+	Controls   []Control   `json:"controlUuids"` // Reference to controls. Controls is an array of objects in the database
 	Groups     []Uuid      `json:"groupUuids"`   // Reference to groups
 	BackMatter BackMatter  `json:"backMatter"`
 }

@@ -261,3 +261,56 @@ func (r *UpdateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan
 	ssp.Title = r.Title
 	return nil
 }
+
+type UpdateCatalogRequest struct {
+	Uuid       domain.Uuid `json:"uuid"`
+	Title      string      `json:"title"`
+	// Metadata   domain.Metadata   `json:"metadata"`
+	Params     []domain.Parameter `json:"params"`
+	Controls   []domain.Control   `json:"controlUuids"`
+	Groups     []domain.Uuid      `json:"groupUuids"`
+	BackMatter domain.BackMatter  `json:"backMatter"`
+}
+
+func (r *UpdateCatalogRequest) bind(ctx echo.Context, catalog *domain.Catalog) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	catalog.Uuid = r.Uuid
+	catalog.Title = r.Title
+	// catalog.Metadata = r.Metadata
+	catalog.Params = r.Params
+	catalog.Controls = r.Controls
+	catalog.Groups = r.Groups
+	catalog.BackMatter = r.BackMatter
+	return nil
+}
+
+type UpdateControlRequest struct {
+	// Uuid     domain.Uuid        `json:"uuid"`
+	Props    []domain.Property  `json:"props,omitempty"`
+	Links    []domain.Link      `json:"links,omitempty"`
+	Parts    []domain.Part      `json:"parts,omitempty"`
+	Class    string             `json:"class"`
+	Title    string             `json:"title"`
+	Params   []domain.Parameter `json:"params"`
+	Controls []domain.Uuid      `json:"controlUuids"`
+}
+
+func (r *UpdateControlRequest) bind(ctx echo.Context, control *domain.Control) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+
+	// control.Uuid = r.Uuid
+	control.Props = r.Props
+	control.Links = r.Links
+	control.Parts = r.Parts
+	control.Class = r.Class
+	control.Title = r.Title
+	control.Params = r.Params
+	control.Controls = r.Controls
+
+	return nil
+}
