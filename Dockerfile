@@ -5,7 +5,6 @@ FROM golang:1.21 as builder
 # Create and change to the app directory.
 WORKDIR /app
 
-
 # Copy local code to the container image.
 COPY . ./
 

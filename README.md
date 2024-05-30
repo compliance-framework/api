@@ -35,6 +35,10 @@ You can easily run `configuration-service` using Docker Compose. This will also 
 
 This command will build the container image for configuration-service and start the containers.
 
+Then see [https://raw.githubusercontent.com/compliance-framework/infrastructure/main/hack/setup.sh](here) for example setup code you can run.
+
+
+
 ### Accessing Swagger Documentation
 
 Once the service is running, you can access the Swagger documentation to test and interact with the API at: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
