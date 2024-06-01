@@ -29,15 +29,19 @@ You can easily run `configuration-service` using Docker Compose. This will also 
 
    ```sh
 
-   make dev        # starts service
-   make dev.stop   # stops the service
+   make dev        # starts service (does not build container)
+   make dev_stop   # stops the service
    ```
 
-This command will build the container image for configuration-service and start the containers.
+3. Build, start and stop the services:
+
+   ```sh
+
+   make debug        # builds container with local code and starts service
+   make debug_stop   # stops the service
+   ```
 
 Then see [https://raw.githubusercontent.com/compliance-framework/infrastructure/main/hack/setup.sh](here) for example setup code you can run.
-
-
 
 ### Accessing Swagger Documentation
 
@@ -51,3 +55,4 @@ We welcome contributions to configuration-service!
 
 ## License
 This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
+
