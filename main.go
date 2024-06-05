@@ -69,6 +69,10 @@ func main() {
 	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult], planService)
 	resultProcessor.Listen()
 
+	plansService := service.NewPlansService(bus.Publish)
+	plansHandler := handler.NewPlansHandler(sugar, plansService)
+	plansHandler.Register(server.API().Group("/plans"))
+
 	systemPlanService := service.NewSSPService()
 	systemPlanHandler := handler.NewSSPHandler(systemPlanService)
 	systemPlanHandler.Register(server.API())

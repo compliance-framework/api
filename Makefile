@@ -109,3 +109,5 @@ swag: ## swag setup and lint
 	@swag init
 	@swag fmt
 
+build_local:    ## build and tag a local development image
+	docker build -t ghcr.io/compliance-framework/configuration-service:latest_local .
