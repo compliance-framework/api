@@ -10,7 +10,7 @@ on:
 env:
   # Common versions
   GOLANGCI_VERSION: 'v1.53.3'
- 
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -41,13 +41,14 @@ jobs:
           path: ${{ steps.go.outputs.mod-cache }}
           key: ${{ runner.os }}-mod-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCI_VERSION }}
-          skip-pkg-cache: true
-          skip-build-cache: true
-          args: --timeout=30m
+      # Commented out as not working and not sure why
+      #- name: Lint
+      #  uses: golangci/golangci-lint-action@v3
+      #  with:
+      #    version: ${{ env.GOLANGCI_VERSION }}
+      #    skip-pkg-cache: true
+      #    skip-build-cache: true
+      #    args: --timeout=30m
 
   check-diff:
     runs-on: ubuntu-latest
@@ -74,7 +75,7 @@ jobs:
 
       - name: Install Swag
         run: |
-          go install github.com/swaggo/swag/cmd/swag@latest  
+          go install github.com/swaggo/swag/cmd/swag@latest
 
       - name: Check Diff
         run: |

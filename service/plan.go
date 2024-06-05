@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
+	"fmt"
 
 	. "github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
@@ -27,6 +29,8 @@ func NewPlanService(p event.Publisher) *PlanService {
 }
 
 func (s *PlanService) GetById(id string) (*Plan, error) {
+	log.Println("GetById")
+	log.Println("id: ", id)
 	plan, err := mongoStore.FindById[Plan](context.Background(), "plan", id)
 	if err != nil {
 		return nil, err
@@ -35,6 +39,7 @@ func (s *PlanService) GetById(id string) (*Plan, error) {
 }
 
 func (s *PlanService) Create(plan *Plan) (string, error) {
+	log.Println("Create")
 	result, err := s.planCollection.InsertOne(context.TODO(), plan)
 	if err != nil {
 		return "", err
@@ -43,6 +48,8 @@ func (s *PlanService) Create(plan *Plan) (string, error) {
 }
 
 func (s *PlanService) CreateTask(planId string, task Task) (string, error) {
+	log.Println("CreateTask")
+	log.Println("planId: ", planId)
 	// Validate the task
 	if task.Title == "" {
 		return "", errors.New("task title cannot be empty")
@@ -75,6 +82,9 @@ func (s *PlanService) CreateTask(planId string, task Task) (string, error) {
 }
 
 func (s *PlanService) CreateActivity(planId string, taskId string, activity Activity) (string, error) {
+	log.Println("CreateActivity")
+	log.Println("planId: ", planId)
+	log.Println("taskId: ", taskId)
 	pid, err := primitive.ObjectIDFromHex(planId)
 	if err != nil {
 		return "", err
@@ -107,6 +117,8 @@ func (s *PlanService) CreateActivity(planId string, taskId string, activity Acti
 }
 
 func (s *PlanService) ActivatePlan(planId string) error {
+	log.Println("ActivatePlan")
+	log.Println("planId: ", planId)
 	plan, err := s.GetById(planId)
 	if err != nil {
 		return err
@@ -132,6 +144,8 @@ func (s *PlanService) ActivatePlan(planId string) error {
 }
 
 func (s *PlanService) SaveResult(planId string, result Result) error {
+	log.Println("SaveResult")
+	log.Println("planId: ", planId)
 	pid, err := primitive.ObjectIDFromHex(planId)
 	if err != nil {
 		return err
@@ -159,6 +173,7 @@ func (s *PlanService) SaveResult(planId string, result Result) error {
 }
 
 func (s *PlanService) SaveSubject(subject Subject) error {
+	log.Println("SaveSubject")
 	_, err := s.subjectCollection.InsertOne(context.Background(), subject)
 	if err != nil {
 		return err
@@ -167,7 +182,10 @@ func (s *PlanService) SaveSubject(subject Subject) error {
 }
 
 func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error) {
-	// This returns all the observations regardless of the planId and resultId
+	log.Println("Findings")
+	log.Println("planId: ", planId)
+	log.Println("resultId: ", resultId)
+	// This returns all the findings regardless of the planId and resultId
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 0},
@@ -197,6 +215,9 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 }
 
 func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
+	log.Println("Observations")
+	log.Println("planId: ", planId)
+	log.Println("resultId: ", resultId)
 	// This returns all the observations regardless of the planId and resultId
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$project", Value: bson.D{
@@ -227,6 +248,9 @@ func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, er
 }
 
 func (s *PlanService) Risks(planId string, resultId string) ([]Risk, error) {
+	log.Println("Risks")
+	log.Println("planId: ", planId)
+	log.Println("resultId: ", resultId)
 	pipeline := bson.A{
 		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$tasks"}}}},
 		bson.D{
@@ -312,6 +336,9 @@ type RemediationVsTime struct {
 }
 
 func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
+	log.Println("ResultSummary")
+	log.Println("planId: ", planId)
+	log.Println("resultId: ", resultId)
 	// Since we don't have all the data in place, this is definitely temporary (not a real query either).
 	// TODO: We should Look for specific Plan and Results here. First Value only for Demonstration with Mocked values.
 	var p Plan
@@ -343,6 +370,10 @@ func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary
 }
 
 func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) ([]ComplianceStatusByTargets, error) {
+	log.Println("ComplianceStatusByTargets")
+	log.Println("planId: ", planId)
+	log.Println("resultId: ", resultId)
+    // TODO: this is hard-coded for demo purposes only at the moment.
 	// var p Plan
 	// err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
 	// if err != nil {
@@ -393,11 +424,23 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 	}, nil
 }
 
-func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson.M, error) {
-	// This returns all the observations regardless of the planId and resultId
-	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$unwind", Value: "$results"}},
-		bson.D{{Key: "$project", Value: bson.M{
+func (s *PlanService) ComplianceOverTime(planId string) ([]bson.M, error) {
+	var pipeline mongo.Pipeline
+
+	log.Println("ComplianceOverTime")
+	log.Println("planId: ", planId)
+
+	// Check if planId is provided
+	if planId != "any" && planId != "" {
+		pid, err := primitive.ObjectIDFromHex(planId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid planId: %v", err)
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"_id": pid}}})
+	}
+
+	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$results"}})
+	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
 			"_id": 0,
 			"date": bson.M{
 				"$dateToString": bson.M{
@@ -421,7 +464,7 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 				},
 			},
 		}}},
-	}
+	)
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
 	if err != nil {
@@ -437,6 +480,9 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 }
 
 func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]RemediationVsTime, error) {
+	log.Println("RemediationVsTime")
+	log.Println("planId: ", planId)
+	log.Println("resultId: ", resultId)
 	return []RemediationVsTime{
 		{
 			Control:     "Server Security Control",
@@ -474,6 +520,8 @@ func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]Remed
 }
 
 func (s *PlanService) Results(planId string) ([]bson.M, error) {
+	log.Println("Results")
+	log.Println("planId: ", planId)
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 0},
