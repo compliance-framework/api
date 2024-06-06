@@ -220,11 +220,12 @@ func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
 //	@Tags			Plan
 //	@Produce		json
 //	@Param			id			path		string	true	"Plan ID"
+//     @Param                  resultId        path            string  true    "Result ID"
 //	@Success		200			{object}	[]service.ComplianceStatusOverTime
 //	@Failure		500			{object}	api.Error	"Internal server error."
 //	@Router			/plan/{id}/results/{resultId}/compliance-over-time [get]
 func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
-	result, err := h.service.ComplianceOverTime(c.Param("id"))
+    result, err := h.service.ComplianceOverTime(c.Param("id"), c.Param("resultId"))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

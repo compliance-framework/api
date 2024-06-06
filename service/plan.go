@@ -424,7 +424,8 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 	}, nil
 }
 
-func (s *PlanService) ComplianceOverTime(planId string) ([]bson.M, error) {
+func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson.M, error) {
+	// This returns all the observations regardless of the resultId
 	var pipeline mongo.Pipeline
 
 	log.Println("ComplianceOverTime")
