@@ -440,6 +440,13 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"_id": pid}}})
 	}
 
+	if resultId != "any" && resultId != "" {
+		rid, err := primitive.ObjectIDFromHex(resultId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resultId: %v", err)
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
+	}
 	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$results"}})
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
 			"_id": 0,
