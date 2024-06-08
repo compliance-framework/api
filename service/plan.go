@@ -215,11 +215,29 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 }
 
 func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
+	var pipeline mongo.Pipeline
+
 	log.Println("Observations")
 	log.Println("planId: ", planId)
 	log.Println("resultId: ", resultId)
-	// This returns all the observations regardless of the planId and resultId
-	pipeline := mongo.Pipeline{
+
+	// Check if planId is provided
+	if planId != "any" && planId != "" {
+		pid, err := primitive.ObjectIDFromHex(planId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid planId: %v", err)
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"_id": pid}}})
+	}
+	if resultId != "any" && resultId != "" {
+		rid, err := primitive.ObjectIDFromHex(resultId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resultId: %v", err)
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
+	}
+
+	pipeline = append(pipeline,
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 0},
 			{Key: "observation", Value: bson.D{
@@ -230,9 +248,9 @@ func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, er
 				}},
 			}},
 		}}},
-		bson.D{{Key: "$unwind", Value: "$observation"}},
-		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$observation"}}}},
-	}
+	)
+	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$observation"}})
+	pipeline = append(pipeline, bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$observation"}}}})
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
 	if err != nil {
@@ -425,7 +443,6 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 }
 
 func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson.M, error) {
-	// This returns all the observations regardless of the resultId
 	var pipeline mongo.Pipeline
 
 	log.Println("ComplianceOverTime")
@@ -447,6 +464,7 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 		}
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
 	}
+
 	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$results"}})
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
 			"_id": 0,
