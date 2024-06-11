@@ -107,6 +107,7 @@ func (r *Processor) Listen() {
 				}
 			}
 
+			// TODO: Start and End times should arrive from the runtime inside the message
 			logs := make([]domain.LogEntry, len(msg.Logs))
 			for i, l := range msg.Logs {
 				logs[i] = domain.LogEntry{
@@ -115,11 +116,12 @@ func (r *Processor) Listen() {
 					Props:       l.Props,
 					Links:       l.Links,
 					Remarks:     l.Remarks,
+					Start:       time.Now(),
+					End:         time.Now(),
 				}
 			}
 
 			// TODO: Start and End times should arrive from the runtime inside the message
-
 			result := domain.Result{
 				Id:            primitive.NewObjectID(),
 				Observations:  observations,
