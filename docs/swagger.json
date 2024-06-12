@@ -969,6 +969,38 @@
                 }
             }
         },
+        "/plans": {
+            "get": {
+                "description": "Returns ids of all the plans in the system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Gets the plans",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Plan"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/ssp": {
             "get": {
                 "description": "List all SSP",
@@ -1246,6 +1278,47 @@
                 }
             }
         },
+        "domain.Activity": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "provider": {
+                    "$ref": "#/definitions/domain.Provider"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "subjects": {
+                    "$ref": "#/definitions/domain.SubjectSelection"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Actor": {
             "type": "object",
             "properties": {
@@ -1293,6 +1366,42 @@
                 "ActorTypeAssessmentPlatform",
                 "ActorTypeParty"
             ]
+        },
+        "domain.Assets": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "description": "Reference to component.Component",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "platforms": {
+                    "description": "Used to represent the toolset used to perform aspects of the assessment.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.Attestation": {
+            "type": "object",
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "responsibleParties": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "domain.AuthorizationBoundary": {
             "type": "object",
@@ -1518,6 +1627,41 @@
                     "type": "string"
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ControlsAndObjectives": {
+            "type": "object",
+            "properties": {
+                "controlSelections": {
+                    "$ref": "#/definitions/domain.Selection"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ObjectiveSelection"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -1854,6 +1998,88 @@
                 }
             }
         },
+        "domain.LocalDefinition": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "description": "Reference to Activity",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "components": {
+                    "description": "Reference to component.Component",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inventoryItems": {
+                    "description": "Reference to ssp.InventoryItem",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Objective"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "users": {
+                    "description": "Reference to identity.User",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.LogEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "description": "Identifies the end date and time of an event. If the event is a point in time, the start and end will be the same date and time.",
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "loggedBy": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "start": {
+                    "description": "Identifies the start date and time of an event.",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Metadata": {
             "type": "object",
             "properties": {
@@ -1900,6 +2126,85 @@
                     "items": {
                         "$ref": "#/definitions/domain.Diagram"
                     }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Objective": {
+            "type": "object",
+            "properties": {
+                "control": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ObjectiveSelection": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
                 },
                 "links": {
                     "type": "array",
@@ -2150,6 +2455,85 @@
                 }
             }
         },
+        "domain.Plan": {
+            "type": "object",
+            "properties": {
+                "assets": {
+                    "description": "The following fields are part of the OSCAL spec, but we don't use them yet.\nAssets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Assets"
+                        }
+                    ]
+                },
+                "backMatter": {
+                    "description": "BackMatter A collection of resources that may be referenced from within the OSCAL document instance.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.BackMatter"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "importSSP": {
+                    "description": "Reference to a System Security Plan",
+                    "type": "string"
+                },
+                "localDefinitions": {
+                    "description": "LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.\nReference to LocalDefinition",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.LocalDefinition"
+                        }
+                    ]
+                },
+                "metadata": {
+                    "description": "We might switch to struct embedding for fields like Metadata, Props, etc.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Metadata"
+                        }
+                    ]
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Result"
+                    }
+                },
+                "reviewedControls": {
+                    "description": "ReviewedControls Identifies the controls being assessed and their control objectives.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ControlsAndObjectives"
+                    }
+                },
+                "status": {
+                    "description": "Status The status of the assessment plan, such as \"active\" or \"inactive\".\nThese statuses are subject to change.",
+                    "type": "string"
+                },
+                "tasks": {
+                    "description": "Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Task"
+                    }
+                },
+                "termsAndConditions": {
+                    "description": "TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Part"
+                    }
+                },
+                "title": {
+                    "description": "Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.",
+                    "type": "string"
+                }
+            }
+        },
         "domain.Property": {
             "type": "object",
             "properties": {
@@ -2169,6 +2553,32 @@
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Provider": {
+            "type": "object",
+            "properties": {
+                "configuration": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "package": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "version": {
                     "type": "string"
                 }
             }
@@ -2268,6 +2678,80 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Result": {
+            "type": "object",
+            "properties": {
+                "assessmentLogEntries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.LogEntry"
+                    }
+                },
+                "attestations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Attestation"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Finding"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "localDefinitions": {
+                    "$ref": "#/definitions/domain.LocalDefinition"
+                },
+                "observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Observation"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "reviewedControls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ControlsAndObjectives"
+                    }
+                },
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Risk"
+                    }
+                },
+                "start": {
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -2468,6 +2952,75 @@
                     "type": "string"
                 },
                 "objective_integrity": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Selection": {
+            "type": "object",
+            "properties": {
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "domain.SubjectMatchExpression": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.SubjectSelection": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expressions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.SubjectMatchExpression"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "query": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -2673,6 +3226,94 @@
                     "type": "string"
                 }
             }
+        },
+        "domain.Task": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Activity"
+                    }
+                },
+                "dependencies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.TaskDependency"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "description": "Subjects hold all the subjects that the activities act upon.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/domain.TaskType"
+                }
+            }
+        },
+        "domain.TaskDependency": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string"
+                },
+                "taskUuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TaskType": {
+            "type": "string",
+            "enum": [
+                "milestone",
+                "action"
+            ],
+            "x-enum-varnames": [
+                "TaskTypeMilestone",
+                "TaskTypeAction"
+            ]
         },
         "handler.CreateSSPRequest": {
             "type": "object",

@@ -35,6 +35,33 @@ definitions:
       type:
         type: string
     type: object
+  domain.Activity:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      provider:
+        $ref: '#/definitions/domain.Provider'
+      remarks:
+        type: string
+      responsibleRoles:
+        items:
+          type: string
+        type: array
+      subjects:
+        $ref: '#/definitions/domain.SubjectSelection'
+      title:
+        type: string
+    type: object
   domain.Actor:
     properties:
       description:
@@ -68,6 +95,31 @@ definitions:
     - ActorTypeTool
     - ActorTypeAssessmentPlatform
     - ActorTypeParty
+  domain.Assets:
+    properties:
+      components:
+        description: Reference to component.Component
+        items:
+          type: string
+        type: array
+      platforms:
+        description: Used to represent the toolset used to perform aspects of the
+          assessment.
+        items:
+          type: string
+        type: array
+    type: object
+  domain.Attestation:
+    properties:
+      parts:
+        items:
+          $ref: '#/definitions/domain.Part'
+        type: array
+      responsibleParties:
+        items:
+          type: string
+        type: array
+    type: object
   domain.AuthorizationBoundary:
     properties:
       description:
@@ -222,6 +274,29 @@ definitions:
       title:
         type: string
       uuid:
+        type: string
+    type: object
+  domain.ControlsAndObjectives:
+    properties:
+      controlSelections:
+        $ref: '#/definitions/domain.Selection'
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      objectives:
+        items:
+          $ref: '#/definitions/domain.ObjectiveSelection'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
         type: string
     type: object
   domain.DataFlow:
@@ -452,6 +527,63 @@ definitions:
       text:
         type: string
     type: object
+  domain.LocalDefinition:
+    properties:
+      activities:
+        description: Reference to Activity
+        items:
+          type: string
+        type: array
+      components:
+        description: Reference to component.Component
+        items:
+          type: string
+        type: array
+      inventoryItems:
+        description: Reference to ssp.InventoryItem
+        items:
+          type: string
+        type: array
+      objectives:
+        items:
+          $ref: '#/definitions/domain.Objective'
+        type: array
+      remarks:
+        type: string
+      users:
+        description: Reference to identity.User
+        items:
+          type: string
+        type: array
+    type: object
+  domain.LogEntry:
+    properties:
+      description:
+        type: string
+      end:
+        description: Identifies the end date and time of an event. If the event is
+          a point in time, the start and end will be the same date and time.
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      loggedBy:
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      start:
+        description: Identifies the start date and time of an event.
+        type: string
+      title:
+        type: string
+    type: object
   domain.Metadata:
     properties:
       actions:
@@ -483,6 +615,58 @@ definitions:
         items:
           $ref: '#/definitions/domain.Diagram'
         type: array
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.Objective:
+    properties:
+      control:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      parts:
+        items:
+          $ref: '#/definitions/domain.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.ObjectiveSelection:
+    properties:
+      description:
+        type: string
+      exclude:
+        items:
+          type: string
+        type: array
+      include:
+        items:
+          type: string
+        type: array
+      includeAll:
+        type: boolean
       links:
         items:
           $ref: '#/definitions/domain.Link'
@@ -662,6 +846,68 @@ definitions:
           for display and navigation.
         type: string
     type: object
+  domain.Plan:
+    properties:
+      assets:
+        allOf:
+        - $ref: '#/definitions/domain.Assets'
+        description: |-
+          The following fields are part of the OSCAL spec, but we don't use them yet.
+          Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
+      backMatter:
+        allOf:
+        - $ref: '#/definitions/domain.BackMatter'
+        description: BackMatter A collection of resources that may be referenced from
+          within the OSCAL document instance.
+      id:
+        type: string
+      importSSP:
+        description: Reference to a System Security Plan
+        type: string
+      localDefinitions:
+        allOf:
+        - $ref: '#/definitions/domain.LocalDefinition'
+        description: |-
+          LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
+          Reference to LocalDefinition
+      metadata:
+        allOf:
+        - $ref: '#/definitions/domain.Metadata'
+        description: We might switch to struct embedding for fields like Metadata,
+          Props, etc.
+      results:
+        items:
+          $ref: '#/definitions/domain.Result'
+        type: array
+      reviewedControls:
+        description: ReviewedControls Identifies the controls being assessed and their
+          control objectives.
+        items:
+          $ref: '#/definitions/domain.ControlsAndObjectives'
+        type: array
+      status:
+        description: |-
+          Status The status of the assessment plan, such as "active" or "inactive".
+          These statuses are subject to change.
+        type: string
+      tasks:
+        description: Tasks Represents a scheduled event or milestone, which may be
+          associated with a series of assessment actions.
+        items:
+          $ref: '#/definitions/domain.Task'
+        type: array
+      termsAndConditions:
+        description: TermsAndConditions Used to define various terms and conditions
+          under which an assessment, described by the plan, can be performed. Each
+          child part defines a different type of term or condition.
+        items:
+          $ref: '#/definitions/domain.Part'
+        type: array
+      title:
+        description: Title A name given to the assessment plan. OSCAL doesn't have
+          this, but we need it for our use case.
+        type: string
+    type: object
   domain.Property:
     properties:
       class:
@@ -675,6 +921,23 @@ definitions:
       remarks:
         type: string
       value:
+        type: string
+    type: object
+  domain.Provider:
+    properties:
+      configuration:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      package:
+        type: string
+      params:
+        additionalProperties:
+          type: string
+        type: object
+      version:
         type: string
     type: object
   domain.Resource:
@@ -744,6 +1007,55 @@ definitions:
         items:
           type: string
         type: array
+      title:
+        type: string
+    type: object
+  domain.Result:
+    properties:
+      assessmentLogEntries:
+        items:
+          $ref: '#/definitions/domain.LogEntry'
+        type: array
+      attestations:
+        items:
+          $ref: '#/definitions/domain.Attestation'
+        type: array
+      description:
+        type: string
+      end:
+        type: string
+      findings:
+        items:
+          $ref: '#/definitions/domain.Finding'
+        type: array
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      localDefinitions:
+        $ref: '#/definitions/domain.LocalDefinition'
+      observations:
+        items:
+          $ref: '#/definitions/domain.Observation'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      reviewedControls:
+        items:
+          $ref: '#/definitions/domain.ControlsAndObjectives'
+        type: array
+      risks:
+        items:
+          $ref: '#/definitions/domain.Risk'
+        type: array
+      start:
+        type: string
       title:
         type: string
     type: object
@@ -881,6 +1193,51 @@ definitions:
       objective_confidentiality:
         type: string
       objective_integrity:
+        type: string
+    type: object
+  domain.Selection:
+    properties:
+      exclude:
+        items:
+          type: string
+        type: array
+      include:
+        items:
+          type: string
+        type: array
+      includeAll:
+        type: boolean
+    type: object
+  domain.SubjectMatchExpression:
+    properties:
+      key:
+        type: string
+      operator:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  domain.SubjectSelection:
+    properties:
+      description:
+        type: string
+      expressions:
+        items:
+          $ref: '#/definitions/domain.SubjectMatchExpression'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      query:
+        type: string
+      title:
         type: string
     type: object
   domain.SystemCharacteristics:
@@ -1024,6 +1381,65 @@ definitions:
       uuid:
         type: string
     type: object
+  domain.Task:
+    properties:
+      activities:
+        items:
+          $ref: '#/definitions/domain.Activity'
+        type: array
+      dependencies:
+        items:
+          $ref: '#/definitions/domain.TaskDependency'
+        type: array
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      responsibleRoles:
+        items:
+          type: string
+        type: array
+      schedule:
+        type: string
+      subjects:
+        description: Subjects hold all the subjects that the activities act upon.
+        items:
+          type: string
+        type: array
+      tasks:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/domain.TaskType'
+    type: object
+  domain.TaskDependency:
+    properties:
+      remarks:
+        type: string
+      taskUuid:
+        type: string
+    type: object
+  domain.TaskType:
+    enum:
+    - milestone
+    - action
+    type: string
+    x-enum-varnames:
+    - TaskTypeMilestone
+    - TaskTypeAction
   handler.CreateSSPRequest:
     properties:
       title:
@@ -1969,6 +2385,27 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create activity
+      tags:
+      - Plan
+  /plans:
+    get:
+      consumes:
+      - application/json
+      description: Returns ids of all the plans in the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Plan'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Gets the plans
       tags:
       - Plan
   /ssp:

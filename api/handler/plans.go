@@ -28,14 +28,14 @@ func NewPlansHandler(l *zap.SugaredLogger, s *service.PlansService) *PlansHandle
 
 // GetPlans godoc
 //
-//  @Summary        Gets the plans
-//  @Description    Returns ids of all the plans in the system
-//  @Tags           Plan
-//  @Accept         json
-//  @Produce        json
-//  @Success        200     {object}    []domain.Plan
-//  @Failure        500     {object}    api.Error
-//  @Router         /plans [get]
+//	@Summary		Gets the plans
+//	@Description	Returns ids of all the plans in the system
+//	@Tags			Plan
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	[]domain.Plan
+//	@Failure		500	{object}	api.Error
+//	@Router			/plans [get]
 func (h *PlansHandler) GetPlans(c echo.Context) error {
 	results, err := h.service.GetPlans()
 	if err != nil {
