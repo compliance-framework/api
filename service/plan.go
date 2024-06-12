@@ -391,7 +391,7 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 	log.Println("ComplianceStatusByTargets")
 	log.Println("planId: ", planId)
 	log.Println("resultId: ", resultId)
-    // TODO: this is hard-coded for demo purposes only at the moment.
+	// TODO: this is hard-coded for demo purposes only at the moment.
 	// var p Plan
 	// err := s.planCollection.FindOne(context.Background(), bson.D{{Key: "_id", Value: planId}}).Decode(&p)
 	// if err != nil {
@@ -443,6 +443,7 @@ func (s *PlanService) ComplianceStatusByTargets(planId string, resultId string) 
 }
 
 func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson.M, error) {
+	// This is grouped by minute for now, but the granularity could be calculated or specified by the client.
 	var pipeline mongo.Pipeline
 
 	log.Println("ComplianceOverTime")
@@ -470,7 +471,7 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 			"_id": 0,
 			"date": bson.M{
 				"$dateToString": bson.M{
-					"format": "%Y-%m-%dT%H:%M:%SZ",
+					"format": "%Y-%m-%dT%H:%M:00Z",
 					"date":   "$results.start",
 				},
 			},
@@ -491,6 +492,25 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 			},
 		}}},
 	)
+
+	pipeline = append(pipeline, bson.D{
+		{Key: "$group", Value: bson.M{
+			"_id": "$date",
+			"totalFindings": bson.M{"$sum": "$findings"},
+			"totalObservations": bson.M{"$sum": "$observations"},
+			"totalRisks": bson.M{"$sum": "$risks"},
+		}},
+	})
+
+	pipeline = append(pipeline, bson.D{
+		{Key: "$project", Value: bson.M{
+			"_id": 0,
+			"minute": "$_id",
+			"totalFindings": 1,
+			"totalObservations": 1,
+			"totalRisks": 1,
+		}},
+	})
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
 	if err != nil {
