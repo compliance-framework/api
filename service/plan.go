@@ -182,11 +182,30 @@ func (s *PlanService) SaveSubject(subject Subject) error {
 }
 
 func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error) {
+
 	log.Println("Findings")
 	log.Println("planId: ", planId)
 	log.Println("resultId: ", resultId)
-	// This returns all the findings regardless of the planId and resultId
-	pipeline := mongo.Pipeline{
+
+	var pipeline mongo.Pipeline
+
+	// Check if planId is provided
+	if planId != "any" && planId != "" {
+		pid, err := primitive.ObjectIDFromHex(planId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid planId: %v", err)
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"_id": pid}}})
+	}
+	if resultId != "any" && resultId != "" {
+		rid, err := primitive.ObjectIDFromHex(resultId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resultId: %v", err)
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
+	}
+
+	pipeline = append(pipeline,
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 0},
 			{Key: "finding", Value: bson.D{
@@ -197,9 +216,9 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 				}},
 			}},
 		}}},
-		bson.D{{Key: "$unwind", Value: "$finding"}},
-		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$finding"}}}},
-	}
+	)
+	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$finding"}})
+	pipeline = append(pipeline, bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$finding"}}}})
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
 	if err != nil {
@@ -215,11 +234,12 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 }
 
 func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
-	var pipeline mongo.Pipeline
 
 	log.Println("Observations")
 	log.Println("planId: ", planId)
 	log.Println("resultId: ", resultId)
+
+	var pipeline mongo.Pipeline
 
 	// Check if planId is provided
 	if planId != "any" && planId != "" {
