@@ -183,6 +183,7 @@ func (s *PlanService) SaveSubject(subject Subject) error {
 
 func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error) {
 
+	// TODO: order by date
 	log.Println("Findings")
 	log.Println("planId: ", planId)
 	log.Println("resultId: ", resultId)
@@ -234,6 +235,8 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 }
 
 func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
+
+	// TODO: order by date
 
 	log.Println("Observations")
 	log.Println("planId: ", planId)
@@ -523,6 +526,12 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 	})
 
 	pipeline = append(pipeline, bson.D{
+        {Key: "$sort", Value: bson.M{
+            "_id": 1, // 1 for ascending order, -1 for descending order
+        }},
+    })
+
+	pipeline = append(pipeline, bson.D{
 		{Key: "$project", Value: bson.M{
 			"_id": 0,
 			"minute": "$_id",
@@ -586,6 +595,7 @@ func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]Remed
 }
 
 func (s *PlanService) Results(planId string) ([]bson.M, error) {
+	// TODO: order by date
 	log.Println("Results")
 	log.Println("planId: ", planId)
 	pipeline := mongo.Pipeline{
