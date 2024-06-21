@@ -189,6 +189,7 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 	log.Println("resultId: ", resultId)
 
 	var pipeline mongo.Pipeline
+	var results []bson.M
 
 	// Check if planId is provided
 	if planId != "any" && planId != "" {
@@ -218,6 +219,11 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 			}},
 		}}},
 	)
+	////DEBUG EXAMPLE FOR DEVS
+	//log.Printf("Pipeline after $project: %v\n", pipeline)
+	//cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
+	//cursor.All(context.Background(), &results)
+	//log.Printf("Result after project: %v\n", results)
 	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$finding"}})
 	pipeline = append(pipeline, bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$finding"}}}})
 
@@ -226,7 +232,6 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 		return nil, err
 	}
 
-	var results []bson.M
 	if err = cursor.All(context.Background(), &results); err != nil {
 		return nil, err
 	}
