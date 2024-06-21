@@ -182,14 +182,12 @@ func (s *PlanService) SaveSubject(subject Subject) error {
 }
 
 func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error) {
-
-	// TODO: order by date
 	log.Println("Findings", "planId: ", planId, "resultId: ", resultId)
 
 	var pipeline mongo.Pipeline
 	var results []bson.M
 
-	// Check if planId is provided
+	// Check if planId or resultId is provided
 	if planId != "any" && planId != "" {
 		pid, err := primitive.ObjectIDFromHex(planId)
 		if err != nil {
@@ -205,7 +203,6 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
 	}
 
-	// Append stages to the pipeline
 	pipeline = append(pipeline,
 		bson.D{{"$unwind", bson.D{{"path", "$results"}}}},
 	)
@@ -215,6 +212,7 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 	pipeline = append(pipeline,
 		bson.D{{"$unwind", bson.D{{"path", "$results.findings"}}}},
 	)
+
 	pipeline = append(pipeline,
 		bson.D{{"$project", bson.D{
 			{"_id", "$results.findings._id"},
@@ -238,13 +236,11 @@ func (s *PlanService) Findings(planId string, resultId string) ([]bson.M, error)
 }
 
 func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, error) {
-
-	// TODO: order by date
 	log.Println("Observations ", "planId: ", planId, ", resultId: ", resultId)
 
 	var pipeline mongo.Pipeline
 
-	// Check if planId is provided
+	// Check if planId or resultId is provided
 	if planId != "any" && planId != "" {
 		pid, err := primitive.ObjectIDFromHex(planId)
 		if err != nil {
@@ -260,20 +256,25 @@ func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, er
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
 	}
 
+    pipeline = append(pipeline,
+        bson.D{{"$unwind", bson.D{{"path", "$results"}}}},
+    )
+    pipeline = append(pipeline,
+        bson.D{{"$sort", bson.D{{"results.observations.collected", 1}}}},
+    )
 	pipeline = append(pipeline,
-		bson.D{{Key: "$project", Value: bson.D{
-			{Key: "_id", Value: 0},
-			{Key: "observation", Value: bson.D{
-				{Key: "$reduce", Value: bson.D{
-					{Key: "input", Value: "$results.observations"},
-					{Key: "initialValue", Value: bson.A{}},
-					{Key: "in", Value: bson.D{{Key: "$concatArrays", Value: bson.A{"$$value", "$$this"}}}},
-				}},
-			}},
-		}}},
+		bson.D{{"$unwind", bson.D{{"path", "$results.observations"}}}},
 	)
-	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$observation"}})
-	pipeline = append(pipeline, bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$observation"}}}})
+
+	pipeline = append(pipeline, bson.D{
+        {"$project", bson.D{
+            {Key: "_id", Value: "$results.observations._id"},
+            {Key: "title", Value: "$results.observations.title"},
+            {Key: "description", Value: "$results.observations.description"},
+            {Key: "collected", Value: "$results.observations.collected"},
+            {Key: "props", Value: "$results.observations.props"},
+        }},
+    })
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
 	if err != nil {
@@ -595,8 +596,7 @@ func (s *PlanService) RemediationVsTime(planId string, resultId string) ([]Remed
 func (s *PlanService) Results(planId string) ([]bson.M, error) {
 	// TODO: order by date
 	// TODO: use planId
-	log.Println("Results")
-	log.Println("planId: ", planId)
+	log.Println("Results", "planId:", planId)
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "_id", Value: 0},
