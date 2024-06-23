@@ -28,8 +28,8 @@ func NewPlansHandler(l *zap.SugaredLogger, s *service.PlansService) *PlansHandle
 
 // GetPlans godoc
 //
-//	@Summary		Gets the plans
-//	@Description	Returns ids of all the plans in the system
+//	@Summary		Gets plan details
+//	@Description	Returns id and title of all the plans in the system
 //	@Tags			Plan
 //	@Accept			json
 //	@Produce		json
