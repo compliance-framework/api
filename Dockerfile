@@ -8,12 +8,12 @@ WORKDIR /app
 # Copy local code to the container image.
 COPY . ./
 
-# Build it
-RUN CGO_ENABLED=0 GOOS=linux go build -o /configuration-service
-
 # Regenerate the swagger
 RUN go install github.com/swaggo/swag/cmd/swag@latest
 RUN make swag
+
+# Build it
+RUN CGO_ENABLED=0 GOOS=linux go build -o /configuration-service
 
 FROM alpine
 WORKDIR /

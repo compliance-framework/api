@@ -76,6 +76,12 @@ type Plan struct {
 	Results []Result `json:"results"`
 }
 
+type PlanTitle struct {
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
+	Title string `json:"title,omitempty"`
+}
+
 func NewPlan() *Plan {
 	revision := NewRevision("Initial version", "Initial version", "")
 
