@@ -189,7 +189,8 @@ type createActivityRequest struct {
 	Provider    struct {
 		Name          string            `json:"name" validate:"required"`
 		Package       string            `json:"package" validate:"required"`
-		Version       string            `json:"version" validate:"required"`
+		Image         string            `json:"image" validate:"required"`
+		Tag           string            `json:"tag" validate:"required"`
 		Params        map[string]string `json:"params,omitempty"`
 		Configuration map[string]string `json:"configuration,omitempty"`
 	} `json:"provider" validate:"required"`
@@ -225,7 +226,8 @@ func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error
 	a.Provider = domain.Provider{
 		Name:          r.Provider.Name,
 		Package:       r.Provider.Package,
-		Version:       r.Provider.Version,
+		Image:         r.Provider.Image,
+		Tag:           r.Provider.Tag,
 		Configuration: r.Provider.Configuration,
 		Params:        r.Provider.Params,
 	}

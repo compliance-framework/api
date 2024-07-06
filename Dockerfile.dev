@@ -1,6 +1,6 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian.
-FROM golang:1.21
+FROM golang:1.22
 
 # Create and change to the app directory.
 WORKDIR /app
