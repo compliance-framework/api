@@ -5,8 +5,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// Plan An assessment plan, such as those provided by a FedRAMP assessor.
+// Plan
+//
+// An assessment plan, such as those provided by a FedRAMP assessor.
 // Here are some real-world examples for Assets, Platforms, Subjects and Inventory Items within an OSCAL Assessment Plan:
+//
 // 1. Assets: This could be something like a customer database within a retail company. It's an asset because it's crucial to the business operation, storing all the essential customer details such as addresses, contact information, and purchase history.
 // 2. Platforms: This could be the retail company's online E-commerce platform which hosts their online store, and where transactions occur. The platform might involve web servers, database servers, or a cloud environment.
 // 3. Subjects: If the company is performing a security assessment, the subject could be the encryption method or security protocols used to protect the customer data while in transit or at rest in the database.
@@ -76,7 +79,8 @@ type Plan struct {
 	Results []Result `json:"results"`
 }
 
-type PlanTitle struct {
+// A PlanPrecis is a cut down version of a plan limited to one level so user can get a view of what the plan is about.
+type PlanPrecis struct {
 	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
 	Title string `json:"title,omitempty"`
@@ -194,6 +198,9 @@ const (
 	TaskTypeAction    TaskType = "action"
 )
 
+// Task
+//
+// See Plan above
 type Task struct {
 	Id               primitive.ObjectID `json:"id"`
 	Title            string             `json:"title,omitempty"`
@@ -207,6 +214,7 @@ type Task struct {
 	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
 
 	// Subjects hold all the subjects that the activities act upon.
+	// TODO: Should this be []Subject?
 	Subjects []primitive.ObjectID `json:"subjects"`
 
 	Tasks    []Uuid `json:"tasks"`
@@ -225,11 +233,16 @@ func (t *Task) AddActivity(activity Activity) error {
 	return nil
 }
 
+// TaskDependency
+//
+// A dependency for a Task
 type TaskDependency struct {
 	TaskId  primitive.ObjectID `json:"taskUuid"`
 	Remarks string             `json:"remarks"`
 }
 
+// Assets
+//
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
@@ -239,6 +252,9 @@ type Assets struct {
 	Platforms []primitive.ObjectID `json:"platforms"`
 }
 
+// Platform
+//
+// See Plan above
 type Platform struct {
 	Id          primitive.ObjectID `json:"id"`
 	Title       string             `json:"title,omitempty"`
@@ -252,6 +268,9 @@ type Platform struct {
 	UsesComponents []string `json:"usesComponents"`
 }
 
+// ControlsAndObjectives
+//
+// The Controls and Control Objectives that are part of the Plan
 type ControlsAndObjectives struct {
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
@@ -264,6 +283,9 @@ type ControlsAndObjectives struct {
 	ControlSelections Selection            `json:"controlSelections"`
 }
 
+// ObjectiveSelection
+//
+// Objectives included and excluded.
 type ObjectiveSelection struct {
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
@@ -276,6 +298,9 @@ type ObjectiveSelection struct {
 	Include    []string `json:"include"`
 }
 
+// LocalDefinition
+//
+// See Plan
 type LocalDefinition struct {
 	Remarks string `json:"remarks,omitempty"`
 
@@ -294,7 +319,10 @@ type LocalDefinition struct {
 	Users []primitive.ObjectID `json:"users"`
 }
 
-// Objective A local objective is a security control or requirement that is specific to the system or organization under assessment.
+// Objective
+//
+// An Objective is a local objective: a security control or requirement
+// that is specific to the system or organization under assessment.
 type Objective struct {
 	Id          primitive.ObjectID `json:"id"`
 	Title       string             `json:"title,omitempty"`
@@ -318,6 +346,8 @@ const (
 	SubjectTypeUser          SubjectType = "user"
 )
 
+// Subject
+//
 // Subject Identifies system elements being assessed, such as components, inventory items, and locations.
 // In the assessment plan, this identifies a planned assessment subject.
 // In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
@@ -332,6 +362,8 @@ type Subject struct {
 	Remarks     string             `json:"remarks,omitempty"`
 }
 
+// SubjectSelection
+//
 // SubjectSelection Identifies system elements being assessed, such as components, inventory items, and locations by specifying a selection criteria.
 // We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
 // The assessment runtime evaluates the selection by running the providers and returns back with subject ids.

@@ -33,7 +33,7 @@ func NewPlansHandler(l *zap.SugaredLogger, s *service.PlansService) *PlansHandle
 //	@Tags			Plan
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	[]domain.PlanTitle
+//	@Success		200	{object}	[]domain.PlanPrecis
 //	@Failure		500	{object}	api.Error
 //	@Router			/plans [get]
 func (h *PlansHandler) GetPlans(c echo.Context) error {

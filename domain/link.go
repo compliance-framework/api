@@ -1,5 +1,8 @@
 package domain
 
+// Link
+//
+// Hyperlink
 type Link struct {
 	Href             string `json:"href"`
 	MediaType        string `json:"mediaType"`
