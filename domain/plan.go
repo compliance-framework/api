@@ -202,23 +202,21 @@ const (
 //
 // See Plan above
 type Task struct {
-	Id               primitive.ObjectID `json:"id"`
-	Title            string             `json:"title,omitempty"`
-	Description      string             `json:"description,omitempty"`
-	Props            []Property         `json:"props,omitempty"`
-	Links            []Link             `json:"links,omitempty"`
-	Remarks          string             `json:"remarks,omitempty"`
-	Type             TaskType           `json:"type"`
-	Activities       []Activity         `json:"activities"`
-	Dependencies     []TaskDependency   `json:"dependencies"`
-	ResponsibleRoles []Uuid             `json:"responsibleRoles"`
-
+	Id               primitive.ObjectID `json:"id" yaml:"id"`
+	Title            string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description      string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	Type             TaskType           `json:"type" yaml:"type"`
+	Activities       []Activity         `json:"activities" yaml:"activities"`
+	Dependencies     []TaskDependency   `json:"dependencies" yaml:"dependencies"`
+	ResponsibleRoles []Uuid             `json:"responsibleRoles" yaml:"responsibleRoles"`
 	// Subjects hold all the subjects that the activities act upon.
 	// TODO: Should this be []Subject?
-	Subjects []primitive.ObjectID `json:"subjects"`
-
-	Tasks    []Uuid `json:"tasks"`
-	Schedule string `json:"schedule"`
+	Subjects         []primitive.ObjectID `json:"subjects" yaml:"subjects"`
+	Tasks            []Uuid             `json:"tasks" yaml:"tasks"`
+	Schedule         string             `json:"schedule" yaml:"schedule"`
 }
 
 func (t *Task) AddActivity(activity Activity) error {
@@ -397,3 +395,4 @@ type Activity struct {
 	Subjects         SubjectSelection   `json:"subjects"`
 	Provider         Provider           `json:"provider"`
 }
+
