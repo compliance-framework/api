@@ -1,31 +1,31 @@
 package domain
 
 type Parameter struct {
-	Uuid        Uuid               `json:"uuid"`
-	Class       string             `json:"class"`
-	Props       []Property         `json:"props"`
-	Links       []Link             `json:"links"`
-	Label       string             `json:"label"`
-	Usage       string             `json:"usage"`
-	Constraints []Constraint       `json:"constraints"`
-	Guidelines  []Guideline        `json:"guidelines"`
-	Values      []string           `json:"values"`
-	Select      ParameterSelection `json:"select"`
-	Remarks     string             `json:"remarks"`
+	Uuid        Uuid               `json:"uuid" yaml:"uuid"`
+	Class       string             `json:"class" yaml:"class"`
+	Props       []Property         `json:"props" yaml:"props"`
+	Links       []Link             `json:"links" yaml:"links"`
+	Label       string             `json:"label" yaml:"label"`
+	Usage       string             `json:"usage" yaml:"usage"`
+	Constraints []Constraint       `json:"constraints" yaml:"constraints"`
+	Guidelines  []Guideline        `json:"guidelines" yaml:"guidelines"`
+	Values      []string           `json:"values" yaml:"values"`
+	Select      ParameterSelection `json:"select" yaml:"select"`
+	Remarks     string             `json:"remarks" yaml:"remarks"`
 }
 
 type Constraint struct {
-	Description string `json:"description"`
-	Tests       []ConstraintTest
+	Description string           `json:"description" yaml:"description"`
+	Tests       []ConstraintTest `json:"tests" yaml:"tests"`
 }
 
 type ConstraintTest struct {
-	Expression string `json:"expression"`
-	Remarks    string `json:"remarks"`
+	Expression string `json:"expression" yaml:"expression"`
+	Remarks    string `json:"remarks" yaml:"remarks"`
 }
 
 type Guideline struct {
-	Prose string `json:"prose"`
+	Prose string `json:"prose" yaml:"prose"`
 }
 
 type HowManyType int

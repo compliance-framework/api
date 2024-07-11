@@ -7,25 +7,26 @@ import (
 )
 
 type Metadata struct {
-	Revisions             []Revision `json:"revisions"`
-	PartyUuids            []string   `json:"partyUuids"`
-	ResponsiblePartyUuids []string   `json:"responsiblePartyUuids"`
-	RoleUuids             []string   `json:"roleUuids"`
-	Actions               []Action   `json:"actions"`
+	Revisions             []Revision `json:"revisions" yaml:"revisions"`
+	PartyUuids            []string   `json:"partyUuids" yaml:"partyUuids"`
+	ResponsiblePartyUuids []string   `json:"responsiblePartyUuids" yaml:"responsiblePartyUuids"`
+	RoleUuids             []string   `json:"roleUuids" yaml:"roleUuids"`
+	Actions               []Action   `json:"actions" yaml:"actions"`
 }
 
 type Revision struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
-	Remarks     string     `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
-	Published    time.Time `json:"published"`
-	LastModified time.Time `json:"lastModified"`
-	Version      string    `json:"version"`
-	OscalVersion string    `json:"oscalVersion"`
+	Published    time.Time `json:"published" yaml:"published"`
+	LastModified time.Time `json:"lastModified" yaml:"lastModified"`
+	Version      string    `json:"version" yaml:"version"`
+	OscalVersion string    `json:"oscalVersion" yaml:"oscalVersion"`
 }
+
 
 func NewRevision(title string, description string, remarks string) Revision {
 	revision := Revision{

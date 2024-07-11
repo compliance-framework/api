@@ -23,19 +23,20 @@ type JobSpecification struct {
 	PlanId      string            `json:"assessment-plan-id" yaml:"assessment-plan-id"`
 	ComponentId string            `json:"component-id" yaml:"component-id"`
 	ControlId   string            `json:"control-id" yaml:"control-id"`
-	Tasks       []TaskInformation `json:"tasks"`
+	Tasks       []TaskInformation `json:"tasks" yaml:"tasks"`
 }
 
 type TaskInformation struct {
-	Id         string                `json:"id"`
-	Title      string                `json:"title"`
-	Schedule   string                `json:"schedule"`
-	Activities []ActivityInformation `json:"activities"`
+	Id         string                `json:"id" yaml:"id"`
+	Title      string                `json:"title" yaml:"title"`
+	Schedule   string                `json:"schedule" yaml:"schedule"`
+	Activities []ActivityInformation `json:"activities" yaml:"activities"`
 }
 
 type ActivityInformation struct {
-	Id       string           `json:"id"`
-	Title    string           `json:"title"`
-	Selector SubjectSelection `json:"selector"`
-	Provider Provider         `json:"provider"`
+	Id       string           `json:"id" yaml:"id"`
+	Title    string           `json:"title" yaml:"title"`
+	Selector SubjectSelection `json:"selector" yaml:"selector"`
+	Provider Provider         `json:"provider" yaml:"provider"`
 }
+

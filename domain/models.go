@@ -20,7 +20,7 @@ func (u Uuid) String() string {
 }
 
 type Selection struct {
-	IncludeAll bool   `json:"includeAll"`
-	Exclude    []Uuid `json:"exclude"`
-	Include    []Uuid `json:"include"`
+	IncludeAll bool   `json:"includeAll" yaml:"includeAll"`
+	Exclude    []Uuid `json:"exclude" yaml:"exclude"`
+	Include    []Uuid `json:"include" yaml:"include"`
 }

@@ -46,44 +46,44 @@ import (
 // ▪	“Specify the output (report) format”
 // In context of an automated compliance check, the description of Task, Activity, and Step provides a systematic plan or procedure that the tool is expected to follow. This breakdown of tasks, activities, and steps could also supply useful context and explain the tool’s operation and results to system admins, auditors or other stakeholders. It also allows for easier troubleshooting in the event of problems.
 type Plan struct {
-	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id" yaml:"id"`
 
 	// Status The status of the assessment plan, such as "active" or "inactive".
 	// These statuses are subject to change.
-	Status string `json:"status,omitempty"`
+	Status string `json:"status,omitempty" yaml:"status,omitempty"`
 
 	// We might switch to struct embedding for fields like Metadata, Props, etc.
-	Metadata Metadata `json:"metadata"`
+	Metadata Metadata `json:"metadata" yaml:"metadata"`
 
 	// Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.
-	Tasks []Task `json:"tasks"`
+	Tasks []Task `json:"tasks" yaml:"tasks"`
 
 	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
-	Title string `json:"title,omitempty"`
+	Title string `json:"title,omitempty" yaml:"title,omitempty"`
 
 	// The following fields are part of the OSCAL spec, but we don't use them yet.
 	// Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
-	Assets Assets `json:"assets"`
+	Assets Assets `json:"assets" yaml:"assets"`
 	// BackMatter A collection of resources that may be referenced from within the OSCAL document instance.
-	BackMatter BackMatter `json:"backMatter"`
+	BackMatter BackMatter `json:"backMatter" yaml:"backMatter"`
 	// Reference to a System Security Plan
-	ImportSSP string `json:"importSSP"`
+	ImportSSP string `json:"importSSP" yaml:"importSSP"`
 	// LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
 	// Reference to LocalDefinition
-	LocalDefinitions LocalDefinition `json:"localDefinitions"`
+	LocalDefinitions LocalDefinition `json:"localDefinitions" yaml:"localDefinitions"`
 	// ReviewedControls Identifies the controls being assessed and their control objectives.
-	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
+	ReviewedControls []ControlsAndObjectives `json:"reviewedControls" yaml:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
-	TermsAndConditions []Part `json:"termsAndConditions"`
+	TermsAndConditions []Part `json:"termsAndConditions" yaml:"termsAndConditions"`
 
-	Results []Result `json:"results"`
+	Results []Result `json:"results" yaml:"results"`
 }
 
 // A PlanPrecis is a cut down version of a plan limited to one level so user can get a view of what the plan is about.
 type PlanPrecis struct {
-	Id primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Id primitive.ObjectID `bson:"_id,omitempty" json:"id" yaml:"id"`
 	// Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.
-	Title string `json:"title,omitempty"`
+	Title string `json:"title,omitempty" yaml:"title,omitempty"`
 }
 
 func NewPlan() *Plan {
@@ -235,8 +235,8 @@ func (t *Task) AddActivity(activity Activity) error {
 //
 // A dependency for a Task
 type TaskDependency struct {
-	TaskId  primitive.ObjectID `json:"taskUuid"`
-	Remarks string             `json:"remarks"`
+	TaskId  primitive.ObjectID `json:"taskUuid" yaml:"taskUuid"`
+	Remarks string             `json:"remarks" yaml:"remarks"`
 }
 
 // Assets
@@ -244,56 +244,56 @@ type TaskDependency struct {
 // Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions.
 type Assets struct {
 	// Reference to component.Component
-	Components []primitive.ObjectID `json:"components"`
+	Components []primitive.ObjectID `json:"components" yaml:"components"`
 
 	// Used to represent the toolset used to perform aspects of the assessment.
-	Platforms []primitive.ObjectID `json:"platforms"`
+	Platforms []primitive.ObjectID `json:"platforms" yaml:"platforms"`
 }
 
 // Platform
 //
 // See Plan above
 type Platform struct {
-	Id          primitive.ObjectID `json:"id"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
+	Id          primitive.ObjectID `json:"id" yaml:"id"`
+	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
 
-	Links   []Link `json:"links,omitempty"`
-	Remarks string `json:"remarks,omitempty"`
+	Links   []Link `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks string `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
 	// Reference to component.Component
-	UsesComponents []string `json:"usesComponents"`
+	UsesComponents []string `json:"usesComponents" yaml:"usesComponents"`
 }
 
 // ControlsAndObjectives
 //
 // The Controls and Control Objectives that are part of the Plan
 type ControlsAndObjectives struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
 
-	Links   []Link `json:"links,omitempty"`
-	Remarks string `json:"remarks,omitempty"`
+	Links   []Link `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks string `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
-	Objectives        []ObjectiveSelection `json:"objectives"`
-	ControlSelections Selection            `json:"controlSelections"`
+	Objectives        []ObjectiveSelection `json:"objectives" yaml:"objectives"`
+	ControlSelections Selection            `json:"controlSelections" yaml:"controlSelections"`
 }
 
 // ObjectiveSelection
 //
 // Objectives included and excluded.
 type ObjectiveSelection struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
 
-	Links      []Link   `json:"links,omitempty"`
-	Remarks    string   `json:"remarks,omitempty"`
-	IncludeAll bool     `json:"includeAll"`
-	Exclude    []string `json:"exclude"`
-	Include    []string `json:"include"`
+	Links      []Link   `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks    string   `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	IncludeAll bool     `json:"includeAll" yaml:"includeAll"`
+	Exclude    []string `json:"exclude" yaml:"exclude"`
+	Include    []string `json:"include" yaml:"include"`
 }
 
 // LocalDefinition
@@ -322,16 +322,29 @@ type LocalDefinition struct {
 // An Objective is a local objective: a security control or requirement
 // that is specific to the system or organization under assessment.
 type Objective struct {
-	Id          primitive.ObjectID `json:"id"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
 
-	Links   []Link `json:"links,omitempty"`
-	Remarks string `json:"remarks,omitempty"`
-	Parts   []Part `json:"parts,omitempty"`
+	Links      []Link   `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks    string   `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	IncludeAll bool     `json:"includeAll" yaml:"includeAll"`
+	Exclude    []string `json:"exclude" yaml:"exclude"`
+	Include    []string `json:"include" yaml:"include"`
 
-	Control primitive.ObjectID `json:"control"`
+	// Reference to Activity
+	Activities []string `json:"activities" yaml:"activities"`
+
+	// Reference to component.Component
+	Components []primitive.ObjectID `json:"components" yaml:"components"`
+
+	// Reference to ssp.InventoryItem
+	InventoryItems []primitive.ObjectID `json:"inventoryItems" yaml:"inventoryItems"`
+
+	Objectives []Objective `json:"objectives" yaml:"objectives"`
+
+	// Reference to identity.User
+	Users []primitive.ObjectID `json:"users" yaml:"users"`
 }
 
 type SubjectType string
@@ -350,14 +363,14 @@ const (
 // In the assessment plan, this identifies a planned assessment subject.
 // In the assessment results this is an actual assessment subject, and reflects any changes from the plan. exactly what will be the focus of this assessment.
 type Subject struct {
-	Id          primitive.ObjectID `json:"id"`
-	SubjectId   string             `json:"subjectId"`
-	Type        SubjectType        `json:"type"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
-	Links       []Link             `json:"links,omitempty"`
-	Remarks     string             `json:"remarks,omitempty"`
+	Id          primitive.ObjectID `json:"id" yaml:"id"`
+	SubjectId   string             `json:"subjectId" yaml:"subjectId"`
+	Type        SubjectType        `json:"type" yaml:"type"`
+	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 }
 
 // SubjectSelection
@@ -366,12 +379,12 @@ type Subject struct {
 // We do not directly store SubjectIds as we might not know the actual subjects before running the assessment.
 // The assessment runtime evaluates the selection by running the providers and returns back with subject ids.
 type SubjectSelection struct {
-	Title       string                   `json:"title,omitempty"`
-	Description string                   `json:"description,omitempty"`
-	Query       string                   `json:"query,omitempty"`
-	Labels      map[string]string        `json:"labels,omitempty"`
-	Expressions []SubjectMatchExpression `json:"expressions,omitempty"`
-	Ids         []string                 `json:"ids,omitempty"`
+	Title       string                   `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string                   `json:"description,omitempty" yaml:"description,omitempty"`
+	Query       string                   `json:"query,omitempty" yaml:"query,omitempty"`
+	Labels      map[string]string        `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Expressions []SubjectMatchExpression `json:"expressions,omitempty" yaml:"expressions,omitempty"`
+	Ids         []string                 `json:"ids,omitempty" yaml:"ids,omitempty"`
 }
 
 func (s *SubjectSelection) Valid() bool {
@@ -379,20 +392,20 @@ func (s *SubjectSelection) Valid() bool {
 }
 
 type SubjectMatchExpression struct {
-	Key      string   `json:"key"`
-	Operator string   `json:"operator"`
-	Values   []string `json:"values"`
+	Key      string   `json:"key" yaml:"key"`
+	Operator string   `json:"operator" yaml:"operator"`
+	Values   []string `json:"values" yaml:"values"`
 }
 
 type Activity struct {
-	Id               primitive.ObjectID `json:"id"`
-	Title            string             `json:"title,omitempty"`
-	Description      string             `json:"description,omitempty"`
-	Props            []Property         `json:"props,omitempty"`
-	Links            []Link             `json:"links,omitempty"`
-	Remarks          string             `json:"remarks,omitempty"`
-	ResponsibleRoles []string           `json:"responsibleRoles"`
-	Subjects         SubjectSelection   `json:"subjects"`
-	Provider         Provider           `json:"provider"`
+	Id               primitive.ObjectID `json:"id" yaml:"id"`
+	Title            string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description      string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props            []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links            []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks          string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	ResponsibleRoles []string           `json:"responsibleRoles" yaml:"responsibleRoles"`
+	Subjects         SubjectSelection   `json:"subjects" yaml:"subjects"`
+	Provider         Provider           `json:"provider" yaml:"provider"`
 }
 

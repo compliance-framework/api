@@ -28,21 +28,21 @@ import (
 // After an assessment, the risks identified based on findings and observations are typically used to prioritize remediation efforts. The most critical or high-impact risks might be addressed first, followed by less severe ones. This process helps organizations manage their security postures effectively and allocate resources where they are most needed.
 
 type Result struct {
-	Id               primitive.ObjectID      `json:"id"`
-	Title            string                  `json:"title,omitempty"`
-	Description      string                  `json:"description,omitempty"`
-	Start            time.Time               `json:"start"`
-	End              time.Time               `json:"end"`
-	Props            []Property              `json:"props,omitempty"`
-	Links            []Link                  `json:"links,omitempty"`
-	LocalDefinitions LocalDefinition         `json:"localDefinitions"`
-	ReviewedControls []ControlsAndObjectives `json:"reviewedControls"`
-	AssessmentLog    []LogEntry              `json:"assessmentLogEntries"`
-	Attestations     []Attestation           `json:"attestations"`
-	Observations     []Observation           `json:"observations"`
-	Risks            []Risk                  `json:"risks"`
-	Findings         []Finding               `json:"findings"`
-	Remarks          string                  `json:"remarks,omitempty"`
+	Id               primitive.ObjectID      `json:"id" yaml:"id"`
+	Title            string                  `json:"title,omitempty" yaml:"title,omitempty"`
+	Description      string                  `json:"description,omitempty" yaml:"description,omitempty"`
+	Start            time.Time               `json:"start" yaml:"start"`
+	End              time.Time               `json:"end" yaml:"end"`
+	Props            []Property              `json:"props,omitempty" yaml:"props,omitempty"`
+	Links            []Link                  `json:"links,omitempty" yaml:"links,omitempty"`
+	LocalDefinitions LocalDefinition         `json:"localDefinitions" yaml:"localDefinitions"`
+	ReviewedControls []ControlsAndObjectives `json:"reviewedControls" yaml:"reviewedControls"`
+	AssessmentLog    []LogEntry              `json:"assessmentLogEntries" yaml:"assessmentLogEntries"`
+	Attestations     []Attestation           `json:"attestations" yaml:"attestations"`
+	Observations     []Observation           `json:"observations" yaml:"observations"`
+	Risks            []Risk                  `json:"risks" yaml:"risks"`
+	Findings         []Finding               `json:"findings" yaml:"findings"`
+	Remarks          string                  `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 }
 
 // Attestation represents a formal assertion, declaration, or acknowledgment by an authoritative
@@ -58,8 +58,8 @@ type Result struct {
 //	Statement: I hereby attest to the accuracy and completeness of the assessment results
 //	for the production server environment dated 2023-10-30.
 type Attestation struct {
-	Parts              []Part               `json:"parts"`
-	ResponsibleParties []primitive.ObjectID `json:"responsibleParties"`
+	Parts              []Part               `json:"parts" yaml:"parts"`
+	ResponsibleParties []primitive.ObjectID `json:"responsibleParties" yaml:"responsibleParties"`
 }
 
 // Characterization provides a classification or description of the nature
@@ -71,13 +71,13 @@ type Attestation struct {
 //	Characterization: Configuration Setting
 //	Detail: Describes observations related to system configurations.
 type Characterization struct {
-	Links  []Link     `json:"links,omitempty"`
-	Props  []Property `json:"props,omitempty"`
-	Facets []Facet    `json:"facets"`
+	Links  []Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Props  []Property `json:"props,omitempty" yaml:"props,omitempty"`
+	Facets []Facet    `json:"facets" yaml:"facets"`
 
 	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
-	Actors []primitive.ObjectID `json:"originActors"`
-	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+	Actors []primitive.ObjectID `json:"originActors" yaml:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks" yaml:"relatedTasks"`
 }
 
 // Facet represents specific aspects or dimensions of a characterization in
@@ -86,18 +86,18 @@ type Characterization struct {
 //
 // Example for a Configuration Setting Characterization:
 //
-//	Facet: Update Frequency
-//	Detail: Describes how often the configuration setting updates.
+//  Facet: Update Frequency
+//  Detail: Describes how often the configuration setting updates.
 type Facet struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
-	Remarks     string     `json:"remarks,omitempty"`
-	Name        string     `json:"name"`
-	Value       string     `json:"value"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	Name        string     `json:"name" yaml:"name"`
+	Value       string     `json:"value" yaml:"value"`
 	// One of: http://fedramp.gov, http://fedramp.gov/ns/oscal, http://csrc.nist.gov/ns/oscal, http://csrc.nist.gov/ns/oscal/unknown, http://cve.mitre.org, http://www.first.org/cvss/v2.0, http://www.first.org/cvss/v3.0, http://www.first.org/cvss/v3.1
-	System string `json:"system"`
+	System string `json:"system" yaml:"system"`
 }
 
 // Finding represents a conclusion or determination drawn from one or more
@@ -106,29 +106,29 @@ type Facet struct {
 //
 // Example:
 //
-//	Finding: The "auto-update" feature's activation goes against the organization's policy
-//	of manually vetting and approving system updates. This poses a potential security risk
-//	as unvetted updates could introduce vulnerabilities.
+//  Finding: The "auto-update" feature's activation goes against the organization's policy
+//  of manually vetting and approving system updates. This poses a potential security risk
+//  as unvetted updates could introduce vulnerabilities.
 type Finding struct {
-	Id          primitive.ObjectID `json:"id"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
-	Links       []Link             `json:"links,omitempty"`
-	Remarks     string             `json:"remarks,omitempty"`
+	Id          primitive.ObjectID `json:"id" yaml:"id"`
+	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
 	// ImplementationStatementId Reference to the implementation statement in the SSP to which this finding is related.
-	ImplementationStatementId primitive.ObjectID `json:"implementationStatementId"`
+	ImplementationStatementId primitive.ObjectID `json:"implementationStatementId" yaml:"implementationStatementId"`
 
 	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
 	// Maps to the OSCAL "origins" property
-	Actors []primitive.ObjectID `json:"originActors"`
-	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+	Actors []primitive.ObjectID `json:"originActors" yaml:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks" yaml:"relatedTasks"`
 
-	TargetId primitive.ObjectID `json:"target"`
+	TargetId primitive.ObjectID `json:"target" yaml:"target"`
 
-	RelatedObservations []primitive.ObjectID `json:"relatedObservations"`
-	RelatedRisks        []primitive.ObjectID `json:"relatedRisks"`
+	RelatedObservations []primitive.ObjectID `json:"relatedObservations" yaml:"relatedObservations"`
+	RelatedRisks        []primitive.ObjectID `json:"relatedRisks" yaml:"relatedRisks"`
 }
 
 // LogEntry represents a record in an assessment log that documents a specific
@@ -143,18 +143,18 @@ type Finding struct {
 //	Actor: Jane Smith
 //	Notes: Started the review of system settings as per the assessment plan. No anomalies observed at this time.
 type LogEntry struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
-	Remarks     string     `json:"remarks,omitempty"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string     `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
 	// Identifies the start date and time of an event.
-	Start time.Time `json:"start"`
+	Start time.Time `json:"start" yaml:"start"`
 
 	// Identifies the end date and time of an event. If the event is a point in time, the start and end will be the same date and time.
-	End      time.Time            `json:"end"`
-	LoggedBy []primitive.ObjectID `json:"loggedBy"`
+	End      time.Time            `json:"end" yaml:"end"`
+	LoggedBy []primitive.ObjectID `json:"loggedBy" yaml:"loggedBy"`
 }
 
 // Evidence represents data or records collected during an assessment to support
@@ -164,16 +164,16 @@ type LogEntry struct {
 //
 // Example:
 //
-//	Evidence Type: Screenshot
-//	Description: Screenshot showing that the auto-update feature is enabled.
-//	URL: path/to/screenshot.png
+//  Evidence Type: Screenshot
+//  Description: Screenshot showing that the auto-update feature is enabled.
+//  URL: path/to/screenshot.png
 type Evidence struct {
-	Id          primitive.ObjectID `json:"id"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
-	Links       []Link             `json:"links,omitempty"`
-	Remarks     string             `json:"remarks,omitempty"`
+	Id          primitive.ObjectID `json:"id" yaml:"id"`
+	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 }
 
 type ObservationMethod string
@@ -203,23 +203,23 @@ const (
 //
 //	During the system configuration review, it was observed that the "auto-update" feature was enabled.
 type Observation struct {
-	Id          primitive.ObjectID  `json:"id"`
-	Title       string              `json:"title,omitempty"`
-	Description string              `json:"description,omitempty"`
-	Props       []Property          `json:"props,omitempty"`
-	Links       []Link              `json:"links,omitempty"`
-	Methods     []ObservationMethod `json:"methods"`
-	Types       []ObservationType   `json:"types"`
+	Id          primitive.ObjectID  `json:"id" yaml:"id"`
+	Title       string              `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string              `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property          `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link              `json:"links,omitempty" yaml:"links,omitempty"`
+	Methods     []ObservationMethod `json:"methods" yaml:"methods"`
+	Types       []ObservationType   `json:"types" yaml:"types"`
 
 	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
-	Actors []primitive.ObjectID `json:"originActors"`
-	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+	Actors []primitive.ObjectID `json:"originActors" yaml:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks" yaml:"relatedTasks"`
 
-	Subjects         []primitive.ObjectID `json:"subjects"`
-	RelevantEvidence []Evidence           `json:"evidences"`
-	Collected        time.Time            `json:"collected"`
-	Expires          time.Time            `json:"expires"`
-	Remarks          string               `json:"remarks,omitempty"`
+	Subjects         []primitive.ObjectID `json:"subjects" yaml:"subjects"`
+	RelevantEvidence []Evidence           `json:"evidences" yaml:"evidences"`
+	Collected        time.Time            `json:"collected" yaml:"collected"`
+	Expires          time.Time            `json:"expires" yaml:"expires"`
+	Remarks          string               `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 }
 
 type RiskStatus string
@@ -247,76 +247,76 @@ const (
 //	Impact: High - This could compromise the integrity of the system.
 //	Likelihood: Medium - Based on past updates and the frequency of potentially harmful updates.
 type Risk struct {
-	Id primitive.ObjectID `json:"id"`
+	Id primitive.ObjectID `json:"id" yaml:"id"`
 
 	// The title for this risk.
-	Title string `json:"title,omitempty"`
+	Title string `json:"title,omitempty" yaml:"title,omitempty"`
 
 	// A human-readable summary of the identified risk, to include a statement of how the risk impacts the system.
-	Description string `json:"description,omitempty"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 
 	// A summary of impact for how the risk affects the system.
-	Statement string `json:"statement,omitempty"`
+	Statement string `json:"statement,omitempty" yaml:"statement,omitempty"`
 
-	Props []Property `json:"props,omitempty"`
-	Links []Link     `json:"links,omitempty"`
+	Props []Property `json:"props,omitempty" yaml:"props,omitempty"`
+	Links []Link     `json:"links,omitempty" yaml:"links,omitempty"`
 
 	// Describes the status of the risk.
-	Status RiskStatus `json:"status"`
+	Status RiskStatus `json:"status" yaml:"status"`
 
 	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
-	Actors []primitive.ObjectID `json:"originActors"`
-	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+	Actors []primitive.ObjectID `json:"originActors" yaml:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks" yaml:"relatedTasks"`
 
-	Threats             []primitive.ObjectID `json:"threats"`
-	Characterizations   []Characterization   `json:"characterizations"`
-	MitigatingFactors   []primitive.ObjectID `json:"mitigatingFactors"`
-	Deadline            time.Time            `json:"deadline"`
-	Remediations        []Response           `json:"remediations"`
-	Log                 []RiskLogEntry       `json:"riskLog"`
-	RelatedObservations []primitive.ObjectID `json:"relatedObservations"`
+	Threats             []primitive.ObjectID `json:"threats" yaml:"threats"`
+	Characterizations   []Characterization   `json:"characterizations" yaml:"characterizations"`
+	MitigatingFactors   []primitive.ObjectID `json:"mitigatingFactors" yaml:"mitigatingFactors"`
+	Deadline            time.Time            `json:"deadline" yaml:"deadline"`
+	Remediations        []Response           `json:"remediations" yaml:"remediations"`
+	Log                 []RiskLogEntry       `json:"riskLog" yaml:"riskLog"`
+	RelatedObservations []primitive.ObjectID `json:"relatedObservations" yaml:"relatedObservations"`
 }
 
 type RiskLogEntry struct {
-	Id          primitive.ObjectID `json:"id"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Start       time.Time          `json:"start"`
-	End         time.Time          `json:"end"`
-	Props       []Property         `json:"props,omitempty"`
-	Links       []Link             `json:"links,omitempty"`
-	LoggedBy    Actor              `json:"loggedBy"`
+	Id          primitive.ObjectID `json:"id" yaml:"id"`
+	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Start       time.Time          `json:"start" yaml:"start"`
+	End         time.Time          `json:"end" yaml:"end"`
+	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	LoggedBy    Actor              `json:"loggedBy" yaml:"loggedBy"`
 
 	// TODO: More fields should be important from the OSCAL schema
 }
 
 // MitigatingFactor Describes an existing mitigating factor that may affect the overall determination of the risk, with an optional link to an implementation statement in the SSP.
 type MitigatingFactor struct {
-	Id               primitive.ObjectID   `json:"id"`
-	ImplementationId primitive.ObjectID   `json:"implementationId"`
-	Description      string               `json:"description"`
-	Props            []Property           `json:"props,omitempty"`
-	Links            []Link               `json:"links,omitempty"`
-	Subjects         []primitive.ObjectID `json:"subjects"`
+	Id               primitive.ObjectID   `json:"id" yaml:"id"`
+	ImplementationId primitive.ObjectID   `json:"implementationId" yaml:"implementationId"`
+	Description      string               `json:"description" yaml:"description"`
+	Props            []Property           `json:"props,omitempty" yaml:"props,omitempty"`
+	Links            []Link               `json:"links,omitempty" yaml:"links,omitempty"`
+	Subjects         []primitive.ObjectID `json:"subjects" yaml:"subjects"`
 }
 
 // Response Describes either recommended or an actual plan for addressing the risk.
 // TODO: Needs more work
 type Response struct {
-	Id primitive.ObjectID `json:"id"`
+	Id primitive.ObjectID `json:"id" yaml:"id"`
 
 	// Identifies whether this is a recommendation, such as from an assessor or tool, or an actual plan accepted by the system owner.
 	// One of: recommendation, planned, completed
-	Lifecycle string `json:"lifecycle"`
+	Lifecycle string `json:"lifecycle" yaml:"lifecycle"`
 
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Props       []Property `json:"props,omitempty"`
-	Links       []Link     `json:"links,omitempty"`
+	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link     `json:"links,omitempty" yaml:"links,omitempty"`
 
 	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
-	Actors []primitive.ObjectID `json:"originActors"`
-	Tasks  []primitive.ObjectID `json:"relatedTasks"`
+	Actors []primitive.ObjectID `json:"originActors" yaml:"originActors"`
+	Tasks  []primitive.ObjectID `json:"relatedTasks" yaml:"relatedTasks"`
 }
 
 // Target Captures an assessor's conclusions regarding the degree to which an objective is satisfied.
@@ -326,28 +326,28 @@ type Response struct {
 //
 // Example:
 //
-//	TargetId ID: server-1234
-//	Type: System Component
-//	Description: Primary web server running in the production environment.
+//  TargetId ID: server-1234
+//  Type: System Component
+//  Description: Primary web server running in the production environment.
 type Target struct {
-	TargetId    primitive.ObjectID `json:"targetId"`
-	Title       string             `json:"title,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Props       []Property         `json:"props,omitempty"`
-	Links       []Link             `json:"links,omitempty"`
-	Remarks     string             `json:"remarks,omitempty"`
-	Status      TargetStatus       `json:"status"`
+	TargetId    primitive.ObjectID `json:"targetId" yaml:"targetId"`
+	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
+	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
+	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
+	Links       []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks     string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	Status      TargetStatus       `json:"status" yaml:"status"`
 }
 
 type TargetStatus struct {
 	// An indication whether the objective is satisfied or not. [Pass/Fail/Other]
-	State   string `json:"state"`
-	Reason  string `json:"reason"`
-	Remarks string `json:"remarks"`
+	State   string `json:"state" yaml:"state"`
+	Reason  string `json:"reason" yaml:"reason"`
+	Remarks string `json:"remarks" yaml:"remarks"`
 }
 
 type Threat struct {
-	Id     primitive.ObjectID `json:"id"`
-	System string             `json:"system"`
-	Href   string             `json:"href"`
+	Id     primitive.ObjectID `json:"id" yaml:"id"`
+	System string             `json:"system" yaml:"system"`
+	Href   string             `json:"href" yaml:"href"`
 }

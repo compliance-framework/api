@@ -7,16 +7,17 @@ import (
 )
 
 type Catalog struct {
-	Uuid  Uuid   `json:"uuid"`
-	Title string `json:"title"` // Doesn't exist in OSCAL for some reason 🤷🏻
+	Uuid  Uuid   `json:"uuid" yaml:"uuid"`
+	Title string `json:"title" yaml:"title"` // Doesn't exist in OSCAL for some reason 🤷🏻
 
-	Metadata Metadata `json:"metadata"`
+	Metadata Metadata `json:"metadata" yaml:"metadata"`
 
-	Params     []Parameter `json:"params"`
-	Controls   []Control   `json:"controlUuids"` // Reference to controls. Controls is an array of objects in the database
-	Groups     []Uuid      `json:"groupUuids"`   // Reference to groups
-	BackMatter BackMatter  `json:"backMatter"`
+	Params     []Parameter `json:"params" yaml:"params"`
+	Controls   []Control   `json:"controlUuids" yaml:"controlUuids"` // Reference to controls. Controls is an array of objects in the database
+	Groups     []Uuid      `json:"groupUuids" yaml:"groupUuids"`     // Reference to groups
+	BackMatter BackMatter  `json:"backMatter" yaml:"backMatter"`
 }
+
 
 func NewCatalog(title string) Catalog {
 	firstRevision := Revision{

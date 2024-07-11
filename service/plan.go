@@ -256,25 +256,25 @@ func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, er
 		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.M{"results.id": rid}}})
 	}
 
-    pipeline = append(pipeline,
-        bson.D{{"$unwind", bson.D{{"path", "$results"}}}},
-    )
-    pipeline = append(pipeline,
-        bson.D{{"$sort", bson.D{{"results.observations.collected", 1}}}},
-    )
+	pipeline = append(pipeline,
+	    bson.D{{"$unwind", bson.D{{"path", "$results"}}}},
+	)
+	pipeline = append(pipeline,
+	    bson.D{{"$sort", bson.D{{"results.observations.collected", 1}}}},
+	)
 	pipeline = append(pipeline,
 		bson.D{{"$unwind", bson.D{{"path", "$results.observations"}}}},
 	)
 
 	pipeline = append(pipeline, bson.D{
-        {"$project", bson.D{
-            {Key: "_id", Value: "$results.observations._id"},
-            {Key: "title", Value: "$results.observations.title"},
-            {Key: "description", Value: "$results.observations.description"},
-            {Key: "collected", Value: "$results.observations.collected"},
-            {Key: "props", Value: "$results.observations.props"},
-        }},
-    })
+	    {"$project", bson.D{
+	        {Key: "_id", Value: "$results.observations._id"},
+	        {Key: "title", Value: "$results.observations.title"},
+	        {Key: "description", Value: "$results.observations.description"},
+	        {Key: "collected", Value: "$results.observations.collected"},
+	        {Key: "props", Value: "$results.observations.props"},
+	    }},
+	})
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
 	if err != nil {
@@ -333,46 +333,46 @@ const (
 )
 
 type RiskLevels struct {
-	Low    int `json:"low"`
-	Medium int `json:"medium"`
-	High   int `json:"high"`
+	Low    int `json:"low" yaml:"low"`
+	Medium int `json:"medium" yaml:"medium"`
+	High   int `json:"high" yaml:"high"`
 }
 
 type RiskScore struct {
-	Score    int          `json:"score"`
-	Severity RiskSeverity `json:"severity"`
+	Score    int          `json:"score" yaml:"score"`
+	Severity RiskSeverity `json:"severity" yaml:"severity"`
 }
 
 type PlanSummary struct {
-	Published        string     `json:"published"`
-	EndDate          string     `json:"endDate"`
-	Description      string     `json:"description"`
-	Status           string     `json:"status"`
-	NumControls      int        `json:"numControls"`
-	NumSubjects      int        `json:"numSubjects"`
-	NumObservations  int        `json:"numObservations"`
-	NumRisks         int        `json:"numRisks"`
-	RiskScore        RiskScore  `json:"riskScore"`
-	ComplianceStatus float64    `json:"complianceStatus"`
-	RiskLevels       RiskLevels `json:"riskLevels"`
+	Published        string     `json:"published" yaml:"published"`
+	EndDate          string     `json:"endDate" yaml:"endDate"`
+	Description      string     `json:"description" yaml:"description"`
+	Status           string     `json:"status" yaml:"status"`
+	NumControls      int        `json:"numControls" yaml:"numControls"`
+	NumSubjects      int        `json:"numSubjects" yaml:"numSubjects"`
+	NumObservations  int        `json:"numObservations" yaml:"numObservations"`
+	NumRisks         int        `json:"numRisks" yaml:"numRisks"`
+	RiskScore        RiskScore  `json:"riskScore" yaml:"riskScore"`
+	ComplianceStatus float64    `json:"complianceStatus" yaml:"complianceStatus"`
+	RiskLevels       RiskLevels `json:"riskLevels" yaml:"riskLevels"`
 }
 
 type ComplianceStatusByTargets struct {
-	Control    string      `json:"control"`
-	Target     string      `json:"target"`
-	Compliance []RiskState `json:"compliance"`
+	Control    string      `json:"control" yaml:"control"`
+	Target     string      `json:"target" yaml:"target"`
+	Compliance []RiskState `json:"compliance" yaml:"compliance"`
 }
 
 type ComplianceStatusOverTime struct {
-	Date         string `json:"date"`
-	Findings     int    `json:"findings"`
-	Observations int    `json:"observations"`
-	Risks        int    `json:"risks"`
+	Date         string `json:"date" yaml:"date"`
+	Findings     int    `json:"findings" yaml:"findings"`
+	Observations int    `json:"observations" yaml:"observations"`
+	Risks        int    `json:"risks" yaml:"risks"`
 }
 
 type RemediationVsTime struct {
-	Control     string `json:"control"`
-	Remediation string `json:"remediation"`
+	Control     string `json:"control" yaml:"control"`
+	Remediation string `json:"remediation" yaml:"remediation"`
 }
 
 func (s *PlanService) ResultSummary(planId string, resultId string) (PlanSummary, error) {
@@ -525,10 +525,10 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 	})
 
 	pipeline = append(pipeline, bson.D{
-        {Key: "$sort", Value: bson.M{
-            "_id": 1, // 1 for ascending order, -1 for descending order
-        }},
-    })
+	    {Key: "$sort", Value: bson.M{
+	        "_id": 1, // 1 for ascending order, -1 for descending order
+	    }},
+	})
 
 	pipeline = append(pipeline, bson.D{
 		{Key: "$project", Value: bson.M{

@@ -8,7 +8,7 @@ import (
 )
 
 type DocWithMetadata struct {
-	Uuid     domain.Uuid     `json:"uuid"`
+	Uuid     domain.Uuid     `json:"uuid" yaml:"uuid"`
 	Metadata domain.Metadata `bson:"metadata"`
 }
 
