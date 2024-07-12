@@ -5,6 +5,7 @@ import (
 
 	mw "github.com/compliance-framework/configuration-service/api/middleware"
 	_ "github.com/compliance-framework/configuration-service/docs"
+	"github.com/compliance-framework/configuration-service/api/binders"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
@@ -20,6 +21,7 @@ type Server struct {
 // NewServer initializes the echo server with necessary routes and configurations.
 func NewServer(ctx context.Context, s *zap.SugaredLogger) *Server {
 	e := echo.New()
+	e.Binder = &binders.CustomBinder{}
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
