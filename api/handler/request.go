@@ -10,7 +10,7 @@ import (
 // createCatalogRequest defines the request payload for method CreateCatalog
 type createCatalogRequest struct {
 	Catalog struct {
-		Title string `json:"title" validate:"required"`
+		Title string `json:"title" yaml:"title" validate:"required"`
 	}
 }
 
@@ -29,7 +29,7 @@ func (r *createCatalogRequest) bind(ctx echo.Context, c *domain.Catalog) error {
 // createControlRequest defines the request payload for method CreateControl
 type createControlRequest struct {
 	Control struct {
-		Title string `json:"title" validate:"required"`
+		Title string `json:"title" yaml:"title" validate:"required"`
 	}
 }
 
@@ -47,7 +47,7 @@ func (r *createControlRequest) bind(ctx echo.Context, c *domain.Control) error {
 
 // createSSPRequest defines the request payload for method CreateSSP
 type CreateSSPRequest struct {
-	Title string `json:"title" validate:"required"`
+	Title string `json:"title" yaml:"title" validate:"required"`
 }
 
 func (r *CreateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan) error {
@@ -62,7 +62,7 @@ func (r *CreateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan
 // createPlanRequest defines the request payload for method Create
 // TODO: Using minimal data for now, we might need to expand it later
 type createPlanRequest struct {
-	Title string `json:"title" validate:"required"`
+	Title string `json:"title" yaml:"title" validate:"required"`
 }
 
 func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
@@ -76,8 +76,8 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 // addTaskRequest defines the request payload for method CreateTask
 // TODO: these are not currently used anywhere - When it is used, remove nolints:
 type addAssetRequest struct { //nolint
-	AssetId string `json:"assetId" validate:"required"`
-	Type    string `json:"type" validate:"required"`
+	AssetId string `json:"assetId" yaml:"assetId" validate:"required"`
+	Type    string `json:"type" yaml:"type" validate:"required"`
 }
 
 func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error { //nolint
@@ -91,10 +91,10 @@ func (r *addAssetRequest) bind(ctx echo.Context, p *domain.Plan) error { //nolin
 // createTaskRequest defines the request payload for method CreateTask
 type createTaskRequest struct {
 	// TODO: We are keeping it minimal for now for the demo
-	Title       string `json:"title" validate:"required"`
-	Description string `json:"description,omitempty"`
-	Type        string `json:"type" validate:"required"`
-	Schedule    string `json:"schedule" validate:"required"`
+	Title       string `json:"title" yaml:"title" validate:"required"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	Type        string `json:"type" yaml:"type" validate:"required"`
+	Schedule    string `json:"schedule" yaml:"schedule" validate:"required"`
 }
 
 func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
@@ -111,16 +111,16 @@ func (r *createTaskRequest) Bind(ctx echo.Context, t *domain.Task) error {
 // setSubjectSelectionRequest defines the request payload for method SetSubjectsForActivity
 // TODO: these are not currently used anywhere - When it is used, remove nolints:
 type setSubjectSelectionRequest struct { //nolint
-	Title       string            `json:"title,omitempty" validate:"required"`
-	Description string            `json:"description,omitempty"`
-	Query       string            `json:"query"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	Title       string            `json:"title,omitempty" yaml:"title,omitempty" validate:"required"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Query       string            `json:"query" yaml:"query"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	Expressions []struct {
-		Key      string   `json:"key"`
-		Operator string   `json:"operator"`
-		Values   []string `json:"values"`
-	} `json:"expressions,omitempty"`
-	Ids []string `json:"ids,omitempty"`
+		Key      string   `json:"key" yaml:"key"`
+		Operator string   `json:"operator" yaml:"operator"`
+		Values   []string `json:"values" yaml:"values"`
+	} `json:"expressions,omitempty" yaml:"expressions,omitempty"`
+	Ids []string `json:"ids,omitempty" yaml:"ids,omitempty"`
 }
 
 func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSelection) error { //nolint
@@ -154,7 +154,7 @@ func (r *setSubjectSelectionRequest) bind(ctx echo.Context, s *domain.SubjectSel
 // setScheduleRequest defines the request payload for method SetSchedule
 // TODO: these are not currently used anywhere - When it is used, remove nolints:
 type setScheduleRequest struct { //nolint
-	Schedule []string `json:"schedule"`
+	Schedule []string `json:"schedule" yaml:"schedule"`
 }
 
 func (r *setScheduleRequest) bind(ctx echo.Context) error { //nolint
@@ -163,11 +163,11 @@ func (r *setScheduleRequest) bind(ctx echo.Context) error { //nolint
 
 // createSubjectRequest defines the request payload for method CreateSubject
 type attachMetadataRequest struct {
-	Id                  string `json:"id" validate:"required"`
-	Collection          string `json:"collection" validate:"required"`
-	RevisionTitle       string `json:"revisionTitle,omitempty"`
-	RevisionDescription string `json:"revisionDescription,omitempty"`
-	RevisionRemarks     string `json:"revisionRemarks,omitempty"`
+	Id                  string `json:"id" yaml:"id" validate:"required"`
+	Collection          string `json:"collection" yaml:"collection" validate:"required"`
+	RevisionTitle       string `json:"revisionTitle,omitempty" yaml:"revisionTitle,omitempty"`
+	RevisionDescription string `json:"revisionDescription,omitempty" yaml:"revisionDescription,omitempty"`
+	RevisionRemarks     string `json:"revisionRemarks,omitempty" yaml:"revisionRemarks,omitempty`
 }
 
 func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) error {
@@ -184,25 +184,25 @@ func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) err
 
 // createActivityRequest defines the request payload for method CreateActivity
 type createActivityRequest struct {
-	Title       string `json:"title,omitempty" validate:"required"`
-	Description string `json:"description,omitempty"`
+	Title       string `json:"title,omitempty" yaml:"title,omitempty" validate:"required"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	Provider    struct {
-		Name          string            `json:"name" validate:"required"`
-		Image         string            `json:"image" validate:"required"`
-		Tag           string            `json:"tag" validate:"required"`
-		Configuration map[string]string `json:"configuration,omitempty"`
-	} `json:"provider" validate:"required"`
+		Name          string            `json:"name" yaml:"name" validate:"required"`
+		Image         string            `json:"image" yaml:"image" validate:"required"`
+		Tag           string            `json:"tag" yaml:"tag" validate:"required"`
+		Configuration map[string]string `json:"configuration,omitempty" yaml:"configuration,omitempty"`
+	} `json:"provider" yaml:"provider" validate:"required"`
 	Subjects struct {
-		Title       string            `json:"title" validate:"required"`
-		Description string            `json:"description" validate:"required"`
-		Query       string            `json:"query,omitempty"`
-		Labels      map[string]string `json:"labels,omitempty"`
+		Title       string            `json:"title" yaml:"title" validate:"required"`
+		Description string            `json:"description" yaml:"description" validate:"required"`
+		Query       string            `json:"query,omitempty" yaml:"query,omitempty"`
+		Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 		Expressions []struct {
-			Key      string   `json:"key"`
-			Operator string   `json:"operator"`
-			Values   []string `json:"values"`
-		} `json:"expressions,omitempty"`
-		Ids []string `json:"ids,omitempty"`
+			Key      string   `json:"key" yaml:"key"`
+			Operator string   `json:"operator" yaml:"operator"`
+			Values   []string `json:"values" yaml:"values"`
+		} `json:"expressions,omitempty" yaml:"expressions,omitempty"`
+		Ids []string `json:"ids,omitempty" yaml:"ids,omitempty"`
 	}
 }
 
@@ -247,8 +247,8 @@ func (r *createActivityRequest) bind(ctx echo.Context, a *domain.Activity) error
 
 // updateSSPRequest defines the request payload for method UpdateSSP
 type UpdateSSPRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title       string `json:"title" yaml:"title"`
+	Description string `json:"description" yaml:"description"`
 }
 
 func (r *UpdateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan) error {
@@ -261,13 +261,13 @@ func (r *UpdateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan
 }
 
 type UpdateCatalogRequest struct {
-	Uuid       domain.Uuid `json:"uuid"`
-	Title      string      `json:"title"`
-	// Metadata   domain.Metadata   `json:"metadata"`
-	Params     []domain.Parameter `json:"params"`
-	Controls   []domain.Control   `json:"controlUuids"`
-	Groups     []domain.Uuid      `json:"groupUuids"`
-	BackMatter domain.BackMatter  `json:"backMatter"`
+	Uuid       domain.Uuid `json:"uuid" yaml:"uuid"`
+	Title      string      `json:"title" yaml:"title"`
+	// Metadata   domain.Metadata   `json:"metadata" yaml:"metadata"`
+	Params     []domain.Parameter `json:"params" yaml:"params"`
+	Controls   []domain.Control   `json:"controlUuids" yaml:"controlUuids"`
+	Groups     []domain.Uuid      `json:"groupUuids" yaml:"groupUuids"`
+	BackMatter domain.BackMatter  `json:"backMatter" yaml:"backMatter"`
 }
 
 func (r *UpdateCatalogRequest) bind(ctx echo.Context, catalog *domain.Catalog) error {
@@ -286,14 +286,14 @@ func (r *UpdateCatalogRequest) bind(ctx echo.Context, catalog *domain.Catalog) e
 }
 
 type UpdateControlRequest struct {
-	// Uuid     domain.Uuid        `json:"uuid"`
-	Props    []domain.Property  `json:"props,omitempty"`
-	Links    []domain.Link      `json:"links,omitempty"`
-	Parts    []domain.Part      `json:"parts,omitempty"`
-	Class    string             `json:"class"`
-	Title    string             `json:"title"`
-	Params   []domain.Parameter `json:"params"`
-	Controls []domain.Uuid      `json:"controlUuids"`
+	// Uuid     domain.Uuid        `json:"uuid" yaml:"uuid"`
+	Props    []domain.Property  `json:"props,omitempty" yaml:"props,omitempty"`
+	Links    []domain.Link      `json:"links,omitempty" yaml:"links,omitempty"`
+	Parts    []domain.Part      `json:"parts,omitempty" yaml:"parts,omitempty"`
+	Class    string             `json:"class" yaml:"class"`
+	Title    string             `json:"title" yaml:"title"`
+	Params   []domain.Parameter `json:"params" yaml:"params"`
+	Controls []domain.Uuid      `json:"controlUuids" yaml:"controlUuids"`
 }
 
 func (r *UpdateControlRequest) bind(ctx echo.Context, control *domain.Control) error {

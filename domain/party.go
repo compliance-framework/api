@@ -9,7 +9,7 @@ const (
 )
 
 type Party struct {
-	Uuid string `json:"uuid"`
+	Uuid string `json:"uuid" yaml:"uuid"`
 
 	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
 	Description string     `json:"description,omitempty" yaml:"description,omitempty"`

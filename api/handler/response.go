@@ -6,7 +6,7 @@ type idResponse struct {
 	// The unique identifier of the plan.
 	// Required: true
 	// Example: "456def"
-	Id string `json:"id"`
+	Id string `json:"id" yaml:"id"`
 }
 
 // catalogIdResponse is a struct that holds the ID of a catalog.
@@ -15,5 +15,5 @@ type catalogIdResponse struct {
 	// The unique identifier of the catalog.
 	// Required: true
 	// Example: "123abc"
-	Id string `json:"id"`
+	Id string `json:"id" yaml:"id"`
 }

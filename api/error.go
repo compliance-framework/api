@@ -10,7 +10,7 @@ import (
 )
 
 type Error struct {
-	Errors map[string]interface{} `json:"errors"`
+	Errors map[string]interface{} `json:"errors" yaml:"errors"`
 }
 
 func NewError(err error) Error {

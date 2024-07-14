@@ -300,21 +300,21 @@ type ObjectiveSelection struct {
 //
 // See Plan
 type LocalDefinition struct {
-	Remarks string `json:"remarks,omitempty"`
+	Remarks string `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
 	// Reference to Activity
-	Activities []string `json:"activities"`
+	Activities []string `json:"activities" yaml:"activities"`
 
 	// Reference to component.Component
-	Components []primitive.ObjectID `json:"components"`
+	Components []primitive.ObjectID `json:"components" yaml:"components"`
 
 	// Reference to ssp.InventoryItem
-	InventoryItems []primitive.ObjectID `json:"inventoryItems"`
+	InventoryItems []primitive.ObjectID `json:"inventoryItems" yaml:"inventoryItems"`
 
-	Objectives []Objective `json:"objectives"`
+	Objectives []Objective `json:"objectives" yaml:"objectives"`
 
 	// Reference to identity.User
-	Users []primitive.ObjectID `json:"users"`
+	Users []primitive.ObjectID `json:"users" yaml:"users"`
 }
 
 // Objective
