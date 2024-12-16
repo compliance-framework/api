@@ -630,19 +630,40 @@ definitions:
     type: object
   domain.Objective:
     properties:
-      control:
-        type: string
+      activities:
+        description: Reference to Activity
+        items:
+          type: string
+        type: array
+      components:
+        description: Reference to component.Component
+        items:
+          type: string
+        type: array
       description:
         type: string
-      id:
-        type: string
+      exclude:
+        items:
+          type: string
+        type: array
+      include:
+        items:
+          type: string
+        type: array
+      includeAll:
+        type: boolean
+      inventoryItems:
+        description: Reference to ssp.InventoryItem
+        items:
+          type: string
+        type: array
       links:
         items:
           $ref: '#/definitions/domain.Link'
         type: array
-      parts:
+      objectives:
         items:
-          $ref: '#/definitions/domain.Part'
+          $ref: '#/definitions/domain.Objective'
         type: array
       props:
         items:
@@ -652,6 +673,11 @@ definitions:
         type: string
       title:
         type: string
+      users:
+        description: Reference to identity.User
+        items:
+          type: string
+        type: array
     type: object
   domain.ObjectiveSelection:
     properties:
@@ -908,6 +934,15 @@ definitions:
           this, but we need it for our use case.
         type: string
     type: object
+  domain.PlanPrecis:
+    properties:
+      id:
+        type: string
+      title:
+        description: Title A name given to the assessment plan. OSCAL doesn't have
+          this, but we need it for our use case.
+        type: string
+    type: object
   domain.Property:
     properties:
       class:
@@ -929,15 +964,11 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      image:
+        type: string
       name:
         type: string
-      package:
-        type: string
-      params:
-        additionalProperties:
-          type: string
-        type: object
-      version:
+      tag:
         type: string
     type: object
   domain.Resource:
@@ -1412,7 +1443,9 @@ definitions:
       schedule:
         type: string
       subjects:
-        description: Subjects hold all the subjects that the activities act upon.
+        description: |-
+          Subjects hold all the subjects that the activities act upon.
+          TODO: Should this be []Subject?
         items:
           type: string
         type: array
@@ -1460,7 +1493,7 @@ definitions:
           type: string
         type: array
       params:
-        description: Metadata   domain.Metadata   `json:"metadata"`
+        description: Metadata   domain.Metadata   `json:"metadata" yaml:"metadata"`
         items:
           $ref: '#/definitions/domain.Parameter'
         type: array
@@ -1490,7 +1523,7 @@ definitions:
           $ref: '#/definitions/domain.Part'
         type: array
       props:
-        description: Uuid     domain.Uuid        `json:"uuid"`
+        description: Uuid     domain.Uuid        `json:"uuid" yaml:"uuid"`
         items:
           $ref: '#/definitions/domain.Property'
         type: array
@@ -1539,20 +1572,16 @@ definitions:
             additionalProperties:
               type: string
             type: object
+          image:
+            type: string
           name:
             type: string
-          package:
-            type: string
-          params:
-            additionalProperties:
-              type: string
-            type: object
-          version:
+          tag:
             type: string
         required:
+        - image
         - name
-        - package
-        - version
+        - tag
         type: object
       subjects:
         properties:
@@ -2074,6 +2103,39 @@ paths:
       summary: Create a plan
       tags:
       - Plan
+  /plan/:id:
+    get:
+      consumes:
+      - application/json
+      description: Fetches a plan in the system
+      parameters:
+      - description: Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Plan'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Fetches a plan
+      tags:
+      - Plan
   /plan/{id}/activate:
     put:
       consumes:
@@ -2391,7 +2453,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Returns ids of all the plans in the system
+      description: Returns id and title of all the plans in the system
       produces:
       - application/json
       responses:
@@ -2399,13 +2461,13 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/domain.Plan'
+              $ref: '#/definitions/domain.PlanPrecis'
             type: array
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Gets the plans
+      summary: Gets plan summaries
       tags:
       - Plan
   /ssp:

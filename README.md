@@ -53,5 +53,22 @@ You can configure configuration-service using environment variables. These are l
 ## Contributing
 We welcome contributions to configuration-service!
 
+## Integration Tests
+
+```shell
+make test-integration
+```
+
+When using Podman instead of Docker:
+```shell
+# This is a workaround currently, and is currently being worked on by the testcontainers folks.
+# Ensure Podman is running rootfully
+podman machine stop; podman machine set --rootful; podman machine start;
+export DOCKER_HOST=unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
+export TESTCONTAINERS_RYUK_DISABLED=true;
+export TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED=true;
+```
+
 ## License
 This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.

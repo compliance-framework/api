@@ -56,6 +56,14 @@ test: ## Run tests
 		exit 1; \
 	fi ; \
 	$(OK) Tests passed
+##@ Development
+.PHONY: test-integration
+test-integration: ## Run tests
+	@if ! go test ./... -coverprofile cover.out -v --tags integration; then \
+		$(WARN) "Tests failed"; \
+		exit 1; \
+	fi ; \
+	$(OK) Tests passed
 .PHONY: lint.check
 lint.check: ## Check install of golanci-lint
 	@if ! golangci-lint --version 2>&1 >> /dev/null; then \

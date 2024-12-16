@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
+	"github.com/compliance-framework/configuration-service/api/binders"
 	mw "github.com/compliance-framework/configuration-service/api/middleware"
 	_ "github.com/compliance-framework/configuration-service/docs"
-	"github.com/compliance-framework/configuration-service/api/binders"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
@@ -41,6 +41,10 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger) *Server {
 // Start starts the echo server
 func (s *Server) Start(address string) error {
 	return s.echo.Start(address)
+}
+
+func (s *Server) E() *echo.Echo {
+	return s.echo
 }
 
 func (s *Server) Stop() error {

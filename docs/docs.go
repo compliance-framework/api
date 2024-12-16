@@ -509,6 +509,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/plan/:id": {
+            "get": {
+                "description": "Fetches a plan in the system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan"
+                ],
+                "summary": "Fetches a plan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Plan"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/plan/{id}/activate": {
             "put": {
                 "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
@@ -977,7 +1027,7 @@ const docTemplate = `{
         },
         "/plans": {
             "get": {
-                "description": "Returns ids of all the plans in the system",
+                "description": "Returns id and title of all the plans in the system",
                 "consumes": [
                     "application/json"
                 ],
@@ -987,14 +1037,14 @@ const docTemplate = `{
                 "tags": [
                     "Plan"
                 ],
-                "summary": "Gets the plans",
+                "summary": "Gets plan summaries",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/domain.Plan"
+                                "$ref": "#/definitions/domain.PlanPrecis"
                             }
                         }
                     },
@@ -2156,14 +2206,44 @@ const docTemplate = `{
         "domain.Objective": {
             "type": "object",
             "properties": {
-                "control": {
-                    "type": "string"
+                "activities": {
+                    "description": "Reference to Activity",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "components": {
+                    "description": "Reference to component.Component",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "description": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "string"
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "includeAll": {
+                    "type": "boolean"
+                },
+                "inventoryItems": {
+                    "description": "Reference to ssp.InventoryItem",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "links": {
                     "type": "array",
@@ -2171,10 +2251,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.Link"
                     }
                 },
-                "parts": {
+                "objectives": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Part"
+                        "$ref": "#/definitions/domain.Objective"
                     }
                 },
                 "props": {
@@ -2188,6 +2268,13 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "users": {
+                    "description": "Reference to identity.User",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -2540,6 +2627,18 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.PlanPrecis": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.",
+                    "type": "string"
+                }
+            }
+        },
         "domain.Property": {
             "type": "object",
             "properties": {
@@ -2572,19 +2671,13 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "image": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
-                "package": {
-                    "type": "string"
-                },
-                "params": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "version": {
+                "tag": {
                     "type": "string"
                 }
             }
@@ -3279,7 +3372,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "subjects": {
-                    "description": "Subjects hold all the subjects that the activities act upon.",
+                    "description": "Subjects hold all the subjects that the activities act upon.\nTODO: Should this be []Subject?",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -3351,7 +3444,7 @@ const docTemplate = `{
                     }
                 },
                 "params": {
-                    "description": "Metadata   domain.Metadata   ` + "`" + `json:\"metadata\"` + "`" + `",
+                    "description": "Metadata   domain.Metadata   ` + "`" + `json:\"metadata\" yaml:\"metadata\"` + "`" + `",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Parameter"
@@ -3396,7 +3489,7 @@ const docTemplate = `{
                     }
                 },
                 "props": {
-                    "description": "Uuid     domain.Uuid        ` + "`" + `json:\"uuid\"` + "`" + `",
+                    "description": "Uuid     domain.Uuid        ` + "`" + `json:\"uuid\" yaml:\"uuid\"` + "`" + `",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Property"
@@ -3464,9 +3557,9 @@ const docTemplate = `{
                 "provider": {
                     "type": "object",
                     "required": [
+                        "image",
                         "name",
-                        "package",
-                        "version"
+                        "tag"
                     ],
                     "properties": {
                         "configuration": {
@@ -3475,19 +3568,13 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         },
+                        "image": {
+                            "type": "string"
+                        },
                         "name": {
                             "type": "string"
                         },
-                        "package": {
-                            "type": "string"
-                        },
-                        "params": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        },
-                        "version": {
+                        "tag": {
                             "type": "string"
                         }
                     }

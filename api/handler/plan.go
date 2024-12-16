@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/api"
@@ -17,6 +19,7 @@ type PlanHandler struct {
 
 func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("", h.CreatePlan)
+	api.GET("/:id", h.GetPlan)
 	api.POST("/:id/tasks", h.CreateTask)
 	api.PUT("/:id/activate", h.ActivatePlan)
 	api.POST("/:id/tasks/:taskId/activities", h.CreateActivity)
@@ -76,6 +79,34 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, idResponse{
 		Id: id,
 	})
+}
+
+// GetPlan godoc
+//
+//	@Summary		Fetches a plan
+//	@Description	Fetches a plan in the system
+//	@Tags			Plan
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		string	true	"Plan ID"
+//	@Success		200	{object}	domain.Plan
+//	@Failure		401	{object}	api.Error
+//	@Failure		422	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/plan/:id [get]
+func (h *PlanHandler) GetPlan(ctx echo.Context) error {
+	log.Println("GetPlan")
+	fmt.Println(ctx.ParamNames())
+	fmt.Println(ctx.ParamValues())
+	log.Println("###", ctx.Param("id"), "###", ctx.Get("id"), "###", ctx.Path())
+	plan, err := h.service.GetById(ctx.Param("id"))
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	} else if plan == nil {
+		return ctx.JSON(http.StatusNotFound, api.NotFound())
+	}
+
+	return ctx.JSON(http.StatusOK, plan)
 }
 
 // CreateTask godoc
@@ -225,7 +256,7 @@ func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
 //	@Failure		500			{object}	api.Error	"Internal server error."
 //	@Router			/plan/{id}/results/{resultId}/compliance-over-time [get]
 func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
-    result, err := h.service.ComplianceOverTime(c.Param("id"), c.Param("resultId"))
+	result, err := h.service.ComplianceOverTime(c.Param("id"), c.Param("resultId"))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
