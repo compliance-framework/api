@@ -22,4 +22,3 @@ type Part struct {
 	// An optional name given to the part, which may be used by a tool for display and navigation.
 	Title string `json:"title,omitempty" yaml:"title,omitempty"`
 }
-

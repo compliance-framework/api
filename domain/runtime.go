@@ -39,4 +39,3 @@ type ActivityInformation struct {
 	Selector SubjectSelection `json:"selector" yaml:"selector"`
 	Provider Provider         `json:"provider" yaml:"provider"`
 }
-

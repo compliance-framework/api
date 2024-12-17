@@ -25,6 +25,6 @@ type ProfileSelection struct {
 	WithChildControls bool   `json:"with_child_controls" yaml:"with_child_controls"`
 	WithIds           []Uuid `json:"with_ids" yaml:"with_ids"`
 	Matching          []struct {
-	    Pattern string `json:"pattern" yaml:"pattern"`
+		Pattern string `json:"pattern" yaml:"pattern"`
 	} `json:"matching" yaml:"matching"`
 }

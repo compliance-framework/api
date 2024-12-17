@@ -2,15 +2,15 @@ package domain
 
 // Resource represents a resource associated with content in the containing document instance.
 type Resource struct {
-	Base64      *Base64              `json:"base64,omitempty" yaml:"base64,omitempty"`           // A resource encoded using the Base64 alphabet.
-	Citation    *Citation            `json:"citation,omitempty" yaml:"citation,omitempty"`       // An optional citation associated with the resource.
-	Description string               `json:"description,omitempty" yaml:"description,omitempty"` // An optional short summary of the resource.
+	Base64      *Base64              `json:"base64,omitempty" yaml:"base64,omitempty"`             // A resource encoded using the Base64 alphabet.
+	Citation    *Citation            `json:"citation,omitempty" yaml:"citation,omitempty"`         // An optional citation associated with the resource.
+	Description string               `json:"description,omitempty" yaml:"description,omitempty"`   // An optional short summary of the resource.
 	DocumentIds []DocumentIdentifier `json:"document-ids,omitempty" yaml:"document-ids,omitempty"` // Document identifiers associated with the resource.
-	Props       []Property           `json:"props,omitempty" yaml:"props,omitempty"`             // Properties of the resource.
-	Remarks     string               `json:"remarks,omitempty" yaml:"remarks,omitempty"`         // Remarks about the resource.
-	Rlinks      []Link               `json:"rlinks,omitempty" yaml:"rlinks,omitempty"`           // Related links of the resource.
-	Title       string               `json:"title,omitempty" yaml:"title,omitempty"`             // An optional name given to the resource.
-	Uuid        Uuid                 `json:"uuid" yaml:"uuid"`                                   // A unique identifier for a resource.
+	Props       []Property           `json:"props,omitempty" yaml:"props,omitempty"`               // Properties of the resource.
+	Remarks     string               `json:"remarks,omitempty" yaml:"remarks,omitempty"`           // Remarks about the resource.
+	Rlinks      []Link               `json:"rlinks,omitempty" yaml:"rlinks,omitempty"`             // Related links of the resource.
+	Title       string               `json:"title,omitempty" yaml:"title,omitempty"`               // An optional name given to the resource.
+	Uuid        Uuid                 `json:"uuid" yaml:"uuid"`                                     // A unique identifier for a resource.
 }
 
 // BackMatter represents the back matter of a document with associated resources.
@@ -37,4 +37,3 @@ type DocumentIdentifier struct {
 	Identifier string      `json:"identifier" yaml:"identifier"`             // The document identifier.
 	Scheme     interface{} `json:"scheme,omitempty" yaml:"scheme,omitempty"` // Qualifies the kind of document identifier using a URI.
 }
-

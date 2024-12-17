@@ -18,7 +18,6 @@ type Catalog struct {
 	BackMatter BackMatter  `json:"backMatter" yaml:"backMatter"`
 }
 
-
 func NewCatalog(title string) Catalog {
 	firstRevision := Revision{
 		Title:        "Initial revision",

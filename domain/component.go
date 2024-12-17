@@ -35,7 +35,7 @@ type Component struct {
 
 // Definition A collection of component descriptions, which may optionally be grouped by capability.
 type Definition struct {
-	Uuid     Uuid `json:"uuid" query:"uuid" yaml:"uuid"`
+	Uuid     Uuid     `json:"uuid" query:"uuid" yaml:"uuid"`
 	Metadata Metadata `yaml:"metadata"`
 
 	// ImportedDefinitions Loads a component definition from another resource.

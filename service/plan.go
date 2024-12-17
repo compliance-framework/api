@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
 	"fmt"
+	"log"
 
 	. "github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event"
@@ -257,23 +257,23 @@ func (s *PlanService) Observations(planId string, resultId string) ([]bson.M, er
 	}
 
 	pipeline = append(pipeline,
-	    bson.D{{"$unwind", bson.D{{"path", "$results"}}}},
+		bson.D{{"$unwind", bson.D{{"path", "$results"}}}},
 	)
 	pipeline = append(pipeline,
-	    bson.D{{"$sort", bson.D{{"results.observations.collected", 1}}}},
+		bson.D{{"$sort", bson.D{{"results.observations.collected", 1}}}},
 	)
 	pipeline = append(pipeline,
 		bson.D{{"$unwind", bson.D{{"path", "$results.observations"}}}},
 	)
 
 	pipeline = append(pipeline, bson.D{
-	    {"$project", bson.D{
-	        {Key: "_id", Value: "$results.observations._id"},
-	        {Key: "title", Value: "$results.observations.title"},
-	        {Key: "description", Value: "$results.observations.description"},
-	        {Key: "collected", Value: "$results.observations.collected"},
-	        {Key: "props", Value: "$results.observations.props"},
-	    }},
+		{"$project", bson.D{
+			{Key: "_id", Value: "$results.observations._id"},
+			{Key: "title", Value: "$results.observations.title"},
+			{Key: "description", Value: "$results.observations.description"},
+			{Key: "collected", Value: "$results.observations.collected"},
+			{Key: "props", Value: "$results.observations.props"},
+		}},
 	})
 
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)
@@ -490,53 +490,53 @@ func (s *PlanService) ComplianceOverTime(planId string, resultId string) ([]bson
 
 	pipeline = append(pipeline, bson.D{{Key: "$unwind", Value: "$results"}})
 	pipeline = append(pipeline, bson.D{{Key: "$project", Value: bson.M{
-			"_id": 0,
-			"date": bson.M{
-				"$dateToString": bson.M{
-					"format": "%Y-%m-%dT%H:%M:00Z",
-					"date":   "$results.start",
-				},
+		"_id": 0,
+		"date": bson.M{
+			"$dateToString": bson.M{
+				"format": "%Y-%m-%dT%H:%M:00Z",
+				"date":   "$results.start",
 			},
-			"findings": bson.M{
-				"$size": bson.M{
-					"$ifNull": bson.A{"$results.findings", bson.A{}},
-				},
+		},
+		"findings": bson.M{
+			"$size": bson.M{
+				"$ifNull": bson.A{"$results.findings", bson.A{}},
 			},
-			"observations": bson.M{
-				"$size": bson.M{
-					"$ifNull": bson.A{"$results.observations", bson.A{}},
-				},
+		},
+		"observations": bson.M{
+			"$size": bson.M{
+				"$ifNull": bson.A{"$results.observations", bson.A{}},
 			},
-			"risks": bson.M{
-				"$size": bson.M{
-					"$ifNull": bson.A{"$results.risks", bson.A{}},
-				},
+		},
+		"risks": bson.M{
+			"$size": bson.M{
+				"$ifNull": bson.A{"$results.risks", bson.A{}},
 			},
-		}}},
+		},
+	}}},
 	)
 
 	pipeline = append(pipeline, bson.D{
 		{Key: "$group", Value: bson.M{
-			"_id": "$date",
-			"totalFindings": bson.M{"$sum": "$findings"},
+			"_id":               "$date",
+			"totalFindings":     bson.M{"$sum": "$findings"},
 			"totalObservations": bson.M{"$sum": "$observations"},
-			"totalRisks": bson.M{"$sum": "$risks"},
+			"totalRisks":        bson.M{"$sum": "$risks"},
 		}},
 	})
 
 	pipeline = append(pipeline, bson.D{
-	    {Key: "$sort", Value: bson.M{
-	        "_id": 1, // 1 for ascending order, -1 for descending order
-	    }},
+		{Key: "$sort", Value: bson.M{
+			"_id": 1, // 1 for ascending order, -1 for descending order
+		}},
 	})
 
 	pipeline = append(pipeline, bson.D{
 		{Key: "$project", Value: bson.M{
-			"_id": 0,
-			"minute": "$_id",
-			"totalFindings": 1,
+			"_id":               0,
+			"minute":            "$_id",
+			"totalFindings":     1,
 			"totalObservations": 1,
-			"totalRisks": 1,
+			"totalRisks":        1,
 		}},
 	})
 

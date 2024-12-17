@@ -11,14 +11,14 @@ import (
 )
 
 type PlansService struct {
-	planCollection     *mongo.Collection
-	publisher          event.Publisher
+	planCollection *mongo.Collection
+	publisher      event.Publisher
 }
 
 func NewPlansService(p event.Publisher) *PlansService {
 	return &PlansService{
-		planCollection:    mongoStore.Collection("plan"),
-		publisher:         p,
+		planCollection: mongoStore.Collection("plan"),
+		publisher:      p,
 	}
 }
 

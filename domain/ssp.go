@@ -222,4 +222,3 @@ type SystemSecurityPlan struct {
 	ImportProfile         Uuid                  `json:"import_profile" yaml:"import_profile"`
 	SystemCharacteristics SystemCharacteristics `json:"system_characteristics" yaml:"system_characteristics"`
 }
-

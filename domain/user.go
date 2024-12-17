@@ -32,4 +32,3 @@ type CommonAuthorizedPrivilege struct {
 	// A human-readable name for the privilege.
 	Title string `json:"title" yaml:"title"`
 }
-

@@ -86,8 +86,8 @@ type Characterization struct {
 //
 // Example for a Configuration Setting Characterization:
 //
-//  Facet: Update Frequency
-//  Detail: Describes how often the configuration setting updates.
+//	Facet: Update Frequency
+//	Detail: Describes how often the configuration setting updates.
 type Facet struct {
 	Title       string     `json:"title,omitempty" yaml:"title,omitempty"`
 	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
@@ -106,9 +106,9 @@ type Facet struct {
 //
 // Example:
 //
-//  Finding: The "auto-update" feature's activation goes against the organization's policy
-//  of manually vetting and approving system updates. This poses a potential security risk
-//  as unvetted updates could introduce vulnerabilities.
+//	Finding: The "auto-update" feature's activation goes against the organization's policy
+//	of manually vetting and approving system updates. This poses a potential security risk
+//	as unvetted updates could introduce vulnerabilities.
 type Finding struct {
 	Id          primitive.ObjectID `json:"id" yaml:"id"`
 	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
@@ -164,9 +164,9 @@ type LogEntry struct {
 //
 // Example:
 //
-//  Evidence Type: Screenshot
-//  Description: Screenshot showing that the auto-update feature is enabled.
-//  URL: path/to/screenshot.png
+//	Evidence Type: Screenshot
+//	Description: Screenshot showing that the auto-update feature is enabled.
+//	URL: path/to/screenshot.png
 type Evidence struct {
 	Id          primitive.ObjectID `json:"id" yaml:"id"`
 	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`
@@ -326,9 +326,9 @@ type Response struct {
 //
 // Example:
 //
-//  TargetId ID: server-1234
-//  Type: System Component
-//  Description: Primary web server running in the production environment.
+//	TargetId ID: server-1234
+//	Type: System Component
+//	Description: Primary web server running in the production environment.
 type Target struct {
 	TargetId    primitive.ObjectID `json:"targetId" yaml:"targetId"`
 	Title       string             `json:"title,omitempty" yaml:"title,omitempty"`

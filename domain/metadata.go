@@ -27,7 +27,6 @@ type Revision struct {
 	OscalVersion string    `json:"oscalVersion" yaml:"oscalVersion"`
 }
 
-
 func NewRevision(title string, description string, remarks string) Revision {
 	revision := Revision{
 		Title:       title,

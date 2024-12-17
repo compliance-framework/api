@@ -214,9 +214,9 @@ type Task struct {
 	ResponsibleRoles []Uuid             `json:"responsibleRoles" yaml:"responsibleRoles"`
 	// Subjects hold all the subjects that the activities act upon.
 	// TODO: Should this be []Subject?
-	Subjects         []primitive.ObjectID `json:"subjects" yaml:"subjects"`
-	Tasks            []Uuid             `json:"tasks" yaml:"tasks"`
-	Schedule         string             `json:"schedule" yaml:"schedule"`
+	Subjects []primitive.ObjectID `json:"subjects" yaml:"subjects"`
+	Tasks    []Uuid               `json:"tasks" yaml:"tasks"`
+	Schedule string               `json:"schedule" yaml:"schedule"`
 }
 
 func (t *Task) AddActivity(activity Activity) error {
@@ -408,4 +408,3 @@ type Activity struct {
 	Subjects         SubjectSelection   `json:"subjects" yaml:"subjects"`
 	Provider         Provider           `json:"provider" yaml:"provider"`
 }
-

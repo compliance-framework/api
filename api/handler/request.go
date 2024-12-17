@@ -261,8 +261,8 @@ func (r *UpdateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan
 }
 
 type UpdateCatalogRequest struct {
-	Uuid       domain.Uuid `json:"uuid" yaml:"uuid"`
-	Title      string      `json:"title" yaml:"title"`
+	Uuid  domain.Uuid `json:"uuid" yaml:"uuid"`
+	Title string      `json:"title" yaml:"title"`
 	// Metadata   domain.Metadata   `json:"metadata" yaml:"metadata"`
 	Params     []domain.Parameter `json:"params" yaml:"params"`
 	Controls   []domain.Control   `json:"controlUuids" yaml:"controlUuids"`
