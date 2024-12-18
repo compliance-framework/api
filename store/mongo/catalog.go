@@ -16,9 +16,9 @@ type CatalogStoreMongo struct {
 	collection *mongo.Collection
 }
 
-func NewCatalogStore() *CatalogStoreMongo {
+func NewCatalogStore(database *mongo.Database) *CatalogStoreMongo {
 	return &CatalogStoreMongo{
-		collection: Collection("catalog"),
+		collection: database.Collection("catalog"),
 	}
 }
 

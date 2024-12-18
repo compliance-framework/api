@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/compliance-framework/configuration-service/domain"
-	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,9 +16,9 @@ type SSPService struct {
 	sspCollection *mongo.Collection
 }
 
-func NewSSPService() *SSPService {
+func NewSSPService(database *mongo.Database) *SSPService {
 	return &SSPService{
-		sspCollection: mongoStore.Collection("ssp"),
+		sspCollection: database.Collection("ssp"),
 	}
 }
 

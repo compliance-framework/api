@@ -167,7 +167,7 @@ type attachMetadataRequest struct {
 	Collection          string `json:"collection" yaml:"collection" validate:"required"`
 	RevisionTitle       string `json:"revisionTitle,omitempty" yaml:"revisionTitle,omitempty"`
 	RevisionDescription string `json:"revisionDescription,omitempty" yaml:"revisionDescription,omitempty"`
-	RevisionRemarks     string `json:"revisionRemarks,omitempty" yaml:"revisionRemarks,omitempty`
+	RevisionRemarks     string `json:"revisionRemarks,omitempty" yaml:"revisionRemarks,omitempty"`
 }
 
 func (r *attachMetadataRequest) bind(ctx echo.Context, rev *domain.Revision) error {

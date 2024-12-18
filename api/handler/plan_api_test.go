@@ -33,7 +33,7 @@ type PlanIntegrationSuite struct {
 func (suite *PlanIntegrationSuite) TestCreatePlan() {
 	suite.Run("A plan can be created through the API", func() {
 		logger, _ := zap.NewProduction()
-		planHandler := NewPlanHandler(logger.Sugar(), service.NewPlanService(bus.Publish))
+		planHandler := NewPlanHandler(logger.Sugar(), service.NewPlanService(suite.MongoDatabase, bus.Publish))
 
 		server := api.NewServer(context.Background(), logger.Sugar())
 		planHandler.Register(server.API().Group("/plan"))
@@ -58,7 +58,7 @@ func (suite *PlanIntegrationSuite) TestCreatePlan() {
 func (suite *PlanIntegrationSuite) TestCreateAndGetPlan() {
 	suite.Run("A plan can be created, and then fetched through the API", func() {
 		logger, _ := zap.NewProduction()
-		planHandler := NewPlanHandler(logger.Sugar(), service.NewPlanService(bus.Publish))
+		planHandler := NewPlanHandler(logger.Sugar(), service.NewPlanService(suite.MongoDatabase, bus.Publish))
 
 		server := api.NewServer(context.Background(), logger.Sugar())
 		planHandler.Register(server.API().Group("/plan"))

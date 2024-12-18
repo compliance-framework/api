@@ -99,7 +99,7 @@ func (h *PlanHandler) GetPlan(ctx echo.Context) error {
 	fmt.Println(ctx.ParamNames())
 	fmt.Println(ctx.ParamValues())
 	log.Println("###", ctx.Param("id"), "###", ctx.Get("id"), "###", ctx.Path())
-	plan, err := h.service.GetById(ctx.Param("id"))
+	plan, err := h.service.GetById(ctx.Request().Context(), ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	} else if plan == nil {
@@ -124,7 +124,7 @@ func (h *PlanHandler) GetPlan(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error			"Internal Server Error"
 //	@Router			/plan/{id}/tasks [post]
 func (h *PlanHandler) CreateTask(ctx echo.Context) error {
-	plan, err := h.service.GetById(ctx.Param("id"))
+	plan, err := h.service.GetById(ctx.Request().Context(), ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	} else if plan == nil {
@@ -162,7 +162,7 @@ func (h *PlanHandler) CreateTask(ctx echo.Context) error {
 //	@Failure		500			{object}	api.Error	"Internal server error"
 //	@Router			/plan/{id}/tasks/{taskId}/activities [post]
 func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
-	plan, err := h.service.GetById(ctx.Param("id"))
+	plan, err := h.service.GetById(ctx.Request().Context(), ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	} else if plan == nil {
@@ -197,7 +197,7 @@ func (h *PlanHandler) CreateActivity(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error	"Internal server error. The plan could not be activated."
 //	@Router			/plan/{id}/activate [put]
 func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
-	err := h.service.ActivatePlan(ctx.Param("id"))
+	err := h.service.ActivatePlan(ctx.Request().Context(), ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

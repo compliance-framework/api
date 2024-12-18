@@ -5,7 +5,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	mongo2 "github.com/compliance-framework/configuration-service/store/mongo"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -34,22 +33,11 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 	var err error
 	ctx := context.Background()
 
-	// Setup a MongoDB container so we can run tests against a real database
+	// Set up a MongoDB container so we can run tests against a real database
 	suite.MongoContainer, suite.MongoClient, suite.MongoDatabase, err = SetupIntegrationMongo(ctx)
 	if err != nil {
 		fmt.Println("Failed")
 		suite.T().Fatal(err, "Failed to setup Mongo")
-	}
-
-	// Now we need to connect our mongo store to the new container so other places will use it correctly
-	port, err := suite.MongoContainer.MappedPort(ctx, nat.Port(mongoPort))
-	if err != nil {
-		suite.T().Fatal(err)
-	}
-	uri := fmt.Sprintf("mongodb://%s:%s@localhost:%s", mongoUser, mongoPassword, port.Port())
-	err = mongo2.Connect(ctx, uri, mongoDatabase)
-	if err != nil {
-		suite.T().Fatal(err)
 	}
 }
 

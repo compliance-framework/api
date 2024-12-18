@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"os"
 
@@ -13,7 +15,7 @@ import (
 	"github.com/compliance-framework/configuration-service/api/handler"
 	"github.com/compliance-framework/configuration-service/event/bus"
 	"github.com/compliance-framework/configuration-service/service"
-	"github.com/compliance-framework/configuration-service/store/mongo"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 )
 
@@ -45,45 +47,63 @@ func main() {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := logger.Sugar()
+
 	config := loadConfig()
-	err = mongo.Connect(ctx, config.MongoURI, "cf")
+
+	mongoDatabase, err := connectMongo(ctx, options.Client().ApplyURI(config.MongoURI), "cf")
 	if err != nil {
-		sugar.Fatalf("error connecting to mongo: %v", err)
+		sugar.Fatal(err)
 	}
+	defer mongoDatabase.Client().Disconnect(ctx)
 
 	err = bus.Listen(config.NatsURI, sugar)
 	if err != nil {
-		sugar.Fatalf("error connecting to nats: %v", err)
+		sugar.Fatal(err)
 	}
 
 	server := api.NewServer(ctx, sugar)
 
-	catalogStore := mongo.NewCatalogStore()
+	catalogStore := mongoStore.NewCatalogStore(mongoDatabase)
 	catalogHandler := handler.NewCatalogHandler(catalogStore)
 	catalogHandler.Register(server.API().Group("/catalog"))
 
-	planService := service.NewPlanService(bus.Publish)
+	planService := service.NewPlanService(mongoDatabase, bus.Publish)
 	planHandler := handler.NewPlanHandler(sugar, planService)
 	planHandler.Register(server.API().Group("/plan"))
 
 	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult], planService)
 	resultProcessor.Listen()
 
-	plansService := service.NewPlansService(bus.Publish)
+	plansService := service.NewPlansService(mongoDatabase, bus.Publish)
 	plansHandler := handler.NewPlansHandler(sugar, plansService)
 	plansHandler.Register(server.API().Group("/plans"))
 
-	systemPlanService := service.NewSSPService()
+	systemPlanService := service.NewSSPService(mongoDatabase)
 	systemPlanHandler := handler.NewSSPHandler(systemPlanService)
 	systemPlanHandler.Register(server.API())
 
-	metadataService := service.NewMetadataService()
+	metadataService := service.NewMetadataService(mongoDatabase)
 	metadataHandler := handler.NewMetadataHandler(metadataService)
 	metadataHandler.Register(server.API().Group("/metadata"))
 
 	server.PrintRoutes()
 
 	checkErr(server.Start(DefaultPort))
+}
+
+func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, databaseName string) (*mongo.Database, error) {
+	client, err := mongo.Connect(ctx, clientOptions)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = client.Ping(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Database(databaseName), nil
 }
 
 func loadConfig() (config Config) {

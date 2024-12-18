@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/compliance-framework/configuration-service/event"
-	mongoStore "github.com/compliance-framework/configuration-service/store/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -15,9 +14,9 @@ type PlansService struct {
 	publisher      event.Publisher
 }
 
-func NewPlansService(p event.Publisher) *PlansService {
+func NewPlansService(database *mongo.Database, p event.Publisher) *PlansService {
 	return &PlansService{
-		planCollection: mongoStore.Collection("plan"),
+		planCollection: database.Collection("plan"),
 		publisher:      p,
 	}
 }
@@ -29,9 +28,9 @@ func (s *PlansService) GetPlans() ([]bson.M, error) {
 	var results []bson.M
 
 	pipeline = append(pipeline,
-		bson.D{{"$project", bson.D{
-			{"_id", 1},
-			{"title", 1},
+		bson.D{{Key: "$project", Value: bson.D{
+			bson.E{Key: "_id", Value: 1},
+			bson.E{Key: "title", Value: 1},
 		}}},
 	)
 	cursor, err := s.planCollection.Aggregate(context.Background(), pipeline)

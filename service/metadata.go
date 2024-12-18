@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"github.com/compliance-framework/configuration-service/domain"
-	"github.com/compliance-framework/configuration-service/store/mongo"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type DocWithMetadata struct {
@@ -13,14 +13,17 @@ type DocWithMetadata struct {
 }
 
 type MetadataService struct {
+	database *mongo.Database
 }
 
-func NewMetadataService() *MetadataService {
-	return &MetadataService{}
+func NewMetadataService(database *mongo.Database) *MetadataService {
+	return &MetadataService{
+		database: database,
+	}
 }
 
 func (s *MetadataService) AttachMetadata(uuid string, collection string, revision domain.Revision) error {
-	_, err := mongo.UpdateOne(context.TODO(), collection, bson.M{"uuid": uuid}, bson.M{
+	_, err := s.database.Collection(collection).UpdateOne(context.TODO(), bson.M{"uuid": uuid}, bson.M{
 		"$addToSet": bson.M{
 			"metadata.revisions": revision,
 		},
