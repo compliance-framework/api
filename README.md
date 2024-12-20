@@ -48,7 +48,13 @@ Then see [https://raw.githubusercontent.com/compliance-framework/infrastructure/
 Once the service is running, you can access the Swagger documentation to test and interact with the API at: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
 
 ## Configuration
-You can configure configuration-service using environment variables. These are located in the [`.env`](./.env) file.
+You can configure configuration-service using environment variables. 
+An example is located at [`.env.example`](./.env.example)
+
+Copy this file to .env to configure your environment variables
+```shell
+cp .env.example .env
+```
 
 ## Contributing
 We welcome contributions to configuration-service!

@@ -3,3 +3,6 @@ cover.out
 .idea
 
 __debug_*
+
+# .env is ignored to cater for a local development flow, with a clean git trea.
+.env
