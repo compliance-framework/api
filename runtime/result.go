@@ -16,6 +16,7 @@ const (
 
 // ExecutionResult holds the result of an compliance check execution for each subject.
 type ExecutionResult struct {
+	Title        string          `json:"title" yaml:"title"`
 	Status       ExecutionStatus `json:"status" yaml:"status"`
 	StreamId     uuid.UUID       `json:"streamId" yaml:"streamId"`
 	AssessmentId string          `json:"assessmentId" yaml:"assessmentId"`

@@ -135,6 +135,7 @@ func (r *Processor) Listen() {
 
 			// TODO: Start and End times should arrive from the runtime inside the message
 			result := domain.Result{
+				Title:         msg.Title,
 				Observations:  observations,
 				Risks:         risks,
 				Findings:      findings,
