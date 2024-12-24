@@ -8,6 +8,7 @@ import (
 type Uuid string
 
 func NewUuid() Uuid {
+
 	return Uuid(uuid.New().String())
 }
 

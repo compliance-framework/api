@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"github.com/compliance-framework/configuration-service/domain"
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -16,6 +17,7 @@ const (
 // ExecutionResult holds the result of an compliance check execution for each subject.
 type ExecutionResult struct {
 	Status       ExecutionStatus `json:"status" yaml:"status"`
+	StreamId     uuid.UUID       `json:"streamId" yaml:"streamId"`
 	AssessmentId string          `json:"assessmentId" yaml:"assessmentId"`
 	ComponentId  string          `json:"componentId" yaml:"componentId"`
 	ControlId    string          `json:"controlId" yaml:"controlId"`

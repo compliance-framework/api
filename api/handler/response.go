@@ -17,3 +17,13 @@ type catalogIdResponse struct {
 	// Example: "123abc"
 	Id string `json:"id" yaml:"id"`
 }
+
+type GenericDataResponse[T any] struct {
+	// Items from the list response
+	Data T `json:"data" yaml:"data"`
+}
+
+type GenericDataListResponse[T any] struct {
+	// Items from the list response
+	Data []T `json:"data" yaml:"data"`
+}

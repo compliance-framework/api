@@ -1,7 +1,9 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/compliance-framework/configuration-service/domain"
@@ -11,18 +13,21 @@ import (
 )
 
 type Processor struct {
-	svc *service.PlanService
-	sub event.Subscriber[ExecutionResult]
+	planService   *service.PlanService
+	resultService *service.ResultsService
+	sub           event.Subscriber[ExecutionResult]
 }
 
-func NewProcessor(s event.Subscriber[ExecutionResult], svc *service.PlanService) *Processor {
+func NewProcessor(s event.Subscriber[ExecutionResult], planService *service.PlanService, resultService *service.ResultsService) *Processor {
 	return &Processor{
-		sub: s,
-		svc: svc,
+		sub:           s,
+		planService:   planService,
+		resultService: resultService,
 	}
 }
 
 func (r *Processor) Listen() {
+	// TODO This whole method needs better error handling, and a logger to properly log errors when they happen.
 	ch, err := r.sub(event.TopicTypeResult)
 	if err != nil {
 		panic(err)
@@ -46,7 +51,7 @@ func (r *Processor) Listen() {
 				Remarks:     msg.Subject.Remarks,
 			}
 
-			err := r.svc.SaveSubject(subject)
+			err := r.planService.SaveSubject(subject)
 			if err != nil {
 				return
 			}
@@ -88,6 +93,7 @@ func (r *Processor) Listen() {
 					Statement:   r.Statement,
 					Props:       r.Props,
 					Links:       r.Links,
+					// TODO. Seems we're only relating the first observation here.
 					RelatedObservations: []primitive.ObjectID{
 						observations[0].Id,
 					},
@@ -121,18 +127,27 @@ func (r *Processor) Listen() {
 				}
 			}
 
+			planId, err := primitive.ObjectIDFromHex(msg.AssessmentId)
+			if err != nil {
+				log.Print(err)
+				planId = primitive.NilObjectID
+			}
+
 			// TODO: Start and End times should arrive from the runtime inside the message
 			result := domain.Result{
-				Id:            primitive.NewObjectID(),
 				Observations:  observations,
 				Risks:         risks,
 				Findings:      findings,
 				AssessmentLog: logs,
 				Start:         time.Now(),
 				End:           time.Now(),
+				StreamID:      msg.StreamId,
+				RelatedPlans: []*primitive.ObjectID{
+					&planId,
+				},
 			}
 
-			err = r.svc.SaveResult(msg.AssessmentId, result)
+			err = r.resultService.Create(context.TODO(), &result)
 			if err != nil {
 				return
 			}

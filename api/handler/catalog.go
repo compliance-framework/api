@@ -80,6 +80,8 @@ func (h *CatalogHandler) GetCatalog(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, c)
 }
 
+// UpdateCatalog godoc
+//
 // @Summary		Update a catalog
 // @Description	Update a specific catalog by its ID
 // @Tags			Catalog

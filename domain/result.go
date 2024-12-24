@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"github.com/google/uuid"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -28,7 +29,8 @@ import (
 // After an assessment, the risks identified based on findings and observations are typically used to prioritize remediation efforts. The most critical or high-impact risks might be addressed first, followed by less severe ones. This process helps organizations manage their security postures effectively and allocate resources where they are most needed.
 
 type Result struct {
-	Id               primitive.ObjectID      `json:"id" yaml:"id"`
+	Id               *primitive.ObjectID     `json:"_id,omitempty" yaml:"_id,omitempty" bson:"_id,omitempty"`
+	StreamID         uuid.UUID               `json:"streamId,omitempty" yaml:"streamId,omitempty" bson:"streamId,omitempty"`
 	Title            string                  `json:"title,omitempty" yaml:"title,omitempty"`
 	Description      string                  `json:"description,omitempty" yaml:"description,omitempty"`
 	Start            time.Time               `json:"start" yaml:"start"`
@@ -43,6 +45,7 @@ type Result struct {
 	Risks            []Risk                  `json:"risks" yaml:"risks"`
 	Findings         []Finding               `json:"findings" yaml:"findings"`
 	Remarks          string                  `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	RelatedPlans     []*primitive.ObjectID   `json:"relatedPlans,omitempty" yaml:"relatedPlans,omitempty" bson:"relatedPlans,omitempty"`
 }
 
 // Attestation represents a formal assertion, declaration, or acknowledgment by an authoritative

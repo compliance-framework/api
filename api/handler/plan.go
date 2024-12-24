@@ -23,16 +23,6 @@ func (h *PlanHandler) Register(api *echo.Group) {
 	api.POST("/:id/tasks", h.CreateTask)
 	api.PUT("/:id/activate", h.ActivatePlan)
 	api.POST("/:id/tasks/:taskId/activities", h.CreateActivity)
-
-	results := api.Group("/:id/results")
-	results.GET("", h.Results)
-	results.GET("/:resultId/findings", h.Findings)
-	results.GET("/:resultId/observations", h.Observations)
-	results.GET("/:resultId/risks", h.Risks)
-	results.GET("/:resultId/summary", h.Summary)
-	results.GET("/:resultId/compliance-status-by-targets", h.ComplianceStatusByTargets)
-	results.GET("/:resultId/compliance-over-time", h.ComplianceOverTime)
-	results.GET("/:resultId/remediation-vs-time", h.RemediationVsTime)
 }
 
 func NewPlanHandler(l *zap.SugaredLogger, s *service.PlanService) *PlanHandler {
@@ -205,125 +195,6 @@ func (h *PlanHandler) ActivatePlan(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusOK)
 }
 
-// Summary Returns the summary of the result with the given ID.
-//
-//	@Summary		Return the result summary
-//	@Description	Return the summary of the result with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id			path		string	true	"Plan ID"
-//	@Param			resultId	path		string	true	"Result ID"
-//	@Success		200			{object}	service.PlanSummary
-//	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/summary [get]
-func (h *PlanHandler) Summary(c echo.Context) error {
-	result, err := h.service.ResultSummary(c.Param("id"), c.Param("resultId"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	return c.JSON(http.StatusOK, result)
-}
-
-// ComplianceStatusByTargets Returns the compliance status by targets of the result with the given ID.
-//
-//	@Summary		Return the compliance status by targets
-//	@Description	Return the compliance status by targets of the result with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id			path		string	true	"Plan ID"
-//	@Param			resultId	path		string	true	"Result ID"
-//	@Success		200			{object}	[]service.ComplianceStatusByTargets
-//	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/compliance-status-by-targets [get]
-func (h *PlanHandler) ComplianceStatusByTargets(c echo.Context) error {
-	result, err := h.service.ComplianceStatusByTargets(c.Param("id"), c.Param("resultId"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return c.JSON(http.StatusOK, result)
-}
-
-// ComplianceOverTime Returns the compliance over time of the result with the given ID.
-//
-//	@Summary		Return the compliance over time
-//	@Description	Return the compliance over time of the result with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id			path		string	true	"Plan ID"
-//	@Param			resultId	path		string	true	"Result ID"
-//	@Success		200			{object}	[]service.ComplianceStatusOverTime
-//	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/compliance-over-time [get]
-func (h *PlanHandler) ComplianceOverTime(c echo.Context) error {
-	result, err := h.service.ComplianceOverTime(c.Param("id"), c.Param("resultId"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return c.JSON(http.StatusOK, result)
-}
-
-// RemediationVsTime Returns the remediation versus time of the result with the given ID.
-//
-//	@Summary		Return the remediation versus time
-//	@Description	Return the remediation versus time of the result with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id			path		string	true	"Plan ID"
-//	@Param			resultId	path		string	true	"Result ID"
-//	@Success		200			{object}	[]service.RemediationVsTime
-//	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/remediation-vs-time [get]
-func (h *PlanHandler) RemediationVsTime(c echo.Context) error {
-	result, err := h.service.RemediationVsTime(c.Param("id"), c.Param("resultId"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return c.JSON(http.StatusOK, result)
-}
-
-// Findings Returns the findings of the result with the given ID.
-//
-//	@Summary		Return the findings
-//	@Description	Return the findings of the result with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id			path		string	true	"Plan ID"
-//	@Param			resultId	path		string	true	"Result ID"
-//	@Success		200			{object}	[]domain.Finding
-//	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/findings [get]
-func (h *PlanHandler) Findings(c echo.Context) error {
-	findings, err := h.service.Findings(c.Param("id"), c.Param("resultId"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return c.JSON(http.StatusOK, findings)
-}
-
-// Observations Returns the observations of the result with the given ID.
-//
-//	@Summary		Return the observations
-//	@Description	Return the observations of the result with the given ID.
-//	@Tags			Plan
-//	@Produce		json
-//	@Param			id			path		string	true	"Plan ID"
-//	@Param			resultId	path		string	true	"Result ID"
-//	@Success		200			{object}	[]domain.Observation
-//	@Failure		500			{object}	api.Error	"Internal server error."
-//	@Router			/plan/{id}/results/{resultId}/observations [get]
-func (h *PlanHandler) Observations(c echo.Context) error {
-	observations, err := h.service.Observations(c.Param("id"), c.Param("resultId"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return c.JSON(http.StatusOK, observations)
-}
-
 // Risks Returns the risks of the result with the given ID.
 //
 //	@Summary		Return the risks
@@ -342,13 +213,4 @@ func (h *PlanHandler) Risks(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, risks)
-}
-
-func (h *PlanHandler) Results(c echo.Context) error {
-	results, err := h.service.Results(c.Param("id"))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return c.JSON(http.StatusOK, results)
 }

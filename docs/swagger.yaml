@@ -901,10 +901,6 @@ definitions:
         - $ref: '#/definitions/domain.Metadata'
         description: We might switch to struct embedding for fields like Metadata,
           Props, etc.
-      results:
-        items:
-          $ref: '#/definitions/domain.Result'
-        type: array
       reviewedControls:
         description: ReviewedControls Identifies the controls being assessed and their
           control objectives.
@@ -1043,6 +1039,8 @@ definitions:
     type: object
   domain.Result:
     properties:
+      _id:
+        type: string
       assessmentLogEntries:
         items:
           $ref: '#/definitions/domain.LogEntry'
@@ -1059,8 +1057,6 @@ definitions:
         items:
           $ref: '#/definitions/domain.Finding'
         type: array
-      id:
-        type: string
       links:
         items:
           $ref: '#/definitions/domain.Link'
@@ -1075,6 +1071,10 @@ definitions:
         items:
           $ref: '#/definitions/domain.Property'
         type: array
+      relatedPlans:
+        items:
+          type: string
+        type: array
       remarks:
         type: string
       reviewedControls:
@@ -1086,6 +1086,8 @@ definitions:
           $ref: '#/definitions/domain.Risk'
         type: array
       start:
+        type: string
+      streamId:
         type: string
       title:
         type: string
@@ -1480,6 +1482,14 @@ definitions:
     required:
     - title
     type: object
+  handler.GenericDataListResponse-domain_Result:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/domain.Result'
+        type: array
+    type: object
   handler.UpdateCatalogRequest:
     properties:
       backMatter:
@@ -1674,98 +1684,6 @@ definitions:
           Example: "456def"
         type: string
     type: object
-  service.ComplianceStatusByTargets:
-    properties:
-      compliance:
-        items:
-          $ref: '#/definitions/service.RiskState'
-        type: array
-      control:
-        type: string
-      target:
-        type: string
-    type: object
-  service.ComplianceStatusOverTime:
-    properties:
-      date:
-        type: string
-      findings:
-        type: integer
-      observations:
-        type: integer
-      risks:
-        type: integer
-    type: object
-  service.PlanSummary:
-    properties:
-      complianceStatus:
-        type: number
-      description:
-        type: string
-      endDate:
-        type: string
-      numControls:
-        type: integer
-      numObservations:
-        type: integer
-      numRisks:
-        type: integer
-      numSubjects:
-        type: integer
-      published:
-        type: string
-      riskLevels:
-        $ref: '#/definitions/service.RiskLevels'
-      riskScore:
-        $ref: '#/definitions/service.RiskScore'
-      status:
-        type: string
-    type: object
-  service.RemediationVsTime:
-    properties:
-      control:
-        type: string
-      remediation:
-        type: string
-    type: object
-  service.RiskLevels:
-    properties:
-      high:
-        type: integer
-      low:
-        type: integer
-      medium:
-        type: integer
-    type: object
-  service.RiskScore:
-    properties:
-      score:
-        type: integer
-      severity:
-        $ref: '#/definitions/service.RiskSeverity'
-    type: object
-  service.RiskSeverity:
-    enum:
-    - medium
-    - low
-    - high
-    type: string
-    x-enum-varnames:
-    - Medium
-    - Low
-    - High
-  service.RiskState:
-    enum:
-    - pass
-    - warn
-    - fail
-    - indeterminate
-    type: string
-    x-enum-varnames:
-    - Pass
-    - Warn
-    - Fail
-    - Indeterminate
 externalDocs:
   description: OpenAPI
   url: https://swagger.io/resources/open-api/
@@ -2160,158 +2078,6 @@ paths:
       summary: Activate a plan
       tags:
       - Plan
-  /plan/{id}/results/{resultId}/compliance-over-time:
-    get:
-      description: Return the compliance over time of the result with the given ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Result ID
-        in: path
-        name: resultId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/service.ComplianceStatusOverTime'
-            type: array
-        "500":
-          description: Internal server error.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the compliance over time
-      tags:
-      - Plan
-  /plan/{id}/results/{resultId}/compliance-status-by-targets:
-    get:
-      description: Return the compliance status by targets of the result with the
-        given ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Result ID
-        in: path
-        name: resultId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/service.ComplianceStatusByTargets'
-            type: array
-        "500":
-          description: Internal server error.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the compliance status by targets
-      tags:
-      - Plan
-  /plan/{id}/results/{resultId}/findings:
-    get:
-      description: Return the findings of the result with the given ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Result ID
-        in: path
-        name: resultId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Finding'
-            type: array
-        "500":
-          description: Internal server error.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the findings
-      tags:
-      - Plan
-  /plan/{id}/results/{resultId}/observations:
-    get:
-      description: Return the observations of the result with the given ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Result ID
-        in: path
-        name: resultId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Observation'
-            type: array
-        "500":
-          description: Internal server error.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the observations
-      tags:
-      - Plan
-  /plan/{id}/results/{resultId}/remediation-vs-time:
-    get:
-      description: Return the remediation versus time of the result with the given
-        ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Result ID
-        in: path
-        name: resultId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/service.RemediationVsTime'
-            type: array
-        "500":
-          description: Internal server error.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the remediation versus time
-      tags:
-      - Plan
   /plan/{id}/results/{resultId}/risks:
     get:
       description: Return the risks of the result with the given ID.
@@ -2340,34 +2106,6 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Return the risks
-      tags:
-      - Plan
-  /plan/{id}/results/{resultId}/summary:
-    get:
-      description: Return the summary of the result with the given ID.
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Result ID
-        in: path
-        name: resultId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/service.PlanSummary'
-        "500":
-          description: Internal server error.
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Return the result summary
       tags:
       - Plan
   /plan/{id}/tasks:
@@ -2470,6 +2208,25 @@ paths:
       summary: Gets plan summaries
       tags:
       - Plan
+  /results/:plan:
+    get:
+      consumes:
+      - application/json
+      description: Returns data of all the latest results for a plan
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Gets a plan's results
+      tags:
+      - Result
   /ssp:
     get:
       consumes:

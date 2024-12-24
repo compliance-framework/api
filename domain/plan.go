@@ -75,8 +75,6 @@ type Plan struct {
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls" yaml:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions" yaml:"termsAndConditions"`
-
-	Results []Result `json:"results" yaml:"results"`
 }
 
 // A PlanPrecis is a cut down version of a plan limited to one level so user can get a view of what the plan is about.
@@ -106,8 +104,7 @@ func NewPlan() *Plan {
 			Components: []primitive.ObjectID{},
 			Platforms:  []primitive.ObjectID{},
 		},
-		Status:  "inactive",
-		Results: make([]Result, 0),
+		Status: "inactive",
 	}
 }
 
