@@ -790,9 +790,67 @@ const docTemplate = `{
                 }
             }
         },
-        "/results/:plan": {
+        "/results/:id": {
+            "get": {
+                "description": "Returns singular result",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Result"
+                ],
+                "summary": "Get a result",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-domain_Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/results/plan/:plan": {
             "get": {
                 "description": "Returns data of all the latest results for a plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Result"
+                ],
+                "summary": "Gets a plan's results",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/results/stream/:stream": {
+            "get": {
+                "description": "Returns a list of all the results for a strea,data of all the latest results for a plan",
                 "consumes": [
                     "application/json"
                 ],
@@ -3199,6 +3257,19 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/domain.Result"
                     }
+                }
+            }
+        },
+        "handler.GenericDataResponse-domain_Result": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Result"
+                        }
+                    ]
                 }
             }
         },

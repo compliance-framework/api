@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ResultsService struct {
@@ -31,6 +32,14 @@ func (s *ResultsService) Create(ctx context.Context, result *domain.Result) erro
 	}
 	result.Id = &insertedId
 	return nil
+}
+
+func (s *ResultsService) Get(ctx context.Context, id *primitive.ObjectID) (*domain.Result, error) {
+	var result domain.Result
+	err := s.resultsCollection.FindOne(ctx, bson.D{
+		{Key: "_id", Value: id},
+	}).Decode(&result)
+	return &result, err
 }
 
 func (s *ResultsService) GetAll(ctx context.Context) ([]*domain.Result, error) {
@@ -70,6 +79,17 @@ func (s *ResultsService) GetAllForStream(ctx context.Context, streamId uuid.UUID
 		return nil, err
 	}
 	return results, nil
+}
+
+func (s *ResultsService) GetLatestResultForStream(ctx context.Context, streamId uuid.UUID) (*domain.Result, error) {
+	// Fetch the latest result
+	var result domain.Result
+	err := s.resultsCollection.FindOne(ctx, bson.D{
+		{Key: "streamId", Value: streamId},
+	}, options.FindOne().SetSort(bson.D{
+		{Key: "end", Value: -1}, // -1 for descending order to get the latest result
+	})).Decode(&result)
+	return &result, err
 }
 
 func (s *ResultsService) GetLatestResultsForPlan(ctx context.Context, planId *primitive.ObjectID) ([]*domain.Result, error) {

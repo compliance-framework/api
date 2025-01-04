@@ -1490,6 +1490,13 @@ definitions:
           $ref: '#/definitions/domain.Result'
         type: array
     type: object
+  handler.GenericDataResponse-domain_Result:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/domain.Result'
+        description: Items from the list response
+    type: object
   handler.UpdateCatalogRequest:
     properties:
       backMatter:
@@ -2208,11 +2215,50 @@ paths:
       summary: Gets plan summaries
       tags:
       - Plan
-  /results/:plan:
+  /results/:id:
+    get:
+      consumes:
+      - application/json
+      description: Returns singular result
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-domain_Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a result
+      tags:
+      - Result
+  /results/plan/:plan:
     get:
       consumes:
       - application/json
       description: Returns data of all the latest results for a plan
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Gets a plan's results
+      tags:
+      - Result
+  /results/stream/:stream:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all the results for a strea,data of all the latest
+        results for a plan
       produces:
       - application/json
       responses:

@@ -222,3 +222,86 @@ func (suite *ResultIntegrationSuite) TestResultStreams() {
 		}
 	})
 }
+
+func (suite *ResultIntegrationSuite) TestLatestStreamResult() {
+	suite.Run("The latest result for a stream can be fetched", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		var err error
+		var streamId = uuid.New()
+		planId := primitive.NewObjectID()
+		latestResult := &domain.Result{
+			Title:    fmt.Sprintf("Latest result"),
+			StreamID: streamId,
+			RelatedPlans: []*primitive.ObjectID{
+				&planId,
+			},
+			End: time.Now(),
+		}
+
+		// The actual latest result
+		err = resultService.Create(ctx, latestResult)
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Create 3 older results in the stream
+		for i := range 3 {
+			err = resultService.Create(ctx, &domain.Result{
+				Title:    fmt.Sprintf("Older result #%d", i),
+				StreamID: streamId,
+				RelatedPlans: []*primitive.ObjectID{
+					&planId,
+				},
+				// Older results
+				End: time.Now().Add(-time.Duration(1) * time.Hour),
+			})
+			if err != nil {
+				suite.T().Fatal(err)
+			}
+		}
+
+		result, err := resultService.GetLatestResultForStream(ctx, streamId)
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		if result.Id.String() != latestResult.Id.String() {
+			suite.T().Fatalf("Expected to find latest result in collection. Expected %v, got %v", latestResult.Id, result.Id)
+		}
+	})
+}
+
+func (suite *ResultIntegrationSuite) TestGetResult() {
+	suite.Run("A result can be fetched", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		var err error
+		var streamId = uuid.New()
+		planId := primitive.NewObjectID()
+		latestResult := &domain.Result{
+			Title:    fmt.Sprintf("Latest result"),
+			StreamID: streamId,
+			RelatedPlans: []*primitive.ObjectID{
+				&planId,
+			},
+			End: time.Now(),
+		}
+
+		// The actual latest result
+		err = resultService.Create(ctx, latestResult)
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		result, err := resultService.Get(ctx, latestResult.Id)
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+		if result == nil {
+			suite.T().Fatalf("Expected to find result")
+		}
+	})
+}
