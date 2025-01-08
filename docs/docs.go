@@ -1187,6 +1187,12 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Step"
+                    }
+                },
                 "subjects": {
                     "$ref": "#/definitions/domain.SubjectSelection"
                 },
@@ -2895,6 +2901,41 @@ const docTemplate = `{
                 },
                 "includeAll": {
                     "type": "boolean"
+                }
+            }
+        },
+        "domain.Step": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },

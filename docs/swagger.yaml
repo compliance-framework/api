@@ -57,6 +57,10 @@ definitions:
         items:
           type: string
         type: array
+      steps:
+        items:
+          $ref: '#/definitions/domain.Step'
+        type: array
       subjects:
         $ref: '#/definitions/domain.SubjectSelection'
       title:
@@ -1240,6 +1244,29 @@ definitions:
         type: array
       includeAll:
         type: boolean
+    type: object
+  domain.Step:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      responsibleRoles:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
     type: object
   domain.SubjectMatchExpression:
     properties:

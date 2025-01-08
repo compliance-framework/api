@@ -400,8 +400,19 @@ type Activity struct {
 	Description      string             `json:"description,omitempty" yaml:"description,omitempty"`
 	Props            []Property         `json:"props,omitempty" yaml:"props,omitempty"`
 	Links            []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Steps            []Step             `json:"steps,omitempty" yaml:"steps,omitempty"`
 	Remarks          string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 	ResponsibleRoles []string           `json:"responsibleRoles" yaml:"responsibleRoles"`
 	Subjects         SubjectSelection   `json:"subjects" yaml:"subjects"`
 	Provider         Provider           `json:"provider" yaml:"provider"`
+}
+
+type Step struct {
+	Id               *primitive.ObjectID `json:"id,omitempty" yaml:"id,omitempty"`
+	Title            string              `json:"title,omitempty" yaml:"title,omitempty"`
+	Description      string              `json:"description,omitempty" yaml:"description,omitempty"`
+	Props            []Property          `json:"props,omitempty" yaml:"props,omitempty"`
+	Links            []Link              `json:"links,omitempty" yaml:"links,omitempty"`
+	Remarks          string              `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	ResponsibleRoles []string            `json:"responsibleRoles" yaml:"responsibleRoles"`
 }
