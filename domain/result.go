@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -132,6 +133,7 @@ type Finding struct {
 
 	RelatedObservations []primitive.ObjectID `json:"relatedObservations" yaml:"relatedObservations"`
 	RelatedRisks        []primitive.ObjectID `json:"relatedRisks" yaml:"relatedRisks"`
+	Status              string               `json:"status,omitempty" yaml:"status,omitempty"`
 }
 
 // LogEntry represents a record in an assessment log that documents a specific
