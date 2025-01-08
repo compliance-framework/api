@@ -1,9 +1,10 @@
 package runtime
 
 import (
+	"time"
+
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/google/uuid"
-	"time"
 )
 
 type ExecutionStatus int
@@ -60,6 +61,7 @@ type Finding struct {
 	Props       []domain.Property `json:"props,omitempty" yaml:"props,omitempty"`
 	Links       []domain.Link     `json:"links,omitempty" yaml:"links,omitempty"`
 	Remarks     string            `json:"remarks,omitempty" yaml:"remarks,omitempty"`
+	Status      string            `json:"status,omitempty" yaml:"status,omitempty"`
 	SubjectId   string            `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
 }
 

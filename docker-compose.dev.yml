@@ -24,3 +24,6 @@ services:
     ports:
       - "4222:4222"
     command: -js
+
+networks:
+  continuous-compliance:

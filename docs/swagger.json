@@ -1733,13 +1733,13 @@
                 "remarks": {
                     "type": "string"
                 },
+                "status": {
+                    "type": "string"
+                },
                 "target": {
                     "type": "string"
                 },
                 "title": {
-                    "type": "string"
-                },
-                "status": {
                     "type": "string"
                 }
             }
