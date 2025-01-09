@@ -109,6 +109,7 @@ func (r *Processor) Listen() {
 					Props:       f.Props,
 					Links:       f.Links,
 					Remarks:     f.Remarks,
+					Status:      f.Status,
 					TargetId:    subject.Id,
 				}
 			}

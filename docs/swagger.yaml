@@ -441,6 +441,8 @@ definitions:
         type: array
       remarks:
         type: string
+      status:
+        type: string
       target:
         type: string
       title:

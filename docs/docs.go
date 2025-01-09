@@ -1745,6 +1745,9 @@ const docTemplate = `{
                 "remarks": {
                     "type": "string"
                 },
+                "status": {
+                    "type": "string"
+                },
                 "target": {
                     "type": "string"
                 },
