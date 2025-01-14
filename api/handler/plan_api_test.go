@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event/bus"
 	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/tests"
@@ -40,6 +39,15 @@ func (suite *PlanIntegrationSuite) TestCreatePlan() {
 
 		reqBody, _ := json.Marshal(map[string]interface{}{
 			"title": "Some Plan",
+			"filter": map[string]interface{}{
+				"scope": map[string]interface{}{
+					"condition": map[string]string{
+						"label":    "foo",
+						"operator": "=",
+						"value":    "bar",
+					},
+				},
+			},
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/plan", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -49,9 +57,26 @@ func (suite *PlanIntegrationSuite) TestCreatePlan() {
 
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code, "Expected status 201 Created")
 
-		response := &idResponse{}
+		response := &GenericDataResponse[PlanResponse]{}
 		assert.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), response), "Failed to parse response from CreatePlan")
-		assert.NotEmpty(suite.T(), response.Id, "Response ID should not be empty")
+		expectedJson, err := json.Marshal(map[string]interface{}{
+			"data": map[string]interface{}{
+				"id":    response.Data.Id,
+				"title": "Some Plan",
+				"filter": map[string]interface{}{
+					"scope": map[string]interface{}{
+						"condition": map[string]string{
+							"label":    "foo",
+							"operator": "=",
+							"value":    "bar",
+						},
+					},
+				},
+			},
+		})
+		if assert.NoError(suite.T(), err) {
+			assert.JSONEq(suite.T(), string(expectedJson), rec.Body.String())
+		}
 	})
 }
 
@@ -67,6 +92,15 @@ func (suite *PlanIntegrationSuite) TestCreateAndGetPlan() {
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(map[string]interface{}{
 			"title": "Some Plan",
+			"filter": map[string]interface{}{
+				"scope": map[string]interface{}{
+					"condition": map[string]string{
+						"label":    "foo",
+						"operator": "=",
+						"value":    "bar",
+					},
+				},
+			},
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/plan", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -76,15 +110,15 @@ func (suite *PlanIntegrationSuite) TestCreateAndGetPlan() {
 		// Assert that the plan was created successfully
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 
-		response := &idResponse{}
+		response := &GenericDataResponse[PlanResponse]{}
 		assert.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), response), "Failed to parse response from CreatePlan")
-		assert.NotEmpty(suite.T(), response.Id, "Response ID should not be empty")
+		assert.NotEmpty(suite.T(), response.Data.Id, "Response ID should not be empty")
 
 		// Fetch the created plan
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest(
 			http.MethodGet,
-			fmt.Sprintf("/api/plan/%s", response.Id),
+			fmt.Sprintf("/api/plan/%s", response.Data.Id),
 			nil,
 		)
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -94,8 +128,26 @@ func (suite *PlanIntegrationSuite) TestCreateAndGetPlan() {
 		// Assert that the plan was fetched successfully
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		getResponse := &domain.Plan{}
+		getResponse := &GenericDataResponse[PlanResponse]{}
 		assert.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), getResponse), "Failed to parse response from GetPlan")
-		assert.Equal(suite.T(), response.Id, getResponse.Id.Hex(), "Fetched plan ID does not match created plan ID")
+		expectedJson, err := json.Marshal(map[string]interface{}{
+			"data": map[string]interface{}{
+				"id":    getResponse.Data.Id,
+				"title": "Some Plan",
+				"filter": map[string]interface{}{
+					"scope": map[string]interface{}{
+						"condition": map[string]string{
+							"label":    "foo",
+							"operator": "=",
+							"value":    "bar",
+						},
+					},
+				},
+			},
+		})
+		if assert.NoError(suite.T(), err) {
+			assert.JSONEq(suite.T(), string(expectedJson), rec.Body.String())
+		}
+
 	})
 }

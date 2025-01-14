@@ -35,37 +35,6 @@ definitions:
       type:
         type: string
     type: object
-  domain.Activity:
-    properties:
-      description:
-        type: string
-      id:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/domain.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/domain.Property'
-        type: array
-      provider:
-        $ref: '#/definitions/domain.Provider'
-      remarks:
-        type: string
-      responsibleRoles:
-        items:
-          type: string
-        type: array
-      steps:
-        items:
-          $ref: '#/definitions/domain.Step'
-        type: array
-      subjects:
-        $ref: '#/definitions/domain.SubjectSelection'
-      title:
-        type: string
-    type: object
   domain.Actor:
     properties:
       description:
@@ -99,20 +68,6 @@ definitions:
     - ActorTypeTool
     - ActorTypeAssessmentPlatform
     - ActorTypeParty
-  domain.Assets:
-    properties:
-      components:
-        description: Reference to component.Component
-        items:
-          type: string
-        type: array
-      platforms:
-        description: Used to represent the toolset used to perform aspects of the
-          assessment.
-        items:
-          type: string
-        type: array
-    type: object
   domain.Attestation:
     properties:
       parts:
@@ -878,64 +833,6 @@ definitions:
           for display and navigation.
         type: string
     type: object
-  domain.Plan:
-    properties:
-      assets:
-        allOf:
-        - $ref: '#/definitions/domain.Assets'
-        description: |-
-          The following fields are part of the OSCAL spec, but we don't use them yet.
-          Assets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.
-      backMatter:
-        allOf:
-        - $ref: '#/definitions/domain.BackMatter'
-        description: BackMatter A collection of resources that may be referenced from
-          within the OSCAL document instance.
-      id:
-        type: string
-      importSSP:
-        description: Reference to a System Security Plan
-        type: string
-      localDefinitions:
-        allOf:
-        - $ref: '#/definitions/domain.LocalDefinition'
-        description: |-
-          LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.
-          Reference to LocalDefinition
-      metadata:
-        allOf:
-        - $ref: '#/definitions/domain.Metadata'
-        description: We might switch to struct embedding for fields like Metadata,
-          Props, etc.
-      reviewedControls:
-        description: ReviewedControls Identifies the controls being assessed and their
-          control objectives.
-        items:
-          $ref: '#/definitions/domain.ControlsAndObjectives'
-        type: array
-      status:
-        description: |-
-          Status The status of the assessment plan, such as "active" or "inactive".
-          These statuses are subject to change.
-        type: string
-      tasks:
-        description: Tasks Represents a scheduled event or milestone, which may be
-          associated with a series of assessment actions.
-        items:
-          $ref: '#/definitions/domain.Task'
-        type: array
-      termsAndConditions:
-        description: TermsAndConditions Used to define various terms and conditions
-          under which an assessment, described by the plan, can be performed. Each
-          child part defines a different type of term or condition.
-        items:
-          $ref: '#/definitions/domain.Part'
-        type: array
-      title:
-        description: Title A name given to the assessment plan. OSCAL doesn't have
-          this, but we need it for our use case.
-        type: string
-    type: object
   domain.PlanPrecis:
     properties:
       id:
@@ -958,19 +855,6 @@ definitions:
       remarks:
         type: string
       value:
-        type: string
-    type: object
-  domain.Provider:
-    properties:
-      configuration:
-        additionalProperties:
-          type: string
-        type: object
-      image:
-        type: string
-      name:
-        type: string
-      tag:
         type: string
     type: object
   domain.Resource:
@@ -1063,6 +947,10 @@ definitions:
         items:
           $ref: '#/definitions/domain.Finding'
         type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
       links:
         items:
           $ref: '#/definitions/domain.Link'
@@ -1076,10 +964,6 @@ definitions:
       props:
         items:
           $ref: '#/definitions/domain.Property'
-        type: array
-      relatedPlans:
-        items:
-          type: string
         type: array
       remarks:
         type: string
@@ -1247,61 +1131,6 @@ definitions:
       includeAll:
         type: boolean
     type: object
-  domain.Step:
-    properties:
-      description:
-        type: string
-      id:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/domain.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/domain.Property'
-        type: array
-      remarks:
-        type: string
-      responsibleRoles:
-        items:
-          type: string
-        type: array
-      title:
-        type: string
-    type: object
-  domain.SubjectMatchExpression:
-    properties:
-      key:
-        type: string
-      operator:
-        type: string
-      values:
-        items:
-          type: string
-        type: array
-    type: object
-  domain.SubjectSelection:
-    properties:
-      description:
-        type: string
-      expressions:
-        items:
-          $ref: '#/definitions/domain.SubjectMatchExpression'
-        type: array
-      ids:
-        items:
-          type: string
-        type: array
-      labels:
-        additionalProperties:
-          type: string
-        type: object
-      query:
-        type: string
-      title:
-        type: string
-    type: object
   domain.SystemCharacteristics:
     properties:
       actions:
@@ -1443,67 +1272,6 @@ definitions:
       uuid:
         type: string
     type: object
-  domain.Task:
-    properties:
-      activities:
-        items:
-          $ref: '#/definitions/domain.Activity'
-        type: array
-      dependencies:
-        items:
-          $ref: '#/definitions/domain.TaskDependency'
-        type: array
-      description:
-        type: string
-      id:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/domain.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/domain.Property'
-        type: array
-      remarks:
-        type: string
-      responsibleRoles:
-        items:
-          type: string
-        type: array
-      schedule:
-        type: string
-      subjects:
-        description: |-
-          Subjects hold all the subjects that the activities act upon.
-          TODO: Should this be []Subject?
-        items:
-          type: string
-        type: array
-      tasks:
-        items:
-          type: string
-        type: array
-      title:
-        type: string
-      type:
-        $ref: '#/definitions/domain.TaskType'
-    type: object
-  domain.TaskDependency:
-    properties:
-      remarks:
-        type: string
-      taskUuid:
-        type: string
-    type: object
-  domain.TaskType:
-    enum:
-    - milestone
-    - action
-    type: string
-    x-enum-varnames:
-    - TaskTypeMilestone
-    - TaskTypeAction
   handler.CreateSSPRequest:
     properties:
       title:
@@ -1525,6 +1293,22 @@ definitions:
         allOf:
         - $ref: '#/definitions/domain.Result'
         description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_PlanResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.PlanResponse'
+        description: Items from the list response
+    type: object
+  handler.PlanResponse:
+    properties:
+      filter:
+        $ref: '#/definitions/labelfilter.Filter'
+      id:
+        type: string
+      title:
+        type: string
     type: object
   handler.UpdateCatalogRequest:
     properties:
@@ -1690,9 +1474,12 @@ definitions:
     type: object
   handler.createPlanRequest:
     properties:
+      filter:
+        $ref: '#/definitions/labelfilter.Filter'
       title:
         type: string
     required:
+    - filter
     - title
     type: object
   handler.createTaskRequest:
@@ -1719,6 +1506,41 @@ definitions:
           Required: true
           Example: "456def"
         type: string
+    type: object
+  labelfilter.Condition:
+    properties:
+      label:
+        description: Label name (e.g., "type", "group", "app").
+        type: string
+      operator:
+        description: Operator (e.g., "=", "!=", etc.).
+        type: string
+      value:
+        description: Value for the condition (e.g., "ssh", "prod").
+        type: string
+    type: object
+  labelfilter.Filter:
+    properties:
+      scope:
+        $ref: '#/definitions/labelfilter.Scope'
+    type: object
+  labelfilter.Query:
+    properties:
+      operator:
+        description: Logical operator (e.g., "AND", "OR").
+        type: string
+      scopes:
+        description: Scopes can be either `Condition` or nested `Query`.
+        items:
+          $ref: '#/definitions/labelfilter.Scope'
+        type: array
+    type: object
+  labelfilter.Scope:
+    properties:
+      condition:
+        $ref: '#/definitions/labelfilter.Condition'
+      query:
+        $ref: '#/definitions/labelfilter.Query'
     type: object
 externalDocs:
   description: OpenAPI
@@ -2074,7 +1896,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/domain.Plan'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_PlanResponse'
         "401":
           description: Unauthorized
           schema:
@@ -2280,6 +2102,25 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Gets a plan's results
+      tags:
+      - Result
+  /results/search:
+    post:
+      consumes:
+      - application/json
+      description: Returns singular result
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Search results using labels
       tags:
       - Result
   /results/stream/:stream:

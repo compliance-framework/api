@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -13,20 +14,23 @@ import (
 )
 
 type ResultsHandler struct {
-	service *service.ResultsService
-	sugar   *zap.SugaredLogger
+	service     *service.ResultsService
+	planService *service.PlanService
+	sugar       *zap.SugaredLogger
 }
 
 func (h *ResultsHandler) Register(api *echo.Group) {
 	api.GET("/:id", h.GetResult)
 	api.GET("/plan/:plan", h.GetPlanResults)
 	api.GET("/stream/:stream", h.GetStreamResults)
+	api.POST("/search", h.SearchResults)
 }
 
-func NewResultsHandler(l *zap.SugaredLogger, s *service.ResultsService) *ResultsHandler {
+func NewResultsHandler(l *zap.SugaredLogger, s *service.ResultsService, planService *service.PlanService) *ResultsHandler {
 	return &ResultsHandler{
-		sugar:   l,
-		service: s,
+		sugar:       l,
+		service:     s,
+		planService: planService,
 	}
 }
 
@@ -46,7 +50,12 @@ func (h *ResultsHandler) GetPlanResults(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	results, err := h.service.GetLatestResultsForPlan(c.Request().Context(), &planId)
+	plan, err := h.planService.GetById(c.Request().Context(), planId.Hex())
+	if err != nil {
+		return c.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	results, err := h.service.GetLatestResultsForPlan(c.Request().Context(), plan)
 	if err != nil {
 		h.sugar.Error(err)
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -104,5 +113,41 @@ func (h *ResultsHandler) GetResult(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, GenericDataResponse[*domain.Result]{
 		Data: result,
+	})
+}
+
+// SearchResults godoc
+//
+//	@Summary		Search results using labels
+//	@Description	Returns singular result
+//	@Tags			Result
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Failure		500	{object}	api.Error
+//	@Router			/results/search [POST]
+func (h *ResultsHandler) SearchResults(ctx echo.Context) error {
+	// Initialize a new plan object
+	filter := &labelfilter.Filter{}
+
+	// Initialize a new createPlanRequest object
+	req := searchResultRequest{}
+
+	// Bind the incoming request to the plan object
+	// If there's an error, return a 422 status code with the error message
+	if err := req.bind(ctx, filter); err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	// Attempt to create the plan in the service
+	// If there's an error, return a 500 status code with the error message
+	results, err := h.service.Search(ctx.Request().Context(), filter)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// If everything went well, return a 201 status code with the ID of the created plan
+	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*domain.Result]{
+		Data: results,
 	})
 }

@@ -7,20 +7,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/compliance-framework/configuration-service/api"
+	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/compliance-framework/configuration-service/event/bus"
+	"github.com/compliance-framework/configuration-service/service"
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/zap"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compliance-framework/configuration-service/service"
 	"github.com/compliance-framework/configuration-service/tests"
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/zap"
 )
 
 func TestResultsApi(t *testing.T) {
@@ -34,20 +36,34 @@ type ResultsIntegrationSuite struct {
 func (suite *ResultsIntegrationSuite) TestGetPlanResults() {
 	suite.Run("A plan with no results return and empty data key", func() {
 		logger, _ := zap.NewProduction()
-		resultsHandler := NewResultsHandler(logger.Sugar(), service.NewResultsService(suite.MongoDatabase))
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(context.TODO(), bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		resultsHandler := NewResultsHandler(logger.Sugar(), service.NewResultsService(suite.MongoDatabase), service.NewPlanService(suite.MongoDatabase, bus.Publish))
 		server := api.NewServer(context.Background(), logger.Sugar())
 		resultsHandler.Register(server.API().Group("/results"))
-
 		// Create an empty plan
 		planService := service.NewPlanService(suite.MongoDatabase, bus.Publish)
 		planId, err := planService.Create(&domain.Plan{
 			Id: primitive.NewObjectID(),
+			ResultFilter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "foo",
+						Operator: "=",
+						Value:    "bar",
+					},
+				},
+			},
 		})
 		if err != nil {
 			suite.T().Fatal(err)
 		}
 
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/results/%s", planId), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/results/plan/%s", planId), nil)
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 
 		rec := httptest.NewRecorder()
@@ -65,33 +81,47 @@ func (suite *ResultsIntegrationSuite) TestGetPlanResults() {
 	suite.Run("A plan with a result returns it", func() {
 		logger, _ := zap.NewProduction()
 
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(context.TODO(), bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
 		// Create an empty plan
 		planService := service.NewPlanService(suite.MongoDatabase, bus.Publish)
 		planId, err := planService.Create(&domain.Plan{
 			Id: primitive.NewObjectID(),
+			ResultFilter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "foo",
+						Operator: "=",
+						Value:    "bar",
+					},
+				},
+			},
 		})
-		if err != nil {
-			suite.T().Fatal(err)
-		}
-		planIdPrimitive, err := primitive.ObjectIDFromHex(planId)
 		if err != nil {
 			suite.T().Fatal(err)
 		}
 
 		// Add a result
 		resultService := service.NewResultsService(suite.MongoDatabase)
-		resultService.Create(context.Background(), &domain.Result{
+		err = resultService.Create(context.Background(), &domain.Result{
 			StreamID: uuid.New(),
-			RelatedPlans: []*primitive.ObjectID{
-				&planIdPrimitive,
+			Labels: map[string]string{
+				"foo": "bar",
 			},
 		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
 
-		resultsHandler := NewResultsHandler(logger.Sugar(), resultService)
+		resultsHandler := NewResultsHandler(logger.Sugar(), resultService, planService)
 		server := api.NewServer(context.Background(), logger.Sugar())
 		resultsHandler.Register(server.API().Group("/results"))
 
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/results/%s", planId), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/results/plan/%s", planId), nil)
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 
 		rec := httptest.NewRecorder()

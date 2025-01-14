@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -75,6 +76,8 @@ type Plan struct {
 	ReviewedControls []ControlsAndObjectives `json:"reviewedControls" yaml:"reviewedControls"`
 	// TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.
 	TermsAndConditions []Part `json:"termsAndConditions" yaml:"termsAndConditions"`
+
+	ResultFilter labelfilter.Filter `json:"resultFilter" yaml:"resultFilter"`
 }
 
 // A PlanPrecis is a cut down version of a plan limited to one level so user can get a view of what the plan is about.

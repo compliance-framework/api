@@ -17,20 +17,20 @@ const (
 
 // ExecutionResult holds the result of an compliance check execution for each subject.
 type ExecutionResult struct {
-	Title        string          `json:"title" yaml:"title"`
-	Status       ExecutionStatus `json:"status" yaml:"status"`
-	StreamId     uuid.UUID       `json:"streamId" yaml:"streamId"`
-	AssessmentId string          `json:"assessmentId" yaml:"assessmentId"`
-	ComponentId  string          `json:"componentId" yaml:"componentId"`
-	ControlId    string          `json:"controlId" yaml:"controlId"`
-	TaskId       string          `json:"taskId" yaml:"taskId"`
-	ActivityId   string          `json:"activityId" yaml:"activityId"`
-	Error        error           `json:"error" yaml:"error"`
-	Subject      Subject         `json:"subject" yaml:"subject"`
-	Observations []Observation   `json:"observations" yaml:"observations"`
-	Findings     []Finding       `json:"findings" yaml:"findings"`
-	Risks        []Risk          `json:"risks" yaml:"risks"`
-	Logs         []LogEntry      `json:"logs" yaml:"logs"`
+	Title        string            `json:"title" yaml:"title"`
+	Status       ExecutionStatus   `json:"status" yaml:"status"`
+	StreamId     uuid.UUID         `json:"streamId" yaml:"streamId"`
+	ComponentId  string            `json:"componentId" yaml:"componentId"`
+	ControlId    string            `json:"controlId" yaml:"controlId"`
+	TaskId       string            `json:"taskId" yaml:"taskId"`
+	ActivityId   string            `json:"activityId" yaml:"activityId"`
+	Error        error             `json:"error" yaml:"error"`
+	Subject      Subject           `json:"subject" yaml:"subject"`
+	Observations []Observation     `json:"observations" yaml:"observations"`
+	Findings     []Finding         `json:"findings" yaml:"findings"`
+	Risks        []Risk            `json:"risks" yaml:"risks"`
+	Logs         []LogEntry        `json:"logs" yaml:"logs"`
+	Labels       map[string]string `json:"labels" yaml:"labels"`
 }
 
 type Observation struct {

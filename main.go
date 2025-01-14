@@ -72,7 +72,7 @@ func main() {
 	planHandler.Register(server.API().Group("/plan"))
 
 	resultService := service.NewResultsService(mongoDatabase)
-	resultHandler := handler.NewResultsHandler(sugar, resultService)
+	resultHandler := handler.NewResultsHandler(sugar, resultService, planService)
 	resultHandler.Register(server.API().Group("/results"))
 
 	resultProcessor := runtime.NewProcessor(bus.Subscribe[runtime.ExecutionResult], planService, resultService)

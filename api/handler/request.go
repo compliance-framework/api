@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/labstack/echo/v4"
@@ -62,7 +63,8 @@ func (r *CreateSSPRequest) bind(ctx echo.Context, ssp *domain.SystemSecurityPlan
 // createPlanRequest defines the request payload for method Create
 // TODO: Using minimal data for now, we might need to expand it later
 type createPlanRequest struct {
-	Title string `json:"title" yaml:"title" validate:"required"`
+	Title  string             `json:"title" yaml:"title" validate:"required"`
+	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 }
 
 func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
@@ -70,6 +72,21 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 		return err
 	}
 	p.Title = r.Title
+	p.ResultFilter = r.Filter
+	return nil
+}
+
+// createPlanRequest defines the request payload for method Create
+// TODO: Using minimal data for now, we might need to expand it later
+type searchResultRequest struct {
+	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
+}
+
+func (r *searchResultRequest) bind(ctx echo.Context, p *labelfilter.Filter) error {
+	if err := ctx.Bind(r); err != nil {
+		return err
+	}
+	p.Scope = r.Filter.Scope
 	return nil
 }
 

@@ -5,7 +5,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"slices"
@@ -86,17 +88,16 @@ func (suite *ResultIntegrationSuite) TestCreateResult() {
 		}
 	})
 
-	suite.Run("A result can be stored related to a plan", func() {
+	suite.Run("A result can be stored with labels", func() {
 		ctx := context.Background()
 		resultService := NewResultsService(suite.MongoDatabase)
 
 		planId := primitive.NewObjectID()
-		extraPanId := primitive.NewObjectID()
 		result := &domain.Result{
 			Title: "Result",
-			RelatedPlans: []*primitive.ObjectID{
-				&planId,
-				&extraPanId,
+			Labels: map[string]string{
+				"plan_id": planId.String(),
+				"foo":     "bar",
 			},
 		}
 		err := resultService.Create(ctx, result)
@@ -113,7 +114,7 @@ func (suite *ResultIntegrationSuite) TestCreateResult() {
 		}
 
 		search := bson.D{
-			{Key: "relatedPlans", Value: planId},
+			{Key: "labels.plan_id", Value: planId.String()},
 		}
 
 		count, err := suite.MongoDatabase.Collection("results").CountDocuments(ctx, search)
@@ -123,6 +124,435 @@ func (suite *ResultIntegrationSuite) TestCreateResult() {
 		if count != 1 {
 			suite.T().Fatalf("Expected to find one result in collection")
 		}
+	})
+}
+
+func (suite *ResultIntegrationSuite) TestResultSearch() {
+	suite.Run("Simple", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Create a few with sequential timestamps
+		streamId := uuid.New()
+		err = resultService.Create(ctx, &domain.Result{
+			Title:    "Testing Result #1",
+			StreamID: streamId,
+			End:      time.Now(),
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+		err = resultService.Create(ctx, &domain.Result{
+			Title:    "Testing Result #2",
+			StreamID: streamId,
+			End:      time.Now().Add(-time.Minute),
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 1, len(results))
+		assert.Equal(suite.T(), streamId, results[0].StreamID)
+		assert.Equal(suite.T(), "Testing Result #1", results[0].Title)
+	})
+
+	suite.Run("Multiple Streams", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Give us a consistent order
+		stream1 := uuid.MustParse("3dfae71a-a1a0-4b25-9abc-4cc6838a95bb")
+		stream2 := uuid.MustParse("c087f2c4-5dc5-4b16-9ddf-74610856976a")
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: stream1,
+				End:      time.Now(),
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: stream1,
+				End:      time.Now().Add(-time.Minute),
+			},
+			domain.Result{
+				Title:    "Res #2-#1",
+				StreamID: stream2,
+				End:      time.Now(),
+			},
+			domain.Result{
+				Title:    "Res #2-#2",
+				StreamID: stream2,
+				End:      time.Now().Add(-time.Minute),
+			},
+		})
+
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 2, len(results))
+		assert.Contains(suite.T(), []string{"Res #1-#1", "Res #2-#1"}, results[0].Title)
+		assert.Contains(suite.T(), []string{"Res #1-#1", "Res #2-#1"}, results[1].Title)
+	})
+
+	suite.Run("Simple Search", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: uuid.New(),
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+				},
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: uuid.New(),
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "baz",
+				},
+			},
+		})
+
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{
+			&labelfilter.Scope{
+				Condition: &labelfilter.Condition{
+					Label:    "foo",
+					Operator: "=",
+					Value:    "bar",
+				},
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 1, len(results))
+		assert.Equal(suite.T(), "Res #1-#1", results[0].Title)
+	})
+
+	suite.Run("Simple Negated Search", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Give us a consistent order
+		stream1 := uuid.MustParse("3dfae71a-a1a0-4b25-9abc-4cc6838a95bb")
+		stream2 := uuid.MustParse("c087f2c4-5dc5-4b16-9ddf-74610856976a")
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: stream1,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+				},
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: stream2,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "baz",
+				},
+			},
+		})
+
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Condition: &labelfilter.Condition{
+					Label:    "foo",
+					Operator: "!=",
+					Value:    "bar",
+				},
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 1, len(results))
+		assert.Equal(suite.T(), "Res #1-#2", results[0].Title)
+	})
+
+	suite.Run("Complexer query", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Give us a consistent order
+		stream1 := uuid.MustParse("3dfae71a-a1a0-4b25-9abc-4cc6838a95bb")
+		stream2 := uuid.MustParse("c087f2c4-5dc5-4b16-9ddf-74610856976a")
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: stream1,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+				},
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: stream2,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "baz",
+				},
+			},
+		})
+
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Query: &labelfilter.Query{
+					Operator: "OR",
+					Scopes: []labelfilter.Scope{
+						{
+							Condition: &labelfilter.Condition{
+								Label:    "foo",
+								Operator: "=",
+								Value:    "bar",
+							},
+						},
+						{
+							Condition: &labelfilter.Condition{
+								Label:    "foo",
+								Operator: "=",
+								Value:    "baz",
+							},
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 2, len(results))
+		assert.Contains(suite.T(), []string{"Res #1-#1", "Res #1-#2"}, results[0].Title)
+		assert.Contains(suite.T(), []string{"Res #1-#1", "Res #1-#2"}, results[1].Title)
+	})
+
+	suite.Run("Complex sub query", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Give us a consistent order
+		stream1 := uuid.MustParse("3dfae71a-a1a0-4b25-9abc-4cc6838a95bb")
+		stream2 := uuid.MustParse("c087f2c4-5dc5-4b16-9ddf-74610856976a")
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: stream1,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+					"bar": "baz",
+				},
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: stream2,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+					"baz": "bat",
+				},
+			},
+		})
+
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Query: &labelfilter.Query{
+					Operator: "and",
+					Scopes: []labelfilter.Scope{
+						{
+							Condition: &labelfilter.Condition{
+								Label:    "foo",
+								Operator: "=",
+								Value:    "bar",
+							},
+						},
+						{
+							Query: &labelfilter.Query{
+								Operator: "or",
+								Scopes: []labelfilter.Scope{
+									{
+										Condition: &labelfilter.Condition{
+											Label:    "bar",
+											Operator: "=",
+											Value:    "baz",
+										},
+									},
+									{
+										Condition: &labelfilter.Condition{
+											Label:    "baz",
+											Operator: "=",
+											Value:    "bat",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 2, len(results))
+		assert.Contains(suite.T(), []string{"Res #1-#1", "Res #1-#2"}, results[0].Title)
+		assert.Contains(suite.T(), []string{"Res #1-#1", "Res #1-#2"}, results[1].Title)
+	})
+
+	suite.Run("Complex sub query with negation", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// Give us a consistent order
+		stream1 := uuid.MustParse("3dfae71a-a1a0-4b25-9abc-4cc6838a95bb")
+		stream2 := uuid.MustParse("c087f2c4-5dc5-4b16-9ddf-74610856976a")
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: stream1,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+					"bar": "baz",
+				},
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: stream2,
+				End:      time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+					"baz": "bat",
+				},
+			},
+		})
+
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		results, err := resultService.Search(ctx, &labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Query: &labelfilter.Query{
+					Operator: "and",
+					Scopes: []labelfilter.Scope{
+						{
+							Condition: &labelfilter.Condition{
+								Label:    "foo",
+								Operator: "=",
+								Value:    "bar",
+							},
+						},
+						{
+							Query: &labelfilter.Query{
+								Operator: "and",
+								Scopes: []labelfilter.Scope{
+									{
+										Condition: &labelfilter.Condition{
+											Label:    "bar",
+											Operator: "!=",
+											Value:    "baz",
+										},
+									},
+									{
+										Condition: &labelfilter.Condition{
+											Label:    "bar",
+											Operator: "!=",
+											Value:    "baz",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Equal(suite.T(), 1, len(results))
+		assert.Equal(suite.T(), "Res #1-#2", results[0].Title)
 	})
 }
 
@@ -170,20 +600,24 @@ func (suite *ResultIntegrationSuite) TestResultStreams() {
 		ctx := context.Background()
 		resultService := NewResultsService(suite.MongoDatabase)
 
-		var err error
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
 		var streamId uuid.UUID
-		planId := primitive.NewObjectID()
 		latestResults := make([]primitive.ObjectID, 0)
 		for i := range 2 {
 			streamId = uuid.New()
 			err = resultService.Create(ctx, &domain.Result{
 				Title:    fmt.Sprintf("Older result #%d", i),
 				StreamID: streamId,
-				RelatedPlans: []*primitive.ObjectID{
-					&planId,
-				},
 				// Older result
 				End: time.Now().Add(-1 * time.Hour),
+				Labels: map[string]string{
+					"foo": "bar",
+				},
 			})
 			if err != nil {
 				suite.T().Fatal(err)
@@ -194,18 +628,29 @@ func (suite *ResultIntegrationSuite) TestResultStreams() {
 				Id:       &newResultId,
 				Title:    fmt.Sprintf("Result #%d", i),
 				StreamID: streamId,
-				RelatedPlans: []*primitive.ObjectID{
-					&planId,
-				},
 				// Older result
 				End: time.Now(),
+				Labels: map[string]string{
+					"foo": "bar",
+				},
 			})
 			if err != nil {
 				suite.T().Fatal(err)
 			}
 		}
 
-		results, err := resultService.GetLatestResultsForPlan(ctx, &planId)
+		results, err := resultService.GetLatestResultsForPlan(ctx, &domain.Plan{
+			ResultFilter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "foo",
+						Operator: "=",
+						Value:    "bar",
+					},
+				},
+			},
+		})
+
 		if err != nil {
 			suite.T().Fatal(err)
 		}
@@ -234,10 +679,10 @@ func (suite *ResultIntegrationSuite) TestLatestStreamResult() {
 		latestResult := &domain.Result{
 			Title:    fmt.Sprintf("Latest result"),
 			StreamID: streamId,
-			RelatedPlans: []*primitive.ObjectID{
-				&planId,
+			End:      time.Now(),
+			Labels: map[string]string{
+				"plan_id": planId.String(),
 			},
-			End: time.Now(),
 		}
 
 		// The actual latest result
@@ -251,9 +696,6 @@ func (suite *ResultIntegrationSuite) TestLatestStreamResult() {
 			err = resultService.Create(ctx, &domain.Result{
 				Title:    fmt.Sprintf("Older result #%d", i),
 				StreamID: streamId,
-				RelatedPlans: []*primitive.ObjectID{
-					&planId,
-				},
 				// Older results
 				End: time.Now().Add(-time.Duration(1) * time.Hour),
 			})
@@ -284,10 +726,10 @@ func (suite *ResultIntegrationSuite) TestGetResult() {
 		latestResult := &domain.Result{
 			Title:    fmt.Sprintf("Latest result"),
 			StreamID: streamId,
-			RelatedPlans: []*primitive.ObjectID{
-				&planId,
+			End:      time.Now(),
+			Labels: map[string]string{
+				"plan_id": planId.String(),
 			},
-			End: time.Now(),
 		}
 
 		// The actual latest result

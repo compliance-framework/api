@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/compliance-framework/configuration-service/domain"
@@ -128,12 +127,6 @@ func (r *Processor) Listen() {
 				}
 			}
 
-			planId, err := primitive.ObjectIDFromHex(msg.AssessmentId)
-			if err != nil {
-				log.Print(err)
-				planId = primitive.NilObjectID
-			}
-
 			// TODO: Start and End times should arrive from the runtime inside the message
 			result := domain.Result{
 				Title:         msg.Title,
@@ -144,9 +137,7 @@ func (r *Processor) Listen() {
 				Start:         time.Now(),
 				End:           time.Now(),
 				StreamID:      msg.StreamId,
-				RelatedPlans: []*primitive.ObjectID{
-					&planId,
-				},
+				Labels:        msg.Labels,
 			}
 
 			err = r.resultService.Create(context.TODO(), &result)

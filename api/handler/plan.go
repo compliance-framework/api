@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/api"
@@ -66,8 +64,12 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 	}
 
 	// If everything went well, return a 201 status code with the ID of the created plan
-	return ctx.JSON(http.StatusCreated, idResponse{
-		Id: id,
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[PlanResponse]{
+		Data: PlanResponse{
+			Id:     id,
+			Title:  p.Title,
+			Filter: p.ResultFilter,
+		},
 	})
 }
 
@@ -79,16 +81,12 @@ func (h *PlanHandler) CreatePlan(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id	path		string	true	"Plan ID"
-//	@Success		200	{object}	domain.Plan
+//	@Success		200	{object}	handler.GenericDataResponse[PlanResponse]
 //	@Failure		401	{object}	api.Error
 //	@Failure		422	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/plan/:id [get]
 func (h *PlanHandler) GetPlan(ctx echo.Context) error {
-	log.Println("GetPlan")
-	fmt.Println(ctx.ParamNames())
-	fmt.Println(ctx.ParamValues())
-	log.Println("###", ctx.Param("id"), "###", ctx.Get("id"), "###", ctx.Path())
 	plan, err := h.service.GetById(ctx.Request().Context(), ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -96,7 +94,13 @@ func (h *PlanHandler) GetPlan(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NotFound())
 	}
 
-	return ctx.JSON(http.StatusOK, plan)
+	return ctx.JSON(http.StatusOK, GenericDataResponse[PlanResponse]{
+		Data: PlanResponse{
+			Id:     plan.Id.String(),
+			Title:  plan.Title,
+			Filter: plan.ResultFilter,
+		},
+	})
 }
 
 // CreateTask godoc

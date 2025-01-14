@@ -535,7 +535,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/domain.Plan"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PlanResponse"
                         }
                     },
                     "401": {
@@ -832,6 +832,35 @@ const docTemplate = `{
                     "Result"
                 ],
                 "summary": "Gets a plan's results",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/results/search": {
+            "post": {
+                "description": "Returns singular result",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Result"
+                ],
+                "summary": "Search results using labels",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1154,53 +1183,6 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Activity": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "provider": {
-                    "$ref": "#/definitions/domain.Provider"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsibleRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "steps": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Step"
-                    }
-                },
-                "subjects": {
-                    "$ref": "#/definitions/domain.SubjectSelection"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "domain.Actor": {
             "type": "object",
             "properties": {
@@ -1248,25 +1230,6 @@ const docTemplate = `{
                 "ActorTypeAssessmentPlatform",
                 "ActorTypeParty"
             ]
-        },
-        "domain.Assets": {
-            "type": "object",
-            "properties": {
-                "components": {
-                    "description": "Reference to component.Component",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "platforms": {
-                    "description": "Used to represent the toolset used to perform aspects of the assessment.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
         },
         "domain.Attestation": {
             "type": "object",
@@ -2377,79 +2340,6 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Plan": {
-            "type": "object",
-            "properties": {
-                "assets": {
-                    "description": "The following fields are part of the OSCAL spec, but we don't use them yet.\nAssets Identifies the assets used to perform this assessment, such as the assessment team, scanning tools, and assumptions. Mostly CF in our case.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.Assets"
-                        }
-                    ]
-                },
-                "backMatter": {
-                    "description": "BackMatter A collection of resources that may be referenced from within the OSCAL document instance.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.BackMatter"
-                        }
-                    ]
-                },
-                "id": {
-                    "type": "string"
-                },
-                "importSSP": {
-                    "description": "Reference to a System Security Plan",
-                    "type": "string"
-                },
-                "localDefinitions": {
-                    "description": "LocalDefinitions Used to define data objects that are used in the assessment plan, that do not appear in the referenced SSP.\nReference to LocalDefinition",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.LocalDefinition"
-                        }
-                    ]
-                },
-                "metadata": {
-                    "description": "We might switch to struct embedding for fields like Metadata, Props, etc.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.Metadata"
-                        }
-                    ]
-                },
-                "reviewedControls": {
-                    "description": "ReviewedControls Identifies the controls being assessed and their control objectives.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.ControlsAndObjectives"
-                    }
-                },
-                "status": {
-                    "description": "Status The status of the assessment plan, such as \"active\" or \"inactive\".\nThese statuses are subject to change.",
-                    "type": "string"
-                },
-                "tasks": {
-                    "description": "Tasks Represents a scheduled event or milestone, which may be associated with a series of assessment actions.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Task"
-                    }
-                },
-                "termsAndConditions": {
-                    "description": "TermsAndConditions Used to define various terms and conditions under which an assessment, described by the plan, can be performed. Each child part defines a different type of term or condition.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Part"
-                    }
-                },
-                "title": {
-                    "description": "Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.",
-                    "type": "string"
-                }
-            }
-        },
         "domain.PlanPrecis": {
             "type": "object",
             "properties": {
@@ -2481,26 +2371,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Provider": {
-            "type": "object",
-            "properties": {
-                "configuration": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "image": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "tag": {
                     "type": "string"
                 }
             }
@@ -2636,6 +2506,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.Finding"
                     }
                 },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "links": {
                     "type": "array",
                     "items": {
@@ -2655,12 +2531,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "relatedPlans": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
                     }
                 },
                 "remarks": {
@@ -2907,90 +2777,6 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Step": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsibleRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.SubjectMatchExpression": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "operator": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.SubjectSelection": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "expressions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.SubjectMatchExpression"
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "query": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "domain.SystemCharacteristics": {
             "type": "object",
             "properties": {
@@ -3193,94 +2979,6 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Task": {
-            "type": "object",
-            "properties": {
-                "activities": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Activity"
-                    }
-                },
-                "dependencies": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.TaskDependency"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsibleRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "schedule": {
-                    "type": "string"
-                },
-                "subjects": {
-                    "description": "Subjects hold all the subjects that the activities act upon.\nTODO: Should this be []Subject?",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/domain.TaskType"
-                }
-            }
-        },
-        "domain.TaskDependency": {
-            "type": "object",
-            "properties": {
-                "remarks": {
-                    "type": "string"
-                },
-                "taskUuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.TaskType": {
-            "type": "string",
-            "enum": [
-                "milestone",
-                "action"
-            ],
-            "x-enum-varnames": [
-                "TaskTypeMilestone",
-                "TaskTypeAction"
-            ]
-        },
         "handler.CreateSSPRequest": {
             "type": "object",
             "required": [
@@ -3314,6 +3012,33 @@ const docTemplate = `{
                             "$ref": "#/definitions/domain.Result"
                         }
                     ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_PlanResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.PlanResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.PlanResponse": {
+            "type": "object",
+            "properties": {
+                "filter": {
+                    "$ref": "#/definitions/labelfilter.Filter"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
@@ -3561,9 +3286,13 @@ const docTemplate = `{
         "handler.createPlanRequest": {
             "type": "object",
             "required": [
+                "filter",
                 "title"
             ],
             "properties": {
+                "filter": {
+                    "$ref": "#/definitions/labelfilter.Filter"
+                },
                 "title": {
                     "type": "string"
                 }
@@ -3598,6 +3327,58 @@ const docTemplate = `{
                 "id": {
                     "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
                     "type": "string"
+                }
+            }
+        },
+        "labelfilter.Condition": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "description": "Label name (e.g., \"type\", \"group\", \"app\").",
+                    "type": "string"
+                },
+                "operator": {
+                    "description": "Operator (e.g., \"=\", \"!=\", etc.).",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value for the condition (e.g., \"ssh\", \"prod\").",
+                    "type": "string"
+                }
+            }
+        },
+        "labelfilter.Filter": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "$ref": "#/definitions/labelfilter.Scope"
+                }
+            }
+        },
+        "labelfilter.Query": {
+            "type": "object",
+            "properties": {
+                "operator": {
+                    "description": "Logical operator (e.g., \"AND\", \"OR\").",
+                    "type": "string"
+                },
+                "scopes": {
+                    "description": "Scopes can be either ` + "`" + `Condition` + "`" + ` or nested ` + "`" + `Query` + "`" + `.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/labelfilter.Scope"
+                    }
+                }
+            }
+        },
+        "labelfilter.Scope": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "$ref": "#/definitions/labelfilter.Condition"
+                },
+                "query": {
+                    "$ref": "#/definitions/labelfilter.Query"
                 }
             }
         }

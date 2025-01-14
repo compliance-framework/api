@@ -32,7 +32,7 @@ func (s *PlanService) GetById(ctx context.Context, id string) (*Plan, error) {
 		return nil, err
 	}
 
-	output := s.planCollection.FindOne(ctx, bson.M{"_id": objectId})
+	output := s.planCollection.FindOne(ctx, bson.D{bson.E{Key: "_id", Value: objectId}})
 	if output.Err() != nil {
 		return nil, output.Err()
 	}

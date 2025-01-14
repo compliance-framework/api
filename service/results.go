@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/domain"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -62,6 +63,48 @@ func (s *ResultsService) GetAll(ctx context.Context) ([]*domain.Result, error) {
 	return results, nil
 }
 
+func (s *ResultsService) Search(ctx context.Context, filter *labelfilter.Filter) ([]*domain.Result, error) {
+	mongoFilter := labelfilter.MongoFromFilter(*filter)
+	pipeline := mongo.Pipeline{
+		// Match documents related to the specific plan
+		bson.D{{Key: "$match", Value: mongoFilter.GetQuery()}},
+		// Sort by StreamID and End descending to get the latest result first
+		{{Key: "$sort", Value: bson.D{
+			{Key: "streamId", Value: 1}, // Group by StreamID
+			{Key: "end", Value: -1},     // Latest result first
+		}}},
+		// Group by StreamID, taking the first document (latest due to sorting)
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$streamId"}, // Group by streamId
+			{Key: "latestResult", Value: bson.D{
+				{Key: "$first", Value: "$$ROOT"}, // The latest result
+			}},
+		}}},
+	}
+	// Execute aggregation
+	cursor, err := s.resultsCollection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	results := make([]*struct {
+		Id     uuid.UUID     `bson:"_id"`
+		Record domain.Result `bson:"latestResult"`
+	}, 0)
+	err = cursor.All(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+
+	output := make([]*domain.Result, 0)
+	for _, result := range results {
+		output = append(output, &result.Record)
+	}
+
+	return output, nil
+}
+
 func (s *ResultsService) GetAllForStream(ctx context.Context, streamId uuid.UUID) (results []*domain.Result, err error) {
 	cursor, err := s.resultsCollection.Find(ctx, bson.D{
 		bson.E{Key: "streamId", Value: streamId},
@@ -92,13 +135,13 @@ func (s *ResultsService) GetLatestResultForStream(ctx context.Context, streamId 
 	return &result, err
 }
 
-func (s *ResultsService) GetLatestResultsForPlan(ctx context.Context, planId *primitive.ObjectID) ([]*domain.Result, error) {
+func (s *ResultsService) GetLatestResultsForPlan(ctx context.Context, plan *domain.Plan) ([]*domain.Result, error) {
+
+	mongoFilter := labelfilter.MongoFromFilter(plan.ResultFilter)
 	// Aggregation pipeline
 	pipeline := mongo.Pipeline{
 		// Match documents related to the specific plan
-		{{Key: "$match", Value: bson.D{
-			{Key: "relatedPlans", Value: planId},
-		}}},
+		bson.D{{Key: "$match", Value: mongoFilter.GetQuery()}},
 		// Sort by StreamID and End descending to get the latest result first
 		{{Key: "$sort", Value: bson.D{
 			{Key: "streamId", Value: 1}, // Group by StreamID
