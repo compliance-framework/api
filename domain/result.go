@@ -119,15 +119,15 @@ type Finding struct {
 	Description string             `json:"description,omitempty" yaml:"description,omitempty"`
 	Props       []Property         `json:"props,omitempty" yaml:"props,omitempty"`
 	Links       []Link             `json:"links,omitempty" yaml:"links,omitempty"`
+	Tasks       []Task             `json:"tasks,omitempty" yaml:"tasks,omitempty"`
 	Remarks     string             `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 
 	// ImplementationStatementId Reference to the implementation statement in the SSP to which this finding is related.
 	ImplementationStatementId primitive.ObjectID `json:"implementationStatementId" yaml:"implementationStatementId"`
 
-	// Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+	// Actors identify the source of the finding, such as a tool, interviewed person, or activity
 	// Maps to the OSCAL "origins" property
 	Actors []primitive.ObjectID `json:"originActors" yaml:"originActors"`
-	Tasks  []primitive.ObjectID `json:"relatedTasks" yaml:"relatedTasks"`
 
 	TargetId primitive.ObjectID `json:"target" yaml:"target"`
 

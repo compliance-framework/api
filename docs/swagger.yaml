@@ -35,6 +35,43 @@ definitions:
       type:
         type: string
     type: object
+  domain.Activity:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      provider:
+        $ref: '#/definitions/domain.Provider'
+      remarks:
+        type: string
+      responsibleRoles:
+        items:
+          type: string
+        type: array
+      steps:
+        items:
+          $ref: '#/definitions/domain.Step'
+        type: array
+      subjects:
+        $ref: '#/definitions/domain.SubjectSelection'
+      title:
+        type: string
+      tools:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+    type: object
   domain.Actor:
     properties:
       description:
@@ -373,7 +410,7 @@ definitions:
         type: array
       originActors:
         description: |-
-          Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity
+          Actors identify the source of the finding, such as a tool, interviewed person, or activity
           Maps to the OSCAL "origins" property
         items:
           type: string
@@ -390,16 +427,16 @@ definitions:
         items:
           type: string
         type: array
-      relatedTasks:
-        items:
-          type: string
-        type: array
       remarks:
         type: string
       status:
         type: string
       target:
         type: string
+      tasks:
+        items:
+          $ref: '#/definitions/domain.Task'
+        type: array
       title:
         type: string
     type: object
@@ -857,6 +894,19 @@ definitions:
       value:
         type: string
     type: object
+  domain.Provider:
+    properties:
+      configuration:
+        additionalProperties:
+          type: string
+        type: object
+      image:
+        type: string
+      name:
+        type: string
+      tag:
+        type: string
+    type: object
   domain.Resource:
     properties:
       base64:
@@ -1131,6 +1181,61 @@ definitions:
       includeAll:
         type: boolean
     type: object
+  domain.Step:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      responsibleRoles:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
+  domain.SubjectMatchExpression:
+    properties:
+      key:
+        type: string
+      operator:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  domain.SubjectSelection:
+    properties:
+      description:
+        type: string
+      expressions:
+        items:
+          $ref: '#/definitions/domain.SubjectMatchExpression'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      query:
+        type: string
+      title:
+        type: string
+    type: object
   domain.SystemCharacteristics:
     properties:
       actions:
@@ -1272,6 +1377,67 @@ definitions:
       uuid:
         type: string
     type: object
+  domain.Task:
+    properties:
+      activities:
+        items:
+          $ref: '#/definitions/domain.Activity'
+        type: array
+      dependencies:
+        items:
+          $ref: '#/definitions/domain.TaskDependency'
+        type: array
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/domain.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/domain.Property'
+        type: array
+      remarks:
+        type: string
+      responsibleRoles:
+        items:
+          type: string
+        type: array
+      schedule:
+        type: string
+      subjects:
+        description: |-
+          Subjects hold all the subjects that the activities act upon.
+          TODO: Should this be []Subject?
+        items:
+          type: string
+        type: array
+      tasks:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/domain.TaskType'
+    type: object
+  domain.TaskDependency:
+    properties:
+      remarks:
+        type: string
+      taskUuid:
+        type: string
+    type: object
+  domain.TaskType:
+    enum:
+    - milestone
+    - action
+    type: string
+    x-enum-varnames:
+    - TaskTypeMilestone
+    - TaskTypeAction
   handler.CreateSSPRequest:
     properties:
       title:

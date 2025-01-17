@@ -60,6 +60,7 @@ type Finding struct {
 	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
 	Props       []domain.Property `json:"props,omitempty" yaml:"props,omitempty"`
 	Links       []domain.Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Tasks       []domain.Task     `json:"tasks,omitempty" yaml:"tasks,omitempty"`
 	Remarks     string            `json:"remarks,omitempty" yaml:"remarks,omitempty"`
 	Status      string            `json:"status,omitempty" yaml:"status,omitempty"`
 	SubjectId   string            `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`

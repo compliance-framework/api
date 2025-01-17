@@ -1183,6 +1183,62 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Activity": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "provider": {
+                    "$ref": "#/definitions/domain.Provider"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Step"
+                    }
+                },
+                "subjects": {
+                    "$ref": "#/definitions/domain.SubjectSelection"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Actor": {
             "type": "object",
             "properties": {
@@ -1675,7 +1731,7 @@ const docTemplate = `{
                     }
                 },
                 "originActors": {
-                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity\nMaps to the OSCAL \"origins\" property",
+                    "description": "Actors identify the source of the finding, such as a tool, interviewed person, or activity\nMaps to the OSCAL \"origins\" property",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -1699,12 +1755,6 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "relatedTasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "remarks": {
                     "type": "string"
                 },
@@ -1713,6 +1763,12 @@ const docTemplate = `{
                 },
                 "target": {
                     "type": "string"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Task"
+                    }
                 },
                 "title": {
                     "type": "string"
@@ -2375,6 +2431,26 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Provider": {
+            "type": "object",
+            "properties": {
+                "configuration": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "image": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Resource": {
             "type": "object",
             "properties": {
@@ -2777,6 +2853,90 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Step": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SubjectMatchExpression": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.SubjectSelection": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expressions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.SubjectMatchExpression"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "query": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.SystemCharacteristics": {
             "type": "object",
             "properties": {
@@ -2978,6 +3138,94 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "domain.Task": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Activity"
+                    }
+                },
+                "dependencies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.TaskDependency"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleRoles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "description": "Subjects hold all the subjects that the activities act upon.\nTODO: Should this be []Subject?",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/domain.TaskType"
+                }
+            }
+        },
+        "domain.TaskDependency": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string"
+                },
+                "taskUuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TaskType": {
+            "type": "string",
+            "enum": [
+                "milestone",
+                "action"
+            ],
+            "x-enum-varnames": [
+                "TaskTypeMilestone",
+                "TaskTypeAction"
+            ]
         },
         "handler.CreateSSPRequest": {
             "type": "object",

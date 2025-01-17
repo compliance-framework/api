@@ -408,6 +408,8 @@ type Activity struct {
 	ResponsibleRoles []string           `json:"responsibleRoles" yaml:"responsibleRoles"`
 	Subjects         SubjectSelection   `json:"subjects" yaml:"subjects"`
 	Provider         Provider           `json:"provider" yaml:"provider"`
+	Type             string             `json:"type" yaml:"type"`
+	Tools            []string           `json:"tools" yaml:"tools"`
 }
 
 type Step struct {

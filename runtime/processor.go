@@ -107,6 +107,7 @@ func (r *Processor) Listen() {
 					Description: f.Description,
 					Props:       f.Props,
 					Links:       f.Links,
+					Tasks:       f.Tasks,
 					Remarks:     f.Remarks,
 					Status:      f.Status,
 					TargetId:    subject.Id,
@@ -139,6 +140,8 @@ func (r *Processor) Listen() {
 				StreamID:      msg.StreamId,
 				Labels:        msg.Labels,
 			}
+
+			fmt.Printf("Plumbed message: %v\n", msg)
 
 			err = r.resultService.Create(context.TODO(), &result)
 			if err != nil {
