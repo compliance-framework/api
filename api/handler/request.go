@@ -78,11 +78,11 @@ func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
 
 // createPlanRequest defines the request payload for method Create
 // TODO: Using minimal data for now, we might need to expand it later
-type searchResultRequest struct {
+type filteredSearchRequest struct {
 	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 }
 
-func (r *searchResultRequest) bind(ctx echo.Context, p *labelfilter.Filter) error {
+func (r *filteredSearchRequest) bind(ctx echo.Context, p *labelfilter.Filter) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}

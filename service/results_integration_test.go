@@ -747,3 +747,81 @@ func (suite *ResultIntegrationSuite) TestGetResult() {
 		}
 	})
 }
+
+func (suite *ResultIntegrationSuite) TestGetIntervalledComplianceReport() {
+	suite.Run("Results are correctly intervalled", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		streamId := uuid.New()
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: streamId,
+				End:      time.Now().Add(-1 * time.Second),
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: streamId,
+				End:      time.Now().Add(-6 * time.Minute), // 5 minutes later to be in next interval
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// The actual latest result
+		intervalRecords, err := resultService.GetIntervalledComplianceReportForFilter(ctx, &labelfilter.Filter{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Len(suite.T(), intervalRecords, 1)
+		assert.Len(suite.T(), intervalRecords[0].Records, 2)
+		assert.Equal(suite.T(), intervalRecords[0].ID, streamId)
+		assert.Equal(suite.T(), "Res #1-#2", intervalRecords[0].Records[0].Title)
+		assert.Equal(suite.T(), "Res #1-#1", intervalRecords[0].Records[1].Title)
+	})
+	suite.Run("Results are filled when empty", func() {
+		ctx := context.Background()
+		resultService := NewResultsService(suite.MongoDatabase)
+
+		// Clear out all the existing results
+		_, err := suite.MongoDatabase.Collection("results").DeleteMany(ctx, bson.M{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		streamId := uuid.New()
+		_, err = suite.MongoDatabase.Collection("results").InsertMany(ctx, []interface{}{
+			domain.Result{
+				Title:    "Res #1-#1",
+				StreamID: streamId,
+				End:      time.Now().Add(-1 * time.Second),
+			},
+			domain.Result{
+				Title:    "Res #1-#2",
+				StreamID: streamId,
+				End:      time.Now().Add(-15 * time.Minute), // 5 minutes later to be in next interval
+			},
+		})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		// The actual latest result
+		intervalRecords, err := resultService.GetIntervalledComplianceReportForFilter(ctx, &labelfilter.Filter{})
+		if err != nil {
+			suite.T().Fatal(err)
+		}
+
+		assert.Len(suite.T(), intervalRecords, 1)
+		assert.Len(suite.T(), intervalRecords[0].Records, 4)
+	})
+}

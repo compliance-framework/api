@@ -1453,6 +1453,14 @@ definitions:
           $ref: '#/definitions/domain.Result'
         type: array
     type: object
+  handler.GenericDataListResponse-service_StreamRecords:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.StreamRecords'
+        type: array
+    type: object
   handler.GenericDataResponse-domain_Result:
     properties:
       data:
@@ -1707,6 +1715,28 @@ definitions:
         $ref: '#/definitions/labelfilter.Condition'
       query:
         $ref: '#/definitions/labelfilter.Query'
+    type: object
+  service.IntervalledRecord:
+    properties:
+      findings:
+        type: integer
+      hasRecords:
+        type: boolean
+      interval:
+        type: string
+      observations:
+        type: integer
+      title:
+        type: string
+    type: object
+  service.StreamRecords:
+    properties:
+      _id:
+        type: string
+      records:
+        items:
+          $ref: '#/definitions/service.IntervalledRecord'
+        type: array
     type: object
 externalDocs:
   description: OpenAPI
@@ -2274,19 +2304,19 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns singular result
+      description: Returns the compliance over time records for a particular streamId
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+            $ref: '#/definitions/handler.GenericDataListResponse-service_StreamRecords'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Search results using labels
+      summary: Get Compliance Over Time for stream
       tags:
       - Result
   /results/stream/:stream:

@@ -1,16 +1,15 @@
 package handler
 
 import (
+	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/domain"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"net/http"
-
-	"github.com/compliance-framework/configuration-service/api"
 	"github.com/compliance-framework/configuration-service/service"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 type ResultsHandler struct {
@@ -24,6 +23,8 @@ func (h *ResultsHandler) Register(api *echo.Group) {
 	api.GET("/plan/:plan", h.GetPlanResults)
 	api.GET("/stream/:stream", h.GetStreamResults)
 	api.POST("/search", h.SearchResults)
+	api.POST("/compliance-by-search", h.ComplianceOverTimeBySearch)
+	api.POST("/compliance-by-stream", h.ComplianceOverTimeByStream)
 }
 
 func NewResultsHandler(l *zap.SugaredLogger, s *service.ResultsService, planService *service.PlanService) *ResultsHandler {
@@ -130,8 +131,7 @@ func (h *ResultsHandler) SearchResults(ctx echo.Context) error {
 	// Initialize a new plan object
 	filter := &labelfilter.Filter{}
 
-	// Initialize a new createPlanRequest object
-	req := searchResultRequest{}
+	req := filteredSearchRequest{}
 
 	// Bind the incoming request to the plan object
 	// If there's an error, return a 422 status code with the error message
@@ -148,6 +148,74 @@ func (h *ResultsHandler) SearchResults(ctx echo.Context) error {
 
 	// If everything went well, return a 201 status code with the ID of the created plan
 	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*domain.Result]{
+		Data: results,
+	})
+}
+
+// ComplianceOverTimeBySearch godoc
+//
+//	@Summary		Get Compliance Over Time for Search query
+//	@Description	Returns the compliance over time records for a particular search query
+//	@Tags			Result
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[service.StreamRecords]
+//	@Failure		500	{object}	api.Error
+//	@Router			/results/search [POST]
+func (h *ResultsHandler) ComplianceOverTimeBySearch(ctx echo.Context) error {
+	// Initialize a new plan object
+	filter := &labelfilter.Filter{}
+
+	// Initialize a new createPlanRequest object
+	req := filteredSearchRequest{}
+
+	// Bind the incoming request to the plan object
+	// If there's an error, return a 422 status code with the error message
+	if err := req.bind(ctx, filter); err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	// Attempt to create the plan in the service
+	// If there's an error, return a 500 status code with the error message
+	results, err := h.service.GetIntervalledComplianceReportForFilter(ctx.Request().Context(), filter)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// If everything went well, return a 201 status code with the ID of the created plan
+	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*service.StreamRecords]{
+		Data: results,
+	})
+}
+
+// ComplianceOverTimeByStream godoc
+//
+//	@Summary		Get Compliance Over Time for stream
+//	@Description	Returns the compliance over time records for a particular streamId
+//	@Tags			Result
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[service.StreamRecords]
+//	@Failure		500	{object}	api.Error
+//	@Router			/results/search [POST]
+func (h *ResultsHandler) ComplianceOverTimeByStream(ctx echo.Context) error {
+	// Initialize a new plan object
+	req := &struct {
+		Stream uuid.UUID `json:"streamId,omitempty"`
+	}{}
+	err := ctx.Bind(req)
+	if err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	// Attempt to create the plan in the service
+	// If there's an error, return a 500 status code with the error message
+	results, err := h.service.GetIntervalledComplianceReportForStream(ctx.Request().Context(), req.Stream)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	//// If everything went well, return a 201 status code with the ID of the created plan
+	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*service.StreamRecords]{
 		Data: results,
 	})
 }

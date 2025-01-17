@@ -850,7 +850,7 @@ const docTemplate = `{
         },
         "/results/search": {
             "post": {
-                "description": "Returns singular result",
+                "description": "Returns the compliance over time records for a particular streamId",
                 "consumes": [
                     "application/json"
                 ],
@@ -860,12 +860,12 @@ const docTemplate = `{
                 "tags": [
                     "Result"
                 ],
-                "summary": "Search results using labels",
+                "summary": "Get Compliance Over Time for stream",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StreamRecords"
                         }
                     },
                     "500": {
@@ -3250,6 +3250,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-service_StreamRecords": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.StreamRecords"
+                    }
+                }
+            }
+        },
         "handler.GenericDataResponse-domain_Result": {
             "type": "object",
             "properties": {
@@ -3627,6 +3639,40 @@ const docTemplate = `{
                 },
                 "query": {
                     "$ref": "#/definitions/labelfilter.Query"
+                }
+            }
+        },
+        "service.IntervalledRecord": {
+            "type": "object",
+            "properties": {
+                "findings": {
+                    "type": "integer"
+                },
+                "hasRecords": {
+                    "type": "boolean"
+                },
+                "interval": {
+                    "type": "string"
+                },
+                "observations": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.StreamRecords": {
+            "type": "object",
+            "properties": {
+                "_id": {
+                    "type": "string"
+                },
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.IntervalledRecord"
+                    }
                 }
             }
         }
