@@ -17,6 +17,8 @@ type IntervalledRecord struct {
 	Title        string    `json:"title" bson:"title"`
 	Interval     time.Time `json:"interval"`
 	Findings     uint      `json:"findings"`
+	FindingsPass uint      `json:"findings_pass" bson:"findings_pass"`
+	FindingsFail uint      `json:"findings_fail" bson:"findings_fail"`
 	Observations uint      `json:"observations"`
 	HasRecords   bool      `json:"hasRecords" bson:"hasRecords"`
 }
@@ -48,6 +50,8 @@ func (sr *StreamRecords) FillGaps(ctx context.Context, duration time.Duration) {
 	fillRecord := sr.Records[0]
 	fillRecord.Observations = 0
 	fillRecord.Findings = 0
+	fillRecord.FindingsPass = 0
+	fillRecord.FindingsFail = 0
 	fillRecord.HasRecords = false
 
 	currentTime := earliestTime
@@ -201,6 +205,53 @@ func (s *ResultsService) getIntervalledCompliancePipeline(ctx context.Context, i
 						{"$ifNull", bson.A{"$latestRecord.findings", bson.A{}}},
 					}},
 				}},
+				bson.E{
+					Key: "findings_pass",
+					Value: bson.D{
+						{"$size", bson.D{
+							{"$ifNull", bson.A{
+								bson.D{{"$filter", bson.D{
+									{"input", "$latestRecord.findings"},
+									{"as", "finding"},
+									{"cond", bson.D{
+										{
+											"$not",
+											bson.D{
+												{"$regexMatch", bson.D{
+													{"input", "$$finding.status"},
+													{"regex", "^open"},
+													{"options", "i"},
+												}},
+											},
+										},
+									}},
+								}}},
+								bson.A{},
+							}},
+						}},
+					},
+				},
+				bson.E{
+					Key: "findings_fail",
+					Value: bson.D{
+						{"$size", bson.D{
+							{"$ifNull", bson.A{
+								bson.D{{"$filter", bson.D{
+									{"input", "$latestRecord.findings"},
+									{"as", "finding"},
+									{"cond", bson.D{
+										{"$regexMatch", bson.D{
+											{"input", "$$finding.status"},
+											{"regex", "^open"},
+											{"options", "i"},
+										}},
+									}},
+								}}},
+								bson.A{},
+							}},
+						}},
+					},
+				},
 				{"observations", bson.D{
 					{Key: "$size", Value: bson.D{
 						{"$ifNull", bson.A{"$latestRecord.observations", bson.A{}}},
@@ -212,7 +263,7 @@ func (s *ResultsService) getIntervalledCompliancePipeline(ctx context.Context, i
 		{
 			{"$sort", bson.D{
 				{"streamId", -1},
-				{"interval", 1},
+				{"interval", -1},
 			}},
 		},
 
@@ -288,7 +339,9 @@ func (s *ResultsService) GetIntervalledComplianceReportForStream(ctx context.Con
 func (s *ResultsService) GetAllForStream(ctx context.Context, streamId uuid.UUID) (results []*domain.Result, err error) {
 	cursor, err := s.resultsCollection.Find(ctx, bson.D{
 		bson.E{Key: "streamId", Value: streamId},
-	})
+	}, options.Find().SetSort(bson.D{
+		{Key: "end", Value: -1}, // -1 for descending order to get the latest result
+	}))
 	if err != nil {
 		return nil, err
 	}

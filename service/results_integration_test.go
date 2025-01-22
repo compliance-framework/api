@@ -785,8 +785,8 @@ func (suite *ResultIntegrationSuite) TestGetIntervalledComplianceReport() {
 		assert.Len(suite.T(), intervalRecords, 1)
 		assert.Len(suite.T(), intervalRecords[0].Records, 2)
 		assert.Equal(suite.T(), intervalRecords[0].ID, streamId)
-		assert.Equal(suite.T(), "Res #1-#2", intervalRecords[0].Records[0].Title)
-		assert.Equal(suite.T(), "Res #1-#1", intervalRecords[0].Records[1].Title)
+		assert.Equal(suite.T(), "Res #1-#1", intervalRecords[0].Records[0].Title)
+		assert.Equal(suite.T(), "Res #1-#2", intervalRecords[0].Records[1].Title)
 	})
 	suite.Run("Results are filled when empty", func() {
 		ctx := context.Background()

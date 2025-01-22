@@ -3648,6 +3648,12 @@ const docTemplate = `{
                 "findings": {
                     "type": "integer"
                 },
+                "findings_fail": {
+                    "type": "integer"
+                },
+                "findings_pass": {
+                    "type": "integer"
+                },
                 "hasRecords": {
                     "type": "boolean"
                 },
