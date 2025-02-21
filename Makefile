@@ -114,7 +114,7 @@ dev-stop: ## run docker compose down
 	@docker compose -f docker-compose.dev.yml down
 
 swag: ## swag setup and lint
-	@swag init
+	@swag init --parseDependency --parseInternal
 	@swag fmt
 
 build-local:   ## build an image that can be used by the compliance-framework/local_dev repository

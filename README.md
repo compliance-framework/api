@@ -16,7 +16,7 @@
 
 ### Using Docker Compose
 
-You can easily run `configuration-service` using Docker Compose. This will also start the required MongoDB and NATS services.
+You can easily run `configuration-service` using Docker Compose. This will also start the required MongoDB service.
 
 1. Clone the repository:
 

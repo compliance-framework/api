@@ -9,21 +9,13 @@ services:
       - "8080:8080"
     depends_on:
       - mongodb
-      - nats
     environment:
-      - NATS_URI=nats://nats:4222
       - MONGO_URI=mongodb://mongodb:27017
 
   mongodb:
     image: mongo:latest
     ports:
       - "27017:27017"
-
-  nats:
-    image: nats:latest
-    ports:
-      - "4222:4222"
-    command: -js
 
 networks:
   continuous-compliance:

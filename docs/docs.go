@@ -5,6 +5,12 @@ import "github.com/swaggo/swag"
 
 const docTemplate = `{
     "schemes": {{ marshal .Schemes }},
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
+    ],
     "swagger": "2.0",
     "info": {
         "description": "{{escape .Description}}",
@@ -15,95 +21,21 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/catalog": {
-            "post": {
-                "description": "Create a catalog with the given title",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Catalog"
-                ],
-                "summary": "Create a catalog",
-                "parameters": [
-                    {
-                        "description": "Catalog to add",
-                        "name": "catalog",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createCatalogRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.catalogIdResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/catalog/{id}": {
+        "/assessment-plans": {
             "get": {
-                "description": "Get a specific catalog by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
-                    "Catalog"
+                    "Assessment Plans"
                 ],
-                "summary": "Get a catalog",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Catalog ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
+                "summary": "Fetch all assessment plans",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/domain.Catalog"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Plan"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -116,360 +48,11 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
-                "description": "Delete a specific catalog by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Catalog"
-                ],
-                "summary": "Delete a catalog",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Catalog ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "description": "Update a specific catalog by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Catalog"
-                ],
-                "summary": "Update a catalog",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Catalog ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Catalog to update",
-                        "name": "catalog",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.UpdateCatalogRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Catalog"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/catalog/{id}/controls": {
             "post": {
-                "description": "Create a control with the given title",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
-                    "Catalog"
+                    "Assessment Plans"
                 ],
-                "summary": "Create a control",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Catalog ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Control to add",
-                        "name": "control",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createControlRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.catalogIdResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/catalog/{id}/controls/{controlId}": {
-            "get": {
-                "description": "Get a specific control by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Catalog"
-                ],
-                "summary": "Get a control",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Catalog ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Control ID",
-                        "name": "controlId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Control"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Update a specific control by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Catalog"
-                ],
-                "summary": "Update a control",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Catalog ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Control ID",
-                        "name": "controlId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Control to update",
-                        "name": "control",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.UpdateControlRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Control"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/metadata/revisions": {
-            "post": {
-                "description": "This method attaches metadata to a specific revision.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Metadata"
-                ],
-                "summary": "Attaches metadata to a specific revision",
-                "parameters": [
-                    {
-                        "description": "Revision that will be attached",
-                        "name": "revision",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.attachMetadataRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request: Error binding the request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Object not found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/plan": {
-            "post": {
-                "description": "Creates a new plan in the system",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Create a plan",
+                "summary": "Create a new assessment plan",
                 "parameters": [
                     {
                         "description": "Plan to add",
@@ -484,56 +67,6 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/plan/:id": {
-            "get": {
-                "description": "Fetches a plan in the system",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Fetches a plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-handler_PlanResponse"
                         }
@@ -559,63 +92,17 @@ const docTemplate = `{
                 }
             }
         },
-        "/plan/{id}/activate": {
-            "put": {
-                "description": "Activate a plan by its ID. If the plan is already active, no action will be taken.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Activate a plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "500": {
-                        "description": "Internal server error. The plan could not be activated.",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/plan/{id}/results/{resultId}/risks": {
+        "/assessment-plans/:id": {
             "get": {
-                "description": "Return the risks of the result with the given ID.",
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
-                    "Plan"
+                    "Assessment Plans"
                 ],
-                "summary": "Return the risks",
+                "summary": "Fetch a single assessment plan",
                 "parameters": [
                     {
                         "type": "string",
                         "description": "Plan ID",
                         "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Result ID",
-                        "name": "resultId",
                         "in": "path",
                         "required": true
                     }
@@ -624,123 +111,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.Risk"
-                            }
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PlanResponse"
                         }
                     },
-                    "500": {
-                        "description": "Internal server error.",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/plan/{id}/tasks": {
-            "post": {
-                "description": "This method creates a new task and adds it to a specific plan.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Creates a new task for a specific plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Task to add",
-                        "name": "task",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createTaskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully added the task to the plan",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "Plan not found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity: Error binding the request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/plan/{id}/tasks/{taskId}/activities": {
-            "post": {
-                "description": "This function is used to create an activity for a given task.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Create activity",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Task ID",
-                        "name": "taskId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Activity",
-                        "name": "activity",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createActivityRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
                         }
                     },
                     "404": {
@@ -750,38 +127,6 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/plans": {
-            "get": {
-                "description": "Returns id and title of all the plans in the system",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Plan"
-                ],
-                "summary": "Gets plan summaries",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.PlanPrecis"
-                            }
-                        }
-                    },
-                    "500": {
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
@@ -790,9 +135,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/results/:id": {
-            "get": {
-                "description": "Returns singular result",
+        "/assessment-results": {
+            "post": {
+                "description": "Creates an assessment result in the specified stream and label mapping",
                 "consumes": [
                     "application/json"
                 ],
@@ -800,9 +145,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Result"
+                    "Assessment Results"
                 ],
-                "summary": "Get a result",
+                "summary": "Create new assessment result",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -810,33 +155,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/handler.GenericDataResponse-domain_Result"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/results/plan/:plan": {
-            "get": {
-                "description": "Returns data of all the latest results for a plan",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Result"
-                ],
-                "summary": "Gets a plan's results",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
                         }
                     },
                     "500": {
@@ -848,7 +170,76 @@ const docTemplate = `{
                 }
             }
         },
-        "/results/search": {
+        "/assessment-results/:id": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Assessment Results"
+                ],
+                "summary": "Fetch a single assessment result",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-domain_Result"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/assessment-results/compliance-by-search": {
+            "post": {
+                "description": "Returns the compliance over time records for a particular search query",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Assessment Results Observability"
+                ],
+                "summary": "Get Compliance Over Time for Search query",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StreamRecords"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/assessment-results/compliance-by-stream": {
             "post": {
                 "description": "Returns the compliance over time records for a particular streamId",
                 "consumes": [
@@ -858,7 +249,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Result"
+                    "Assessment Results Observability"
                 ],
                 "summary": "Get Compliance Over Time for stream",
                 "responses": {
@@ -877,9 +268,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/results/stream/:stream": {
+        "/assessment-results/plan/:plan": {
             "get": {
-                "description": "Returns a list of all the results for a strea,data of all the latest results for a plan",
+                "description": "Fetches the latest result for each stream associated in an assessment plan",
                 "consumes": [
                     "application/json"
                 ],
@@ -887,81 +278,14 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Result"
+                    "Assessment Results"
                 ],
-                "summary": "Gets a plan's results",
+                "summary": "Fetch all assessment results for an assessment plan",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/ssp": {
-            "get": {
-                "description": "List all SSP",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SSP"
-                ],
-                "summary": "List all SSPs",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.SystemSecurityPlan"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Create an SSP with the given title",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SSP"
-                ],
-                "summary": "Create an SSP",
-                "parameters": [
-                    {
-                        "description": "SSP to add",
-                        "name": "SSP",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.CreateSSPRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.idResponse"
                         }
                     },
                     "401": {
@@ -970,8 +294,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     },
-                    "422": {
-                        "description": "Unprocessable Entity",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -985,9 +309,43 @@ const docTemplate = `{
                 }
             }
         },
-        "/ssp/{id}": {
+        "/assessment-results/search": {
+            "post": {
+                "description": "Returns a list of the latest result for each stream matching the specified label selector",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Assessment Results"
+                ],
+                "summary": "Search assessment results using label selectors",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/assessment-results/stream/:stream": {
             "get": {
-                "description": "Get an SSP by its ID",
                 "consumes": [
                     "application/json"
                 ],
@@ -995,122 +353,20 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "SSP"
+                    "Assessment Results"
                 ],
-                "summary": "Get an SSP by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
+                "summary": "Fetch all assessment results for a result stream",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/domain.SystemSecurityPlan"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
                         }
                     },
-                    "404": {
-                        "description": "Not Found",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Update an SSP with the given ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SSP"
-                ],
-                "summary": "Update an SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "SSP to update",
-                        "name": "SSP",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.UpdateSSPRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.SystemSecurityPlan"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Delete an SSP with the given ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "SSP"
-                ],
-                "summary": "Delete an SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content",
-                        "schema": {
-                            "type": "string"
                         }
                     },
                     "404": {
@@ -1139,1415 +395,46 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Action": {
+        "domain.Plan": {
             "type": "object",
             "properties": {
-                "date": {
-                    "type": "string"
+                "assessment-assets": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
                 },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
+                "assessment-subjects": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Link"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
                     }
                 },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
+                "back-matter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
                 },
-                "remarks": {
-                    "type": "string"
+                "import-ssp": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
                 },
-                "responsiblePartyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "system": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Activity": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "provider": {
-                    "$ref": "#/definitions/domain.Provider"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsibleRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "steps": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Step"
-                    }
-                },
-                "subjects": {
-                    "$ref": "#/definitions/domain.SubjectSelection"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "tools": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Actor": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "roleId": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/domain.ActorType"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.ActorType": {
-            "type": "string",
-            "enum": [
-                "tool",
-                "assessment-platform",
-                "party"
-            ],
-            "x-enum-varnames": [
-                "ActorTypeTool",
-                "ActorTypeAssessmentPlatform",
-                "ActorTypeParty"
-            ]
-        },
-        "domain.Attestation": {
-            "type": "object",
-            "properties": {
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Part"
-                    }
-                },
-                "responsibleParties": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.AuthorizationBoundary": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "diagrams": {
-                    "description": "Diagrams is an optional collection of visual representations of the boundary.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Diagram"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.BackMatter": {
-            "type": "object",
-            "properties": {
-                "resources": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Resource"
-                    }
-                }
-            }
-        },
-        "domain.Base64": {
-            "type": "object",
-            "properties": {
-                "filename": {
-                    "description": "Name of the file before it was encoded as Base64.",
-                    "type": "string"
-                },
-                "media-type": {
-                    "description": "A label that indicates the nature of a resource.",
-                    "type": "string"
-                },
-                "value": {
-                    "description": "The Base64 encoded value.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Catalog": {
-            "type": "object",
-            "properties": {
-                "backMatter": {
-                    "$ref": "#/definitions/domain.BackMatter"
-                },
-                "controlUuids": {
-                    "description": "Reference to controls. Controls is an array of objects in the database",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Control"
-                    }
-                },
-                "groupUuids": {
-                    "description": "Reference to groups",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "local-definitions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
                 },
                 "metadata": {
-                    "$ref": "#/definitions/domain.Metadata"
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
                 },
-                "params": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Parameter"
-                    }
+                "resultFilter": {
+                    "$ref": "#/definitions/labelfilter.Filter"
                 },
-                "title": {
-                    "description": "Doesn't exist in OSCAL for some reason 🤷🏻",
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Characterization": {
-            "type": "object",
-            "properties": {
-                "facets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Facet"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "originActors": {
-                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "relatedTasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.Citation": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "description": "Links associated with the citation.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "description": "Properties of the citation.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "text": {
-                    "description": "A line of citation text.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Constraint": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "tests": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.ConstraintTest"
-                    }
-                }
-            }
-        },
-        "domain.ConstraintTest": {
-            "type": "object",
-            "properties": {
-                "expression": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Control": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "controlUuids": {
-                    "description": "Reference to controls",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "params": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Parameter"
-                    }
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Part"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.ControlsAndObjectives": {
-            "type": "object",
-            "properties": {
-                "controlSelections": {
-                    "$ref": "#/definitions/domain.Selection"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "objectives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.ObjectiveSelection"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.DataFlow": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "diagrams": {
-                    "description": "Description is a summary of the system's data flow.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Diagram"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Diagram": {
-            "type": "object",
-            "properties": {
-                "caption": {
-                    "description": "Caption provides a brief annotation for the diagram.",
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "description": "Uuid is a machine-oriented, globally unique identifier that can be used to reference this diagram elsewhere in this or other OSCAL instances.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.DocumentIdentifier": {
-            "type": "object",
-            "properties": {
-                "identifier": {
-                    "description": "The document identifier.",
-                    "type": "string"
-                },
-                "scheme": {
-                    "description": "Qualifies the kind of document identifier using a URI."
-                }
-            }
-        },
-        "domain.Evidence": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Facet": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "system": {
-                    "description": "One of: http://fedramp.gov, http://fedramp.gov/ns/oscal, http://csrc.nist.gov/ns/oscal, http://csrc.nist.gov/ns/oscal/unknown, http://cve.mitre.org, http://www.first.org/cvss/v2.0, http://www.first.org/cvss/v3.0, http://www.first.org/cvss/v3.1",
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Finding": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "implementationStatementId": {
-                    "description": "ImplementationStatementId Reference to the implementation statement in the SSP to which this finding is related.",
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "originActors": {
-                    "description": "Actors identify the source of the finding, such as a tool, interviewed person, or activity\nMaps to the OSCAL \"origins\" property",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "relatedObservations": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "relatedRisks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "target": {
-                    "type": "string"
+                "reviewed-controls": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
                 },
                 "tasks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Task"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
                     }
                 },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Guideline": {
-            "type": "object",
-            "properties": {
-                "prose": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.HowManyType": {
-            "type": "integer",
-            "enum": [
-                0,
-                1,
-                2
-            ],
-            "x-enum-varnames": [
-                "AllOf",
-                "OneOf",
-                "OneOrMore"
-            ]
-        },
-        "domain.Impact": {
-            "type": "object",
-            "properties": {
-                "adjustment_justification": {
-                    "type": "string"
-                },
-                "base": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "selected": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.InformationType": {
-            "type": "object",
-            "properties": {
-                "availability_impact": {
-                    "$ref": "#/definitions/domain.Impact"
-                },
-                "categorizations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.InformationTypeCategorization"
-                    }
-                },
-                "confidentiality_impact": {
-                    "$ref": "#/definitions/domain.Impact"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "integrity_impact": {
-                    "$ref": "#/definitions/domain.Impact"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
+                "terms-and-conditions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
                 },
                 "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.InformationTypeCategorization": {
-            "type": "object",
-            "properties": {
-                "ids": {
-                    "description": "NOTE: This part is a bit blurred",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "system": {
-                    "description": "This is an enum but right now it has only one value: http://doi.org/10.6028/NIST.SP.800-60v2r1",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Link": {
-            "type": "object",
-            "properties": {
-                "href": {
-                    "type": "string"
-                },
-                "mediaType": {
-                    "type": "string"
-                },
-                "rel": {
-                    "type": "string"
-                },
-                "resourceFragment": {
-                    "type": "string"
-                },
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.LocalDefinition": {
-            "type": "object",
-            "properties": {
-                "activities": {
-                    "description": "Reference to Activity",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "components": {
-                    "description": "Reference to component.Component",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "inventoryItems": {
-                    "description": "Reference to ssp.InventoryItem",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "objectives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Objective"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "users": {
-                    "description": "Reference to identity.User",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.LogEntry": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "end": {
-                    "description": "Identifies the end date and time of an event. If the event is a point in time, the start and end will be the same date and time.",
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "loggedBy": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "start": {
-                    "description": "Identifies the start date and time of an event.",
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Metadata": {
-            "type": "object",
-            "properties": {
-                "actions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Action"
-                    }
-                },
-                "partyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "responsiblePartyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "revisions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Revision"
-                    }
-                },
-                "roleUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.NetworkArchitecture": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "diagrams": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Diagram"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Objective": {
-            "type": "object",
-            "properties": {
-                "activities": {
-                    "description": "Reference to Activity",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "components": {
-                    "description": "Reference to component.Component",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "exclude": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "include": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "includeAll": {
-                    "type": "boolean"
-                },
-                "inventoryItems": {
-                    "description": "Reference to ssp.InventoryItem",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "objectives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Objective"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "users": {
-                    "description": "Reference to identity.User",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.ObjectiveSelection": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "exclude": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "include": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "includeAll": {
-                    "type": "boolean"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Observation": {
-            "type": "object",
-            "properties": {
-                "collected": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "evidences": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Evidence"
-                    }
-                },
-                "expires": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "methods": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.ObservationMethod"
-                    }
-                },
-                "originActors": {
-                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "relatedTasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "types": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.ObservationType"
-                    }
-                }
-            }
-        },
-        "domain.ObservationMethod": {
-            "type": "string",
-            "enum": [
-                "examine",
-                "interview",
-                "test",
-                "unknown"
-            ],
-            "x-enum-varnames": [
-                "ObservationMethodExamine",
-                "ObservationMethodInterview",
-                "ObservationMethodTest",
-                "ObservationMethodUnknown"
-            ]
-        },
-        "domain.ObservationType": {
-            "type": "string",
-            "enum": [
-                "ssp-statement-issue",
-                "control-objective",
-                "mitigation",
-                "finding",
-                "historic"
-            ],
-            "x-enum-varnames": [
-                "ObservationTypeSSPStatementIssue",
-                "ObservationTypeControlObjective",
-                "ObservationTypeMitigation",
-                "ObservationTypeFinding",
-                "ObservationTypeHistoric"
-            ]
-        },
-        "domain.OperationalStatus": {
-            "type": "integer",
-            "enum": [
-                0,
-                1,
-                2,
-                3,
-                4
-            ],
-            "x-enum-varnames": [
-                "Disposition",
-                "Operational",
-                "Other",
-                "UnderDevelopment",
-                "UnderMajorModification"
-            ]
-        },
-        "domain.Parameter": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "constraints": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Constraint"
-                    }
-                },
-                "guidelines": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Guideline"
-                    }
-                },
-                "label": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "select": {
-                    "$ref": "#/definitions/domain.ParameterSelection"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.ParameterSelection": {
-            "type": "object",
-            "properties": {
-                "choices": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "howMany": {
-                    "$ref": "#/definitions/domain.HowManyType"
-                }
-            }
-        },
-        "domain.Part": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "description": "An optional textual providing a sub-type or characterization of the part's name, or a category to which the part belongs.",
-                    "type": "string"
-                },
-                "id": {
-                    "description": "A unique identifier for the part.",
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "name": {
-                    "description": "A textual label that uniquely identifies the part's semantic type, which exists in a value space qualified by the ns.",
-                    "type": "string"
-                },
-                "ns": {
-                    "description": "An optional namespace qualifying the part's name. This allows different organizations to associate distinct semantics with the same name.",
-                    "type": "string"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "prose": {
-                    "description": "Permits multiple paragraphs, lists, tables etc.",
-                    "type": "string"
-                },
-                "title": {
-                    "description": "An optional name given to the part, which may be used by a tool for display and navigation.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.PlanPrecis": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "title": {
-                    "description": "Title A name given to the assessment plan. OSCAL doesn't have this, but we need it for our use case.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Property": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "group": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ns": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Provider": {
-            "type": "object",
-            "properties": {
-                "configuration": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "image": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "tag": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Resource": {
-            "type": "object",
-            "properties": {
-                "base64": {
-                    "description": "A resource encoded using the Base64 alphabet.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.Base64"
-                        }
-                    ]
-                },
-                "citation": {
-                    "description": "An optional citation associated with the resource.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.Citation"
-                        }
-                    ]
-                },
-                "description": {
-                    "description": "An optional short summary of the resource.",
-                    "type": "string"
-                },
-                "document-ids": {
-                    "description": "Document identifiers associated with the resource.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.DocumentIdentifier"
-                    }
-                },
-                "props": {
-                    "description": "Properties of the resource.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "description": "Remarks about the resource.",
-                    "type": "string"
-                },
-                "rlinks": {
-                    "description": "Related links of the resource.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "title": {
-                    "description": "An optional name given to the resource.",
-                    "type": "string"
-                },
-                "uuid": {
-                    "description": "A unique identifier for a resource.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Response": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "lifecycle": {
-                    "description": "Identifies whether this is a recommendation, such as from an assessor or tool, or an actual plan accepted by the system owner.\nOne of: recommendation, planned, completed",
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "originActors": {
-                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "relatedTasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
                     "type": "string"
                 }
             }
@@ -2555,19 +442,13 @@ const docTemplate = `{
         "domain.Result": {
             "type": "object",
             "properties": {
-                "_id": {
-                    "type": "string"
-                },
-                "assessmentLogEntries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.LogEntry"
-                    }
+                "assessment-log": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentLog"
                 },
                 "attestations": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Attestation"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
                     }
                 },
                 "description": {
@@ -2579,7 +460,7 @@ const docTemplate = `{
                 "findings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Finding"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
                     }
                 },
                 "labels": {
@@ -2591,37 +472,34 @@ const docTemplate = `{
                 "links": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Link"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
                     }
                 },
-                "localDefinitions": {
-                    "$ref": "#/definitions/domain.LocalDefinition"
+                "local-definitions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
                 },
                 "observations": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Observation"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
                     }
                 },
                 "props": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Property"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
                     }
                 },
                 "remarks": {
                     "type": "string"
                 },
-                "reviewedControls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.ControlsAndObjectives"
-                    }
+                "reviewed-controls": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
                 },
                 "risks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Risk"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
                     }
                 },
                 "start": {
@@ -2632,609 +510,21 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
-                }
-            }
-        },
-        "domain.Revision": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "lastModified": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "oscalVersion": {
-                    "type": "string"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "published": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Risk": {
-            "type": "object",
-            "properties": {
-                "characterizations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Characterization"
-                    }
-                },
-                "deadline": {
-                    "type": "string"
-                },
-                "description": {
-                    "description": "A human-readable summary of the identified risk, to include a statement of how the risk impacts the system.",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "mitigatingFactors": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "originActors": {
-                    "description": "Actors / Tasks Identify the source of the finding, such as a tool, interviewed person, or activity",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "relatedObservations": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "relatedTasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "remediations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Response"
-                    }
-                },
-                "riskLog": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.RiskLogEntry"
-                    }
-                },
-                "statement": {
-                    "description": "A summary of impact for how the risk affects the system.",
-                    "type": "string"
-                },
-                "status": {
-                    "description": "Describes the status of the risk.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.RiskStatus"
-                        }
-                    ]
-                },
-                "threats": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "description": "The title for this risk.",
-                    "type": "string"
-                }
-            }
-        },
-        "domain.RiskLogEntry": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "end": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "loggedBy": {
-                    "$ref": "#/definitions/domain.Actor"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "start": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.RiskStatus": {
-            "type": "string",
-            "enum": [
-                "open",
-                "investigating",
-                "remediating",
-                "deviation-requested",
-                "deviation-approved",
-                "closed"
-            ],
-            "x-enum-varnames": [
-                "RiskStatusOpen",
-                "RiskStatusInvestigating",
-                "RiskStatusRemediating",
-                "RiskStatusDeviationRequested",
-                "RiskStatusDeviationApproved",
-                "RiskStatusClosed"
-            ]
-        },
-        "domain.SecurityImpactLevel": {
-            "type": "object",
-            "properties": {
-                "objective_availability": {
-                    "type": "string"
-                },
-                "objective_confidentiality": {
-                    "type": "string"
-                },
-                "objective_integrity": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Selection": {
-            "type": "object",
-            "properties": {
-                "exclude": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "include": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "includeAll": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "domain.Step": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsibleRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.SubjectMatchExpression": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "operator": {
-                    "type": "string"
-                },
-                "values": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "domain.SubjectSelection": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "expressions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.SubjectMatchExpression"
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "query": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.SystemCharacteristics": {
-            "type": "object",
-            "properties": {
-                "actions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Action"
-                    }
-                },
-                "authorization_boundary": {
-                    "$ref": "#/definitions/domain.AuthorizationBoundary"
-                },
-                "control_implementation": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "data_flow": {
-                    "$ref": "#/definitions/domain.DataFlow"
-                },
-                "date_authorized": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "import_profile": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "network_architecture": {
-                    "$ref": "#/definitions/domain.NetworkArchitecture"
-                },
-                "partyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsiblePartyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "responsible_parties": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "revisions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Revision"
-                    }
-                },
-                "roleUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "security_impact_level": {
-                    "$ref": "#/definitions/domain.SecurityImpactLevel"
-                },
-                "security_sensitivity_level": {
-                    "description": "The overall information system sensitivity categorization, such as defined by FIPS-199.",
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/domain.OperationalStatus"
-                },
-                "system_ids": {
-                    "description": "One of http://fedramp.gov/ns/oscal, https://fedramp.gov\", http://ietf.org/rfc/rfc4122\", https://ietf.org/rfc/rfc4122",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "system_information": {
-                    "$ref": "#/definitions/domain.SystemInformation"
-                },
-                "system_name": {
-                    "description": "The full name of the system.",
-                    "type": "string"
-                },
-                "system_name_short": {
-                    "description": "A short name for the system, such as an acronym, that is suitable for display in a data table or summary list.",
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
                 },
                 "uuid": {
                     "type": "string"
                 }
             }
         },
-        "domain.SystemInformation": {
+        "handler.GenericDataListResponse-domain_Plan": {
             "type": "object",
             "properties": {
-                "information_types": {
-                    "description": "Contains details about one information type that is stored, processed, or transmitted by the system, such as privacy information, and those defined in NIST SP 800-60.",
+                "data": {
+                    "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.InformationType"
+                        "$ref": "#/definitions/domain.Plan"
                     }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.SystemSecurityPlan": {
-            "type": "object",
-            "properties": {
-                "actions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Action"
-                    }
-                },
-                "backmatter": {
-                    "$ref": "#/definitions/domain.BackMatter"
-                },
-                "control_implementation": {
-                    "description": "Reference to the control implementation",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "import_profile": {
-                    "description": "Reference to a profile",
-                    "type": "string"
-                },
-                "partyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "responsiblePartyUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "revisions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Revision"
-                    }
-                },
-                "roleUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "system_characteristics": {
-                    "$ref": "#/definitions/domain.SystemCharacteristics"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Task": {
-            "type": "object",
-            "properties": {
-                "activities": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Activity"
-                    }
-                },
-                "dependencies": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.TaskDependency"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsibleRoles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "schedule": {
-                    "type": "string"
-                },
-                "subjects": {
-                    "description": "Subjects hold all the subjects that the activities act upon.\nTODO: Should this be []Subject?",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "$ref": "#/definitions/domain.TaskType"
-                }
-            }
-        },
-        "domain.TaskDependency": {
-            "type": "object",
-            "properties": {
-                "remarks": {
-                    "type": "string"
-                },
-                "taskUuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.TaskType": {
-            "type": "string",
-            "enum": [
-                "milestone",
-                "action"
-            ],
-            "x-enum-varnames": [
-                "TaskTypeMilestone",
-                "TaskTypeAction"
-            ]
-        },
-        "handler.CreateSSPRequest": {
-            "type": "object",
-            "required": [
-                "title"
-            ],
-            "properties": {
-                "title": {
-                    "type": "string"
                 }
             }
         },
@@ -3291,255 +581,44 @@ const docTemplate = `{
         "handler.PlanResponse": {
             "type": "object",
             "properties": {
-                "filter": {
+                "assessment-assets": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
+                },
+                "assessment-subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "back-matter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                },
+                "import-ssp": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
+                },
+                "local-definitions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "resultFilter": {
                     "$ref": "#/definitions/labelfilter.Filter"
                 },
-                "id": {
-                    "type": "string"
+                "reviewed-controls": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
                 },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.UpdateCatalogRequest": {
-            "type": "object",
-            "properties": {
-                "backMatter": {
-                    "$ref": "#/definitions/domain.BackMatter"
-                },
-                "controlUuids": {
+                "tasks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Control"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
                     }
                 },
-                "groupUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "params": {
-                    "description": "Metadata   domain.Metadata   ` + "`" + `json:\"metadata\" yaml:\"metadata\"` + "`" + `",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Parameter"
-                    }
-                },
-                "title": {
-                    "type": "string"
+                "terms-and-conditions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
                 },
                 "uuid": {
                     "type": "string"
-                }
-            }
-        },
-        "handler.UpdateControlRequest": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "controlUuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Link"
-                    }
-                },
-                "params": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Parameter"
-                    }
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Part"
-                    }
-                },
-                "props": {
-                    "description": "Uuid     domain.Uuid        ` + "`" + `json:\"uuid\" yaml:\"uuid\"` + "`" + `",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/domain.Property"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.UpdateSSPRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.attachMetadataRequest": {
-            "type": "object",
-            "required": [
-                "collection",
-                "id"
-            ],
-            "properties": {
-                "collection": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "revisionDescription": {
-                    "type": "string"
-                },
-                "revisionRemarks": {
-                    "type": "string"
-                },
-                "revisionTitle": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.catalogIdResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the catalog.\nRequired: true\nExample: \"123abc\"",
-                    "type": "string"
-                }
-            }
-        },
-        "handler.createActivityRequest": {
-            "type": "object",
-            "required": [
-                "provider",
-                "title"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "object",
-                    "required": [
-                        "image",
-                        "name",
-                        "tag"
-                    ],
-                    "properties": {
-                        "configuration": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        },
-                        "image": {
-                            "type": "string"
-                        },
-                        "name": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "subjects": {
-                    "type": "object",
-                    "required": [
-                        "description",
-                        "title"
-                    ],
-                    "properties": {
-                        "description": {
-                            "type": "string"
-                        },
-                        "expressions": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "key": {
-                                        "type": "string"
-                                    },
-                                    "operator": {
-                                        "type": "string"
-                                    },
-                                    "values": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "ids": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "labels": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        },
-                        "query": {
-                            "type": "string"
-                        },
-                        "title": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.createCatalogRequest": {
-            "type": "object",
-            "properties": {
-                "catalog": {
-                    "type": "object",
-                    "required": [
-                        "title"
-                    ],
-                    "properties": {
-                        "title": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "handler.createControlRequest": {
-            "type": "object",
-            "properties": {
-                "control": {
-                    "type": "object",
-                    "required": [
-                        "title"
-                    ],
-                    "properties": {
-                        "title": {
-                            "type": "string"
-                        }
-                    }
                 }
             }
         },
@@ -3547,46 +626,14 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "filter",
-                "title"
+                "metadata"
             ],
             "properties": {
                 "filter": {
                     "$ref": "#/definitions/labelfilter.Filter"
                 },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.createTaskRequest": {
-            "type": "object",
-            "required": [
-                "schedule",
-                "title",
-                "type"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "schedule": {
-                    "type": "string"
-                },
-                "title": {
-                    "description": "TODO: We are keeping it minimal for now for the demo",
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.idResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "description": "The unique identifier of the plan.\nRequired: true\nExample: \"456def\"",
-                    "type": "string"
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
                 }
             }
         },
@@ -3642,6 +689,2279 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Action": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "system": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Activity": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-controls": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Step"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Address": {
+            "type": "object",
+            "properties": {
+                "addr-lines": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "postal-code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessedControls": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessedControlsSelectControlById"
+                    }
+                },
+                "include-all": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
+                },
+                "include-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessedControlsSelectControlById"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessedControlsSelectControlById": {
+            "type": "object",
+            "properties": {
+                "control-id": {
+                    "type": "string"
+                },
+                "statement-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentAssets": {
+            "type": "object",
+            "properties": {
+                "assessment-platforms": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlatform"
+                    }
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentLog": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentLogEntry"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentLogEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "logged-by": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.LoggedBy"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentPart": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPart"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "prose": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentPlanTermsAndConditions": {
+            "type": "object",
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPart"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentPlatform": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uses-components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.UsesComponent"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentSubject": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude-subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectSubjectById"
+                    }
+                },
+                "include-all": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
+                },
+                "include-subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectSubjectById"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssociatedActivity": {
+            "type": "object",
+            "properties": {
+                "activity-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssociatedRisk": {
+            "type": "object",
+            "properties": {
+                "risk-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AttestationStatements": {
+            "type": "object",
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPart"
+                    }
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AuthorizedPrivilege": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "functions-performed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.BackMatter": {
+            "type": "object",
+            "properties": {
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Base64": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "media-type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Characterization": {
+            "type": "object",
+            "properties": {
+                "facets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Facet"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origin": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Citation": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.DocumentId": {
+            "type": "object",
+            "properties": {
+                "identifier": {
+                    "type": "string"
+                },
+                "scheme": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.EventTiming": {
+            "type": "object",
+            "properties": {
+                "at-frequency": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.FrequencyCondition"
+                },
+                "on-date": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.OnDateCondition"
+                },
+                "within-date-range": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.OnDateRangeCondition"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Facet": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Finding": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-statement-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
+                    }
+                },
+                "related-risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedRisk"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.FindingTarget"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.FindingTarget": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ImplementationStatus"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
+                },
+                "target-id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.FrequencyCondition": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "integer"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Hash": {
+            "type": "object",
+            "properties": {
+                "algorithm": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.IdentifiedSubject": {
+            "type": "object",
+            "properties": {
+                "subject-placeholder-uuid": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ImplementationStatus": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ImplementedComponent": {
+            "type": "object",
+            "properties": {
+                "component-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ImportSsp": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.IncludeAll": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "oscalTypes_1_1_3.InventoryItem": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implemented-components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedComponent"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Link": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "media-type": {
+                    "type": "string"
+                },
+                "rel": {
+                    "type": "string"
+                },
+                "resource-fragment": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.LocalDefinitions": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
+                    }
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                },
+                "inventory-items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                    }
+                },
+                "objectives-and-methods": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.LocalObjective"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.LocalObjective": {
+            "type": "object",
+            "properties": {
+                "control-id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Location": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Address"
+                },
+                "email-addresses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "telephone-numbers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.TelephoneNumber"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "urls": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.LoggedBy": {
+            "type": "object",
+            "properties": {
+                "party-uuid": {
+                    "type": "string"
+                },
+                "role-id": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Metadata": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Action"
+                    }
+                },
+                "document-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.DocumentId"
+                    }
+                },
+                "last-modified": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "locations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Location"
+                    }
+                },
+                "oscal-version": {
+                    "type": "string"
+                },
+                "parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Party"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "published": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RevisionHistoryEntry"
+                    }
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Role"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.MitigatingFactor": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ObjectiveStatus": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Observation": {
+            "type": "object",
+            "properties": {
+                "collected": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "relevant-evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelevantEvidence"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.OnDateCondition": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.OnDateRangeCondition": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Origin": {
+            "type": "object",
+            "properties": {
+                "actors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.OriginActor"
+                    }
+                },
+                "related-tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.OriginActor": {
+            "type": "object",
+            "properties": {
+                "actor-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "role-id": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Part": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "prose": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Party": {
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Address"
+                    }
+                },
+                "email-addresses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "external-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PartyExternalIdentifier"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "location-uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "member-of-organizations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "short-name": {
+                    "type": "string"
+                },
+                "telephone-numbers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.TelephoneNumber"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.PartyExternalIdentifier": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "scheme": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.PortRange": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "integer"
+                },
+                "start": {
+                    "type": "integer"
+                },
+                "transport": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Property": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Protocol": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "port-ranges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PortRange"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ReferencedControlObjectives": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude-objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectObjectiveById"
+                    }
+                },
+                "include-all": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
+                },
+                "include-objectives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectObjectiveById"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RelatedObservation": {
+            "type": "object",
+            "properties": {
+                "observation-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RelatedTask": {
+            "type": "object",
+            "properties": {
+                "identified-subject": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IdentifiedSubject"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "task-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RelevantEvidence": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RequiredAsset": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Resource": {
+            "type": "object",
+            "properties": {
+                "base64": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Base64"
+                },
+                "citation": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Citation"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "document-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.DocumentId"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "rlinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResourceLink"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ResourceLink": {
+            "type": "object",
+            "properties": {
+                "hashes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Hash"
+                    }
+                },
+                "href": {
+                    "type": "string"
+                },
+                "media-type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Response": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "lifecycle": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "required-assets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RequiredAsset"
+                    }
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ResponsibleParty": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "party-uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "role-id": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ResponsibleRole": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "party-uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "role-id": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ReviewedControls": {
+            "type": "object",
+            "properties": {
+                "control-objective-selections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ReferencedControlObjectives"
+                    }
+                },
+                "control-selections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessedControls"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RevisionHistoryEntry": {
+            "type": "object",
+            "properties": {
+                "last-modified": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "oscal-version": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "published": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Risk": {
+            "type": "object",
+            "properties": {
+                "characterizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Characterization"
+                    }
+                },
+                "deadline": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "mitigating-factors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.MitigatingFactor"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
+                    }
+                },
+                "remediations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Response"
+                    }
+                },
+                "risk-log": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.RiskLog"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ThreatId"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RiskLog": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RiskLogEntry"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RiskLogEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "logged-by": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.LoggedBy"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-responses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RiskResponseReference"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "status-change": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RiskResponseReference": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "response-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Role": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "short-name": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SelectObjectiveById": {
+            "type": "object",
+            "properties": {
+                "objective-id": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SelectSubjectById": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subject-uuid": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Step": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "reviewed-controls": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SubjectReference": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subject-uuid": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SystemComponent": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Protocol"
+                    }
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponentStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SystemComponentStatus": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SystemUser": {
+            "type": "object",
+            "properties": {
+                "authorized-privileges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AuthorizedPrivilege"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "role-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "short-name": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Task": {
+            "type": "object",
+            "properties": {
+                "associated-activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedActivity"
+                    }
+                },
+                "dependencies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.TaskDependency"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
+                    }
+                },
+                "timing": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.EventTiming"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.TaskDependency": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string"
+                },
+                "task-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.TelephoneNumber": {
+            "type": "object",
+            "properties": {
+                "number": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ThreatId": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.UsesComponent": {
+            "type": "object",
+            "properties": {
+                "component-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                }
+            }
+        },
         "service.IntervalledRecord": {
             "type": "object",
             "properties": {
@@ -3691,12 +3011,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1",
 	Host:             "localhost:8080",
 	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "Compliance Framework Configuration Service API",
-	Description:      "This is the API for the Compliance Framework Configuration Service.",
+	Title:            "Continuous Compliance Framework API",
+	Description:      "This is the API for the Continuous Compliance Framework.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

@@ -11,8 +11,7 @@
             "mode": "auto",
             "program": "main.go",
             "env": {
-                "MONGO_URI": "mongodb://localhost:27017",
-                "NATS_URI": "nats://localhost:4222",
+                "MONGO_URI": "mongodb://localhost:27017"
             }
         },
         {
