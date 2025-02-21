@@ -203,7 +203,7 @@ func (s *ResultsService) getIntervalledCompliancePipeline(ctx context.Context, i
 					}},
 				}},
 				bson.E{
-					Key: "findings_pass",
+					Key: "findings_fail",
 					Value: bson.D{
 						{Key: "$size", Value: bson.D{
 							{Key: "$ifNull", Value: bson.A{
@@ -229,7 +229,7 @@ func (s *ResultsService) getIntervalledCompliancePipeline(ctx context.Context, i
 					},
 				},
 				bson.E{
-					Key: "findings_fail",
+					Key: "findings_pass",
 					Value: bson.D{
 						{Key: "$size", Value: bson.D{
 							{Key: "$ifNull", Value: bson.A{
