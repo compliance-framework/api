@@ -43,7 +43,7 @@ func NewResultsHandler(l *zap.SugaredLogger, s *service.ResultsService, planServ
 //	@Tags			Assessment Results
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Success		200	{object}	handler.GenericDataListResponse[sdk.Result]
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -76,7 +76,7 @@ func (h *ResultsHandler) GetPlanResults(c echo.Context) error {
 //	@Tags		Assessment Results
 //	@Accept		json
 //	@Produce	json
-//	@Success	200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Success	200	{object}	handler.GenericDataListResponse[sdk.Result]
 //	@Failure	401	{object}	api.Error
 //	@Failure	404	{object}	api.Error
 //	@Failure	500	{object}	api.Error
@@ -100,7 +100,7 @@ func (h *ResultsHandler) GetStreamResults(c echo.Context) error {
 //	@Tags		Assessment Results
 //	@Accept		json
 //	@Produce	json
-//	@Success	200	{object}	handler.GenericDataResponse[domain.Result]
+//	@Success	200	{object}	handler.GenericDataResponse[sdk.Result]
 //	@Failure	401	{object}	api.Error
 //	@Failure	404	{object}	api.Error
 //	@Failure	500	{object}	api.Error
@@ -129,7 +129,7 @@ func (h *ResultsHandler) GetResult(c echo.Context) error {
 //	@Tags			Assessment Results
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Success		200	{object}	handler.GenericDataListResponse[sdk.Result]
 //	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/assessment-results/search [POST]
@@ -165,7 +165,7 @@ func (h *ResultsHandler) SearchResults(ctx echo.Context) error {
 //	@Tags			Assessment Results
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataResponse[domain.Result]
+//	@Success		200	{object}	handler.GenericDataResponse[sdk.Result]
 //	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/assessment-results [POST]

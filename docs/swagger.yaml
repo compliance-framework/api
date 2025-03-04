@@ -37,57 +37,6 @@ definitions:
       uuid:
         type: string
     type: object
-  domain.Result:
-    properties:
-      assessment-log:
-        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentLog'
-      attestations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AttestationStatements'
-        type: array
-      description:
-        type: string
-      end:
-        type: string
-      findings:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Finding'
-        type: array
-      labels:
-        additionalProperties:
-          type: string
-        type: object
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      local-definitions:
-        $ref: '#/definitions/oscalTypes_1_1_3.LocalDefinitions'
-      observations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Observation'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      reviewed-controls:
-        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
-      risks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Risk'
-        type: array
-      start:
-        type: string
-      streamId:
-        type: string
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
   handler.GenericDataListResponse-domain_Plan:
     properties:
       data:
@@ -96,12 +45,12 @@ definitions:
           $ref: '#/definitions/domain.Plan'
         type: array
     type: object
-  handler.GenericDataListResponse-domain_Result:
+  handler.GenericDataListResponse-sdk_Result:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/domain.Result'
+          $ref: '#/definitions/sdk.Result'
         type: array
     type: object
   handler.GenericDataListResponse-service_StreamRecords:
@@ -112,18 +61,18 @@ definitions:
           $ref: '#/definitions/service.StreamRecords'
         type: array
     type: object
-  handler.GenericDataResponse-domain_Result:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/domain.Result'
-        description: Items from the list response
-    type: object
   handler.GenericDataResponse-handler_PlanResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.PlanResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-sdk_Result:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/sdk.Result'
         description: Items from the list response
     type: object
   handler.PlanResponse:
@@ -567,41 +516,6 @@ definitions:
       value:
         type: string
     type: object
-  oscalTypes_1_1_3.Finding:
-    properties:
-      description:
-        type: string
-      implementation-statement-uuid:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      origins:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-observations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
-        type: array
-      related-risks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedRisk'
-        type: array
-      remarks:
-        type: string
-      target:
-        $ref: '#/definitions/oscalTypes_1_1_3.FindingTarget'
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
   oscalTypes_1_1_3.FindingTarget:
     properties:
       description:
@@ -887,49 +801,6 @@ definitions:
       remarks:
         type: string
       state:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Observation:
-    properties:
-      collected:
-        type: string
-      description:
-        type: string
-      expires:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      methods:
-        items:
-          type: string
-        type: array
-      origins:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      relevant-evidence:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelevantEvidence'
-        type: array
-      remarks:
-        type: string
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
-        type: array
-      title:
-        type: string
-      types:
-        items:
-          type: string
-        type: array
-      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.OnDateCondition:
@@ -1689,6 +1560,146 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
         type: array
     type: object
+  sdk.Finding:
+    properties:
+      description:
+        type: string
+      implementation-statement-uuid:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      related-observations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
+        type: array
+      related-risks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedRisk'
+        type: array
+      remarks:
+        type: string
+      target:
+        $ref: '#/definitions/oscalTypes_1_1_3.FindingTarget'
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  sdk.Observation:
+    properties:
+      collected:
+        type: string
+      description:
+        type: string
+      expires:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      methods:
+        items:
+          type: string
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      relevant-evidence:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelevantEvidence'
+        type: array
+      remarks:
+        type: string
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
+        type: array
+      title:
+        type: string
+      types:
+        items:
+          type: string
+        type: array
+      uuid:
+        type: string
+    type: object
+  sdk.Result:
+    properties:
+      assessment-log:
+        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentLog'
+      attestations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AttestationStatements'
+        type: array
+      description:
+        type: string
+      end:
+        type: string
+      findings:
+        items:
+          $ref: '#/definitions/sdk.Finding'
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      local-definitions:
+        $ref: '#/definitions/oscalTypes_1_1_3.LocalDefinitions'
+      observations:
+        items:
+          $ref: '#/definitions/sdk.Observation'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      reviewed-controls:
+        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
+      risks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Risk'
+        type: array
+      start:
+        type: string
+      streamId:
+        type: string
+      title:
+        type: string
+      uuid:
+        description: |-
+          Here we override the ID field to be of UUID for compatibility in our SDK.
+          Our clients don't care about Mongo ObjectIDs, and it won't map well for their use.
+        type: string
+    type: object
   service.IntervalledRecord:
     properties:
       findings:
@@ -1811,7 +1822,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-domain_Result'
+            $ref: '#/definitions/handler.GenericDataResponse-sdk_Result'
         "401":
           description: Unauthorized
           schema:
@@ -1833,7 +1844,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-domain_Result'
+            $ref: '#/definitions/handler.GenericDataResponse-sdk_Result'
         "401":
           description: Unauthorized
           schema:
@@ -1900,7 +1911,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+            $ref: '#/definitions/handler.GenericDataListResponse-sdk_Result'
         "401":
           description: Unauthorized
           schema:
@@ -1928,7 +1939,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+            $ref: '#/definitions/handler.GenericDataListResponse-sdk_Result'
         "401":
           description: Unauthorized
           schema:
@@ -1950,7 +1961,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-domain_Result'
+            $ref: '#/definitions/handler.GenericDataListResponse-sdk_Result'
         "401":
           description: Unauthorized
           schema:
