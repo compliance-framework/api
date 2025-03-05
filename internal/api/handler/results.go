@@ -1,14 +1,15 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
-	"github.com/compliance-framework/configuration-service/internal/domain"
 	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/configuration-service/sdk"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type ResultsHandler struct {
@@ -42,7 +43,7 @@ func NewResultsHandler(l *zap.SugaredLogger, s *service.ResultsService, planServ
 //	@Tags			Assessment Results
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Success		200	{object}	handler.GenericDataListResponse[sdk.Result]
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -64,7 +65,7 @@ func (h *ResultsHandler) GetPlanResults(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return c.JSON(http.StatusOK, GenericDataListResponse[*domain.Result]{
+	return c.JSON(http.StatusOK, GenericDataListResponse[*sdk.Result]{
 		Data: results,
 	})
 }
@@ -75,7 +76,7 @@ func (h *ResultsHandler) GetPlanResults(c echo.Context) error {
 //	@Tags		Assessment Results
 //	@Accept		json
 //	@Produce	json
-//	@Success	200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Success	200	{object}	handler.GenericDataListResponse[sdk.Result]
 //	@Failure	401	{object}	api.Error
 //	@Failure	404	{object}	api.Error
 //	@Failure	500	{object}	api.Error
@@ -88,7 +89,7 @@ func (h *ResultsHandler) GetStreamResults(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return c.JSON(http.StatusOK, GenericDataListResponse[*domain.Result]{
+	return c.JSON(http.StatusOK, GenericDataListResponse[*sdk.Result]{
 		Data: results,
 	})
 }
@@ -99,7 +100,7 @@ func (h *ResultsHandler) GetStreamResults(c echo.Context) error {
 //	@Tags		Assessment Results
 //	@Accept		json
 //	@Produce	json
-//	@Success	200	{object}	handler.GenericDataResponse[domain.Result]
+//	@Success	200	{object}	handler.GenericDataResponse[sdk.Result]
 //	@Failure	401	{object}	api.Error
 //	@Failure	404	{object}	api.Error
 //	@Failure	500	{object}	api.Error
@@ -116,7 +117,7 @@ func (h *ResultsHandler) GetResult(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return c.JSON(http.StatusOK, GenericDataResponse[*domain.Result]{
+	return c.JSON(http.StatusOK, GenericDataResponse[*sdk.Result]{
 		Data: result,
 	})
 }
@@ -128,7 +129,7 @@ func (h *ResultsHandler) GetResult(c echo.Context) error {
 //	@Tags			Assessment Results
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataListResponse[domain.Result]
+//	@Success		200	{object}	handler.GenericDataListResponse[sdk.Result]
 //	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/assessment-results/search [POST]
@@ -152,7 +153,7 @@ func (h *ResultsHandler) SearchResults(ctx echo.Context) error {
 	}
 
 	// If everything went well, return a 201 status code with the ID of the created plan
-	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*domain.Result]{
+	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*sdk.Result]{
 		Data: results,
 	})
 }
@@ -164,12 +165,12 @@ func (h *ResultsHandler) SearchResults(ctx echo.Context) error {
 //	@Tags			Assessment Results
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataResponse[domain.Result]
+//	@Success		200	{object}	handler.GenericDataResponse[sdk.Result]
 //	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/assessment-results [POST]
 func (h *ResultsHandler) CreateResult(ctx echo.Context) error {
-	result := &domain.Result{}
+	result := &sdk.Result{}
 
 	err := ctx.Bind(result)
 	if err != nil {
@@ -181,7 +182,7 @@ func (h *ResultsHandler) CreateResult(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, GenericDataResponse[domain.Result]{
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[sdk.Result]{
 		Data: *result,
 	})
 }

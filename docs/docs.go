@@ -152,7 +152,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-domain_Result"
+                            "$ref": "#/definitions/handler.GenericDataResponse-sdk_Result"
                         }
                     },
                     "401": {
@@ -186,7 +186,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-domain_Result"
+                            "$ref": "#/definitions/handler.GenericDataResponse-sdk_Result"
                         }
                     },
                     "401": {
@@ -285,7 +285,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-sdk_Result"
                         }
                     },
                     "401": {
@@ -326,7 +326,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-sdk_Result"
                         }
                     },
                     "401": {
@@ -360,7 +360,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Result"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-sdk_Result"
                         }
                     },
                     "401": {
@@ -439,83 +439,6 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Result": {
-            "type": "object",
-            "properties": {
-                "assessment-log": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentLog"
-                },
-                "attestations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "end": {
-                    "type": "string"
-                },
-                "findings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
-                    }
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "local-definitions": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
-                },
-                "observations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "reviewed-controls": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
-                },
-                "risks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
-                    }
-                },
-                "start": {
-                    "type": "string"
-                },
-                "streamId": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.GenericDataListResponse-domain_Plan": {
             "type": "object",
             "properties": {
@@ -528,14 +451,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-domain_Result": {
+        "handler.GenericDataListResponse-sdk_Result": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Result"
+                        "$ref": "#/definitions/sdk.Result"
                     }
                 }
             }
@@ -552,19 +475,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-domain_Result": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.Result"
-                        }
-                    ]
-                }
-            }
-        },
         "handler.GenericDataResponse-handler_PlanResponse": {
             "type": "object",
             "properties": {
@@ -573,6 +483,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.PlanResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-sdk_Result": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/sdk.Result"
                         }
                     ]
                 }
@@ -1251,59 +1174,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.Finding": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "implementation-statement-uuid": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "origins": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-observations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
-                    }
-                },
-                "related-risks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedRisk"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "target": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.FindingTarget"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.FindingTarget": {
             "type": "object",
             "properties": {
@@ -1738,71 +1608,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "state": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Observation": {
-            "type": "object",
-            "properties": {
-                "collected": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "expires": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "methods": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "origins": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "relevant-evidence": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelevantEvidence"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "types": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "uuid": {
                     "type": "string"
                 }
             }
@@ -2959,6 +2764,214 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
                     }
+                }
+            }
+        },
+        "sdk.Finding": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-statement-uuid": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
+                    }
+                },
+                "related-risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedRisk"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.FindingTarget"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "sdk.Observation": {
+            "type": "object",
+            "properties": {
+                "collected": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "relevant-evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelevantEvidence"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "sdk.Result": {
+            "type": "object",
+            "properties": {
+                "assessment-log": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentLog"
+                },
+                "attestations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/sdk.Finding"
+                    }
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "local-definitions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
+                },
+                "observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/sdk.Observation"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "reviewed-controls": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
+                },
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
+                    }
+                },
+                "start": {
+                    "type": "string"
+                },
+                "streamId": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "description": "Here we override the ID field to be of UUID for compatibility in our SDK.\nOur clients don't care about Mongo ObjectIDs, and it won't map well for their use.",
+                    "type": "string"
                 }
             }
         },
