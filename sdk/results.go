@@ -52,9 +52,9 @@ type Finding struct {
 type Result struct {
 	// Here we override the ID field to be of UUID for compatibility in our SDK.
 	// Our clients don't care about Mongo ObjectIDs, and it won't map well for their use.
-	UUID     *uuid.UUID        `json:"uuid" yaml:"uuid"`
-	StreamID uuid.UUID         `json:"streamId" yaml:"streamId"`
-	Labels   map[string]string `json:"labels" yaml:"labels"`
+	UUID     *uuid.UUID        `json:"uuid" yaml:"uuid" bson:"_id"`
+	StreamID uuid.UUID         `json:"streamId" yaml:"streamId" bson:"streamId"`
+	Labels   map[string]string `json:"labels" yaml:"labels" bson:"labels"`
 
 	AssessmentLog    *oscaltypes113.AssessmentLog           `json:"assessment-log,omitempty" yaml:"assessment-log,omitempty"`
 	Attestations     *[]oscaltypes113.AttestationStatements `json:"attestations,omitempty" yaml:"attestations,omitempty"`
