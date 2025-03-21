@@ -13,21 +13,19 @@ type Client struct {
 
 	config *Config
 
-	Results                 *resultClient
-	ObservationsAndFindings *observationsAndFindingsClient
+	Observations *observationsClient
+	Findings     *findingsClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
-	results := &resultClient{
-		httpClient: client,
-		config:     config,
-	}
-	observationsAndFindings := &observationsAndFindingsClient{
-		httpClient: client,
-		config:     config,
-	}
 	return &Client{
-		Results:                 results,
-		ObservationsAndFindings: observationsAndFindings,
+		Observations: &observationsClient{
+			httpClient: client,
+			config:     config,
+		},
+		Findings: &findingsClient{
+			httpClient: client,
+			config:     config,
+		},
 	}
 }
