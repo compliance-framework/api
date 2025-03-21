@@ -45,20 +45,28 @@ definitions:
           $ref: '#/definitions/domain.Plan'
         type: array
     type: object
-  handler.GenericDataListResponse-sdk_Result:
+  handler.GenericDataListResponse-service_Finding:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/sdk.Result'
+          $ref: '#/definitions/service.Finding'
         type: array
     type: object
-  handler.GenericDataListResponse-service_StreamRecords:
+  handler.GenericDataListResponse-service_Observation:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/service.StreamRecords'
+          $ref: '#/definitions/service.Observation'
+        type: array
+    type: object
+  handler.GenericDataListResponse-service_StatusOverTimeGroup:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.StatusOverTimeGroup'
         type: array
     type: object
   handler.GenericDataResponse-handler_PlanResponse:
@@ -68,11 +76,11 @@ definitions:
         - $ref: '#/definitions/handler.PlanResponse'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-sdk_Result:
+  handler.GenericDataResponse-service_Observation:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/sdk.Result'
+        - $ref: '#/definitions/service.Observation'
         description: Items from the list response
     type: object
   handler.PlanResponse:
@@ -265,44 +273,6 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
         type: array
     type: object
-  oscalTypes_1_1_3.AssessmentLog:
-    properties:
-      entries:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentLogEntry'
-        type: array
-    type: object
-  oscalTypes_1_1_3.AssessmentLogEntry:
-    properties:
-      description:
-        type: string
-      end:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      logged-by:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.LoggedBy'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelatedTask'
-        type: array
-      remarks:
-        type: string
-      start:
-        type: string
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
   oscalTypes_1_1_3.AssessmentPart:
     properties:
       class:
@@ -408,22 +378,6 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
         type: array
     type: object
-  oscalTypes_1_1_3.AssociatedRisk:
-    properties:
-      risk-uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.AttestationStatements:
-    properties:
-      parts:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPart'
-        type: array
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
-    type: object
   oscalTypes_1_1_3.AuthorizedPrivilege:
     properties:
       description:
@@ -450,23 +404,6 @@ definitions:
         type: string
       value:
         type: string
-    type: object
-  oscalTypes_1_1_3.Characterization:
-    properties:
-      facets:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Facet'
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      origin:
-        $ref: '#/definitions/oscalTypes_1_1_3.Origin'
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
     type: object
   oscalTypes_1_1_3.Citation:
     properties:
@@ -497,50 +434,6 @@ definitions:
       within-date-range:
         $ref: '#/definitions/oscalTypes_1_1_3.OnDateRangeCondition'
     type: object
-  oscalTypes_1_1_3.Facet:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      name:
-        type: string
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      system:
-        type: string
-      value:
-        type: string
-    type: object
-  oscalTypes_1_1_3.FindingTarget:
-    properties:
-      description:
-        type: string
-      implementation-status:
-        $ref: '#/definitions/oscalTypes_1_1_3.ImplementationStatus'
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      status:
-        $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
-      target-id:
-        type: string
-      title:
-        type: string
-      type:
-        type: string
-    type: object
   oscalTypes_1_1_3.FrequencyCondition:
     properties:
       period:
@@ -553,22 +446,6 @@ definitions:
       algorithm:
         type: string
       value:
-        type: string
-    type: object
-  oscalTypes_1_1_3.IdentifiedSubject:
-    properties:
-      subject-placeholder-uuid:
-        type: string
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        type: array
-    type: object
-  oscalTypes_1_1_3.ImplementationStatus:
-    properties:
-      remarks:
-        type: string
-      state:
         type: string
     type: object
   oscalTypes_1_1_3.ImplementedComponent:
@@ -715,13 +592,6 @@ definitions:
       uuid:
         type: string
     type: object
-  oscalTypes_1_1_3.LoggedBy:
-    properties:
-      party-uuid:
-        type: string
-      role-id:
-        type: string
-    type: object
   oscalTypes_1_1_3.Metadata:
     properties:
       actions:
@@ -773,36 +643,6 @@ definitions:
       version:
         type: string
     type: object
-  oscalTypes_1_1_3.MitigatingFactor:
-    properties:
-      description:
-        type: string
-      implementation-uuid:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
-        type: array
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ObjectiveStatus:
-    properties:
-      reason:
-        type: string
-      remarks:
-        type: string
-      state:
-        type: string
-    type: object
   oscalTypes_1_1_3.OnDateCondition:
     properties:
       date:
@@ -813,34 +653,6 @@ definitions:
       end:
         type: string
       start:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Origin:
-    properties:
-      actors:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.OriginActor'
-        type: array
-      related-tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelatedTask'
-        type: array
-    type: object
-  oscalTypes_1_1_3.OriginActor:
-    properties:
-      actor-uuid:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      role-id:
-        type: string
-      type:
         type: string
     type: object
   oscalTypes_1_1_3.Part:
@@ -986,76 +798,6 @@ definitions:
       remarks:
         type: string
     type: object
-  oscalTypes_1_1_3.RelatedObservation:
-    properties:
-      observation-uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.RelatedTask:
-    properties:
-      identified-subject:
-        $ref: '#/definitions/oscalTypes_1_1_3.IdentifiedSubject'
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        type: array
-      task-uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.RelevantEvidence:
-    properties:
-      description:
-        type: string
-      href:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-    type: object
-  oscalTypes_1_1_3.RequiredAsset:
-    properties:
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
-        type: array
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
   oscalTypes_1_1_3.Resource:
     properties:
       base64:
@@ -1092,39 +834,6 @@ definitions:
       href:
         type: string
       media-type:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Response:
-    properties:
-      description:
-        type: string
-      lifecycle:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      origins:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      required-assets:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RequiredAsset'
-        type: array
-      tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Task'
-        type: array
-      title:
-        type: string
-      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.ResponsibleParty:
@@ -1211,114 +920,6 @@ definitions:
       version:
         type: string
     type: object
-  oscalTypes_1_1_3.Risk:
-    properties:
-      characterizations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Characterization'
-        type: array
-      deadline:
-        type: string
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      mitigating-factors:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.MitigatingFactor'
-        type: array
-      origins:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-observations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
-        type: array
-      remediations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Response'
-        type: array
-      risk-log:
-        $ref: '#/definitions/oscalTypes_1_1_3.RiskLog'
-      statement:
-        type: string
-      status:
-        type: string
-      threat-ids:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ThreatId'
-        type: array
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.RiskLog:
-    properties:
-      entries:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RiskLogEntry'
-        type: array
-    type: object
-  oscalTypes_1_1_3.RiskLogEntry:
-    properties:
-      description:
-        type: string
-      end:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      logged-by:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.LoggedBy'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-responses:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RiskResponseReference'
-        type: array
-      remarks:
-        type: string
-      start:
-        type: string
-      status-change:
-        type: string
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.RiskResponseReference:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelatedTask'
-        type: array
-      remarks:
-        type: string
-      response-uuid:
-        type: string
-    type: object
   oscalTypes_1_1_3.Role:
     properties:
       description:
@@ -1385,25 +986,6 @@ definitions:
       title:
         type: string
       uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.SubjectReference:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      subject-uuid:
-        type: string
-      title:
-        type: string
-      type:
         type: string
     type: object
   oscalTypes_1_1_3.SystemComponent:
@@ -1532,15 +1114,6 @@ definitions:
       type:
         type: string
     type: object
-  oscalTypes_1_1_3.ThreatId:
-    properties:
-      href:
-        type: string
-      id:
-        type: string
-      system:
-        type: string
-    type: object
   oscalTypes_1_1_3.UsesComponent:
     properties:
       component-uuid:
@@ -1560,171 +1133,325 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
         type: array
     type: object
-  sdk.Finding:
+  service.Finding:
     properties:
-      description:
+      _id:
+        description: ID is the unique ID for this specific observation, and will be
+          used as the primary key in the database.
         type: string
-      implementation-statement-uuid:
+      collected:
+        type: string
+      components:
+        description: Which components of the subject are being judged
+        items:
+          type: string
+        type: array
+      controls:
+        description: Which controls did we validate
+        items:
+          $ref: '#/definitions/types.ControlReference'
+        type: array
+      description:
         type: string
       labels:
         additionalProperties:
           type: string
+        description: Labels represent the unique labels which can be used to filter
+          for findings in the UI.
         type: object
       links:
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+          $ref: '#/definitions/types.Link'
+        type: array
+      observations:
+        description: Which observations led to this judgment ?
+        items:
+          type: string
         type: array
       origins:
+        description: Who is generating this finding
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+          $ref: '#/definitions/types.Origin'
         type: array
       props:
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-observations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
-        type: array
-      related-risks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedRisk'
+          $ref: '#/definitions/types.Property'
         type: array
       remarks:
         type: string
-      target:
-        $ref: '#/definitions/oscalTypes_1_1_3.FindingTarget'
+      risks:
+        description: Which risks are associated with what we've tested
+        items:
+          $ref: '#/definitions/types.RiskReference'
+        type: array
+      status:
+        allOf:
+        - $ref: '#/definitions/types.FindingStatus'
+        description: What is our conclusion drawn for this finding. satisfied | not-satisfied
+      subjects:
+        description: What are we making a judgement against
+        items:
+          type: string
+        type: array
       title:
         type: string
       uuid:
+        description: |-
+          UUID needs to remain consistent when automation runs again, but unique for each subject.
+          It represents the "stream" of the same finding being made over time.
         type: string
     type: object
-  sdk.Observation:
+  service.Observation:
     properties:
+      _id:
+        description: ID is the unique ID for this specific observation, and will be
+          used as the primary key in the database.
+        type: string
+      activities:
+        description: What steps did we take to make this observation
+        items:
+          $ref: '#/definitions/types.Activity'
+        type: array
       collected:
         type: string
+      components:
+        description: Which components of the subject are being observed
+        items:
+          type: string
+        type: array
       description:
         type: string
       expires:
         type: string
-      labels:
-        additionalProperties:
-          type: string
-        type: object
       links:
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+          $ref: '#/definitions/types.Link'
         type: array
       methods:
         items:
           type: string
         type: array
       origins:
+        description: Who is generating this finding
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+          $ref: '#/definitions/types.Origin'
         type: array
       props:
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+          $ref: '#/definitions/types.Property'
         type: array
       relevant-evidence:
+        description: What exactly did we see
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RelevantEvidence'
+          $ref: '#/definitions/types.RelevantEvidence'
         type: array
       remarks:
         type: string
       subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
-        type: array
-      title:
-        type: string
-      types:
+        description: What are we observing
         items:
           type: string
         type: array
-      uuid:
-        type: string
-    type: object
-  sdk.Result:
-    properties:
-      assessment-log:
-        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentLog'
-      attestations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AttestationStatements'
-        type: array
-      description:
-        type: string
-      end:
-        type: string
-      findings:
-        items:
-          $ref: '#/definitions/sdk.Finding'
-        type: array
-      labels:
-        additionalProperties:
-          type: string
-        type: object
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      local-definitions:
-        $ref: '#/definitions/oscalTypes_1_1_3.LocalDefinitions'
-      observations:
-        items:
-          $ref: '#/definitions/sdk.Observation'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      reviewed-controls:
-        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
-      risks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Risk'
-        type: array
-      start:
-        type: string
-      streamId:
-        type: string
       title:
         type: string
       uuid:
         description: |-
-          Here we override the ID field to be of UUID for compatibility in our SDK.
-          Our clients don't care about Mongo ObjectIDs, and it won't map well for their use.
+          UUID needs to remain consistent when automation runs again, but unique for each subject.
+          It represents the "stream" of the same observation being made over time.
         type: string
     type: object
-  service.IntervalledRecord:
+  service.StatusOverTimeGroup:
     properties:
-      findings:
-        type: integer
-      findings_fail:
-        type: integer
-      findings_pass:
-        type: integer
-      hasRecords:
-        type: boolean
       interval:
         type: string
-      observations:
+      statuses:
+        items:
+          $ref: '#/definitions/service.StatusOverTimeRecord'
+        type: array
+    type: object
+  service.StatusOverTimeRecord:
+    properties:
+      count:
         type: integer
+      status:
+        type: string
+    type: object
+  types.Activity:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/types.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/types.Property'
+        type: array
+      remarks:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/types.Step'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  types.ControlReference:
+    properties:
+      class:
+        type: string
+      control-id:
+        type: string
+      statement-ids:
+        items:
+          type: string
+        type: array
+    type: object
+  types.FindingStatus:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/types.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/types.Property'
+        type: array
+      remarks:
+        type: string
+      state:
+        type: string
       title:
         type: string
     type: object
-  service.StreamRecords:
+  types.Link:
     properties:
-      _id:
+      href:
         type: string
-      records:
+      media-type:
+        type: string
+      rel:
+        type: string
+      resource-fragment:
+        type: string
+      text:
+        type: string
+    type: object
+  types.Origin:
+    properties:
+      actors:
         items:
-          $ref: '#/definitions/service.IntervalledRecord'
+          $ref: '#/definitions/types.OriginActor'
         type: array
+    type: object
+  types.OriginActor:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/types.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/types.Property'
+        type: array
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
+  types.Property:
+    properties:
+      class:
+        type: string
+      group:
+        type: string
+      name:
+        type: string
+      ns:
+        type: string
+      remarks:
+        type: string
+      uuid:
+        type: string
+      value:
+        type: string
+    type: object
+  types.RelevantEvidence:
+    properties:
+      description:
+        type: string
+      href:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/types.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/types.Property'
+        type: array
+      remarks:
+        type: string
+    type: object
+  types.RiskReference:
+    properties:
+      href:
+        description: If a Href is specified here, it means we are referencing a common
+          risk, and should be pulled from there.
+        type: string
+      identifier:
+        type: string
+      origins:
+        description: Who is generating this risk
+        items:
+          $ref: '#/definitions/types.Origin'
+        type: array
+      status:
+        description: The status for the risk. This can either be open|closed based
+          on whether the risk is active or not.
+        type: string
+      threat-ids:
+        description: |-
+          These threats relate to well known threats like phishing emails, brute force attacks, etc. often detailed
+          by cyber-security organisations.
+        items:
+          $ref: '#/definitions/types.ThreatId'
+        type: array
+    type: object
+  types.Step:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/types.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/types.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  types.ThreatId:
+    properties:
+      href:
+        type: string
+      id:
+        type: string
+      system:
+        type: string
     type: object
 externalDocs:
   description: OpenAPI
@@ -1810,43 +1537,46 @@ paths:
       summary: Fetch a single assessment plan
       tags:
       - Assessment Plans
-  /assessment-results:
+  /findings:
     post:
       consumes:
       - application/json
-      description: Creates an assessment result in the specified stream and label
-        mapping
+      description: Creates multiple findings in the CCF API, as well as their subject
+        and component counterparts.
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-sdk_Result'
-        "401":
-          description: Unauthorized
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Create new assessment result
+      summary: Create new findings
       tags:
-      - Assessment Results
-  /assessment-results/:id:
+      - Findings
+  /findings/{id}:
     get:
-      consumes:
-      - application/json
+      description: Fetches a finding based on its internal ID.
+      parameters:
+      - description: Finding ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-sdk_Result'
-        "401":
-          description: Unauthorized
+            $ref: '#/definitions/handler.GenericDataListResponse-service_Finding'
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
         "404":
@@ -1857,63 +1587,132 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Fetch a single assessment result
+      summary: Get a single finding
       tags:
-      - Assessment Results
-  /assessment-results/compliance-by-search:
+      - Findings
+  /findings/compliance:
     post:
       consumes:
       - application/json
-      description: Returns the compliance over time records for a particular search
-        query
+      description: Fetches an intervalled compliance report for findings that match
+        the provided label filter. The report groups findings status over time and
+        returns a list of compliance report groups.
+      parameters:
+      - description: Label filter criteria
+        in: body
+        name: filter
+        required: true
+        schema:
+          $ref: '#/definitions/labelfilter.Filter'
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-service_StreamRecords'
+            $ref: '#/definitions/handler.GenericDataListResponse-service_StatusOverTimeGroup'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Get Compliance Over Time for Search query
+      summary: Get intervalled compliance report by search
       tags:
-      - Assessment Results Observability
-  /assessment-results/compliance-by-stream:
-    post:
-      consumes:
-      - application/json
-      description: Returns the compliance over time records for a particular streamId
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-service_StreamRecords'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Get Compliance Over Time for stream
-      tags:
-      - Assessment Results Observability
-  /assessment-results/plan/:plan:
+      - Findings
+  /findings/history/{uuid}:
     get:
-      consumes:
-      - application/json
-      description: Fetches the latest result for each stream associated in an assessment
-        plan
+      description: Fetches up to 200 findings (ordered by Collected descending) that
+        share the same stream UUID.
+      parameters:
+      - description: Stream UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-sdk_Result'
-        "401":
-          description: Unauthorized
+            $ref: '#/definitions/handler.GenericDataListResponse-service_Finding'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get finding history by stream UUID
+      tags:
+      - Findings
+  /findings/search:
+    post:
+      consumes:
+      - application/json
+      description: Searches for findings using label filters.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_Finding'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Search findings by labels
+      tags:
+      - Findings
+  /observations:
+    post:
+      consumes:
+      - application/json
+      description: Creates multiple observations in the CCF API, along with their
+        subject and component counterparts.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create new observations
+      tags:
+      - Observations
+  /observations/{id}:
+    get:
+      description: Fetches an observation based on its internal ID.
+      parameters:
+      - description: Observation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-service_Observation'
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
         "404":
@@ -1924,59 +1723,37 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Fetch all assessment results for an assessment plan
+      summary: Get a single observation
       tags:
-      - Assessment Results
-  /assessment-results/search:
-    post:
-      consumes:
-      - application/json
-      description: Returns a list of the latest result for each stream matching the
-        specified label selector
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-sdk_Result'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Search assessment results using label selectors
-      tags:
-      - Assessment Results
-  /assessment-results/stream/:stream:
+      - Observations
+  /observations/history/{uuid}:
     get:
-      consumes:
-      - application/json
+      description: Fetches up to 200 observations (ordered by Collected descending)
+        that share the same stream UUID.
+      parameters:
+      - description: Stream UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-sdk_Result'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
+            $ref: '#/definitions/handler.GenericDataListResponse-service_Observation'
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Fetch all assessment results for a result stream
+      summary: Get observation history by stream UUID
       tags:
-      - Assessment Results
+      - Observations
 produces:
 - application/json
 swagger: "2.0"

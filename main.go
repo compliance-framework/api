@@ -23,15 +23,15 @@ type Config struct {
 	MongoURI string
 }
 
-//	@title						Continuous Compliance Framework API
-//	@version					1
-//	@description				This is the API for the Continuous Compliance Framework.
-//	@host						localhost:8080
-//	@accept						json
-//	@produce					json
-//	@BasePath					/api
-//	@externalDocs.description	OpenAPI
-//	@externalDocs.url			https://swagger.io/resources/open-api/
+// @title						Continuous Compliance Framework API
+// @version					1
+// @description				This is the API for the Continuous Compliance Framework.
+// @host						localhost:8080
+// @accept						json
+// @produce					json
+// @BasePath					/api
+// @externalDocs.description	OpenAPI
+// @externalDocs.url			https://swagger.io/resources/open-api/
 func main() {
 	ctx := context.Background()
 

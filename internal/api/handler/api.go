@@ -9,11 +9,18 @@ import (
 
 func RegisterHandlers(server *api.Server, database *mongo.Database, logger *zap.SugaredLogger) {
 	plansService := service.NewPlansService(database)
-	resultService := service.NewResultsService(database)
 
-	resultHandler := NewResultsHandler(logger, resultService, plansService)
-	resultHandler.Register(server.API().Group("/assessment-results"))
+	findingService := service.NewFindingService(database)
+	observationService := service.NewObservationService(database)
+	componentService := service.NewComponentService(database)
+	subjectService := service.NewSubjectService(database)
 
 	plansHandler := NewPlansHandler(logger, plansService)
 	plansHandler.Register(server.API().Group("/assessment-plans"))
+
+	findingHandler := NewFindingsHandler(logger, findingService, subjectService, componentService)
+	findingHandler.Register(server.API().Group("/findings"))
+
+	observationsHandler := NewObservationHandler(logger, observationService, subjectService, componentService)
+	observationsHandler.Register(server.API().Group("/observations"))
 }

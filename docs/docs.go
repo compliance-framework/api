@@ -135,9 +135,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/assessment-results": {
+        "/findings": {
             "post": {
-                "description": "Creates an assessment result in the specified stream and label mapping",
+                "description": "Creates multiple findings in the CCF API, as well as their subject and component counterparts.",
                 "consumes": [
                     "application/json"
                 ],
@@ -145,18 +145,15 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Assessment Results"
+                    "Findings"
                 ],
-                "summary": "Create new assessment result",
+                "summary": "Create new findings",
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-sdk_Result"
-                        }
+                    "201": {
+                        "description": "Created"
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -170,8 +167,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/assessment-results/:id": {
-            "get": {
+        "/findings/compliance": {
+            "post": {
+                "description": "Fetches an intervalled compliance report for findings that match the provided label filter. The report groups findings status over time and returns a list of compliance report groups.",
                 "consumes": [
                     "application/json"
                 ],
@@ -179,18 +177,146 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Assessment Results"
+                    "Findings"
                 ],
-                "summary": "Fetch a single assessment result",
+                "summary": "Get intervalled compliance report by search",
+                "parameters": [
+                    {
+                        "description": "Label filter criteria",
+                        "name": "filter",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/labelfilter.Filter"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StatusOverTimeGroup"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/findings/history/{uuid}": {
+            "get": {
+                "description": "Fetches up to 200 findings (ordered by Collected descending) that share the same stream UUID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Get finding history by stream UUID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Stream UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-sdk_Result"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_Finding"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/findings/search": {
+            "post": {
+                "description": "Searches for findings using label filters.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Search findings by labels",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_Finding"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/findings/{id}": {
+            "get": {
+                "description": "Fetches a finding based on its internal ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Get a single finding",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Finding ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_Finding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -210,9 +336,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/assessment-results/compliance-by-search": {
+        "/observations": {
             "post": {
-                "description": "Returns the compliance over time records for a particular search query",
+                "description": "Creates multiple observations in the CCF API, along with their subject and component counterparts.",
                 "consumes": [
                     "application/json"
                 ],
@@ -220,14 +346,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Assessment Results Observability"
+                    "Observations"
                 ],
-                "summary": "Get Compliance Over Time for Search query",
+                "summary": "Create new observations",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StreamRecords"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
@@ -239,63 +368,34 @@ const docTemplate = `{
                 }
             }
         },
-        "/assessment-results/compliance-by-stream": {
-            "post": {
-                "description": "Returns the compliance over time records for a particular streamId",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Assessment Results Observability"
-                ],
-                "summary": "Get Compliance Over Time for stream",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StreamRecords"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/assessment-results/plan/:plan": {
+        "/observations/history/{uuid}": {
             "get": {
-                "description": "Fetches the latest result for each stream associated in an assessment plan",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Fetches up to 200 observations (ordered by Collected descending) that share the same stream UUID.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Assessment Results"
+                    "Observations"
                 ],
-                "summary": "Fetch all assessment results for an assessment plan",
+                "summary": "Get observation history by stream UUID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Stream UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-sdk_Result"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_Observation"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -309,62 +409,34 @@ const docTemplate = `{
                 }
             }
         },
-        "/assessment-results/search": {
-            "post": {
-                "description": "Returns a list of the latest result for each stream matching the specified label selector",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Assessment Results"
-                ],
-                "summary": "Search assessment results using label selectors",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-sdk_Result"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/assessment-results/stream/:stream": {
+        "/observations/{id}": {
             "get": {
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Fetches an observation based on its internal ID.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Assessment Results"
+                    "Observations"
                 ],
-                "summary": "Fetch all assessment results for a result stream",
+                "summary": "Get a single observation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Observation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-sdk_Result"
+                            "$ref": "#/definitions/handler.GenericDataResponse-service_Observation"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -451,26 +523,38 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-sdk_Result": {
+        "handler.GenericDataListResponse-service_Finding": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/sdk.Result"
+                        "$ref": "#/definitions/service.Finding"
                     }
                 }
             }
         },
-        "handler.GenericDataListResponse-service_StreamRecords": {
+        "handler.GenericDataListResponse-service_Observation": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/service.StreamRecords"
+                        "$ref": "#/definitions/service.Observation"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-service_StatusOverTimeGroup": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.StatusOverTimeGroup"
                     }
                 }
             }
@@ -488,14 +572,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-sdk_Result": {
+        "handler.GenericDataResponse-service_Observation": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/sdk.Result"
+                            "$ref": "#/definitions/service.Observation"
                         }
                     ]
                 }
@@ -789,64 +873,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.AssessmentLog": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentLogEntry"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessmentLogEntry": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "end": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "logged-by": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.LoggedBy"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "start": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.AssessmentPart": {
             "type": "object",
             "properties": {
@@ -1007,31 +1033,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.AssociatedRisk": {
-            "type": "object",
-            "properties": {
-                "risk-uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AttestationStatements": {
-            "type": "object",
-            "properties": {
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPart"
-                    }
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
-                }
-            }
-        },
         "oscalTypes_1_1_3.AuthorizedPrivilege": {
             "type": "object",
             "properties": {
@@ -1071,32 +1072,6 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Characterization": {
-            "type": "object",
-            "properties": {
-                "facets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Facet"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "origin": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
                 }
             }
         },
@@ -1145,73 +1120,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.Facet": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "system": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.FindingTarget": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "implementation-status": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ImplementationStatus"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
-                },
-                "target-id": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.FrequencyCondition": {
             "type": "object",
             "properties": {
@@ -1230,31 +1138,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.IdentifiedSubject": {
-            "type": "object",
-            "properties": {
-                "subject-placeholder-uuid": {
-                    "type": "string"
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ImplementationStatus": {
-            "type": "object",
-            "properties": {
-                "remarks": {
-                    "type": "string"
-                },
-                "state": {
                     "type": "string"
                 }
             }
@@ -1478,17 +1361,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.LoggedBy": {
-            "type": "object",
-            "properties": {
-                "party-uuid": {
-                    "type": "string"
-                },
-                "role-id": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.Metadata": {
             "type": "object",
             "properties": {
@@ -1566,52 +1438,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.MitigatingFactor": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "implementation-uuid": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
-                    }
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ObjectiveStatus": {
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "state": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.OnDateCondition": {
             "type": "object",
             "properties": {
@@ -1627,49 +1453,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Origin": {
-            "type": "object",
-            "properties": {
-                "actors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.OriginActor"
-                    }
-                },
-                "related-tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.OriginActor": {
-            "type": "object",
-            "properties": {
-                "actor-uuid": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "role-id": {
-                    "type": "string"
-                },
-                "type": {
                     "type": "string"
                 }
             }
@@ -1892,113 +1675,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.RelatedObservation": {
-            "type": "object",
-            "properties": {
-                "observation-uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RelatedTask": {
-            "type": "object",
-            "properties": {
-                "identified-subject": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.IdentifiedSubject"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
-                    }
-                },
-                "task-uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RelevantEvidence": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "href": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RequiredAsset": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.Resource": {
             "type": "object",
             "properties": {
@@ -2053,56 +1729,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "media-type": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Response": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "lifecycle": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "origins": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "required-assets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RequiredAsset"
-                    }
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
                     "type": "string"
                 }
             }
@@ -2235,170 +1861,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.Risk": {
-            "type": "object",
-            "properties": {
-                "characterizations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Characterization"
-                    }
-                },
-                "deadline": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "mitigating-factors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.MitigatingFactor"
-                    }
-                },
-                "origins": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-observations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
-                    }
-                },
-                "remediations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Response"
-                    }
-                },
-                "risk-log": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.RiskLog"
-                },
-                "statement": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "threat-ids": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ThreatId"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RiskLog": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RiskLogEntry"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RiskLogEntry": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "end": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "logged-by": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.LoggedBy"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-responses": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RiskResponseReference"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "start": {
-                    "type": "string"
-                },
-                "status-change": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RiskResponseReference": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "response-uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.Role": {
             "type": "object",
             "properties": {
@@ -2499,35 +1961,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.SubjectReference": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "subject-uuid": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
                     "type": "string"
                 }
             }
@@ -2724,20 +2157,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.ThreatId": {
-            "type": "object",
-            "properties": {
-                "href": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "system": {
-                    "type": "string"
-                }
-            }
-        },
         "oscalTypes_1_1_3.UsesComponent": {
             "type": "object",
             "properties": {
@@ -2767,16 +2186,35 @@ const docTemplate = `{
                 }
             }
         },
-        "sdk.Finding": {
+        "service.Finding": {
             "type": "object",
             "properties": {
+                "_id": {
+                    "description": "ID is the unique ID for this specific observation, and will be used as the primary key in the database.",
+                    "type": "string"
+                },
+                "collected": {
+                    "type": "string"
+                },
+                "components": {
+                    "description": "Which components of the subject are being judged",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "controls": {
+                    "description": "Which controls did we validate",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.ControlReference"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
-                "implementation-statement-uuid": {
-                    "type": "string"
-                },
                 "labels": {
+                    "description": "Labels represent the unique labels which can be used to filter for findings in the UI.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -2785,52 +2223,86 @@ const docTemplate = `{
                 "links": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                        "$ref": "#/definitions/types.Link"
+                    }
+                },
+                "observations": {
+                    "description": "Which observations led to this judgment ?",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 },
                 "origins": {
+                    "description": "Who is generating this finding",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                        "$ref": "#/definitions/types.Origin"
                     }
                 },
                 "props": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-observations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
-                    }
-                },
-                "related-risks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedRisk"
+                        "$ref": "#/definitions/types.Property"
                     }
                 },
                 "remarks": {
                     "type": "string"
                 },
-                "target": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.FindingTarget"
+                "risks": {
+                    "description": "Which risks are associated with what we've tested",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.RiskReference"
+                    }
+                },
+                "status": {
+                    "description": "What is our conclusion drawn for this finding. satisfied | not-satisfied",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.FindingStatus"
+                        }
+                    ]
+                },
+                "subjects": {
+                    "description": "What are we making a judgement against",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string"
                 },
                 "uuid": {
+                    "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same finding being made over time.",
                     "type": "string"
                 }
             }
         },
-        "sdk.Observation": {
+        "service.Observation": {
             "type": "object",
             "properties": {
+                "_id": {
+                    "description": "ID is the unique ID for this specific observation, and will be used as the primary key in the database.",
+                    "type": "string"
+                },
+                "activities": {
+                    "description": "What steps did we take to make this observation",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Activity"
+                    }
+                },
                 "collected": {
                     "type": "string"
+                },
+                "components": {
+                    "description": "Which components of the subject are being observed",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "description": {
                     "type": "string"
@@ -2838,16 +2310,10 @@ const docTemplate = `{
                 "expires": {
                     "type": "string"
                 },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
                 "links": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                        "$ref": "#/definitions/types.Link"
                     }
                 },
                 "methods": {
@@ -2857,161 +2323,329 @@ const docTemplate = `{
                     }
                 },
                 "origins": {
+                    "description": "Who is generating this finding",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                        "$ref": "#/definitions/types.Origin"
                     }
                 },
                 "props": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                        "$ref": "#/definitions/types.Property"
                     }
                 },
                 "relevant-evidence": {
+                    "description": "What exactly did we see",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RelevantEvidence"
+                        "$ref": "#/definitions/types.RelevantEvidence"
                     }
                 },
                 "remarks": {
                     "type": "string"
                 },
                 "subjects": {
+                    "description": "What are we observing",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                        "type": "string"
                     }
                 },
                 "title": {
                     "type": "string"
                 },
-                "types": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "uuid": {
+                    "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same observation being made over time.",
                     "type": "string"
                 }
             }
         },
-        "sdk.Result": {
+        "service.StatusOverTimeGroup": {
             "type": "object",
             "properties": {
-                "assessment-log": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentLog"
+                "interval": {
+                    "type": "string"
                 },
-                "attestations": {
+                "statuses": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AttestationStatements"
+                        "$ref": "#/definitions/service.StatusOverTimeRecord"
                     }
+                }
+            }
+        },
+        "service.StatusOverTimeRecord": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
                 },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.Activity": {
+            "type": "object",
+            "properties": {
                 "description": {
                     "type": "string"
-                },
-                "end": {
-                    "type": "string"
-                },
-                "findings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/sdk.Finding"
-                    }
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
                 },
                 "links": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "local-definitions": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
-                },
-                "observations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/sdk.Observation"
+                        "$ref": "#/definitions/types.Link"
                     }
                 },
                 "props": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                        "$ref": "#/definitions/types.Property"
                     }
                 },
                 "remarks": {
                     "type": "string"
                 },
-                "reviewed-controls": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
-                },
-                "risks": {
+                "steps": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
+                        "$ref": "#/definitions/types.Step"
                     }
                 },
-                "start": {
+                "title": {
                     "type": "string"
                 },
-                "streamId": {
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.ControlReference": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "control-id": {
+                    "type": "string"
+                },
+                "statement-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "types.FindingStatus": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.Link": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "media-type": {
+                    "type": "string"
+                },
+                "rel": {
+                    "type": "string"
+                },
+                "resource-fragment": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.Origin": {
+            "type": "object",
+            "properties": {
+                "actors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.OriginActor"
+                    }
+                }
+            }
+        },
+        "types.OriginActor": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.Property": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.RelevantEvidence": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.RiskReference": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "description": "If a Href is specified here, it means we are referencing a common risk, and should be pulled from there.",
+                    "type": "string"
+                },
+                "identifier": {
+                    "type": "string"
+                },
+                "origins": {
+                    "description": "Who is generating this risk",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Origin"
+                    }
+                },
+                "status": {
+                    "description": "The status for the risk. This can either be open|closed based on whether the risk is active or not.",
+                    "type": "string"
+                },
+                "threat-ids": {
+                    "description": "These threats relate to well known threats like phishing emails, brute force attacks, etc. often detailed\nby cyber-security organisations.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.ThreatId"
+                    }
+                }
+            }
+        },
+        "types.Step": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Property"
+                    }
+                },
+                "remarks": {
                     "type": "string"
                 },
                 "title": {
                     "type": "string"
                 },
                 "uuid": {
-                    "description": "Here we override the ID field to be of UUID for compatibility in our SDK.\nOur clients don't care about Mongo ObjectIDs, and it won't map well for their use.",
                     "type": "string"
                 }
             }
         },
-        "service.IntervalledRecord": {
+        "types.ThreatId": {
             "type": "object",
             "properties": {
-                "findings": {
-                    "type": "integer"
-                },
-                "findings_fail": {
-                    "type": "integer"
-                },
-                "findings_pass": {
-                    "type": "integer"
-                },
-                "hasRecords": {
-                    "type": "boolean"
-                },
-                "interval": {
+                "href": {
                     "type": "string"
                 },
-                "observations": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "service.StreamRecords": {
-            "type": "object",
-            "properties": {
-                "_id": {
+                "id": {
                     "type": "string"
                 },
-                "records": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/service.IntervalledRecord"
-                    }
+                "system": {
+                    "type": "string"
                 }
             }
         }
