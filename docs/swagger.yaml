@@ -83,6 +83,13 @@ definitions:
         - $ref: '#/definitions/service.Observation'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-service_Subject:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/service.Subject'
+        description: Items from the list response
+    type: object
   handler.PlanResponse:
     properties:
       assessment-assets:
@@ -1276,6 +1283,29 @@ definitions:
       status:
         type: string
     type: object
+  service.Subject:
+    properties:
+      _id:
+        type: string
+      attributes:
+        additionalProperties:
+          type: string
+        type: object
+      links:
+        items:
+          $ref: '#/definitions/types.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/types.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
   types.Activity:
     properties:
       description:
@@ -1754,6 +1784,37 @@ paths:
       summary: Get observation history by stream UUID
       tags:
       - Observations
+  /subjects/{id}:
+    get:
+      description: Fetches a subject based on its internal ID.
+      parameters:
+      - description: Subject ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-service_Subject'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a single subject
+      tags:
+      - Subjects
 produces:
 - application/json
 swagger: "2.0"
