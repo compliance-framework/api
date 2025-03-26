@@ -25,8 +25,30 @@ func NewSubjectsHandler(l *zap.SugaredLogger, s *service.SubjectService) *Subjec
 }
 
 func (h *SubjectsHandler) Register(api *echo.Group) {
+	api.GET("", h.GetAllSubjects)
 	api.GET("/:id", h.FindSubjectById)
 	api.PATCH("/:id", h.UpdateSubjectById)
+	api.DELETE("/:id", h.DeleteSubject)
+}
+
+// GetAllSubjects godoc
+//
+//	@Summary		Get all subjects
+//	@Description	Retrieves a list of all subjects from the database.
+//	@Tags			Subjects
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataResponse[[]service.Subject]
+//	@Failure		500	{object}	api.Error
+//	@Router			/subjects [get]
+func (h *SubjectsHandler) GetAllSubjects(ctx echo.Context) error {
+	subjects, err := h.service.FindAll(ctx.Request().Context())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve subjects")
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataResponse[[]service.Subject]{
+		Data: subjects,
+	})
 }
 
 // FindSubjectById godoc
@@ -112,4 +134,33 @@ func (h *SubjectsHandler) UpdateSubjectById(ctx echo.Context) error {
 type UpdateSubjectRequest struct {
 	Title   string `json:"title,omitempty"`
 	Remarks string `json:"remarks,omitempty"`
+}
+
+// DeleteSubject godoc
+//
+//	@Summary		Delete a subject
+//	@Description	Deletes a subject from the database based on its internal ID.
+//	@Tags			Subjects
+//	@Produce		json
+//	@Param			id	path		string	true	"Subject ID"
+//	@Success		204	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/subjects/{id} [delete]
+func (h *SubjectsHandler) DeleteSubject(ctx echo.Context) error {
+	subjectID := ctx.Param("id")
+	id, err := uuid.Parse(subjectID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid subject ID format")
+	}
+
+	_, err = h.service.Delete(ctx.Request().Context(), &id, nil)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return echo.NewHTTPError(http.StatusNotFound, "Subject not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to delete subject")
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
 }

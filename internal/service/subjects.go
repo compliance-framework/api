@@ -34,6 +34,29 @@ func (s *SubjectService) Create(ctx context.Context, subject *Subject) (*Subject
 	return subject, nil
 }
 
+func (s *SubjectService) FindAll(ctx context.Context) ([]Subject, error) {
+	cursor, err := s.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var subjects []Subject
+	for cursor.Next(ctx) {
+		var subject Subject
+		if err := cursor.Decode(&subject); err != nil {
+			return nil, err
+		}
+		subjects = append(subjects, subject)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return subjects, nil
+}
+
 // FindById retrieves a subject by its UUID.
 func (s *SubjectService) FindById(ctx context.Context, id *uuid.UUID) (*Subject, error) {
 	filter := bson.M{"_id": id}
