@@ -23,4 +23,8 @@ func RegisterHandlers(server *api.Server, database *mongo.Database, logger *zap.
 
 	observationsHandler := NewObservationHandler(logger, observationService, subjectService, componentService)
 	observationsHandler.Register(server.API().Group("/observations"))
+
+	subjectsHandler := NewSubjectsHandler(logger, subjectService)
+	subjectsHandler.Register(server.API().Group("/subjects"))
+
 }

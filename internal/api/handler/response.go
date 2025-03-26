@@ -17,3 +17,7 @@ type GenericDataListResponse[T any] struct {
 	// Items from the list response
 	Data []T `json:"data" yaml:"data"`
 }
+
+type SubjectResponse struct {
+	domain.SubjectType
+}
