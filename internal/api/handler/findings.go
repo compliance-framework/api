@@ -22,9 +22,10 @@ type FindingsHandler struct {
 func (h *FindingsHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
 	api.POST("/search", h.Search)
-	api.GET("/:id", h.GetFinding)
-	api.GET("/history/:uuid", h.History)
 	api.POST("/compliance-by-search", h.ComplianceBySearch)
+	api.GET("/compliance-by-uuid/:uuid", h.ComplianceByUUID)
+	api.GET("/history/:uuid", h.History)
+	api.GET("/:id", h.GetFinding)
 }
 
 func NewFindingsHandler(
@@ -247,7 +248,7 @@ func (h *FindingsHandler) Search(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataListResponse[service.StatusOverTimeGroup]
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Router			/findings/compliance [post]
+//	@Router			/findings/compliance-by-search [post]
 func (h *FindingsHandler) ComplianceBySearch(ctx echo.Context) error {
 	filter := &labelfilter.Filter{}
 	req := filteredSearchRequest{}
@@ -264,6 +265,35 @@ func (h *FindingsHandler) ComplianceBySearch(ctx echo.Context) error {
 
 	// Wrap the search results in GenericDataListResponse.
 	return ctx.JSON(http.StatusCreated, GenericDataListResponse[service.StatusOverTimeGroup]{
+		Data: results,
+	})
+}
+
+// ComplianceByUUID godoc
+//
+//	@Summary		Get intervalled compliance report by finding uuid
+//	@Description	Fetches an intervalled compliance report for findings that match the provided uuid. The report groups findings status over time and returns a list of compliance report groups.
+//	@Tags			Findings
+//	@Accept			json
+//	@Produce		json
+//	@Param			uuid	path		uuid.UUID	true	"Finding UUID"
+//	@Success		201		{object}	handler.GenericDataListResponse[service.StatusOverTimeGroup]
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/compliance-by-uuid/{uuid} [get]
+func (h *FindingsHandler) ComplianceByUUID(ctx echo.Context) error {
+	uuidParam := ctx.Param("uuid")
+	findingUUID, err := uuid.Parse(uuidParam)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	results, err := h.findingService.GetIntervalledComplianceReportForUUID(ctx.Request().Context(), findingUUID)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Wrap the search results in GenericDataListResponse.
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[service.StatusOverTimeGroup]{
 		Data: results,
 	})
 }

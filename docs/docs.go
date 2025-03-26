@@ -135,6 +135,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/compliance-by-uuid/{uuid}": {
+            "get": {
+                "description": "Fetches an intervalled compliance report for findings that match the provided uuid. The report groups findings status over time and returns a list of compliance report groups.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Get intervalled compliance report by finding uuid",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StatusOverTimeGroup"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/findings": {
             "post": {
                 "description": "Creates multiple findings in the CCF API, as well as their subject and component counterparts.",
@@ -167,7 +202,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/findings/compliance": {
+        "/findings/compliance-by-search": {
             "post": {
                 "description": "Fetches an intervalled compliance report for findings that match the provided label filter. The report groups findings status over time and returns a list of compliance report groups.",
                 "consumes": [

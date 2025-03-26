@@ -482,7 +482,7 @@ func (s *FindingService) getIntervalledCompliancePipeline(ctx context.Context, i
 }
 
 func (s *FindingService) GetIntervalledComplianceReportForFilter(ctx context.Context, filter *labelfilter.Filter) ([]StatusOverTimeGroup, error) {
-	interval := 5 * time.Minute
+	interval := 2 * time.Minute
 
 	mongoFilter := labelfilter.MongoFromFilter(*filter)
 	intervalQuery := s.StatusOverTime(ctx, interval)
@@ -507,12 +507,12 @@ func (s *FindingService) GetIntervalledComplianceReportForFilter(ctx context.Con
 	return results, nil
 }
 
-func (s *FindingService) GetIntervalledComplianceReportForStream(ctx context.Context, streamId uuid.UUID) ([]*StreamRecords, error) {
-	interval := 5 * time.Minute
-	intervalQuery := s.getIntervalledCompliancePipeline(ctx, interval)
+func (s *FindingService) GetIntervalledComplianceReportForUUID(ctx context.Context, uuid uuid.UUID) ([]StatusOverTimeGroup, error) {
+	interval := 2 * time.Minute
+	intervalQuery := s.StatusOverTime(ctx, interval)
 	pipeline := mongo.Pipeline{
 		bson.D{{Key: "$match", Value: bson.D{
-			{Key: "uuid", Value: streamId},
+			{Key: "uuid", Value: uuid},
 		}}},
 	}
 	pipeline = append(pipeline, intervalQuery...)
@@ -523,16 +523,12 @@ func (s *FindingService) GetIntervalledComplianceReportForStream(ctx context.Con
 	}
 	defer cursor.Close(ctx)
 
-	var streamRecords []*StreamRecords
-	err = cursor.All(ctx, &streamRecords)
-	if err != nil {
+	var results []StatusOverTimeGroup
+	if err := cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
 
-	// fill gaps in time jumps, and mark them as having zero observations and findings
-	for _, streamRecord := range streamRecords {
-		streamRecord.FillGaps(ctx, interval)
-	}
+	results = FillStatusOverTimeGroupGaps(ctx, results, interval)
 
-	return streamRecords, nil
+	return results, nil
 }
