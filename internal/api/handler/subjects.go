@@ -27,6 +27,18 @@ func (h *SubjectsHandler) Register(api *echo.Group) {
 	api.GET("/:id", h.FindSubjectById)
 }
 
+// FindSubjectById godoc
+//
+//	@Summary		Get a single subject
+//	@Description	Fetches a subject based on its internal ID.
+//	@Tags			Subjects
+//	@Produce		json
+//	@Param			id	path		string	true	"Subject ID"
+//	@Success		200	{object}	handler.GenericDataResponse[service.Subject]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/subjects/{id} [get]
 func (h *SubjectsHandler) FindSubjectById(ctx echo.Context) error {
 	idStr := ctx.Param("id")
 	id, err := uuid.Parse(idStr)
