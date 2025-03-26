@@ -90,7 +90,7 @@ func (h *SubjectsHandler) FindSubjectById(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id	path		string	true	"Subject ID"
 //	@Param			body		body		UpdateSubjectRequest	true	"Title and remarks data"
-//	@Success		200	{object}	models.Subject
+//	@Success		200	{object}	handler.GenericDataResponse[service.Subject]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
