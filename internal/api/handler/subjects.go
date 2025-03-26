@@ -88,12 +88,12 @@ func (h *SubjectsHandler) FindSubjectById(ctx echo.Context) error {
 //	@Description	Updates a subject's title and/or remarks based on the provided subject ID. Only title and remarks are updated if provided. If no fields are provided, a `400 Bad Request` is returned.
 //	@Tags			Subjects
 //	@Produce		json
-//	@Param			id	path		string	true	"Subject ID"
-//	@Param			body		body		UpdateSubjectRequest	true	"Title and remarks data"
-//	@Success		200	{object}	handler.GenericDataResponse[service.Subject]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
+//	@Param			id		path		string					true	"Subject ID"
+//	@Param			body	body		UpdateSubjectRequest	true	"Title and remarks data"
+//	@Success		200		{object}	handler.GenericDataResponse[service.Subject]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Router			/subjects/{id} [patch]
 func (h *SubjectsHandler) UpdateSubjectById(ctx echo.Context) error {
 	idStr := ctx.Param("id")
@@ -142,8 +142,9 @@ type UpdateSubjectRequest struct {
 //	@Description	Deletes a subject from the database based on its internal ID.
 //	@Tags			Subjects
 //	@Produce		json
-//	@Param			id	path		string	true	"Subject ID"
-//	@Success		204	{object}	api.Error
+//	@Param			id	path	string	true	"Subject ID"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Router			/subjects/{id} [delete]
