@@ -85,9 +85,10 @@ func loadConfig() (config Config) {
 		mongoURI = DefaultMongoURI
 	}
 
-	port := fmt.Sprintf(":%s", os.Getenv("APP_PORT"))
-	if port == "" {
-		port = DefaultPort
+	port := DefaultPort
+	appPort, portSet := os.LookupEnv("APP_PORT")
+	if portSet {
+		port = fmt.Sprintf(":%s", appPort)
 	}
 
 	config = Config{
