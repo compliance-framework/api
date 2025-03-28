@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -21,6 +22,7 @@ const (
 
 type Config struct {
 	MongoURI string
+	AppPort  string
 }
 
 // @title						Continuous Compliance Framework API
@@ -55,7 +57,7 @@ func main() {
 
 	server.PrintRoutes()
 
-	checkErr(server.Start(DefaultPort))
+	checkErr(server.Start(config.AppPort))
 }
 
 func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, databaseName string) (*mongo.Database, error) {
@@ -83,8 +85,14 @@ func loadConfig() (config Config) {
 		mongoURI = DefaultMongoURI
 	}
 
+	port := fmt.Sprintf(":%s", os.Getenv("APP_PORT"))
+	if port == "" {
+		port = DefaultPort
+	}
+
 	config = Config{
 		MongoURI: mongoURI,
+		AppPort:  port,
 	}
 	return config
 }
