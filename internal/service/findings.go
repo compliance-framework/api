@@ -2,13 +2,14 @@ package service
 
 import (
 	"context"
+	"sort"
+	"time"
+
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"sort"
-	"time"
 )
 
 type FindingService struct {
@@ -170,6 +171,67 @@ func (s *FindingService) SearchByLabels(ctx context.Context, filter *labelfilter
 	}
 
 	return output, nil
+}
+
+type FindingsByControlClass struct {
+	Class     string    `json:"class" yaml:"class"`
+	ControlId string    `json:"controlid" yaml:"controlid" bson:"controlid"` // Ensure BSON matches
+	Findings  []Finding `bson:"findings" json:"findings"`
+}
+
+func (s *FindingService) SearchByControlClass(ctx context.Context, class string) ([]*FindingsByControlClass, error) {
+	pipeline := mongo.Pipeline{
+		{{
+			Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$controls"},
+				{Key: "preserveNullAndEmptyArrays", Value: true},
+			},
+		}},
+		{{
+			Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}},
+		},
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: bson.D{
+					{Key: "class", Value: "$controls.class"},
+					{Key: "controlid", Value: "$controls.control-id"},
+				}},
+				{Key: "findings", Value: bson.D{{Key: "$push", Value: bson.M{
+					"_id":      "$_id",
+					"uuid":     "$uuid",
+					"title":    "$title",
+					"controls": "$controls",
+				}}}},
+			},
+		}},
+		{{
+			Key: "$project", Value: bson.D{
+				{Key: "class", Value: "$_id.class"},
+				{Key: "controlid", Value: "$_id.controlid"},
+				{Key: "findings", Value: 1},
+			},
+		}},
+		{{
+			Key: "$addFields", Value: bson.D{
+				{Key: "findings.controls", Value: bson.D{
+					{Key: "$ifNull", Value: bson.A{"$findings.controls", bson.A{}}},
+				}},
+			},
+		}},
+	}
+
+	cursor, err := s.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	results := make([]*FindingsByControlClass, 0)
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 type FindingsBySubject struct {

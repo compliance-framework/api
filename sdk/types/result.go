@@ -1,8 +1,9 @@
 package types
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ComponentReference is a reference to a component definition which will be defined in CCF and administered
@@ -56,7 +57,7 @@ type Finding struct {
 	// Which observations led to this judgment ?
 	RelatedObservations *[]RelatedObservation `json:"related-observations,omitempty" yaml:"related-observations,omitempty"`
 	// Which controls did we validate
-	Controls *[]ControlReference `json:"controls" yaml:"controls"`
+	Controls *[]ControlReference `bson:"controls" json:"controls"`
 	// Which risks are associated with what we've tested
 	Risks *[]RiskReference `json:"risks,omitempty" yaml:"risks,omitempty"`
 	// What is our conclusion drawn for this finding. satisfied | not-satisfied
