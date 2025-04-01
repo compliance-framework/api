@@ -53,6 +53,14 @@ definitions:
           $ref: '#/definitions/service.Finding'
         type: array
     type: object
+  handler.GenericDataListResponse-service_FindingsBySubject:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.FindingsBySubject'
+        type: array
+    type: object
   handler.GenericDataListResponse-service_Observation:
     properties:
       data:
@@ -1223,6 +1231,15 @@ definitions:
           It represents the "stream" of the same finding being made over time.
         type: string
     type: object
+  service.FindingsBySubject:
+    properties:
+      findings:
+        items:
+          $ref: '#/definitions/service.Finding'
+        type: array
+      subject:
+        type: string
+    type: object
   service.Observation:
     properties:
       _id:
@@ -1741,6 +1758,29 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Search findings by labels
+      tags:
+      - Findings
+  /findings/search-by-subject:
+    post:
+      consumes:
+      - application/json
+      description: Searches for findings, and groups them by subject
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_FindingsBySubject'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Search findings grouped by subject
       tags:
       - Findings
   /observations:

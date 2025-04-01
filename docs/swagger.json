@@ -318,6 +318,41 @@
                 }
             }
         },
+        "/findings/search-by-subject": {
+            "post": {
+                "description": "Searches for findings, and groups them by subject",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Search findings grouped by subject",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_FindingsBySubject"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/findings/{id}": {
             "get": {
                 "description": "Fetches a finding based on its internal ID.",
@@ -729,6 +764,18 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/service.Finding"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-service_FindingsBySubject": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FindingsBySubject"
                     }
                 }
             }
@@ -2510,6 +2557,20 @@
                 },
                 "uuid": {
                     "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same finding being made over time.",
+                    "type": "string"
+                }
+            }
+        },
+        "service.FindingsBySubject": {
+            "type": "object",
+            "properties": {
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.Finding"
+                    }
+                },
+                "subject": {
                     "type": "string"
                 }
             }
