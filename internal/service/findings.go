@@ -173,51 +173,66 @@ func (s *FindingService) SearchByLabels(ctx context.Context, filter *labelfilter
 	return output, nil
 }
 
-type FindingsByControlClass struct {
-	Class     string    `json:"class" yaml:"class"`
-	ControlId string    `json:"controlid" yaml:"controlid" bson:"controlid"` // Ensure BSON matches
-	Findings  []Finding `bson:"findings" json:"findings"`
+type FindingsGroupedByControl struct {
+	ControlId string    `json:"controlid" bson:"controlid"`
+	Findings  []Finding `json:"findings" bson:"findings"`
 }
 
-func (s *FindingService) SearchByControlClass(ctx context.Context, class string) ([]*FindingsByControlClass, error) {
+// Response struct for better typing
+type FindingsByControlClassResponse struct {
+	Class   string                     `json:"class" yaml:"class"`
+	Results []FindingsGroupedByControl `json:"results" yaml:"results"`
+}
+
+func (s *FindingService) SearchByControlClass(ctx context.Context, class string) (*FindingsByControlClassResponse, error) {
 	pipeline := mongo.Pipeline{
-		{{
-			Key: "$unwind", Value: bson.D{
-				{Key: "path", Value: "$controls"},
-				{Key: "preserveNullAndEmptyArrays", Value: true},
-			},
-		}},
-		{{
-			Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}},
-		},
-		{{
-			Key: "$group", Value: bson.D{
-				{Key: "_id", Value: bson.D{
-					{Key: "class", Value: "$controls.class"},
-					{Key: "controlid", Value: "$controls.control-id"},
+		{{Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$controls"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		{{Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$controls.controlid"},
+			{Key: "findings", Value: bson.D{{Key: "$push", Value: bson.M{
+				"_id":         "$_id",
+				"uuid":        "$uuid",
+				"title":       "$title",
+				"description": "$description",
+				"collected":   "$collected",
+				"labels":      "$labels",
+				// "controls": bson.M{"$filter": bson.M{
+				// 	"input": "$controls",
+				// 	"as":    "ctrl",
+				// 	"cond":  bson.M{"$eq": []interface{}{"$$ctrl.class", class}},
+				// }},
+			}}}},
+		}}},
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "findings", Value: bson.D{
+				{Key: "$map", Value: bson.D{
+					{Key: "input", Value: "$findings"},
+					{Key: "as", Value: "f"},
+					{Key: "in", Value: bson.D{
+						{Key: "_id", Value: "$$f._id"},
+						{Key: "uuid", Value: "$$f.uuid"},
+						{Key: "title", Value: "$$f.title"},
+						{Key: "description", Value: "$$f.description"},
+						{Key: "collected", Value: "$$f.collected"},
+						{Key: "labels", Value: "$$f.labels"},
+						// {Key: "controls", Value: bson.D{
+						// 	{Key: "$ifNull", Value: bson.A{"$$f.controls", bson.A{}}},
+						// }},
+					}},
 				}},
-				{Key: "findings", Value: bson.D{{Key: "$push", Value: bson.M{
-					"_id":      "$_id",
-					"uuid":     "$uuid",
-					"title":    "$title",
-					"controls": "$controls",
-				}}}},
-			},
-		}},
-		{{
-			Key: "$project", Value: bson.D{
-				{Key: "class", Value: "$_id.class"},
-				{Key: "controlid", Value: "$_id.controlid"},
-				{Key: "findings", Value: 1},
-			},
-		}},
-		{{
-			Key: "$addFields", Value: bson.D{
-				{Key: "findings.controls", Value: bson.D{
-					{Key: "$ifNull", Value: bson.A{"$findings.controls", bson.A{}}},
-				}},
-			},
-		}},
+			}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "controlid", Value: "$_id"},
+			{Key: "findings", Value: 1},
+			{Key: "_id", Value: 0},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "controlid", Value: 1}}}},
 	}
 
 	cursor, err := s.collection.Aggregate(ctx, pipeline)
@@ -226,12 +241,17 @@ func (s *FindingService) SearchByControlClass(ctx context.Context, class string)
 	}
 	defer cursor.Close(ctx)
 
-	results := make([]*FindingsByControlClass, 0)
+	var results []FindingsGroupedByControl
 	if err := cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	response := &FindingsByControlClassResponse{
+		Class:   class,
+		Results: results,
+	}
+
+	return response, nil
 }
 
 type FindingsBySubject struct {

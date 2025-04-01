@@ -280,7 +280,7 @@ func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[*service.FindingsByControlClass]{
+	return ctx.JSON(http.StatusOK, GenericDataResponse[*service.FindingsByControlClassResponse]{
 		Data: results,
 	})
 }
