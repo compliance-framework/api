@@ -57,7 +57,7 @@ type Finding struct {
 	// Which observations led to this judgment ?
 	RelatedObservations *[]RelatedObservation `json:"related-observations,omitempty" yaml:"related-observations,omitempty"`
 	// Which controls did we validate
-	Controls *[]ControlReference `bson:"controls" json:"controls"`
+	Controls *[]ControlReference `json:"controls" yaml:"controls"`
 	// Which risks are associated with what we've tested
 	Risks *[]RiskReference `json:"risks,omitempty" yaml:"risks,omitempty"`
 	// What is our conclusion drawn for this finding. satisfied | not-satisfied
