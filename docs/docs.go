@@ -333,6 +333,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/findings/list-control-classes": {
+            "get": {
+                "description": "Retrieves all unique control classes found in the stored findings",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "List unique control classes from findings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/findings/search": {
             "post": {
                 "description": "Searches for findings using label filters.",
@@ -862,6 +891,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/service.StatusOverTimeGroup"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-string": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }

@@ -223,6 +223,40 @@ func (s *FindingService) SearchByControlClass(ctx context.Context, class string)
 	return results, nil
 }
 
+func (s *FindingService) ListControlClasses(ctx context.Context) ([]string, error) {
+	cursor, err := s.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	uniqueClasses := make(map[string]struct{})
+
+	for cursor.Next(ctx) {
+		var finding Finding
+		if err := cursor.Decode(&finding); err != nil {
+			return nil, err
+		}
+
+		if finding.Controls != nil {
+			for _, control := range *finding.Controls {
+				uniqueClasses[control.Class] = struct{}{}
+			}
+		}
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	classList := make([]string, 0, len(uniqueClasses))
+	for class := range uniqueClasses {
+		classList = append(classList, class)
+	}
+
+	return classList, nil
+}
+
 type FindingsBySubject struct {
 	SubjectID uuid.UUID `bson:"_id" json:"subject"`
 	Findings  []Finding `bson:"findings" json:"findings"`
