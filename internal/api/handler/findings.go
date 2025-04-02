@@ -272,6 +272,18 @@ func (h *FindingsHandler) SearchBySubject(ctx echo.Context) error {
 	})
 }
 
+// GetByControlClass godoc
+//
+//	@Summary		Search findings grouped by control class
+//	@Description	Searches for findings and groups them by control class
+//	@Tags			Findings
+//	@Accept			json
+//	@Produce		json
+//	@Param			class	path		string	true	"Control Class"
+//	@Success		200		{object}	handler.GenericDataResponse[service.FindingsByControlClassResponse]
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/findings/by-control/{class} [get]
 func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
 	classParam := ctx.Param("class")
 
