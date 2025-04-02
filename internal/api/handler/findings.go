@@ -30,6 +30,7 @@ func (h *FindingsHandler) Register(api *echo.Group) {
 	api.GET("/:id", h.GetFinding)
 
 	api.GET("/by-control/:class", h.GetByControlClass)
+	api.GET("/list-control-classes", h.ListControlClasses)
 }
 
 func NewFindingsHandler(
@@ -294,6 +295,28 @@ func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[service.FindingsGroupedByControl]{
 		Data: results,
+	})
+}
+
+// ListControlClasses godoc
+//
+//	@Summary		List unique control classes from findings
+//	@Description	Retrieves all unique control classes found in the stored findings
+//	@Tags			Findings
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	GenericDataListResponse[string]
+//	@Failure		500	{object}	api.Error
+//	@Router			/findings/list-control-classes [get]
+func (h *FindingsHandler) ListControlClasses(ctx echo.Context) error {
+
+	classes, err := h.findingService.ListControlClasses(ctx.Request().Context())
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[string]{
+		Data: classes,
 	})
 }
 

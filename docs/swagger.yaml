@@ -85,6 +85,14 @@ definitions:
           $ref: '#/definitions/service.StatusOverTimeGroup'
         type: array
     type: object
+  handler.GenericDataListResponse-string:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          type: string
+        type: array
+    type: object
   handler.GenericDataResponse-array_service_Subject:
     properties:
       data:
@@ -1781,6 +1789,25 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get finding history by stream UUID
+      tags:
+      - Findings
+  /findings/list-control-classes:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves all unique control classes found in the stored findings
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-string'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List unique control classes from findings
       tags:
       - Findings
   /findings/search:
