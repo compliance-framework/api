@@ -180,56 +180,56 @@ type FindingsGroupedByControl struct {
 
 // Response struct for better typing
 type FindingsByControlClassResponse struct {
-	Class   string                     `json:"class" yaml:"class"`
-	Results []FindingsGroupedByControl `json:"results" yaml:"results"`
+	Class    string                     `json:"class" yaml:"class"`
+	Controls []FindingsGroupedByControl `json:"results" yaml:"results"`
 }
 
 func (s *FindingService) SearchByControlClass(ctx context.Context, class string) (*FindingsByControlClassResponse, error) {
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}}},
+		{{Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}}}, // Match by controls class
 		{{Key: "$unwind", Value: bson.D{
 			{Key: "path", Value: "$controls"},
-			{Key: "preserveNullAndEmptyArrays", Value: true},
+			{Key: "preserveNullAndEmptyArrays", Value: true}, // Preserve empty controls
 		}}},
-		{{Key: "$match", Value: bson.D{{Key: "controls.class", Value: class}}}},
-		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$controls.controlid"},
-			{Key: "findings", Value: bson.D{{Key: "$push", Value: bson.M{
-				"_id":         "$_id",
-				"uuid":        "$uuid",
-				"title":       "$title",
-				"description": "$description",
-				"collected":   "$collected",
-				"labels":      "$labels",
-				// "controls": bson.M{"$filter": bson.M{
-				// 	"input": "$controls",
-				// 	"as":    "ctrl",
-				// 	"cond":  bson.M{"$eq": []interface{}{"$$ctrl.class", class}},
-				// }},
-			}}}},
-		}}},
-		{{Key: "$addFields", Value: bson.D{
-			{Key: "findings", Value: bson.D{
-				{Key: "$map", Value: bson.D{
-					{Key: "input", Value: "$findings"},
-					{Key: "as", Value: "f"},
-					{Key: "in", Value: bson.D{
-						{Key: "_id", Value: "$$f._id"},
-						{Key: "uuid", Value: "$$f.uuid"},
-						{Key: "title", Value: "$$f.title"},
-						{Key: "description", Value: "$$f.description"},
-						{Key: "collected", Value: "$$f.collected"},
-						{Key: "labels", Value: "$$f.labels"},
-						// {Key: "controls", Value: bson.D{
-						// 	{Key: "$ifNull", Value: bson.A{"$$f.controls", bson.A{}}},
-						// }},
+		// Handling empty controls explicitly
+		{{Key: "$match", Value: bson.D{{Key: "controls", Value: bson.D{{Key: "$ne", Value: nil}}}}}}, // Ensure controls are not null
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$controls.controlid"},
+				{Key: "findings", Value: bson.D{{Key: "$push", Value: bson.M{
+					"_id":         "$_id",
+					"uuid":        "$uuid",
+					"title":       "$title",
+					"description": "$description",
+					"collected":   "$collected",
+					"labels":      "$labels",
+				}}}},
+				{Key: "controls", Value: bson.D{{Key: "$push", Value: "$controls"}}}, // Store controls as an array
+			},
+		}},
+		{{
+			Key: "$addFields", Value: bson.D{
+				{Key: "findings", Value: bson.D{
+					{Key: "$map", Value: bson.D{
+						{Key: "input", Value: "$findings"},
+						{Key: "as", Value: "f"},
+						{Key: "in", Value: bson.D{
+							{Key: "_id", Value: "$$f._id"},
+							{Key: "uuid", Value: "$$f.uuid"},
+							{Key: "title", Value: "$$f.title"},
+							{Key: "description", Value: "$$f.description"},
+							{Key: "collected", Value: "$$f.collected"},
+							{Key: "labels", Value: "$$f.labels"},
+							{Key: "controls", Value: "$$f.controls"}, // Include controls (even if empty)
+						}},
 					}},
 				}},
-			}},
-		}}},
+			},
+		}},
 		{{Key: "$project", Value: bson.D{
 			{Key: "controlid", Value: "$_id"},
 			{Key: "findings", Value: 1},
+			{Key: "controls", Value: 1}, // Include controls in the final output
 			{Key: "_id", Value: 0},
 		}}},
 		{{Key: "$sort", Value: bson.D{{Key: "controlid", Value: 1}}}},
@@ -247,8 +247,8 @@ func (s *FindingService) SearchByControlClass(ctx context.Context, class string)
 	}
 
 	response := &FindingsByControlClassResponse{
-		Class:   class,
-		Results: results,
+		Class:    class,
+		Controls: results,
 	}
 
 	return response, nil
