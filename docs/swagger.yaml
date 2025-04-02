@@ -61,6 +61,14 @@ definitions:
           $ref: '#/definitions/service.FindingsBySubject'
         type: array
     type: object
+  handler.GenericDataListResponse-service_FindingsGroupedByControl:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.FindingsGroupedByControl'
+        type: array
+    type: object
   handler.GenericDataListResponse-service_Observation:
     properties:
       data:
@@ -90,13 +98,6 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.PlanResponse'
-        description: Items from the list response
-    type: object
-  handler.GenericDataResponse-service_FindingsByControlClassResponse:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/service.FindingsByControlClassResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-service_Observation:
@@ -1238,13 +1239,6 @@ definitions:
           It represents the "stream" of the same finding being made over time.
         type: string
     type: object
-  service.FindingsByControlClassResponse:
-    properties:
-      results:
-        items:
-          $ref: '#/definitions/service.FindingsGroupedByControl'
-        type: array
-    type: object
   service.FindingsBySubject:
     properties:
       findings:
@@ -1717,7 +1711,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-service_FindingsByControlClassResponse'
+            $ref: '#/definitions/handler.GenericDataListResponse-service_FindingsGroupedByControl'
         "422":
           description: Unprocessable Entity
           schema:

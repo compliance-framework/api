@@ -228,7 +228,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-service_FindingsByControlClassResponse"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_FindingsGroupedByControl"
                         }
                     },
                     "422": {
@@ -830,6 +830,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-service_FindingsGroupedByControl": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FindingsGroupedByControl"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-service_Observation": {
             "type": "object",
             "properties": {
@@ -874,19 +886,6 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.PlanResponse"
-                        }
-                    ]
-                }
-            }
-        },
-        "handler.GenericDataResponse-service_FindingsByControlClassResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/service.FindingsByControlClassResponse"
                         }
                     ]
                 }
@@ -2621,17 +2620,6 @@ const docTemplate = `{
                 "uuid": {
                     "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same finding being made over time.",
                     "type": "string"
-                }
-            }
-        },
-        "service.FindingsByControlClassResponse": {
-            "type": "object",
-            "properties": {
-                "results": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/service.FindingsGroupedByControl"
-                    }
                 }
             }
         },

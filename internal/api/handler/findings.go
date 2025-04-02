@@ -280,7 +280,7 @@ func (h *FindingsHandler) SearchBySubject(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			class	path		string	true	"Control Class"
-//	@Success		200		{object}	handler.GenericDataResponse[service.FindingsByControlClassResponse]
+//	@Success		200		{object}	handler.GenericDataListResponse[service.FindingsGroupedByControl]
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/findings/by-control/{class} [get]
@@ -292,7 +292,7 @@ func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataResponse[*service.FindingsByControlClassResponse]{
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[service.FindingsGroupedByControl]{
 		Data: results,
 	})
 }

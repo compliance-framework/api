@@ -178,12 +178,7 @@ type FindingsGroupedByControl struct {
 	Findings  []Finding `json:"findings" bson:"findings"`
 }
 
-// Response struct for better typing
-type FindingsByControlClassResponse struct {
-	Controls []FindingsGroupedByControl `json:"results" yaml:"results"`
-}
-
-func (s *FindingService) SearchByControlClass(ctx context.Context, class string) (*FindingsByControlClassResponse, error) {
+func (s *FindingService) SearchByControlClass(ctx context.Context, class string) ([]FindingsGroupedByControl, error) {
 	pipeline := mongo.Pipeline{
 		{{
 			Key: "$addFields", Value: bson.D{
@@ -225,11 +220,7 @@ func (s *FindingService) SearchByControlClass(ctx context.Context, class string)
 		return nil, err
 	}
 
-	response := &FindingsByControlClassResponse{
-		Controls: results,
-	}
-
-	return response, nil
+	return results, nil
 }
 
 type FindingsBySubject struct {
