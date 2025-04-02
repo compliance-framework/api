@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/internal/service"
@@ -9,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type FindingsHandler struct {
@@ -27,6 +28,8 @@ func (h *FindingsHandler) Register(api *echo.Group) {
 	api.GET("/compliance-by-uuid/:uuid", h.ComplianceByUUID)
 	api.GET("/history/:uuid", h.History)
 	api.GET("/:id", h.GetFinding)
+
+	api.GET("/by-control/:class", h.GetByControlClass)
 }
 
 func NewFindingsHandler(
@@ -265,6 +268,31 @@ func (h *FindingsHandler) SearchBySubject(ctx echo.Context) error {
 
 	// Wrap the search results in GenericDataListResponse.
 	return ctx.JSON(http.StatusCreated, GenericDataListResponse[*service.FindingsBySubject]{
+		Data: results,
+	})
+}
+
+// GetByControlClass godoc
+//
+//	@Summary		Search findings grouped by control class
+//	@Description	Searches for findings and groups them by control class
+//	@Tags			Findings
+//	@Accept			json
+//	@Produce		json
+//	@Param			class	path		string	true	"Control Class"
+//	@Success		200		{object}	handler.GenericDataListResponse[service.FindingsGroupedByControl]
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/findings/by-control/{class} [get]
+func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
+	classParam := ctx.Param("class")
+
+	results, err := h.findingService.SearchByControlClass(ctx.Request().Context(), classParam)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[service.FindingsGroupedByControl]{
 		Data: results,
 	})
 }

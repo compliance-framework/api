@@ -202,6 +202,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/findings/by-control/{class}": {
+            "get": {
+                "description": "Searches for findings and groups them by control class",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Search findings grouped by control class",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control Class",
+                        "name": "class",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_FindingsGroupedByControl"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/findings/compliance-by-search": {
             "post": {
                 "description": "Fetches an intervalled compliance report for findings that match the provided label filter. The report groups findings status over time and returns a list of compliance report groups.",
@@ -782,6 +826,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/service.FindingsBySubject"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-service_FindingsGroupedByControl": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FindingsGroupedByControl"
                     }
                 }
             }
@@ -2578,6 +2634,20 @@ const docTemplate = `{
                 },
                 "subject": {
                     "type": "string"
+                }
+            }
+        },
+        "service.FindingsGroupedByControl": {
+            "type": "object",
+            "properties": {
+                "controlid": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.Finding"
+                    }
                 }
             }
         },

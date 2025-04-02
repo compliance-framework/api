@@ -61,6 +61,14 @@ definitions:
           $ref: '#/definitions/service.FindingsBySubject'
         type: array
     type: object
+  handler.GenericDataListResponse-service_FindingsGroupedByControl:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.FindingsGroupedByControl'
+        type: array
+    type: object
   handler.GenericDataListResponse-service_Observation:
     properties:
       data:
@@ -1240,6 +1248,15 @@ definitions:
       subject:
         type: string
     type: object
+  service.FindingsGroupedByControl:
+    properties:
+      controlid:
+        type: string
+      findings:
+        items:
+          $ref: '#/definitions/service.Finding'
+        type: array
+    type: object
   service.Observation:
     properties:
       _id:
@@ -1675,6 +1692,35 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get a single finding
+      tags:
+      - Findings
+  /findings/by-control/{class}:
+    get:
+      consumes:
+      - application/json
+      description: Searches for findings and groups them by control class
+      parameters:
+      - description: Control Class
+        in: path
+        name: class
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_FindingsGroupedByControl'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Search findings grouped by control class
       tags:
       - Findings
   /findings/compliance-by-search:

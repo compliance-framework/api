@@ -1,10 +1,11 @@
 package service
 
 import (
+	"time"
+
 	"github.com/compliance-framework/configuration-service/sdk/types"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"time"
 )
 
 type Observation struct {

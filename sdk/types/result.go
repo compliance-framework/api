@@ -1,8 +1,9 @@
 package types
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ComponentReference is a reference to a component definition which will be defined in CCF and administered

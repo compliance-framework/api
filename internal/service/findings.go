@@ -2,13 +2,14 @@ package service
 
 import (
 	"context"
+	"sort"
+	"time"
+
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"sort"
-	"time"
 )
 
 type FindingService struct {
@@ -170,6 +171,56 @@ func (s *FindingService) SearchByLabels(ctx context.Context, filter *labelfilter
 	}
 
 	return output, nil
+}
+
+type FindingsGroupedByControl struct {
+	ControlId string    `json:"controlid" bson:"_id"`
+	Findings  []Finding `json:"findings" bson:"findings"`
+}
+
+func (s *FindingService) SearchByControlClass(ctx context.Context, class string) ([]FindingsGroupedByControl, error) {
+	pipeline := mongo.Pipeline{
+		{{
+			Key: "$addFields", Value: bson.D{
+				{Key: "controlList", Value: "$controls"},
+			},
+		}},
+		{{Key: "$unwind", Value: bson.D{
+			{Key: "path", Value: "$controlList"},
+			{Key: "preserveNullAndEmptyArrays", Value: true},
+		}}},
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: bson.D{
+					{Key: "controlId", Value: "$controlList.controlid"},
+					{Key: "uuid", Value: "$uuid"}, // stream
+				}},
+				{Key: "document", Value: bson.D{ // will take last finding for stream
+					{Key: "$last", Value: "$$ROOT"},
+				}},
+			},
+		}},
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$_id.controlId"},
+				{Key: "findings", Value: bson.D{{Key: "$push", Value: "$document"}}},
+			},
+		}},
+		{{Key: "$sort", Value: bson.D{{Key: "controlid", Value: 1}}}},
+	}
+
+	cursor, err := s.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []FindingsGroupedByControl
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 type FindingsBySubject struct {
