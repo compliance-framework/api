@@ -8,6 +8,30 @@ definitions:
         additionalProperties: true
         type: object
     type: object
+  handler.GenericDataListResponse-service_Catalog:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.Catalog'
+        type: array
+    type: object
+  handler.GenericDataListResponse-service_CatalogControl:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.CatalogControl'
+        type: array
+    type: object
+  handler.GenericDataListResponse-service_CatalogGroup:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.CatalogGroup'
+        type: array
+    type: object
   handler.GenericDataListResponse-service_Dashboard:
     properties:
       data:
@@ -56,6 +80,14 @@ definitions:
           $ref: '#/definitions/service.StatusOverTimeGroup'
         type: array
     type: object
+  handler.GenericDataListResponse-service_StatusOverTimeRecord:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/service.StatusOverTimeRecord'
+        type: array
+    type: object
   handler.GenericDataListResponse-string:
     properties:
       data:
@@ -71,6 +103,13 @@ definitions:
         items:
           $ref: '#/definitions/service.Subject'
         type: array
+    type: object
+  handler.GenericDataResponse-service_Catalog:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/service.Catalog'
+        description: Items from the list response
     type: object
   handler.GenericDataResponse-service_Dashboard:
     properties:
@@ -145,6 +184,398 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  oscalTypes_1_1_3.Action:
+    properties:
+      date:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+      system:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Address:
+    properties:
+      addr-lines:
+        items:
+          type: string
+        type: array
+      city:
+        type: string
+      country:
+        type: string
+      postal-code:
+        type: string
+      state:
+        type: string
+      type:
+        type: string
+    type: object
+  oscalTypes_1_1_3.DocumentId:
+    properties:
+      identifier:
+        type: string
+      scheme:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Link:
+    properties:
+      href:
+        type: string
+      media-type:
+        type: string
+      rel:
+        type: string
+      resource-fragment:
+        type: string
+      text:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Location:
+    properties:
+      address:
+        $ref: '#/definitions/oscalTypes_1_1_3.Address'
+      email-addresses:
+        items:
+          type: string
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      telephone-numbers:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.TelephoneNumber'
+        type: array
+      title:
+        type: string
+      urls:
+        items:
+          type: string
+        type: array
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Metadata:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Action'
+        type: array
+      document-ids:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.DocumentId'
+        type: array
+      last-modified:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      locations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Location'
+        type: array
+      oscal-version:
+        type: string
+      parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Party'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      published:
+        type: string
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+      revisions:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RevisionHistoryEntry'
+        type: array
+      roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Role'
+        type: array
+      title:
+        type: string
+      version:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Part:
+    properties:
+      class:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      name:
+        type: string
+      ns:
+        type: string
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      prose:
+        type: string
+      title:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Party:
+    properties:
+      addresses:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Address'
+        type: array
+      email-addresses:
+        items:
+          type: string
+        type: array
+      external-ids:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.PartyExternalIdentifier'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      location-uuids:
+        items:
+          type: string
+        type: array
+      member-of-organizations:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      short-name:
+        type: string
+      telephone-numbers:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.TelephoneNumber'
+        type: array
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.PartyExternalIdentifier:
+    properties:
+      id:
+        type: string
+      scheme:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Property:
+    properties:
+      class:
+        type: string
+      group:
+        type: string
+      name:
+        type: string
+      ns:
+        type: string
+      remarks:
+        type: string
+      uuid:
+        type: string
+      value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ResponsibleParty:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      party-uuids:
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      role-id:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RevisionHistoryEntry:
+    properties:
+      last-modified:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      oscal-version:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      published:
+        type: string
+      remarks:
+        type: string
+      title:
+        type: string
+      version:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Role:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      short-name:
+        type: string
+      title:
+        type: string
+    type: object
+  oscalTypes_1_1_3.TelephoneNumber:
+    properties:
+      number:
+        type: string
+      type:
+        type: string
+    type: object
+  service.Catalog:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
+  service.CatalogControl:
+    properties:
+      class:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      parent:
+        $ref: '#/definitions/service.CatalogItemParentIdentifier'
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
+        type: string
+      uuid:
+        description: |-
+          UUID as a primary key, although it likely won't be used.
+          The primary key for a group consists of a compound (class + id)
+        type: string
+    type: object
+  service.CatalogGroup:
+    properties:
+      class:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      parent:
+        $ref: '#/definitions/service.CatalogItemParentIdentifier'
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
+        type: string
+      uuid:
+        description: |-
+          UUID as a primary key, although it likely won't be used.
+          The primary key for a group consists of a compound (class + id)
+        type: string
+    type: object
+  service.CatalogItemParentIdentifier:
+    properties:
+      class:
+        type: string
+      id:
+        type: string
+      type:
+        $ref: '#/definitions/service.CatalogItemParentType'
+    type: object
+  service.CatalogItemParentType:
+    enum:
+    - control
+    - group
+    - catalog
+    type: string
+    x-enum-varnames:
+    - CatalogItemParentTypeControl
+    - CatalogItemParentTypeGroup
+    - CatalogItemParentTypeCatalog
   service.Dashboard:
     properties:
       filter:
@@ -525,6 +956,84 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
+  /catalogs:
+    get:
+      description: Retrieves all catalogs.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_Catalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List catalogs
+      tags:
+      - Catalogs
+    post:
+      consumes:
+      - application/json
+      description: Creates a new catalog.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-service_Catalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new catalog
+      tags:
+      - Catalogs
+  /catalogs/{id}:
+    get:
+      description: Retrieves a single Catalog by its unique ID.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-service_Catalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a Catalog
+      tags:
+      - Catalogs
   /compliance-by-uuid/{uuid}:
     get:
       consumes:
@@ -550,6 +1059,118 @@ paths:
       summary: Get intervalled compliance report by finding uuid
       tags:
       - Findings
+  /controls:
+    get:
+      description: Retrieves catalog controls for a given parent identifier specified
+        via query parameters (id, class, type).
+      parameters:
+      - description: Parent identifier id
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: Parent identifier class
+        in: query
+        name: class
+        required: true
+        type: string
+      - description: Parent identifier type (catalog, group, or control)
+        in: query
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogControl'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List catalog controls by parent
+      tags:
+      - CatalogControls
+  /controls/children/{class}/{id}:
+    get:
+      description: Retrieves catalog controls associated with a control parent based
+        on the parent's class and id.
+      parameters:
+      - description: Parent control class
+        in: path
+        name: class
+        required: true
+        type: string
+      - description: Parent control id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogControl'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get catalog controls for a control parent
+      tags:
+      - CatalogControls
+  /controls/group/{class}/{id}:
+    get:
+      description: Retrieves catalog controls associated with a group parent based
+        on the parent's class and id.
+      parameters:
+      - description: Parent group class
+        in: path
+        name: class
+        required: true
+        type: string
+      - description: Parent group id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogControl'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get catalog controls for a group parent
+      tags:
+      - CatalogControls
   /dashboard:
     get:
       description: Retrieves all dashboards.
@@ -777,6 +1398,39 @@ paths:
       summary: Get finding history by stream UUID
       tags:
       - Findings
+  /findings/instant-compliance-by-control/{class}/{id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Label filter criteria
+        in: path
+        name: class
+        required: true
+        type: string
+      - description: Label filter criteria
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_StatusOverTimeRecord'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get compliance report by controlID
+      tags:
+      - Findings
   /findings/list-control-classes:
     get:
       consumes:
@@ -842,6 +1496,113 @@ paths:
       summary: Search findings grouped by subject
       tags:
       - Findings
+  /groups:
+    get:
+      description: Retrieves catalog groups based on the provided parent identifier
+        query parameters (id, class, type).
+      parameters:
+      - description: Parent identifier ID
+        in: query
+        name: id
+        required: true
+        type: string
+      - description: Parent identifier class
+        in: query
+        name: class
+        required: true
+        type: string
+      - description: Parent identifier type (catalog, group, etc.)
+        in: query
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogGroup'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List catalog groups by parent
+      tags:
+      - CatalogGroups
+  /groups/catalog/{id}:
+    get:
+      description: Retrieves catalog groups that belong to a catalog, identified by
+        its unique catalog ID.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogGroup'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get catalog groups for a catalog parent
+      tags:
+      - CatalogGroups
+  /groups/children/{class}/{id}:
+    get:
+      description: Retrieves catalog groups that belong to a parent group, identified
+        by its class and ID.
+      parameters:
+      - description: Parent group class
+        in: path
+        name: class
+        required: true
+        type: string
+      - description: Parent group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogGroup'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get catalog groups for a group parent
+      tags:
+      - CatalogGroups
   /observations:
     post:
       consumes:

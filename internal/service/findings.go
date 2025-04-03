@@ -474,6 +474,61 @@ func (s *FindingService) GetIntervalledComplianceReportForFilter(ctx context.Con
 	return results, nil
 }
 
+func (s *FindingService) GetComplianceReportForControl(ctx context.Context, class string, id string) ([]StatusOverTimeRecord, error) {
+	pipeline := mongo.Pipeline{
+		bson.D{{
+			Key: "$match", Value: bson.D{
+				{Key: "controls.class", Value: class},
+				{Key: "controls.controlid", Value: id},
+			},
+		}},
+		{{
+			Key: "$sort", Value: bson.D{
+				{Key: "uuid", Value: 1},
+				{Key: "collected", Value: -1},
+			},
+		}},
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$uuid"},
+				{Key: "latest", Value: bson.D{
+					{Key: "$first", Value: "$$ROOT"},
+				}},
+			},
+		}},
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: bson.D{
+					{Key: "status", Value: "$latest.status.state"},
+				}},
+				{Key: "count", Value: bson.D{
+					{Key: "$sum", Value: 1},
+				}},
+			},
+		}},
+		{{
+			Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 0},
+				{Key: "status", Value: "$_id.status"},
+				{Key: "count", Value: 1},
+			},
+		}},
+	}
+
+	cursor, err := s.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []StatusOverTimeRecord
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
 func (s *FindingService) GetIntervalledComplianceReportForUUID(ctx context.Context, uuid uuid.UUID) ([]StatusOverTimeGroup, error) {
 	interval := 2 * time.Minute
 	intervalQuery := s.StatusOverTime(ctx, interval)

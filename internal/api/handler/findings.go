@@ -25,12 +25,12 @@ func (h *FindingsHandler) Register(api *echo.Group) {
 	api.POST("/search", h.Search)
 	api.POST("/search-by-subject", h.SearchBySubject)
 	api.POST("/compliance-by-search", h.ComplianceBySearch)
+	api.GET("/instant-compliance-by-control/:class/:id", h.InstantComplianceByControlID)
 	api.GET("/compliance-by-uuid/:uuid", h.ComplianceByUUID)
 	api.GET("/history/:uuid", h.History)
 	api.GET("/:id", h.GetFinding)
-
-	api.GET("/by-control/:class", h.GetByControlClass)
 	api.GET("/list-control-classes", h.ListControlClasses)
+	api.GET("/by-control/:class", h.SearchByControlClass)
 }
 
 func NewFindingsHandler(
@@ -273,7 +273,7 @@ func (h *FindingsHandler) SearchBySubject(ctx echo.Context) error {
 	})
 }
 
-// GetByControlClass godoc
+// SearchByControlClass godoc
 //
 //	@Summary		Search findings grouped by control class
 //	@Description	Searches for findings and groups them by control class
@@ -285,7 +285,7 @@ func (h *FindingsHandler) SearchBySubject(ctx echo.Context) error {
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/findings/by-control/{class} [get]
-func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
+func (h *FindingsHandler) SearchByControlClass(ctx echo.Context) error {
 	classParam := ctx.Param("class")
 
 	results, err := h.findingService.SearchByControlClass(ctx.Request().Context(), classParam)
@@ -295,28 +295,6 @@ func (h *FindingsHandler) GetByControlClass(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[service.FindingsGroupedByControl]{
 		Data: results,
-	})
-}
-
-// ListControlClasses godoc
-//
-//	@Summary		List unique control classes from findings
-//	@Description	Retrieves all unique control classes found in the stored findings
-//	@Tags			Findings
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	GenericDataListResponse[string]
-//	@Failure		500	{object}	api.Error
-//	@Router			/findings/list-control-classes [get]
-func (h *FindingsHandler) ListControlClasses(ctx echo.Context) error {
-
-	classes, err := h.findingService.ListControlClasses(ctx.Request().Context())
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[string]{
-		Data: classes,
 	})
 }
 
@@ -349,6 +327,55 @@ func (h *FindingsHandler) ComplianceBySearch(ctx echo.Context) error {
 	// Wrap the search results in GenericDataListResponse.
 	return ctx.JSON(http.StatusCreated, GenericDataListResponse[service.StatusOverTimeGroup]{
 		Data: results,
+	})
+}
+
+// InstantComplianceByControlID godoc
+//
+//	@Summary	Get compliance report by controlID
+//	@Tags		Findings
+//	@Accept		json
+//	@Produce	json
+//	@Param		class	path		string	true	"Label filter criteria"
+//	@Param		id		path		string	true	"Label filter criteria"
+//	@Success	201		{object}	handler.GenericDataListResponse[service.StatusOverTimeRecord]
+//	@Failure	422		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Router		/findings/instant-compliance-by-control/{class}/{id} [get]
+func (h *FindingsHandler) InstantComplianceByControlID(ctx echo.Context) error {
+	class := ctx.Param("class")
+	id := ctx.Param("id")
+
+	results, err := h.findingService.GetComplianceReportForControl(ctx.Request().Context(), class, id)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Wrap the search results in GenericDataListResponse.
+	return ctx.JSON(http.StatusCreated, GenericDataListResponse[service.StatusOverTimeRecord]{
+		Data: results,
+	})
+}
+
+// ListControlClasses godoc
+//
+//	@Summary		List unique control classes from findings
+//	@Description	Retrieves all unique control classes found in the stored findings
+//	@Tags			Findings
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	GenericDataListResponse[string]
+//	@Failure		500	{object}	api.Error
+//	@Router			/findings/list-control-classes [get]
+func (h *FindingsHandler) ListControlClasses(ctx echo.Context) error {
+
+	classes, err := h.findingService.ListControlClasses(ctx.Request().Context())
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[string]{
+		Data: classes,
 	})
 }
 

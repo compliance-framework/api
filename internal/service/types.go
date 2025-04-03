@@ -112,3 +112,55 @@ type Dashboard struct {
 	Name   string             `json:"name" yaml:"name" bson:"name"`
 	Filter labelfilter.Filter `bson:"filter" json:"filter" yaml:"filter"`
 }
+
+type Catalog struct {
+	UUID     *uuid.UUID                `bson:"_id" json:"uuid" yaml:"uuid"`
+	Metadata oscalTypes_1_1_3.Metadata `json:"metadata" yaml:"metadata"`
+}
+
+type CatalogItemParentType string
+
+const (
+	CatalogItemParentTypeControl CatalogItemParentType = "control"
+	CatalogItemParentTypeGroup   CatalogItemParentType = "group"
+	CatalogItemParentTypeCatalog CatalogItemParentType = "catalog"
+)
+
+// CatalogItemParentIdentifier is used to identify the parent for groups and controls.
+// A group or control can belong to either a catalog or a group. In that case:
+// type=catalog|group
+// id=<parent-id>
+// class=<likely-parent-class> # Not sure about this, so for safety it's included.
+//
+// This allows us  a flat database hierarchy so we can easily search for singular controls.
+type CatalogItemParentIdentifier struct {
+	ID    string                `json:"id" yaml:"id"`
+	Class string                `json:"class" yaml:"class"`
+	Type  CatalogItemParentType `json:"type" yaml:"type"`
+}
+
+type CatalogGroup struct {
+	// UUID as a primary key, although it likely won't be used.
+	// The primary key for a group consists of a compound (class + id)
+	UUID   *uuid.UUID                   `bson:"_id" json:"uuid" yaml:"uuid"`
+	ID     string                       `json:"id,omitempty" yaml:"id,omitempty"`
+	Title  string                       `json:"title" yaml:"title"`
+	Class  string                       `json:"class,omitempty" yaml:"class,omitempty"`
+	Parts  *[]oscalTypes_1_1_3.Part     `json:"parts,omitempty" yaml:"parts,omitempty"`
+	Parent CatalogItemParentIdentifier  `json:"parent,omitempty" yaml:"parent,omitempty"`
+	Links  *[]oscalTypes_1_1_3.Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Props  *[]oscalTypes_1_1_3.Property `json:"props,omitempty" yaml:"props,omitempty"`
+}
+
+type CatalogControl struct {
+	// UUID as a primary key, although it likely won't be used.
+	// The primary key for a group consists of a compound (class + id)
+	UUID   *uuid.UUID                   `bson:"_id" json:"uuid" yaml:"uuid"`
+	ID     string                       `json:"id,omitempty" yaml:"id,omitempty"`
+	Title  string                       `json:"title" yaml:"title"`
+	Class  string                       `json:"class,omitempty" yaml:"class,omitempty"`
+	Parts  *[]oscalTypes_1_1_3.Part     `json:"parts,omitempty" yaml:"parts,omitempty"`
+	Parent CatalogItemParentIdentifier  `json:"parent,omitempty" yaml:"parent,omitempty"`
+	Links  *[]oscalTypes_1_1_3.Link     `json:"links,omitempty" yaml:"links,omitempty"`
+	Props  *[]oscalTypes_1_1_3.Property `json:"props,omitempty" yaml:"props,omitempty"`
+}

@@ -21,6 +21,124 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/catalogs": {
+            "get": {
+                "description": "Retrieves all catalogs.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List catalogs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_Catalog"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new catalog.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "Create a new catalog",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-service_Catalog"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalogs/{id}": {
+            "get": {
+                "description": "Retrieves a single Catalog by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "Get a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-service_Catalog"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/compliance-by-uuid/{uuid}": {
             "get": {
                 "description": "Fetches an intervalled compliance report for findings that match the provided uuid. The report groups findings status over time and returns a list of compliance report groups.",
@@ -43,6 +161,169 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/controls": {
+            "get": {
+                "description": "Retrieves catalog controls for a given parent identifier specified via query parameters (id, class, type).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CatalogControls"
+                ],
+                "summary": "List catalog controls by parent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Parent identifier id",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent identifier class",
+                        "name": "class",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent identifier type (catalog, group, or control)",
+                        "name": "type",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogControl"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/controls/children/{class}/{id}": {
+            "get": {
+                "description": "Retrieves catalog controls associated with a control parent based on the parent's class and id.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CatalogControls"
+                ],
+                "summary": "Get catalog controls for a control parent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Parent control class",
+                        "name": "class",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent control id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogControl"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/controls/group/{class}/{id}": {
+            "get": {
+                "description": "Retrieves catalog controls associated with a group parent based on the parent's class and id.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CatalogControls"
+                ],
+                "summary": "Get catalog controls for a group parent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Parent group class",
+                        "name": "class",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent group id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogControl"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -348,6 +629,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/findings/instant-compliance-by-control/{class}/{id}": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Get compliance report by controlID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Label filter criteria",
+                        "name": "class",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Label filter criteria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_StatusOverTimeRecord"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/findings/list-control-classes": {
             "get": {
                 "description": "Retrieves all unique control classes found in the stored findings",
@@ -471,6 +802,162 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-service_Finding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/groups": {
+            "get": {
+                "description": "Retrieves catalog groups based on the provided parent identifier query parameters (id, class, type).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CatalogGroups"
+                ],
+                "summary": "List catalog groups by parent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Parent identifier ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent identifier class",
+                        "name": "class",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent identifier type (catalog, group, etc.)",
+                        "name": "type",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogGroup"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/catalog/{id}": {
+            "get": {
+                "description": "Retrieves catalog groups that belong to a catalog, identified by its unique catalog ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CatalogGroups"
+                ],
+                "summary": "Get catalog groups for a catalog parent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogGroup"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/children/{class}/{id}": {
+            "get": {
+                "description": "Retrieves catalog groups that belong to a parent group, identified by its class and ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CatalogGroups"
+                ],
+                "summary": "Get catalog groups for a group parent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Parent group class",
+                        "name": "class",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogGroup"
                         }
                     },
                     "400": {
@@ -794,6 +1281,42 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-service_Catalog": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.Catalog"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-service_CatalogControl": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CatalogControl"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-service_CatalogGroup": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.CatalogGroup"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-service_Dashboard": {
             "type": "object",
             "properties": {
@@ -866,6 +1389,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-service_StatusOverTimeRecord": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.StatusOverTimeRecord"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-string": {
             "type": "object",
             "properties": {
@@ -887,6 +1422,19 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/service.Subject"
                     }
+                }
+            }
+        },
+        "handler.GenericDataResponse-service_Catalog": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/service.Catalog"
+                        }
+                    ]
                 }
             }
         },
@@ -1006,6 +1554,594 @@ const docTemplate = `{
                     "$ref": "#/definitions/labelfilter.Query"
                 }
             }
+        },
+        "oscalTypes_1_1_3.Action": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "system": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Address": {
+            "type": "object",
+            "properties": {
+                "addr-lines": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "postal-code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.DocumentId": {
+            "type": "object",
+            "properties": {
+                "identifier": {
+                    "type": "string"
+                },
+                "scheme": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Link": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "media-type": {
+                    "type": "string"
+                },
+                "rel": {
+                    "type": "string"
+                },
+                "resource-fragment": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Location": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Address"
+                },
+                "email-addresses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "telephone-numbers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.TelephoneNumber"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "urls": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Metadata": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Action"
+                    }
+                },
+                "document-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.DocumentId"
+                    }
+                },
+                "last-modified": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "locations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Location"
+                    }
+                },
+                "oscal-version": {
+                    "type": "string"
+                },
+                "parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Party"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "published": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RevisionHistoryEntry"
+                    }
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Role"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Part": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "prose": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Party": {
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Address"
+                    }
+                },
+                "email-addresses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "external-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PartyExternalIdentifier"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "location-uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "member-of-organizations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "short-name": {
+                    "type": "string"
+                },
+                "telephone-numbers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.TelephoneNumber"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.PartyExternalIdentifier": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "scheme": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Property": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ns": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ResponsibleParty": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "party-uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "role-id": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RevisionHistoryEntry": {
+            "type": "object",
+            "properties": {
+                "last-modified": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "oscal-version": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "published": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Role": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "short-name": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.TelephoneNumber": {
+            "type": "object",
+            "properties": {
+                "number": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.Catalog": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.CatalogControl": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "parent": {
+                    "$ref": "#/definitions/service.CatalogItemParentIdentifier"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "description": "UUID as a primary key, although it likely won't be used.\nThe primary key for a group consists of a compound (class + id)",
+                    "type": "string"
+                }
+            }
+        },
+        "service.CatalogGroup": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "parent": {
+                    "$ref": "#/definitions/service.CatalogItemParentIdentifier"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "description": "UUID as a primary key, although it likely won't be used.\nThe primary key for a group consists of a compound (class + id)",
+                    "type": "string"
+                }
+            }
+        },
+        "service.CatalogItemParentIdentifier": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/service.CatalogItemParentType"
+                }
+            }
+        },
+        "service.CatalogItemParentType": {
+            "type": "string",
+            "enum": [
+                "control",
+                "group",
+                "catalog"
+            ],
+            "x-enum-varnames": [
+                "CatalogItemParentTypeControl",
+                "CatalogItemParentTypeGroup",
+                "CatalogItemParentTypeCatalog"
+            ]
         },
         "service.Dashboard": {
             "type": "object",
