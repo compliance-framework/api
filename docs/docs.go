@@ -21,120 +21,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/assessment-plans": {
-            "get": {
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Fetch all assessment plans",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-domain_Plan"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Create a new assessment plan",
-                "parameters": [
-                    {
-                        "description": "Plan to add",
-                        "name": "plan",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createPlanRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PlanResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/assessment-plans/:id": {
-            "get": {
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Fetch a single assessment plan",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PlanResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
         "/compliance-by-uuid/{uuid}": {
             "get": {
                 "description": "Fetches an intervalled compliance report for findings that match the provided uuid. The report groups findings status over time and returns a list of compliance report groups.",
@@ -157,6 +43,135 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard": {
+            "get": {
+                "description": "Retrieves all dashboards.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboards"
+                ],
+                "summary": "List dashboards",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-service_Dashboard"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new dashboard.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboards"
+                ],
+                "summary": "Create a new dashboard",
+                "parameters": [
+                    {
+                        "description": "Dashboard to add",
+                        "name": "dashboard",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createDashboardRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-service_Dashboard"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/{id}": {
+            "get": {
+                "description": "Retrieves a single dashboard by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboards"
+                ],
+                "summary": "Get a dashboard",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Dashboard ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-service_Dashboard"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -779,58 +794,14 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Plan": {
-            "type": "object",
-            "properties": {
-                "assessment-assets": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
-                },
-                "assessment-subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
-                    }
-                },
-                "back-matter": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
-                },
-                "import-ssp": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
-                },
-                "local-definitions": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
-                },
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
-                },
-                "resultFilter": {
-                    "$ref": "#/definitions/labelfilter.Filter"
-                },
-                "reviewed-controls": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
-                    }
-                },
-                "terms-and-conditions": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.GenericDataListResponse-domain_Plan": {
+        "handler.GenericDataListResponse-service_Dashboard": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.Plan"
+                        "$ref": "#/definitions/service.Dashboard"
                     }
                 }
             }
@@ -919,14 +890,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_PlanResponse": {
+        "handler.GenericDataResponse-service_Dashboard": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.PlanResponse"
+                            "$ref": "#/definitions/service.Dashboard"
                         }
                     ]
                 }
@@ -958,50 +929,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.PlanResponse": {
-            "type": "object",
-            "properties": {
-                "assessment-assets": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
-                },
-                "assessment-subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
-                    }
-                },
-                "back-matter": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
-                },
-                "import-ssp": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
-                },
-                "local-definitions": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.LocalDefinitions"
-                },
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
-                },
-                "resultFilter": {
-                    "$ref": "#/definitions/labelfilter.Filter"
-                },
-                "reviewed-controls": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
-                    }
-                },
-                "terms-and-conditions": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.UpdateSubjectRequest": {
             "type": "object",
             "properties": {
@@ -1013,18 +940,18 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.createPlanRequest": {
+        "handler.createDashboardRequest": {
             "type": "object",
             "required": [
                 "filter",
-                "metadata"
+                "name"
             ],
             "properties": {
                 "filter": {
                     "$ref": "#/definitions/labelfilter.Filter"
                 },
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -1080,1493 +1007,17 @@ const docTemplate = `{
                 }
             }
         },
-        "oscalTypes_1_1_3.Action": {
+        "service.Dashboard": {
             "type": "object",
             "properties": {
-                "date": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
-                },
-                "system": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Activity": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "related-controls": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
-                    }
-                },
-                "steps": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Step"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Address": {
-            "type": "object",
-            "properties": {
-                "addr-lines": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "city": {
-                    "type": "string"
-                },
-                "country": {
-                    "type": "string"
-                },
-                "postal-code": {
-                    "type": "string"
-                },
-                "state": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessedControls": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "exclude-controls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessedControlsSelectControlById"
-                    }
-                },
-                "include-all": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
-                },
-                "include-controls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessedControlsSelectControlById"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessedControlsSelectControlById": {
-            "type": "object",
-            "properties": {
-                "control-id": {
-                    "type": "string"
-                },
-                "statement-ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessmentAssets": {
-            "type": "object",
-            "properties": {
-                "assessment-platforms": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlatform"
-                    }
-                },
-                "components": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessmentPart": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
+                "filter": {
+                    "$ref": "#/definitions/labelfilter.Filter"
                 },
                 "name": {
                     "type": "string"
                 },
-                "ns": {
-                    "type": "string"
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPart"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "prose": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
                 "uuid": {
                     "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessmentPlanTermsAndConditions": {
-            "type": "object",
-            "properties": {
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPart"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessmentPlatform": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uses-components": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.UsesComponent"
-                    }
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssessmentSubject": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "exclude-subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectSubjectById"
-                    }
-                },
-                "include-all": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
-                },
-                "include-subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectSubjectById"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AssociatedActivity": {
-            "type": "object",
-            "properties": {
-                "activity-uuid": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
-                    }
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.AuthorizedPrivilege": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "functions-performed": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.BackMatter": {
-            "type": "object",
-            "properties": {
-                "resources": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Base64": {
-            "type": "object",
-            "properties": {
-                "filename": {
-                    "type": "string"
-                },
-                "media-type": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Citation": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.DocumentId": {
-            "type": "object",
-            "properties": {
-                "identifier": {
-                    "type": "string"
-                },
-                "scheme": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.EventTiming": {
-            "type": "object",
-            "properties": {
-                "at-frequency": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.FrequencyCondition"
-                },
-                "on-date": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.OnDateCondition"
-                },
-                "within-date-range": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.OnDateRangeCondition"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.FrequencyCondition": {
-            "type": "object",
-            "properties": {
-                "period": {
-                    "type": "integer"
-                },
-                "unit": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Hash": {
-            "type": "object",
-            "properties": {
-                "algorithm": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ImplementedComponent": {
-            "type": "object",
-            "properties": {
-                "component-uuid": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ImportSsp": {
-            "type": "object",
-            "properties": {
-                "href": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.IncludeAll": {
-            "type": "object",
-            "additionalProperties": true
-        },
-        "oscalTypes_1_1_3.InventoryItem": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "implemented-components": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedComponent"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Link": {
-            "type": "object",
-            "properties": {
-                "href": {
-                    "type": "string"
-                },
-                "media-type": {
-                    "type": "string"
-                },
-                "rel": {
-                    "type": "string"
-                },
-                "resource-fragment": {
-                    "type": "string"
-                },
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.LocalDefinitions": {
-            "type": "object",
-            "properties": {
-                "activities": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
-                    }
-                },
-                "components": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
-                    }
-                },
-                "inventory-items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
-                    }
-                },
-                "objectives-and-methods": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.LocalObjective"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "users": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
-                    }
-                }
-            }
-        },
-        "oscalTypes_1_1_3.LocalObjective": {
-            "type": "object",
-            "properties": {
-                "control-id": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Location": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Address"
-                },
-                "email-addresses": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "telephone-numbers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.TelephoneNumber"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "urls": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Metadata": {
-            "type": "object",
-            "properties": {
-                "actions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Action"
-                    }
-                },
-                "document-ids": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.DocumentId"
-                    }
-                },
-                "last-modified": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "locations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Location"
-                    }
-                },
-                "oscal-version": {
-                    "type": "string"
-                },
-                "parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Party"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "published": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
-                },
-                "revisions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.RevisionHistoryEntry"
-                    }
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Role"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.OnDateCondition": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.OnDateRangeCondition": {
-            "type": "object",
-            "properties": {
-                "end": {
-                    "type": "string"
-                },
-                "start": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Part": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ns": {
-                    "type": "string"
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "prose": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Party": {
-            "type": "object",
-            "properties": {
-                "addresses": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Address"
-                    }
-                },
-                "email-addresses": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "external-ids": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.PartyExternalIdentifier"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "location-uuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "member-of-organizations": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "short-name": {
-                    "type": "string"
-                },
-                "telephone-numbers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.TelephoneNumber"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.PartyExternalIdentifier": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "scheme": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.PortRange": {
-            "type": "object",
-            "properties": {
-                "end": {
-                    "type": "integer"
-                },
-                "start": {
-                    "type": "integer"
-                },
-                "transport": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Property": {
-            "type": "object",
-            "properties": {
-                "class": {
-                    "type": "string"
-                },
-                "group": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ns": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Protocol": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "port-ranges": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.PortRange"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ReferencedControlObjectives": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "exclude-objectives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectObjectiveById"
-                    }
-                },
-                "include-all": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
-                },
-                "include-objectives": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectObjectiveById"
-                    }
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Resource": {
-            "type": "object",
-            "properties": {
-                "base64": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Base64"
-                },
-                "citation": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Citation"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "document-ids": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.DocumentId"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "rlinks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResourceLink"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ResourceLink": {
-            "type": "object",
-            "properties": {
-                "hashes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Hash"
-                    }
-                },
-                "href": {
-                    "type": "string"
-                },
-                "media-type": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ResponsibleParty": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "party-uuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "role-id": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ResponsibleRole": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "party-uuids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "role-id": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.ReviewedControls": {
-            "type": "object",
-            "properties": {
-                "control-objective-selections": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ReferencedControlObjectives"
-                    }
-                },
-                "control-selections": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessedControls"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.RevisionHistoryEntry": {
-            "type": "object",
-            "properties": {
-                "last-modified": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "oscal-version": {
-                    "type": "string"
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "published": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Role": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "short-name": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.SelectObjectiveById": {
-            "type": "object",
-            "properties": {
-                "objective-id": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.SelectSubjectById": {
-            "type": "object",
-            "properties": {
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "subject-uuid": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Step": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
-                    }
-                },
-                "reviewed-controls": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.ReviewedControls"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.SystemComponent": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "protocols": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Protocol"
-                    }
-                },
-                "purpose": {
-                    "type": "string"
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
-                    }
-                },
-                "status": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponentStatus"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.SystemComponentStatus": {
-            "type": "object",
-            "properties": {
-                "remarks": {
-                    "type": "string"
-                },
-                "state": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.SystemUser": {
-            "type": "object",
-            "properties": {
-                "authorized-privileges": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AuthorizedPrivilege"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "role-ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "short-name": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.Task": {
-            "type": "object",
-            "properties": {
-                "associated-activities": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedActivity"
-                    }
-                },
-                "dependencies": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.TaskDependency"
-                    }
-                },
-                "description": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
-                    }
-                },
-                "subjects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
-                    }
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
-                    }
-                },
-                "timing": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.EventTiming"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.TaskDependency": {
-            "type": "object",
-            "properties": {
-                "remarks": {
-                    "type": "string"
-                },
-                "task-uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.TelephoneNumber": {
-            "type": "object",
-            "properties": {
-                "number": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscalTypes_1_1_3.UsesComponent": {
-            "type": "object",
-            "properties": {
-                "component-uuid": {
-                    "type": "string"
-                },
-                "links": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
-                    }
-                },
-                "props": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
-                    }
-                },
-                "remarks": {
-                    "type": "string"
-                },
-                "responsible-parties": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
-                    }
                 }
             }
         },

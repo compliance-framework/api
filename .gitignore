@@ -9,3 +9,5 @@ __debug_*
 
 # Temporary directory for air builds https://github.com/air-verse/air
 /tmp
+
+.DS_Store

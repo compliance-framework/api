@@ -8,16 +8,15 @@ import (
 )
 
 func RegisterHandlers(server *api.Server, database *mongo.Database, logger *zap.SugaredLogger) {
-	plansService := service.NewPlansService(database)
-
+	dashboardService := service.NewDashboardService(database)
 	findingService := service.NewFindingService(database)
 	observationService := service.NewObservationService(database)
 	componentService := service.NewComponentService(database)
 	subjectService := service.NewSubjectService(database)
 	heartbeatService := service.NewHeartbeatService(database)
 
-	plansHandler := NewPlansHandler(logger, plansService)
-	plansHandler.Register(server.API().Group("/assessment-plans"))
+	dashboardHandler := NewDashboardHandler(logger, dashboardService)
+	dashboardHandler.Register(server.API().Group("/dashboards"))
 
 	findingHandler := NewFindingsHandler(logger, findingService, subjectService, componentService)
 	findingHandler.Register(server.API().Group("/findings"))

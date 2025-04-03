@@ -8,41 +8,12 @@ definitions:
         additionalProperties: true
         type: object
     type: object
-  domain.Plan:
-    properties:
-      assessment-assets:
-        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentAssets'
-      assessment-subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        type: array
-      back-matter:
-        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
-      import-ssp:
-        $ref: '#/definitions/oscalTypes_1_1_3.ImportSsp'
-      local-definitions:
-        $ref: '#/definitions/oscalTypes_1_1_3.LocalDefinitions'
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      resultFilter:
-        $ref: '#/definitions/labelfilter.Filter'
-      reviewed-controls:
-        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
-      tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Task'
-        type: array
-      terms-and-conditions:
-        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions'
-      uuid:
-        type: string
-    type: object
-  handler.GenericDataListResponse-domain_Plan:
+  handler.GenericDataListResponse-service_Dashboard:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/domain.Plan'
+          $ref: '#/definitions/service.Dashboard'
         type: array
     type: object
   handler.GenericDataListResponse-service_Finding:
@@ -101,11 +72,11 @@ definitions:
           $ref: '#/definitions/service.Subject'
         type: array
     type: object
-  handler.GenericDataResponse-handler_PlanResponse:
+  handler.GenericDataResponse-service_Dashboard:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.PlanResponse'
+        - $ref: '#/definitions/service.Dashboard'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-service_Observation:
@@ -122,35 +93,6 @@ definitions:
         - $ref: '#/definitions/service.Subject'
         description: Items from the list response
     type: object
-  handler.PlanResponse:
-    properties:
-      assessment-assets:
-        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentAssets'
-      assessment-subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        type: array
-      back-matter:
-        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
-      import-ssp:
-        $ref: '#/definitions/oscalTypes_1_1_3.ImportSsp'
-      local-definitions:
-        $ref: '#/definitions/oscalTypes_1_1_3.LocalDefinitions'
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      resultFilter:
-        $ref: '#/definitions/labelfilter.Filter'
-      reviewed-controls:
-        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
-      tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Task'
-        type: array
-      terms-and-conditions:
-        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlanTermsAndConditions'
-      uuid:
-        type: string
-    type: object
   handler.UpdateSubjectRequest:
     properties:
       remarks:
@@ -158,15 +100,15 @@ definitions:
       title:
         type: string
     type: object
-  handler.createPlanRequest:
+  handler.createDashboardRequest:
     properties:
       filter:
         $ref: '#/definitions/labelfilter.Filter'
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      name:
+        type: string
     required:
     - filter
-    - metadata
+    - name
     type: object
   labelfilter.Condition:
     properties:
@@ -203,981 +145,14 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
-  oscalTypes_1_1_3.Action:
+  service.Dashboard:
     properties:
-      date:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
-      system:
-        type: string
-      type:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Activity:
-    properties:
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      related-controls:
-        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
-      remarks:
-        type: string
-      responsible-roles:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
-        type: array
-      steps:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Step'
-        type: array
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Address:
-    properties:
-      addr-lines:
-        items:
-          type: string
-        type: array
-      city:
-        type: string
-      country:
-        type: string
-      postal-code:
-        type: string
-      state:
-        type: string
-      type:
-        type: string
-    type: object
-  oscalTypes_1_1_3.AssessedControls:
-    properties:
-      description:
-        type: string
-      exclude-controls:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessedControlsSelectControlById'
-        type: array
-      include-all:
-        $ref: '#/definitions/oscalTypes_1_1_3.IncludeAll'
-      include-controls:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessedControlsSelectControlById'
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-    type: object
-  oscalTypes_1_1_3.AssessedControlsSelectControlById:
-    properties:
-      control-id:
-        type: string
-      statement-ids:
-        items:
-          type: string
-        type: array
-    type: object
-  oscalTypes_1_1_3.AssessmentAssets:
-    properties:
-      assessment-platforms:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlatform'
-        type: array
-      components:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
-        type: array
-    type: object
-  oscalTypes_1_1_3.AssessmentPart:
-    properties:
-      class:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
+      filter:
+        $ref: '#/definitions/labelfilter.Filter'
       name:
         type: string
-      ns:
-        type: string
-      parts:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPart'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      prose:
-        type: string
-      title:
-        type: string
       uuid:
         type: string
-    type: object
-  oscalTypes_1_1_3.AssessmentPlanTermsAndConditions:
-    properties:
-      parts:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPart'
-        type: array
-    type: object
-  oscalTypes_1_1_3.AssessmentPlatform:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      title:
-        type: string
-      uses-components:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.UsesComponent'
-        type: array
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.AssessmentSubject:
-    properties:
-      description:
-        type: string
-      exclude-subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SelectSubjectById'
-        type: array
-      include-all:
-        $ref: '#/definitions/oscalTypes_1_1_3.IncludeAll'
-      include-subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SelectSubjectById'
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      type:
-        type: string
-    type: object
-  oscalTypes_1_1_3.AssociatedActivity:
-    properties:
-      activity-uuid:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-roles:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
-        type: array
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        type: array
-    type: object
-  oscalTypes_1_1_3.AuthorizedPrivilege:
-    properties:
-      description:
-        type: string
-      functions-performed:
-        items:
-          type: string
-        type: array
-      title:
-        type: string
-    type: object
-  oscalTypes_1_1_3.BackMatter:
-    properties:
-      resources:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Resource'
-        type: array
-    type: object
-  oscalTypes_1_1_3.Base64:
-    properties:
-      filename:
-        type: string
-      media-type:
-        type: string
-      value:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Citation:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      text:
-        type: string
-    type: object
-  oscalTypes_1_1_3.DocumentId:
-    properties:
-      identifier:
-        type: string
-      scheme:
-        type: string
-    type: object
-  oscalTypes_1_1_3.EventTiming:
-    properties:
-      at-frequency:
-        $ref: '#/definitions/oscalTypes_1_1_3.FrequencyCondition'
-      on-date:
-        $ref: '#/definitions/oscalTypes_1_1_3.OnDateCondition'
-      within-date-range:
-        $ref: '#/definitions/oscalTypes_1_1_3.OnDateRangeCondition'
-    type: object
-  oscalTypes_1_1_3.FrequencyCondition:
-    properties:
-      period:
-        type: integer
-      unit:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Hash:
-    properties:
-      algorithm:
-        type: string
-      value:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ImplementedComponent:
-    properties:
-      component-uuid:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
-    type: object
-  oscalTypes_1_1_3.ImportSsp:
-    properties:
-      href:
-        type: string
-      remarks:
-        type: string
-    type: object
-  oscalTypes_1_1_3.IncludeAll:
-    additionalProperties: true
-    type: object
-  oscalTypes_1_1_3.InventoryItem:
-    properties:
-      description:
-        type: string
-      implemented-components:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ImplementedComponent'
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Link:
-    properties:
-      href:
-        type: string
-      media-type:
-        type: string
-      rel:
-        type: string
-      resource-fragment:
-        type: string
-      text:
-        type: string
-    type: object
-  oscalTypes_1_1_3.LocalDefinitions:
-    properties:
-      activities:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
-        type: array
-      components:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
-        type: array
-      inventory-items:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
-        type: array
-      objectives-and-methods:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.LocalObjective'
-        type: array
-      remarks:
-        type: string
-      users:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
-        type: array
-    type: object
-  oscalTypes_1_1_3.LocalObjective:
-    properties:
-      control-id:
-        type: string
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      parts:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Part'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Location:
-    properties:
-      address:
-        $ref: '#/definitions/oscalTypes_1_1_3.Address'
-      email-addresses:
-        items:
-          type: string
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      telephone-numbers:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.TelephoneNumber'
-        type: array
-      title:
-        type: string
-      urls:
-        items:
-          type: string
-        type: array
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Metadata:
-    properties:
-      actions:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Action'
-        type: array
-      document-ids:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.DocumentId'
-        type: array
-      last-modified:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      locations:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Location'
-        type: array
-      oscal-version:
-        type: string
-      parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Party'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      published:
-        type: string
-      remarks:
-        type: string
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
-      revisions:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.RevisionHistoryEntry'
-        type: array
-      roles:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Role'
-        type: array
-      title:
-        type: string
-      version:
-        type: string
-    type: object
-  oscalTypes_1_1_3.OnDateCondition:
-    properties:
-      date:
-        type: string
-    type: object
-  oscalTypes_1_1_3.OnDateRangeCondition:
-    properties:
-      end:
-        type: string
-      start:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Part:
-    properties:
-      class:
-        type: string
-      id:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      name:
-        type: string
-      ns:
-        type: string
-      parts:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Part'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      prose:
-        type: string
-      title:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Party:
-    properties:
-      addresses:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Address'
-        type: array
-      email-addresses:
-        items:
-          type: string
-        type: array
-      external-ids:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.PartyExternalIdentifier'
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      location-uuids:
-        items:
-          type: string
-        type: array
-      member-of-organizations:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      short-name:
-        type: string
-      telephone-numbers:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.TelephoneNumber'
-        type: array
-      type:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.PartyExternalIdentifier:
-    properties:
-      id:
-        type: string
-      scheme:
-        type: string
-    type: object
-  oscalTypes_1_1_3.PortRange:
-    properties:
-      end:
-        type: integer
-      start:
-        type: integer
-      transport:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Property:
-    properties:
-      class:
-        type: string
-      group:
-        type: string
-      name:
-        type: string
-      ns:
-        type: string
-      remarks:
-        type: string
-      uuid:
-        type: string
-      value:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Protocol:
-    properties:
-      name:
-        type: string
-      port-ranges:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.PortRange'
-        type: array
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ReferencedControlObjectives:
-    properties:
-      description:
-        type: string
-      exclude-objectives:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SelectObjectiveById'
-        type: array
-      include-all:
-        $ref: '#/definitions/oscalTypes_1_1_3.IncludeAll'
-      include-objectives:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.SelectObjectiveById'
-        type: array
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Resource:
-    properties:
-      base64:
-        $ref: '#/definitions/oscalTypes_1_1_3.Base64'
-      citation:
-        $ref: '#/definitions/oscalTypes_1_1_3.Citation'
-      description:
-        type: string
-      document-ids:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.DocumentId'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      rlinks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResourceLink'
-        type: array
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ResourceLink:
-    properties:
-      hashes:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Hash'
-        type: array
-      href:
-        type: string
-      media-type:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ResponsibleParty:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      party-uuids:
-        items:
-          type: string
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      role-id:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ResponsibleRole:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      party-uuids:
-        items:
-          type: string
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      role-id:
-        type: string
-    type: object
-  oscalTypes_1_1_3.ReviewedControls:
-    properties:
-      control-objective-selections:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ReferencedControlObjectives'
-        type: array
-      control-selections:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessedControls'
-        type: array
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-    type: object
-  oscalTypes_1_1_3.RevisionHistoryEntry:
-    properties:
-      last-modified:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      oscal-version:
-        type: string
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      published:
-        type: string
-      remarks:
-        type: string
-      title:
-        type: string
-      version:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Role:
-    properties:
-      description:
-        type: string
-      id:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      short-name:
-        type: string
-      title:
-        type: string
-    type: object
-  oscalTypes_1_1_3.SelectObjectiveById:
-    properties:
-      objective-id:
-        type: string
-    type: object
-  oscalTypes_1_1_3.SelectSubjectById:
-    properties:
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      subject-uuid:
-        type: string
-      type:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Step:
-    properties:
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-roles:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
-        type: array
-      reviewed-controls:
-        $ref: '#/definitions/oscalTypes_1_1_3.ReviewedControls'
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.SystemComponent:
-    properties:
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      protocols:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Protocol'
-        type: array
-      purpose:
-        type: string
-      remarks:
-        type: string
-      responsible-roles:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
-        type: array
-      status:
-        $ref: '#/definitions/oscalTypes_1_1_3.SystemComponentStatus'
-      title:
-        type: string
-      type:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.SystemComponentStatus:
-    properties:
-      remarks:
-        type: string
-      state:
-        type: string
-    type: object
-  oscalTypes_1_1_3.SystemUser:
-    properties:
-      authorized-privileges:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AuthorizedPrivilege'
-        type: array
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      role-ids:
-        items:
-          type: string
-        type: array
-      short-name:
-        type: string
-      title:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.Task:
-    properties:
-      associated-activities:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedActivity'
-        type: array
-      dependencies:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.TaskDependency'
-        type: array
-      description:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-roles:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
-        type: array
-      subjects:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
-        type: array
-      tasks:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Task'
-        type: array
-      timing:
-        $ref: '#/definitions/oscalTypes_1_1_3.EventTiming'
-      title:
-        type: string
-      type:
-        type: string
-      uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.TaskDependency:
-    properties:
-      remarks:
-        type: string
-      task-uuid:
-        type: string
-    type: object
-  oscalTypes_1_1_3.TelephoneNumber:
-    properties:
-      number:
-        type: string
-      type:
-        type: string
-    type: object
-  oscalTypes_1_1_3.UsesComponent:
-    properties:
-      component-uuid:
-        type: string
-      links:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Link'
-        type: array
-      props:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Property'
-        type: array
-      remarks:
-        type: string
-      responsible-parties:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
-        type: array
     type: object
   service.Finding:
     properties:
@@ -1550,80 +525,6 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
-  /assessment-plans:
-    get:
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-domain_Plan'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Fetch all assessment plans
-      tags:
-      - Assessment Plans
-    post:
-      parameters:
-      - description: Plan to add
-        in: body
-        name: plan
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createPlanRequest'
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_PlanResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a new assessment plan
-      tags:
-      - Assessment Plans
-  /assessment-plans/:id:
-    get:
-      parameters:
-      - description: Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_PlanResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Fetch a single assessment plan
-      tags:
-      - Assessment Plans
   /compliance-by-uuid/{uuid}:
     get:
       consumes:
@@ -1649,6 +550,91 @@ paths:
       summary: Get intervalled compliance report by finding uuid
       tags:
       - Findings
+  /dashboard:
+    get:
+      description: Retrieves all dashboards.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-service_Dashboard'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List dashboards
+      tags:
+      - Dashboards
+    post:
+      consumes:
+      - application/json
+      description: Creates a new dashboard.
+      parameters:
+      - description: Dashboard to add
+        in: body
+        name: dashboard
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createDashboardRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-service_Dashboard'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new dashboard
+      tags:
+      - Dashboards
+  /dashboard/{id}:
+    get:
+      description: Retrieves a single dashboard by its unique ID.
+      parameters:
+      - description: Dashboard ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-service_Dashboard'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a dashboard
+      tags:
+      - Dashboards
   /findings:
     post:
       consumes:

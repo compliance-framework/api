@@ -2,24 +2,23 @@ package handler
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
-	"github.com/compliance-framework/configuration-service/internal/domain"
-	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
 // createPlanRequest defines the request payload for method Create
 // TODO: Using minimal data for now, we might need to expand it later
-type createPlanRequest struct {
-	Metadata oscaltypes113.Metadata `json:"metadata" yaml:"metadata" validate:"required"`
-	Filter   labelfilter.Filter     `json:"filter" yaml:"filter" validate:"required"`
+type createDashboardRequest struct {
+	Name   string             `json:"name" yaml:"name" validate:"required"`
+	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 }
 
-func (r *createPlanRequest) bind(ctx echo.Context, p *domain.Plan) error {
+func (r *createDashboardRequest) bind(ctx echo.Context, p *service.Dashboard) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
-	p.Metadata.Title = r.Metadata.Title
-	p.ResultFilter = r.Filter
+	p.Name = r.Name
+	p.Filter = r.Filter
 	return nil
 }
 

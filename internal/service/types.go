@@ -1,11 +1,11 @@
 package service
 
 import (
-	"time"
-
+	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/sdk/types"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
+	"time"
 )
 
 type Observation struct {
@@ -105,4 +105,10 @@ type Component struct {
 	Status           *[]oscalTypes_1_1_3.SystemComponentStatus `json:"status,omitempty" yaml:"status,omitempty"`
 	Protocols        *[]oscalTypes_1_1_3.Protocol              `json:"protocols,omitempty" yaml:"protocols,omitempty"`
 	ResponsibleRoles *[]oscalTypes_1_1_3.ResponsibleRole       `json:"responsible-role,omitempty" yaml:"responsible-role,omitempty"`
+}
+
+type Dashboard struct {
+	UUID   *uuid.UUID         `bson:"_id" json:"uuid" yaml:"uuid"`
+	Name   string             `json:"name" yaml:"name" bson:"name"`
+	Filter labelfilter.Filter `bson:"filter" json:"filter" yaml:"filter"`
 }
