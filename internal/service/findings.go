@@ -223,6 +223,54 @@ func (s *FindingService) SearchByControlClass(ctx context.Context, class string)
 	return results, nil
 }
 
+func (s *FindingService) SearchByControlID(ctx context.Context, class string, id string) ([]*Finding, error) {
+	pipeline := mongo.Pipeline{
+		// Match documents related to the specific plan
+		bson.D{{
+			Key: "$match", Value: bson.D{
+				{Key: "controls.class", Value: class},
+				{Key: "controls.controlid", Value: id},
+			},
+		}},
+		{{
+			Key: "$sort", Value: bson.D{
+				{Key: "uuid", Value: 1},
+				{Key: "collected", Value: -1},
+			},
+		}},
+		{{
+			Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "$uuid"},
+				{Key: "latest", Value: bson.D{
+					{Key: "$first", Value: "$$ROOT"},
+				}},
+			},
+		}},
+	}
+	// Execute aggregation
+	cursor, err := s.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	results := make([]*struct {
+		UUID    uuid.UUID `bson:"_id"`
+		Finding Finding   `bson:"latest"`
+	}, 0)
+	err = cursor.All(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+
+	output := make([]*Finding, 0)
+	for _, result := range results {
+		output = append(output, &result.Finding)
+	}
+
+	return output, nil
+}
+
 func (s *FindingService) ListControlClasses(ctx context.Context) ([]string, error) {
 	cursor, err := s.collection.Find(ctx, bson.M{})
 	if err != nil {

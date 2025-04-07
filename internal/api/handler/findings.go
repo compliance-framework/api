@@ -30,6 +30,7 @@ func (h *FindingsHandler) Register(api *echo.Group) {
 	api.GET("/history/:uuid", h.History)
 	api.GET("/:id", h.GetFinding)
 	api.GET("/list-control-classes", h.ListControlClasses)
+	api.GET("/by-control/:class/:id", h.SearchByControlID)
 	api.GET("/by-control/:class", h.SearchByControlClass)
 }
 
@@ -294,6 +295,32 @@ func (h *FindingsHandler) SearchByControlClass(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[service.FindingsGroupedByControl]{
+		Data: results,
+	})
+}
+
+// SearchByControlID godoc
+//
+//	@Summary	Get compliance report by controlID
+//	@Tags		Findings
+//	@Accept		json
+//	@Produce	json
+//	@Param		class	path		string	true	"Label filter criteria"
+//	@Param		id		path		string	true	"Label filter criteria"
+//	@Success	201		{object}	handler.GenericDataListResponse[service.StatusOverTimeRecord]
+//	@Failure	422		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Router		/findings/instant-compliance-by-control/{class}/{id} [get]
+func (h *FindingsHandler) SearchByControlID(ctx echo.Context) error {
+	classParam := ctx.Param("class")
+	idParam := ctx.Param("id")
+
+	results, err := h.findingService.SearchByControlID(ctx.Request().Context(), classParam, idParam)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[*service.Finding]{
 		Data: results,
 	})
 }
