@@ -40,7 +40,7 @@ func (s *CatalogService) List(ctx context.Context) ([]*Catalog, error) {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	var catalogs []*Catalog
+	catalogs := make([]*Catalog, 0)
 	if err = cursor.All(ctx, &catalogs); err != nil {
 		return nil, err
 	}
@@ -50,12 +50,15 @@ func (s *CatalogService) List(ctx context.Context) ([]*Catalog, error) {
 // Get retrieves a catalog by its ID.
 func (s *CatalogService) Get(ctx context.Context, id uuid.UUID) (*Catalog, error) {
 	filter := bson.M{"_id": id}
-	var catalog Catalog
-	err := s.collection.FindOne(ctx, filter).Decode(&catalog)
+	var catalog = &Catalog{}
+	err := s.collection.FindOne(ctx, filter).Decode(catalog)
 	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	return &catalog, nil
+	return catalog, nil
 }
 
 func (s *CatalogService) FindOrCreate(ctx context.Context, catalog *Catalog) (*Catalog, error) {

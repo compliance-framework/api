@@ -46,16 +46,21 @@ func (s *CatalogControlService) Get(ctx context.Context, class string, id string
 // FindFor finds catalog controls by their parent identifier.
 func (s *CatalogControlService) FindFor(ctx context.Context, parent CatalogItemParentIdentifier) ([]CatalogControl, error) {
 	filter := bson.M{
-		"parent.id":    parent.ID,
-		"parent.class": parent.Class,
-		"parent.type":  parent.Type,
+		"parent.catalogid": parent.CatalogId,
+		"parent.type":      parent.Type,
+	}
+	if parent.ID != nil {
+		filter["parent.id"] = *parent.ID
+	}
+	if parent.Class != nil {
+		filter["parent.class"] = *parent.Class
 	}
 	cursor, err := s.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	var controls []CatalogControl
+	controls := make([]CatalogControl, 0)
 	if err = cursor.All(ctx, &controls); err != nil {
 		return nil, err
 	}

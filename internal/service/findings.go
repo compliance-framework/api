@@ -190,6 +190,11 @@ func (s *FindingService) SearchByControlClass(ctx context.Context, class string)
 			{Key: "preserveNullAndEmptyArrays", Value: true},
 		}}},
 		{{
+			Key: "$match", Value: bson.D{
+				{Key: "controlList.class", Value: class},
+			},
+		}},
+		{{
 			Key: "$group", Value: bson.D{
 				{Key: "_id", Value: bson.D{
 					{Key: "controlId", Value: "$controlList.controlid"},

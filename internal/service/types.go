@@ -134,9 +134,10 @@ const (
 //
 // This allows us  a flat database hierarchy so we can easily search for singular controls.
 type CatalogItemParentIdentifier struct {
-	ID    string                `json:"id" yaml:"id"`
-	Class string                `json:"class" yaml:"class"`
-	Type  CatalogItemParentType `json:"type" yaml:"type"`
+	ID        *string               `json:"id,omitempty" yaml:"id,omitempty"`
+	Class     *string               `json:"class,omitempty" yaml:"class,omitempty"`
+	Type      CatalogItemParentType `json:"type" yaml:"omitempty"`
+	CatalogId uuid.UUID             `json:"catalog_id" yaml:"catalog_id"`
 }
 
 type CatalogGroup struct {

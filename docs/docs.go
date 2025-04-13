@@ -229,7 +229,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/controls/children/{class}/{id}": {
+        "/controls/control/{catalog}/{class}/{id}": {
             "get": {
                 "description": "Retrieves catalog controls associated with a control parent based on the parent's class and id.",
                 "produces": [
@@ -240,6 +240,13 @@ const docTemplate = `{
                 ],
                 "summary": "Get catalog controls for a control parent",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "catalog",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "Parent control class",
@@ -283,7 +290,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/controls/group/{class}/{id}": {
+        "/controls/group/{catalog}/{class}/{id}": {
             "get": {
                 "description": "Retrieves catalog controls associated with a group parent based on the parent's class and id.",
                 "produces": [
@@ -296,14 +303,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Parent group class",
+                        "description": "Catalog ID",
+                        "name": "catalog",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Parent control class",
                         "name": "class",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Parent group id",
+                        "description": "Parent control id",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -825,62 +839,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups": {
-            "get": {
-                "description": "Retrieves catalog groups based on the provided parent identifier query parameters (id, class, type).",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "CatalogGroups"
-                ],
-                "summary": "List catalog groups by parent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Parent identifier ID",
-                        "name": "id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Parent identifier class",
-                        "name": "class",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Parent identifier type (catalog, group, etc.)",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-service_CatalogGroup"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/groups/catalog/{id}": {
+        "/groups/catalog/{catalog}": {
             "get": {
                 "description": "Retrieves catalog groups that belong to a catalog, identified by its unique catalog ID.",
                 "produces": [
@@ -894,7 +853,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Catalog ID",
-                        "name": "id",
+                        "name": "catalog",
                         "in": "path",
                         "required": true
                     }
@@ -938,6 +897,13 @@ const docTemplate = `{
                 ],
                 "summary": "Get catalog groups for a group parent",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "catalog",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "Parent group class",
@@ -2119,6 +2085,9 @@ const docTemplate = `{
         "service.CatalogItemParentIdentifier": {
             "type": "object",
             "properties": {
+                "catalog_id": {
+                    "type": "string"
+                },
                 "class": {
                     "type": "string"
                 },

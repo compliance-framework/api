@@ -44,26 +44,24 @@ func (s *CatalogGroupService) Get(ctx context.Context, class string, id string) 
 }
 
 // FindFor finds catalog groups by their parent identifier.
-func (s *CatalogGroupService) FindFor(ctx context.Context, parent CatalogItemParentIdentifier) ([]CatalogGroup, error) {
+func (s *CatalogGroupService) FindFor(ctx context.Context, parent CatalogItemParentIdentifier) ([]*CatalogGroup, error) {
 	filter := bson.M{
-		"parent.id":    parent.ID,
-		"parent.class": parent.Class,
-		"parent.type":  parent.Type,
+		"parent.catalogid": parent.CatalogId,
+		"parent.type":      parent.Type,
+	}
+	if parent.ID != nil {
+		filter["parent.id"] = *parent.ID
+	}
+	if parent.Class != nil {
+		filter["parent.class"] = *parent.Class
 	}
 	cursor, err := s.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	var groups []CatalogGroup
-	for cursor.Next(ctx) {
-		var grp CatalogGroup
-		if err := cursor.Decode(&grp); err != nil {
-			return nil, err
-		}
-		groups = append(groups, grp)
-	}
-	if err := cursor.Err(); err != nil {
+	groups := make([]*CatalogGroup, 0)
+	if err = cursor.All(ctx, &groups); err != nil {
 		return nil, err
 	}
 	return groups, nil

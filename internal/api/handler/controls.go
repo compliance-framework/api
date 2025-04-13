@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"github.com/compliance-framework/configuration-service/internal"
+	"github.com/google/uuid"
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
@@ -25,8 +27,8 @@ func NewCatalogControlHandler(l *zap.SugaredLogger, s *service.CatalogControlSer
 
 // Register registers the dashboard endpoints.
 func (h *CatalogControlHandler) Register(api *echo.Group) {
-	api.GET("/group/:class/:id", h.GetForGroup)
-	api.GET("/children/:class/:id", h.GetForControl)
+	api.GET("/group/:catalog/:class/:id", h.GetForGroup)
+	api.GET("/control/:catalog/:class/:id", h.GetForControl)
 }
 
 // GetForGroup godoc
@@ -35,18 +37,20 @@ func (h *CatalogControlHandler) Register(api *echo.Group) {
 //	@Description	Retrieves catalog controls associated with a group parent based on the parent's class and id.
 //	@Tags			CatalogControls
 //	@Produce		json
-//	@Param			class	path		string	true	"Parent group class"
-//	@Param			id		path		string	true	"Parent group id"
+//	@Param			catalog	path		string	true	"Catalog ID"
+//	@Param			class	path		string	true	"Parent control class"
+//	@Param			id		path		string	true	"Parent control id"
 //	@Success		200		{object}	GenericDataListResponse[service.CatalogControl]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Router			/controls/group/{class}/{id} [get]
+//	@Router			/controls/group/{catalog}/{class}/{id} [get]
 func (h *CatalogControlHandler) GetForGroup(c echo.Context) error {
 	results, err := h.service.FindFor(c.Request().Context(), service.CatalogItemParentIdentifier{
-		ID:    c.Param("id"),
-		Class: c.Param("class"),
-		Type:  service.CatalogItemParentTypeGroup,
+		ID:        internal.Pointer(c.Param("id")),
+		Class:     internal.Pointer(c.Param("class")),
+		Type:      service.CatalogItemParentTypeGroup,
+		CatalogId: uuid.MustParse(c.Param("catalog")),
 	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -62,19 +66,22 @@ func (h *CatalogControlHandler) GetForGroup(c echo.Context) error {
 //	@Description	Retrieves catalog controls associated with a control parent based on the parent's class and id.
 //	@Tags			CatalogControls
 //	@Produce		json
+//	@Param			catalog	path		string	true	"Catalog ID"
 //	@Param			class	path		string	true	"Parent control class"
 //	@Param			id		path		string	true	"Parent control id"
 //	@Success		200		{object}	GenericDataListResponse[service.CatalogControl]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Router			/controls/children/{class}/{id} [get]
+//	@Router			/controls/control/{catalog}/{class}/{id} [get]
 func (h *CatalogControlHandler) GetForControl(c echo.Context) error {
 	results, err := h.service.FindFor(c.Request().Context(), service.CatalogItemParentIdentifier{
-		ID:    c.Param("id"),
-		Class: c.Param("class"),
-		Type:  service.CatalogItemParentTypeControl,
+		ID:        internal.Pointer(c.Param("id")),
+		Class:     internal.Pointer(c.Param("class")),
+		Type:      service.CatalogItemParentTypeControl,
+		CatalogId: uuid.MustParse(c.Param("catalog")),
 	})
+
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -98,8 +105,8 @@ func (h *CatalogControlHandler) GetForControl(c echo.Context) error {
 //	@Router			/controls [get]
 func (h *CatalogControlHandler) List(c echo.Context) error {
 	results, err := h.service.FindFor(c.Request().Context(), service.CatalogItemParentIdentifier{
-		ID:    c.Param("id"),
-		Class: c.Param("class"),
+		ID:    internal.Pointer(c.Param("id")),
+		Class: internal.Pointer(c.Param("class")),
 		Type:  service.CatalogItemParentType(c.Param("type")),
 	})
 	if err != nil {

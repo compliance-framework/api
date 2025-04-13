@@ -559,6 +559,8 @@ definitions:
     type: object
   service.CatalogItemParentIdentifier:
     properties:
+      catalog_id:
+        type: string
       class:
         type: string
       id:
@@ -1097,11 +1099,16 @@ paths:
       summary: List catalog controls by parent
       tags:
       - CatalogControls
-  /controls/children/{class}/{id}:
+  /controls/control/{catalog}/{class}/{id}:
     get:
       description: Retrieves catalog controls associated with a control parent based
         on the parent's class and id.
       parameters:
+      - description: Catalog ID
+        in: path
+        name: catalog
+        required: true
+        type: string
       - description: Parent control class
         in: path
         name: class
@@ -1134,17 +1141,22 @@ paths:
       summary: Get catalog controls for a control parent
       tags:
       - CatalogControls
-  /controls/group/{class}/{id}:
+  /controls/group/{catalog}/{class}/{id}:
     get:
       description: Retrieves catalog controls associated with a group parent based
         on the parent's class and id.
       parameters:
-      - description: Parent group class
+      - description: Catalog ID
+        in: path
+        name: catalog
+        required: true
+        type: string
+      - description: Parent control class
         in: path
         name: class
         required: true
         type: string
-      - description: Parent group id
+      - description: Parent control id
         in: path
         name: id
         required: true
@@ -1496,52 +1508,14 @@ paths:
       summary: Search findings grouped by subject
       tags:
       - Findings
-  /groups:
-    get:
-      description: Retrieves catalog groups based on the provided parent identifier
-        query parameters (id, class, type).
-      parameters:
-      - description: Parent identifier ID
-        in: query
-        name: id
-        required: true
-        type: string
-      - description: Parent identifier class
-        in: query
-        name: class
-        required: true
-        type: string
-      - description: Parent identifier type (catalog, group, etc.)
-        in: query
-        name: type
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-service_CatalogGroup'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: List catalog groups by parent
-      tags:
-      - CatalogGroups
-  /groups/catalog/{id}:
+  /groups/catalog/{catalog}:
     get:
       description: Retrieves catalog groups that belong to a catalog, identified by
         its unique catalog ID.
       parameters:
       - description: Catalog ID
         in: path
-        name: id
+        name: catalog
         required: true
         type: string
       produces:
@@ -1571,6 +1545,11 @@ paths:
       description: Retrieves catalog groups that belong to a parent group, identified
         by its class and ID.
       parameters:
+      - description: Catalog ID
+        in: path
+        name: catalog
+        required: true
+        type: string
       - description: Parent group class
         in: path
         name: class
