@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
@@ -77,7 +78,9 @@ func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, dat
 
 func loadConfig() (config Config) {
 	if err := godotenv.Load(".env"); err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Error loading .env file: %v", err)
+		}
 	}
 
 	mongoURI := os.Getenv("MONGO_URI")

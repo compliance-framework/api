@@ -1,11 +1,12 @@
 # Configuration Service
 
 ## Overview
-`configuration-service` is a service responsible for storing and retrieving OSCAL (Open Security Controls Assessment Language) configurations.
 
-## Features
-- Store OSCAL configurations
-- Retrieve OSCAL configurations
+The Configuration service is a core component of The Continuous Compliance Framework. It manages all the data and 
+aggregation for compliance, and agent-collected data.
+
+The data structures in the service are heavily based on OSCAL (Open Security Controls Assessment Language), with the
+goal of full support.
 
 ## Prerequisites
 - Docker / Podman
@@ -16,56 +17,54 @@
 
 ### Using Docker Compose
 
-You can easily run `configuration-service` using Docker Compose. This will also start the required MongoDB service.
+This will also start the required auxiliary services.
 
-1. Clone the repository:
+```shell
+make up  
+# OR podman-compose up -d
+# OR docker compose up -d 
 
-   ```sh
-   git clone https://github.com/compliance-framework/configuration-service.git
-   cd configuration-service
-   ```
-
-2. Start and stop the services:
-
-   ```sh
-
-   make dev        # starts service (does not build container)
-   make dev_stop   # stops the service
-   ```
-
-3. Build, start and stop the services:
-
-   ```sh
-
-   make debug        # builds container with local code and starts service
-   make debug_stop   # stops the service
-   ```
-
-Then see [https://raw.githubusercontent.com/compliance-framework/infrastructure/main/hack/setup.sh](here) for example setup code you can run.
+curl http://localhost:8080
+```
 
 ### Accessing Swagger Documentation
 
-Once the service is running, you can access the Swagger documentation to test and interact with the API at: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
+The configuration service exposes all of its endpoints using Swagger.
+
+You can access the Swagger documentation to test and interact with the API at: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
 
 ## Configuration
-You can configure configuration-service using environment variables. 
-An example is located at [`.env.example`](./.env.example)
 
-Copy this file to .env to configure your environment variables
+You can configure configuration-service using environment variables or a `.env` file.
+
+Available variables are shown in [`.env.example`](./.env.example)
+
+Copy this file to .env to configure environment variables
 ```shell
 cp .env.example .env
 ```
 
 ## Contributing
+
 We welcome contributions to configuration-service!
 
-## Integration Tests
+## Testing
+
+### Integration Tests
+
+The Configuration Service contains integration tests, which will run tests against a real database, ensuring the service
+works as expected. 
+
+The tests are marked with special build markers to avoid running them during normal development.
 
 ```shell
 make test-integration
 ```
 
-When using Podman instead of Docker:
+#### Notes
+
+When using Podman instead of Docker, some changes are necessary for testcontainers to function correctly
+
 ```shell
 # This is a workaround currently, and is currently being worked on by the testcontainers folks.
 # Ensure Podman is running rootfully
@@ -77,4 +76,4 @@ export TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED=true;
 ```
 
 ## License
-This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU AGPLv3 License - see the [LICENSE](LICENSE) file for details.

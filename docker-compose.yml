@@ -4,13 +4,18 @@ services:
   configuration-service:
     build: 
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      target: local
+    image: configuration-service:local
     ports:
       - "8080:8080"
     depends_on:
       - mongodb
+    volumes:
+      - .:/app
     environment:
       - MONGO_URI=mongodb://mongodb:27017
+      - APP_PORT=8080
 
   mongodb:
     image: mongo:latest
