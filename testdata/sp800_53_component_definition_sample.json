@@ -1,0 +1,255 @@
+{
+    "component-definition": {
+      "uuid": "8223d65f-57a9-4689-8f06-2a975ae2ad72",
+      "metadata": {
+        "title": "Test Component Definition",
+        "last-modified": "2024-02-01T13:57:28.355446-04:00",
+        "version": "20231012",
+        "oscal-version": "1.1.2",
+        "parties": [
+          {
+            "uuid": "ee47836c-877c-4007-bbf3-c9d9bd805a9a",
+            "type": "organization",
+            "name": "Test Vendor"
+          }
+        ]
+      },
+      "import-component-definitions": [
+        {
+          "href": "#000000-1111-2222-333333333333"
+        }
+      ],
+      "components": [
+        {
+          "uuid": "b036a6ac-6cff-4066-92bc-74ddfd9ad6fa",
+          "type": "software",
+          "title": "test component 1",
+          "description": "This is a software component that implements basic authentication mechanisms.",
+          "remarks": "Focusing on specific control enhancements within SP 800-53",
+          "responsible-roles": [
+            {
+              "role-id": "provider",
+              "party-uuids": [
+                "ee47836c-877c-4007-bbf3-c9d9bd805a9a"
+              ]
+            }
+          ],
+          "protocols": [
+            {
+              "name": "HTTPS",
+              "uuid": "00000000-1111-2222-333333333333",
+              "title": "HTTPs Enabled",
+              "port-ranges": [
+                {
+                  "start": 443,
+                  "end": 443,
+                  "transport": "tls"
+                }
+              ]
+            }
+          ],
+          "props": [
+            {
+              "name": "Example property",
+              "value": "foo"
+            }
+          ],
+          "links": [
+            {
+              "href": "http://example.com",
+              "text": "example link"
+            }
+          ],
+          "control-implementations": [
+            {
+              "uuid": "cfcdd674-8595-4f98-a9d1-3ac70825c49f",
+              "source": "#f52e1458-7a97-49fd-8189-6af6a4e7051b",
+              "description": "This is a partial implementation of the SP 800-53 rev4 catalog, focusing on the control enhancement AC-2 (3).",
+              "implemented-requirements": [
+                {
+                  "uuid": "d1016df0-9b5c-4839-86cd-f9c1d113077b",
+                  "control-id": "ac-2.3",
+                  "description": "Inactive accounts are automatically disabled based on the duration specified by the duration parameter. Disabled accounts are expected to be reviewed and removed when appropriate.",
+                  "props": [
+                    {
+                      "name": "Example property",
+                      "value": "foo"
+                    }
+                  ],
+                  "links": [
+                    {
+                      "href": "http://example.com",
+                      "text": "example link"
+                    }
+                  ],
+                  "set-parameters": [
+                    {
+                      "param-id": "test",
+                      "values": [
+                        "foo",
+                        "bar",
+                        "baz"
+                      ],
+                      "remarks": "Test Parameter"
+                    }
+                  ],
+                  "responsible-roles": [
+                    {
+                      "role-id": "provider",
+                      "party-uuids": [
+                        "ee47836c-877c-4007-bbf3-c9d9bd805a9a"
+                      ]
+                    }
+                  ],
+                  "remarks": "Additional remarks for the implemented requirements",
+                  "statements": [
+                    {
+                      "statement-id": "ac-2.3_stmt_1",
+                      "uuid": "71B03F35-ADE3-4DBF-BE65-71D8059509F5",
+                      "description": "test statement",
+                      "props": [
+                        {
+                          "name": "Example property",
+                          "value": "foo"
+                        }
+                      ],
+                      "links": [
+                        {
+                          "href": "http://example.com",
+                          "text": "example link"
+                        }
+                      ],
+                      "responsible-roles": [
+                        {
+                          "role-id": "provider",
+                          "party-uuids": [
+                            "ee47836c-877c-4007-bbf3-c9d9bd805a9a"
+                          ]
+                        }
+                      ],
+                      "remarks": "Test statement remarks"
+                    }
+                  ]
+                }
+              ],
+              "set-parameters": [
+                {
+                  "param-id": "test",
+                  "values": [
+                    "foo",
+                    "bar",
+                    "baz"
+                  ],
+                  "remarks": "Test Parameter"
+                }
+              ],
+              "props": [
+                {
+                  "name": "Example property",
+                  "value": "foo"
+                }
+              ],
+              "links": [
+                {
+                  "href": "http://example.com",
+                  "text": "example link"
+                }
+              ]
+            },
+            {
+              "uuid": "22dbff65-9729-449f-9dfc-4e5fee0906de",
+              "source": "#ec013e7d-e2a2-4ddb-a174-fbd9da24b0d8",
+              "description": "This is a partial implementation of the FedRAMP High profile, focusing on the control enhancement AC-2 (3).",
+              "implemented-requirements": [
+                {
+                  "uuid": "65e30b37-0640-4844-9f42-b2a7ae944bb1",
+                  "control-id": "ac-2.3",
+                  "description": "An alternate narrative for FedRAMP.."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "capabilities": [
+        {
+          "uuid": "c1daced9-4a9f-409e-aac0-11039e0fe71a",
+          "name": "Test capability",
+          "description": "Test capability for the unmarshaler",
+          "props": [
+            {
+              "name": "Example property",
+              "value": "foo"
+            }
+          ],
+          "links": [
+            {
+              "href": "http://example.com",
+              "text": "example link"
+            }
+          ],
+          "incorporates-components": [
+            {
+              "component-uuid": "89143a42-b2c2-44bf-a0fb-d57a9b61fa8f",
+              "description": "Random component!"
+            }
+          ],
+          "control-implementations": [
+            {
+              "uuid": "4547dea9-2135-445a-ba2e-0a1962715b8f",
+              "source": "Demo from capabilities",
+              "description": "Implementations for the demo control",
+              "implemented-requirements": [
+                {
+                  "uuid": "32479c47-8172-4a29-8b55-c8a21230a459",
+                  "control-id": "abc-1.1",
+                  "decription": "Implements foo for the demo control"
+                }
+              ]
+            }
+          ],
+          "remarks": "Testing!"
+        }
+      ],
+      "back-matter": {
+        "resources": [
+          {
+            "uuid": "f52e1458-7a97-49fd-8189-6af6a4e7051b",
+            "description": "NIST Special Publication 800-53 Revision 4: Security and Privacy Controls for Federal Information Systems and Organizations",
+            "rlinks": [
+              {
+                "href": "../../../../nist.gov/SP800-53/rev4/xml/NIST_SP-800-53_rev4_catalog.xml",
+                "media-type": "application/oscal.catalog+xml"
+              },
+              {
+                "href": "../../../../nist.gov/SP800-53/rev4/json/NIST_SP-800-53_rev4_catalog.json",
+                "media-type": "application/oscal.catalog+json"
+              },
+              {
+                "href": "../../../../nist.gov/SP800-53/rev4/yaml/NIST_SP-800-53_rev4_catalog.yaml",
+                "media-type": "application/oscal.catalog+yaml"
+              }
+            ]
+          },
+          {
+            "uuid": "ec013e7d-e2a2-4ddb-a174-fbd9da24b0d8",
+            "description": "FedRAMP Revision 4 High Baseline Profile",
+            "rlinks": [
+              {
+                "href": "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev4/baselines/xml/FedRAMP_rev4_HIGH-baseline_profile.xml",
+                "media-type": "application/oscal.catalog+xml"
+              },
+              {
+                "href": "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev4/baselines/json/FedRAMP_rev4_HIGH-baseline_profile.json",
+                "media-type": "application/oscal.catalog+json"
+              },
+              {
+                "href": "https://raw.githubusercontent.com/GSA/fedramp-automation/master/dist/content/rev4/baselines/yaml/FedRAMP_rev4_HIGH-baseline_profile.yaml",
+                "media-type": "application/oscal.catalog+yaml"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
