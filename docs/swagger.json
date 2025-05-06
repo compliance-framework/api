@@ -1061,6 +1061,132 @@
                 }
             }
         },
+        "/oscal/catalogs": {
+            "get": {
+                "description": "Retrieves all catalogs.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal Catalogs"
+                ],
+                "summary": "List catalogs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_List_responseCatalog"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}": {
+            "get": {
+                "description": "Retrieves a single Catalog by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal Catalogs"
+                ],
+                "summary": "Get a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_Get_responseCatalog"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/back-matter": {
+            "get": {
+                "description": "Retrieves the back-matter for a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal Catalogs"
+                ],
+                "summary": "Get back-matter for a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/subjects": {
             "get": {
                 "description": "Retrieves a list of all subjects from the database.",
@@ -1241,6 +1367,18 @@
                 }
             }
         },
+        "handler.GenericDataListResponse-oscal_List_responseCatalog": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.List.responseCatalog"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-service_Catalog": {
             "type": "object",
             "properties": {
@@ -1385,6 +1523,32 @@
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_Get_responseCatalog": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.Get.responseCatalog"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-service_Catalog": {
             "type": "object",
             "properties": {
@@ -1515,6 +1679,28 @@
                 }
             }
         },
+        "oscal.Get.responseCatalog": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.List.responseCatalog": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Action": {
             "type": "object",
             "properties": {
@@ -1579,6 +1765,51 @@
                 }
             }
         },
+        "oscalTypes_1_1_3.BackMatter": {
+            "type": "object",
+            "properties": {
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Resource"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Base64": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "media-type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Citation": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.DocumentId": {
             "type": "object",
             "properties": {
@@ -1586,6 +1817,17 @@
                     "type": "string"
                 },
                 "scheme": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Hash": {
+            "type": "object",
+            "properties": {
+                "algorithm": {
+                    "type": "string"
+                },
+                "value": {
                     "type": "string"
                 }
             }
@@ -1876,6 +2118,64 @@
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Resource": {
+            "type": "object",
+            "properties": {
+                "base64": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Base64"
+                },
+                "citation": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Citation"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "document-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.DocumentId"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "rlinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResourceLink"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ResourceLink": {
+            "type": "object",
+            "properties": {
+                "hashes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Hash"
+                    }
+                },
+                "href": {
+                    "type": "string"
+                },
+                "media-type": {
                     "type": "string"
                 }
             }

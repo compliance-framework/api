@@ -8,6 +8,14 @@ definitions:
         additionalProperties: true
         type: object
     type: object
+  handler.GenericDataListResponse-oscal_List_responseCatalog:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.List.responseCatalog'
+        type: array
+    type: object
   handler.GenericDataListResponse-service_Catalog:
     properties:
       data:
@@ -104,6 +112,20 @@ definitions:
           $ref: '#/definitions/service.Subject'
         type: array
     type: object
+  handler.GenericDataResponse-oscal_Get_responseCatalog:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.Get.responseCatalog'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-service_Catalog:
     properties:
       data:
@@ -184,6 +206,20 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  oscal.Get.responseCatalog:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
+  oscal.List.responseCatalog:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.Action:
     properties:
       date:
@@ -226,11 +262,47 @@ definitions:
       type:
         type: string
     type: object
+  oscalTypes_1_1_3.BackMatter:
+    properties:
+      resources:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Resource'
+        type: array
+    type: object
+  oscalTypes_1_1_3.Base64:
+    properties:
+      filename:
+        type: string
+      media-type:
+        type: string
+      value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Citation:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      text:
+        type: string
+    type: object
   oscalTypes_1_1_3.DocumentId:
     properties:
       identifier:
         type: string
       scheme:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Hash:
+    properties:
+      algorithm:
+        type: string
+      value:
         type: string
     type: object
   oscalTypes_1_1_3.Link:
@@ -422,6 +494,44 @@ definitions:
       uuid:
         type: string
       value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Resource:
+    properties:
+      base64:
+        $ref: '#/definitions/oscalTypes_1_1_3.Base64'
+      citation:
+        $ref: '#/definitions/oscalTypes_1_1_3.Citation'
+      description:
+        type: string
+      document-ids:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.DocumentId'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      rlinks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResourceLink'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ResourceLink:
+    properties:
+      hashes:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Hash'
+        type: array
+      href:
+        type: string
+      media-type:
         type: string
     type: object
   oscalTypes_1_1_3.ResponsibleParty:
@@ -1663,6 +1773,89 @@ paths:
       summary: Get observation history by stream UUID
       tags:
       - Observations
+  /oscal/catalogs:
+    get:
+      description: Retrieves all catalogs.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_List_responseCatalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List catalogs
+      tags:
+      - Oscal Catalogs
+  /oscal/catalogs/{id}:
+    get:
+      description: Retrieves a single Catalog by its unique ID.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_Get_responseCatalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a Catalog
+      tags:
+      - Oscal Catalogs
+  /oscal/catalogs/{id}/back-matter:
+    get:
+      description: Retrieves the back-matter for a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get back-matter for a Catalog
+      tags:
+      - Oscal Catalogs
   /subjects:
     get:
       description: Retrieves a list of all subjects from the database.
