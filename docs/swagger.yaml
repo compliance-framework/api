@@ -16,6 +16,22 @@ definitions:
           $ref: '#/definitions/oscal.List.responseCatalog'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Control:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Group:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Group'
+        type: array
+    type: object
   handler.GenericDataListResponse-service_Catalog:
     properties:
       data:
@@ -124,6 +140,20 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Control:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Group:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Group'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-service_Catalog:
@@ -291,11 +321,80 @@ definitions:
       text:
         type: string
     type: object
+  oscalTypes_1_1_3.ConstraintTest:
+    properties:
+      expression:
+        type: string
+      remarks:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Control:
+    properties:
+      class:
+        type: string
+      controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        type: array
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      params:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Parameter'
+        type: array
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
+        type: string
+    type: object
   oscalTypes_1_1_3.DocumentId:
     properties:
       identifier:
         type: string
       scheme:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Group:
+    properties:
+      class:
+        type: string
+      controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        type: array
+      groups:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Group'
+        type: array
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      params:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Parameter'
+        type: array
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
         type: string
     type: object
   oscalTypes_1_1_3.Hash:
@@ -398,6 +497,66 @@ definitions:
       title:
         type: string
       version:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Parameter:
+    properties:
+      class:
+        type: string
+      constraints:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ParameterConstraint'
+        type: array
+      depends-on:
+        type: string
+      guidelines:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ParameterGuideline'
+        type: array
+      id:
+        type: string
+      label:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      select:
+        $ref: '#/definitions/oscalTypes_1_1_3.ParameterSelection'
+      usage:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  oscalTypes_1_1_3.ParameterConstraint:
+    properties:
+      description:
+        type: string
+      tests:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ConstraintTest'
+        type: array
+    type: object
+  oscalTypes_1_1_3.ParameterGuideline:
+    properties:
+      prose:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ParameterSelection:
+    properties:
+      choice:
+        items:
+          type: string
+        type: array
+      how-many:
         type: string
     type: object
   oscalTypes_1_1_3.Part:
@@ -1793,7 +1952,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: List catalogs
       tags:
-      - Oscal Catalogs
+      - Oscal
   /oscal/catalogs/{id}:
     get:
       description: Retrieves a single Catalog by its unique ID.
@@ -1824,7 +1983,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get a Catalog
       tags:
-      - Oscal Catalogs
+      - Oscal
   /oscal/catalogs/{id}/back-matter:
     get:
       description: Retrieves the back-matter for a given Catalog.
@@ -1855,7 +2014,251 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get back-matter for a Catalog
       tags:
-      - Oscal Catalogs
+      - Oscal
+  /oscal/catalogs/{id}/controls:
+    get:
+      description: Retrieves the top-level controls for a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List controls for a Catalog
+      tags:
+      - Oscal
+  /oscal/catalogs/{id}/controls/{control}:
+    get:
+      description: Retrieves a single Control by its ID for a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a specific Control within a Catalog
+      tags:
+      - Oscal
+  /oscal/catalogs/{id}/controls/{control}/controls:
+    get:
+      description: Retrieves the controls directly under a specific Control in a given
+        Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List child controls for a Control within a Catalog
+      tags:
+      - Oscal
+  /oscal/catalogs/{id}/groups:
+    get:
+      description: Retrieves the top-level groups for a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Group'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List groups for a Catalog
+      tags:
+      - Oscal
+  /oscal/catalogs/{id}/groups/{group}:
+    get:
+      description: Retrieves a single Group by its ID for a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Group'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a specific Group within a Catalog
+      tags:
+      - Oscal
+  /oscal/catalogs/{id}/groups/{group}/controls:
+    get:
+      description: Retrieves the controls directly under a specific Group in a given
+        Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List controls for a Group within a Catalog
+      tags:
+      - Oscal
+  /oscal/catalogs/{id}/groups/{group}/groups:
+    get:
+      description: Retrieves the sub-groups of a specific Group in a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Group'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List sub-groups for a Group within a Catalog
+      tags:
+      - Oscal
   /subjects:
     get:
       description: Retrieves a list of all subjects from the database.

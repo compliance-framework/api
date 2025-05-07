@@ -1074,7 +1074,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal Catalogs"
+                    "Oscal"
                 ],
                 "summary": "List catalogs",
                 "responses": {
@@ -1106,7 +1106,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal Catalogs"
+                    "Oscal"
                 ],
                 "summary": "Get a Catalog",
                 "parameters": [
@@ -1153,7 +1153,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal Catalogs"
+                    "Oscal"
                 ],
                 "summary": "Get back-matter for a Catalog",
                 "parameters": [
@@ -1170,6 +1170,370 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/controls": {
+            "get": {
+                "description": "Retrieves the top-level controls for a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List controls for a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/controls/{control}": {
+            "get": {
+                "description": "Retrieves a single Control by its ID for a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "Get a specific Control within a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "control",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/controls/{control}/controls": {
+            "get": {
+                "description": "Retrieves the controls directly under a specific Control in a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List child controls for a Control within a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "control",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/groups": {
+            "get": {
+                "description": "Retrieves the top-level groups for a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List groups for a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Group"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/groups/{group}": {
+            "get": {
+                "description": "Retrieves a single Group by its ID for a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "Get a specific Group within a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Group"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/groups/{group}/controls": {
+            "get": {
+                "description": "Retrieves the controls directly under a specific Group in a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List controls for a Group within a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/catalogs/{id}/groups/{group}/groups": {
+            "get": {
+                "description": "Retrieves the sub-groups of a specific Group in a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List sub-groups for a Group within a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Group"
                         }
                     },
                     "400": {
@@ -1373,6 +1737,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Control": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Group": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Group"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscal_List_responseCatalog": {
             "type": "object",
             "properties": {
@@ -1537,6 +1925,32 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Control": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Group": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Group"
                         }
                     ]
                 }
@@ -1816,6 +2230,61 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.ConstraintTest": {
+            "type": "object",
+            "properties": {
+                "expression": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Control": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.DocumentId": {
             "type": "object",
             "properties": {
@@ -1823,6 +2292,56 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scheme": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Group": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Group"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -1978,6 +2497,98 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Parameter": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ParameterConstraint"
+                    }
+                },
+                "depends-on": {
+                    "type": "string"
+                },
+                "guidelines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ParameterGuideline"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "select": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ParameterSelection"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ParameterConstraint": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "tests": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ConstraintTest"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ParameterGuideline": {
+            "type": "object",
+            "properties": {
+                "prose": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ParameterSelection": {
+            "type": "object",
+            "properties": {
+                "choice": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "how-many": {
                     "type": "string"
                 }
             }
