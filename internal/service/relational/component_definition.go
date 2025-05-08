@@ -253,9 +253,9 @@ func (irci *ImplementedRequirementControlImplementation) UnmarshalOscal(oirci os
 }
 
 type ControlStatementImplementation struct {
-	UUIDModel
-	StatementId      string                               `json:"statement-id"`
-	Description      string                               `json:"description"`
+	UUIDModel                                             // required
+	StatementId      string                               `json:"statement-id"` // required
+	Description      string                               `json:"description"`  // required
 	Props            datatypes.JSONSlice[Prop]            `json:"props"`
 	Links            datatypes.JSONSlice[Link]            `json:"links"`
 	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
@@ -287,6 +287,36 @@ func (s *ControlStatementImplementation) UnmarshalOscal(oci oscalTypes_1_1_3.Con
 	}
 
 	return s
+}
+
+func (s *ControlStatementImplementation) MarshalOscal() *oscalTypes_1_1_3.ControlStatementImplementation {
+	ret := oscalTypes_1_1_3.ControlStatementImplementation{
+		UUID:        s.UUIDModel.ID.String(),
+		StatementId: s.StatementId,
+		Description: s.Description,
+	}
+
+	if s.Remarks != "" {
+		ret.Remarks = s.Remarks
+	}
+
+	if len(s.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(s.Props)
+	}
+
+	if len(s.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(s.Links)
+	}
+
+	if len(s.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(s.ResponsibleRoles))
+		for i, role := range s.ResponsibleRoles {
+			roles[i] = oscalTypes_1_1_3.ResponsibleRole(role)
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	return &ret
 }
 
 type ResponsibleRole oscalTypes_1_1_3.ResponsibleRole
