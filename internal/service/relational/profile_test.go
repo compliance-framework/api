@@ -142,3 +142,73 @@ func TestMerge_MarshalOscal(t *testing.T) {
 		})
 	}
 }
+
+func TestParameterSetting_MarshalOscal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.ParameterSetting
+	}{
+		{
+			name: "with minimal fields set",
+			data: oscalTypes_1_1_3.ParameterSetting{
+				ParamId: "minimal-param",
+			},
+		},
+		{
+			name: "with full fields set",
+			data: oscalTypes_1_1_3.ParameterSetting{
+				ParamId:   "full-param",
+				Class:     "classification",
+				DependsOn: "dependency-id",
+				Label:     "Full Parameter Label",
+				Props: &[]oscalTypes_1_1_3.Property{
+					{Name: "prop-name", Value: "prop-value"},
+				},
+				Links: &[]oscalTypes_1_1_3.Link{
+					{Href: "https://example.com", Rel: "related"},
+				},
+				Constraints: &[]oscalTypes_1_1_3.ParameterConstraint{
+					{Description: "constraint description"},
+				},
+				Guidelines: &[]oscalTypes_1_1_3.ParameterGuideline{
+					{Prose: "follow this"},
+				},
+				Values: &[]string{"value1", "value2"},
+				Select: &oscalTypes_1_1_3.ParameterSelection{
+					HowMany: "one",
+					Choice: &[]string{
+						"1",
+						"2",
+					},
+				},
+			},
+		},
+		{
+			name: "with select but no choices",
+			data: oscalTypes_1_1_3.ParameterSetting{
+				ParamId: "select-no-choices",
+				Select: &oscalTypes_1_1_3.ParameterSelection{
+					HowMany: "one",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Serialize the OSCAL type to JSON
+			inputJSON, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			// Round-trip through internal model
+			ps := ParameterSetting{}
+			ps.UnmarshalOscal(tt.data)
+			output := ps.MarshalOscal()
+			outputJSON, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			// Deep-compare JSON
+			assert.JSONEq(t, string(inputJSON), string(outputJSON))
+		})
+	}
+}

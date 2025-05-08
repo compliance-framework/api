@@ -1,6 +1,7 @@
 package relational
 
 import (
+	"fmt"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -251,4 +252,141 @@ func (m *Merge) MarshalOscal() *oscalTypes_1_1_3.Merge {
 	}
 
 	return &ret
+}
+
+type Modify struct {
+	UUIDModel
+	SetParameters []ParameterSetting `json:"set-parameters"`
+
+	ProfileID uuid.UUID
+
+	oscalTypes_1_1_3.Modify
+}
+
+func (m *Modify) UnmarshalOscal(o oscalTypes_1_1_3.Modify) *Modify {
+	*m = Modify{
+		UUIDModel: UUIDModel{},
+		SetParameters: ConvertList(o.SetParameters, func(osp oscalTypes_1_1_3.ParameterSetting) ParameterSetting {
+			param := ParameterSetting{}
+			param.UnmarshalOscal(osp)
+			return param
+		}),
+	}
+
+	return m
+}
+
+func (m *Modify) MarshalOscal() *oscalTypes_1_1_3.Modify {
+	ret := oscalTypes_1_1_3.Modify{}
+
+	if len(m.SetParameters) > 0 {
+		params := make([]oscalTypes_1_1_3.ParameterSetting, len(m.SetParameters))
+		for i, param := range m.SetParameters {
+			params[i] = param.MarshalOscal()
+		}
+		ret.SetParameters = &params
+	}
+
+	return &ret
+}
+
+type ParameterSetting struct {
+	UUIDModel
+	ParamID     string                                   `json:"param-id"` // required
+	Class       string                                   `json:"class"`
+	DependsOn   string                                   `json:"depends-on"`
+	Props       datatypes.JSONSlice[Prop]                `json:"props"`
+	Links       datatypes.JSONSlice[Link]                `json:"links"`
+	Label       string                                   `json:"label"`
+	Constraints datatypes.JSONSlice[ParameterConstraint] `json:"constraints"`
+	Guidelines  datatypes.JSONSlice[ParameterGuideline]  `json:"guidelines"`
+	Values      datatypes.JSONSlice[string]              `json:"values"`
+	Select      *datatypes.JSONType[ParameterSelection]  `json:"select"`
+
+	ModifyID uuid.UUID
+}
+
+func (p *ParameterSetting) UnmarshalOscal(o oscalTypes_1_1_3.ParameterSetting) *ParameterSetting {
+	*p = ParameterSetting{
+		UUIDModel: UUIDModel{},
+		ParamID:   o.ParamId,
+		Class:     o.Class,
+		DependsOn: o.DependsOn,
+		Props:     ConvertOscalToProps(o.Props),
+		Links:     ConvertOscalToLinks(o.Links),
+		Label:     o.Label,
+	}
+
+	if o.Select != nil {
+		selection := ParameterSelection{}
+		selection.UnmarshalOscal(*o.Select)
+		selectionJson := datatypes.NewJSONType[ParameterSelection](selection)
+		p.Select = &selectionJson
+	}
+	if o.Constraints != nil {
+		p.Constraints = ConvertList(o.Constraints, func(pc oscalTypes_1_1_3.ParameterConstraint) ParameterConstraint {
+			constraint := ParameterConstraint{}
+			constraint.UnmarshalOscal(pc)
+			return constraint
+		})
+	}
+	if o.Guidelines != nil {
+		p.Guidelines = ConvertList(o.Guidelines, func(data oscalTypes_1_1_3.ParameterGuideline) ParameterGuideline {
+			output := ParameterGuideline{}
+			output.UnmarshalOscal(data)
+			return output
+		})
+	}
+	if o.Values != nil {
+		p.Values = *o.Values
+	}
+	return p
+}
+
+func (p *ParameterSetting) MarshalOscal() oscalTypes_1_1_3.ParameterSetting {
+	fmt.Println("ParamID", p.ParamID)
+	ret := oscalTypes_1_1_3.ParameterSetting{
+		ParamId:   p.ParamID,
+		Class:     p.Class,
+		DependsOn: p.DependsOn,
+		Label:     p.Label,
+	}
+
+	if p.Props != nil {
+		ret.Props = ConvertPropsToOscal(p.Props)
+	}
+
+	if p.Links != nil {
+		ret.Links = ConvertLinksToOscal(p.Links)
+	}
+	if len(p.Constraints) > 0 {
+		constraints := make([]oscalTypes_1_1_3.ParameterConstraint, len(p.Constraints))
+		for i, constraint := range p.Constraints {
+			constraints[i] = *constraint.MarshalOscal()
+		}
+		ret.Constraints = &constraints
+	}
+
+	if len(p.Guidelines) > 0 {
+		guidelines := make([]oscalTypes_1_1_3.ParameterGuideline, len(p.Guidelines))
+		for i, guideline := range p.Guidelines {
+			guidelines[i] = *guideline.MarshalOscal()
+		}
+		ret.Guidelines = &guidelines
+	}
+
+	if len(p.Values) > 0 {
+		values := make([]string, len(p.Values))
+		for i, value := range p.Values {
+			values[i] = value
+		}
+		ret.Values = &values
+	}
+
+	if p.Select != nil {
+		selectJson := p.Select.Data()
+		ret.Select = selectJson.MarshalOscal()
+	}
+
+	return ret
 }
