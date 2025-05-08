@@ -86,3 +86,59 @@ func TestImport_MarshalOscal(t *testing.T) {
 		})
 	}
 }
+
+func TestMerge_MarshalOscal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.Merge
+	}{
+		{
+			name: "with AsIs Set only - true",
+			data: oscalTypes_1_1_3.Merge{
+				AsIs: true,
+			},
+		},
+		{
+			name: "with AsIs Set only - false",
+			data: oscalTypes_1_1_3.Merge{
+				AsIs: false,
+			},
+		},
+		{
+			name: "with nothing set",
+			data: oscalTypes_1_1_3.Merge{},
+		},
+		{
+			name: "with flat set",
+			data: oscalTypes_1_1_3.Merge{
+				Flat: &oscalTypes_1_1_3.FlatWithoutGrouping{},
+			},
+		},
+		{
+			name: "combine set",
+			data: oscalTypes_1_1_3.Merge{
+				Combine: &oscalTypes_1_1_3.CombinationRule{
+					Method: "test",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Serialize the OSCAL type to JSON
+			inputJSON, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			// Round-trip through internal model
+			merge := Merge{}
+			merge.UnmarshalOscal(tt.data)
+			output := merge.MarshalOscal()
+			outputJSON, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			// Deep-compare JSON
+			assert.JSONEq(t, string(inputJSON), string(outputJSON))
+		})
+	}
+}

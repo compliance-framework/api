@@ -56,6 +56,7 @@ func (p *Profile) MarshalOscal() oscalTypes_1_1_3.Profile {
 }
 
 type IncludeAll = map[string]interface{}
+type FlatWithoutGrouping = map[string]interface{}
 
 type Import struct {
 	UUIDModel
@@ -176,4 +177,65 @@ func (s *SelectControlById) MarshalOscal() oscalTypes_1_1_3.SelectControlById {
 		controls.Matching = &matching
 	}
 	return controls
+}
+
+type CombinationRule oscalTypes_1_1_3.CombinationRule
+
+func (cr *CombinationRule) UnmarshalOscal(o oscalTypes_1_1_3.CombinationRule) *CombinationRule {
+	*cr = CombinationRule(o)
+	return cr
+}
+
+func (cr *CombinationRule) MarshalOscal() *oscalTypes_1_1_3.CombinationRule {
+	combine := oscalTypes_1_1_3.CombinationRule(*cr)
+	return &combine
+}
+
+type Merge struct {
+	UUIDModel
+	Combine datatypes.JSONType[*CombinationRule]     `json:"combine"`
+	AsIs    bool                                     `json:"as-is"`
+	Flat    datatypes.JSONType[*FlatWithoutGrouping] `json:"flat"`
+}
+
+func (m *Merge) UnmarshalOscal(o oscalTypes_1_1_3.Merge) *Merge {
+	*m = Merge{
+		UUIDModel: UUIDModel{},
+		AsIs:      o.AsIs,
+	}
+
+	if o.Combine != nil {
+		combinationRule := CombinationRule{}
+		combinationRule.UnmarshalOscal(*o.Combine)
+		m.Combine = datatypes.NewJSONType[*CombinationRule](&combinationRule)
+	}
+	if !m.AsIs {
+		if o.Flat != nil {
+			m.Flat = datatypes.NewJSONType[*FlatWithoutGrouping](o.Flat)
+		} else {
+			// Custom merge...
+		}
+	}
+
+	return m
+}
+
+func (m *Merge) MarshalOscal() oscalTypes_1_1_3.Merge {
+	ret := oscalTypes_1_1_3.Merge{
+		AsIs: m.AsIs,
+	}
+
+	if m.Combine.Data() != nil {
+		ret.Combine = m.Combine.Data().MarshalOscal()
+	}
+
+	if !m.AsIs {
+		if m.Flat.Data() != nil {
+			ret.Flat = &oscalTypes_1_1_3.FlatWithoutGrouping{}
+		} else {
+			// custom merge ..
+		}
+	}
+
+	return ret
 }
