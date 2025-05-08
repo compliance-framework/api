@@ -63,6 +63,7 @@ func main() {
 		&relational.SystemSecurityPlan{},
 		&relational.SelectControlById{},
 		&relational.Import{},
+		&relational.Merge{},
 		&relational.Profile{},
 		"metadata_responsible_parties",
 		"party_locations",
@@ -125,6 +126,7 @@ func main() {
 		&relational.SystemSecurityPlan{},
 		&relational.SelectControlById{},
 		&relational.Import{},
+		&relational.Merge{},
 		&relational.Profile{},
 	)
 	if err != nil {

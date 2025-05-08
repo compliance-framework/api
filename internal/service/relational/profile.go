@@ -11,6 +11,7 @@ type Profile struct {
 	Metadata   Metadata    `json:"metadata" gorm:"Polymorphic:Parent"`
 	BackMatter *BackMatter `json:"back-matter" gorm:"Polymorphic:Parent"`
 	Imports    []Import    `json:"imports"`
+	Merge      Merge       `json:"merge"`
 }
 
 // UnmarshalOscal take type of oscalTypes_1_1_3.Profile from go-oscal and converts it into a relational model within the struct
@@ -24,6 +25,9 @@ func (p *Profile) UnmarshalOscal(op oscalTypes_1_1_3.Profile) *Profile {
 	backMatter := &BackMatter{}
 	backMatter.UnmarshalOscal(*op.BackMatter)
 
+	merge := Merge{}
+	merge.UnmarshalOscal(*op.Merge)
+
 	*p = Profile{
 		UUIDModel: UUIDModel{
 			ID: &id,
@@ -35,6 +39,7 @@ func (p *Profile) UnmarshalOscal(op oscalTypes_1_1_3.Profile) *Profile {
 			imp.UnmarshalOscal(oi)
 			return imp
 		}),
+		Merge: merge,
 	}
 	return p
 }
@@ -45,12 +50,19 @@ func (p *Profile) MarshalOscal() oscalTypes_1_1_3.Profile {
 	ret := oscalTypes_1_1_3.Profile{
 		UUID:     p.ID.String(),
 		Metadata: *p.Metadata.MarshalOscal(),
+		Merge:    p.Merge.MarshalOscal(),
 	}
 
 	if p.BackMatter != nil {
 		backMatter := p.BackMatter.MarshalOscal()
 		ret.BackMatter = backMatter
 	}
+
+	imports := make([]oscalTypes_1_1_3.Import, len(p.Imports))
+	for i, imp := range p.Imports {
+		imports[i] = imp.MarshalOscal()
+	}
+	ret.Imports = imports
 
 	return ret
 }
@@ -196,6 +208,9 @@ type Merge struct {
 	Combine datatypes.JSONType[*CombinationRule]     `json:"combine"`
 	AsIs    bool                                     `json:"as-is"`
 	Flat    datatypes.JSONType[*FlatWithoutGrouping] `json:"flat"`
+	// Custom not implemented
+
+	ProfileID uuid.UUID
 }
 
 func (m *Merge) UnmarshalOscal(o oscalTypes_1_1_3.Merge) *Merge {
@@ -212,15 +227,14 @@ func (m *Merge) UnmarshalOscal(o oscalTypes_1_1_3.Merge) *Merge {
 	if !m.AsIs {
 		if o.Flat != nil {
 			m.Flat = datatypes.NewJSONType[*FlatWithoutGrouping](o.Flat)
-		} else {
-			// Custom merge...
 		}
+		// Custom Merge is not implemented at this time to save complexity
 	}
 
 	return m
 }
 
-func (m *Merge) MarshalOscal() oscalTypes_1_1_3.Merge {
+func (m *Merge) MarshalOscal() *oscalTypes_1_1_3.Merge {
 	ret := oscalTypes_1_1_3.Merge{
 		AsIs: m.AsIs,
 	}
@@ -232,10 +246,9 @@ func (m *Merge) MarshalOscal() oscalTypes_1_1_3.Merge {
 	if !m.AsIs {
 		if m.Flat.Data() != nil {
 			ret.Flat = &oscalTypes_1_1_3.FlatWithoutGrouping{}
-		} else {
-			// custom merge ..
 		}
+		// Custom Merge is not implemented at this time to save complexity
 	}
 
-	return ret
+	return &ret
 }
