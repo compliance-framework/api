@@ -59,8 +59,13 @@ type IncludeAll = map[string]interface{}
 
 type Import struct {
 	UUIDModel
-	Href       string                          `json:"href"`
-	IncludeAll datatypes.JSONType[*IncludeAll] `json:"include-all"`
+	// Href as per the OSCAL docs can be an absolute network path (potentially remote), relative or a URI fragment
+	// for the moment to make the system's life easier, it should be a URI fragment to back-matter and try and resolve
+	// back to an ingested catalog.
+	Href            string                          `json:"href"`
+	IncludeAll      datatypes.JSONType[*IncludeAll] `json:"include-all"`
+	IncludeControls []SelectControlById             `json:"include-controls" gorm:"Polymorphic:Parent"`
+	ExcludeControls []SelectControlById             `json:"exclude-controls" gorm:"Polymorphic:Parent"`
 
 	ProfileID uuid.UUID
 }
@@ -70,6 +75,16 @@ func (i *Import) UnmarshalOscal(oi oscalTypes_1_1_3.Import) *Import {
 		UUIDModel:  UUIDModel{},
 		Href:       oi.Href,
 		IncludeAll: datatypes.NewJSONType[*IncludeAll](oi.IncludeAll),
+		IncludeControls: ConvertList(oi.IncludeControls, func(oc oscalTypes_1_1_3.SelectControlById) SelectControlById {
+			control := SelectControlById{}
+			control.UnmarshalOscal(oc)
+			return control
+		}),
+		ExcludeControls: ConvertList(oi.ExcludeControls, func(oc oscalTypes_1_1_3.SelectControlById) SelectControlById {
+			control := SelectControlById{}
+			control.UnmarshalOscal(oc)
+			return control
+		}),
 	}
 	return i
 }
@@ -81,7 +96,84 @@ func (i *Import) MarshalOscal() oscalTypes_1_1_3.Import {
 
 	if i.IncludeAll.Data() != nil {
 		ret.IncludeAll = &oscalTypes_1_1_3.IncludeAll{}
+	} else {
+		// Default back to Include/ExcludeControls if include all is not set
+		// IncludeControls must be set if includeall is not set, exclude is still optional
+		includes := make([]oscalTypes_1_1_3.SelectControlById, len(i.IncludeControls))
+		for i, control := range i.IncludeControls {
+			includes[i] = control.MarshalOscal()
+		}
+		ret.IncludeControls = &includes
+
+		if i.ExcludeControls != nil {
+			excludes := make([]oscalTypes_1_1_3.SelectControlById, len(i.ExcludeControls))
+			for i, control := range i.ExcludeControls {
+				excludes[i] = control.MarshalOscal()
+			}
+			ret.ExcludeControls = &excludes
+		}
 	}
 
 	return ret
+}
+
+type Matching oscalTypes_1_1_3.Matching
+
+func (m *Matching) UnmarshalOscal(om oscalTypes_1_1_3.Matching) *Matching {
+	*m = Matching(om)
+	return m
+}
+
+func (m *Matching) MarshalOscal() *oscalTypes_1_1_3.Matching {
+	matching := oscalTypes_1_1_3.Matching(*m)
+	return &matching
+}
+
+type SelectControlById struct {
+	UUIDModel
+	WithChildControls string                        `json:"with-child-controls"`
+	WithIds           datatypes.JSONSlice[string]   `json:"with-ids"`
+	Matching          datatypes.JSONSlice[Matching] `json:"matching"`
+
+	ParentID   uuid.UUID
+	ParentType string
+}
+
+func (s *SelectControlById) UnmarshalOscal(o oscalTypes_1_1_3.SelectControlById) *SelectControlById {
+	*s = SelectControlById{
+		UUIDModel:         UUIDModel{},
+		WithChildControls: o.WithChildControls,
+		WithIds:           datatypes.NewJSONSlice[string](*o.WithIds),
+		Matching: ConvertList(o.Matching, func(om oscalTypes_1_1_3.Matching) Matching {
+			m := Matching{}
+			m.UnmarshalOscal(om)
+			return m
+		}),
+	}
+
+	return s
+}
+
+func (s *SelectControlById) MarshalOscal() oscalTypes_1_1_3.SelectControlById {
+	controls := oscalTypes_1_1_3.SelectControlById{}
+	if s.WithChildControls != "" {
+		controls.WithChildControls = s.WithChildControls
+	}
+
+	if s.WithIds != nil {
+		withIds := make([]string, len(s.WithIds))
+		for i, id := range s.WithIds {
+			withIds[i] = string(id)
+		}
+		controls.WithIds = &withIds
+	}
+
+	if s.Matching != nil {
+		matching := make([]oscalTypes_1_1_3.Matching, len(s.Matching))
+		for i, m := range s.Matching {
+			matching[i] = *m.MarshalOscal()
+		}
+		controls.Matching = &matching
+	}
+	return controls
 }

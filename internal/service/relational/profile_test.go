@@ -20,9 +20,50 @@ func TestImport_MarshalOscal(t *testing.T) {
 			},
 		},
 		{
-			name: "without include-all set",
+			name: "without include-all but include-controls set",
 			data: oscalTypes_1_1_3.Import{
 				Href: "#/definition/123456",
+				IncludeControls: &[]oscalTypes_1_1_3.SelectControlById{
+					{
+						WithIds: &[]string{
+							"ac-1",
+							"ac-2",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "include-controls and exclude-controls set",
+			data: oscalTypes_1_1_3.Import{
+				Href: "#/definition/123456",
+				IncludeControls: &[]oscalTypes_1_1_3.SelectControlById{
+					{
+						WithIds: &[]string{
+							"ac-1",
+							"ac-2",
+						},
+						WithChildControls: "controls.json",
+						Matching: &[]oscalTypes_1_1_3.Matching{
+							{
+								Pattern: "ia\\d+.\\d+",
+							},
+						},
+					},
+				},
+				ExcludeControls: &[]oscalTypes_1_1_3.SelectControlById{
+					{
+						WithIds: &[]string{
+							"ia-1",
+						},
+						WithChildControls: "controls-exclude.json",
+						Matching: &[]oscalTypes_1_1_3.Matching{
+							{
+								Pattern: "cp-7.\\d+",
+							},
+						},
+					},
+				},
 			},
 		},
 	}
