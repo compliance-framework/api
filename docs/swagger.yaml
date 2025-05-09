@@ -142,6 +142,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Catalog:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Control:
     properties:
       data:
@@ -306,6 +313,27 @@ definitions:
       media-type:
         type: string
       value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Catalog:
+    properties:
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        type: array
+      groups:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Group'
+        type: array
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      params:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Parameter'
+        type: array
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Citation:
@@ -1953,6 +1981,35 @@ paths:
       summary: List catalogs
       tags:
       - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates a new OSCAL Catalog.
+      parameters:
+      - description: Catalog object
+        in: body
+        name: catalog
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Catalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new Catalog
+      tags:
+      - Oscal
   /oscal/catalogs/{id}:
     get:
       description: Retrieves a single Catalog by its unique ID.
@@ -1982,6 +2039,44 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get a Catalog
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing OSCAL Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated Catalog object
+        in: body
+        name: catalog
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Catalog'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}/back-matter:
@@ -2046,6 +2141,40 @@ paths:
       summary: List controls for a Catalog
       tags:
       - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Adds a top-level control under the specified Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control object
+        in: body
+        name: control
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new Control for a Catalog
+      tags:
+      - Oscal
   /oscal/catalogs/{id}/controls/{control}:
     get:
       description: Retrieves a single Control by its ID for a given Catalog.
@@ -2080,6 +2209,50 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get a specific Control within a Catalog
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates the properties of an existing Control under the specified
+        Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      - description: Updated Control object
+        in: body
+        name: control
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a Control within a Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}/controls/{control}/controls:
@@ -2119,6 +2292,45 @@ paths:
       summary: List child controls for a Control within a Catalog
       tags:
       - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Adds a child control under the specified Catalog Control.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Parent Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      - description: Control object
+        in: body
+        name: control
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new Sub-Control for a Control within a Catalog
+      tags:
+      - Oscal
   /oscal/catalogs/{id}/groups:
     get:
       description: Retrieves the top-level groups for a given Catalog.
@@ -2148,6 +2360,40 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: List groups for a Catalog
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Adds a top-level group under the specified Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group object
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Group'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Group'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new Group for a Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}/groups/{group}:
@@ -2184,6 +2430,50 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get a specific Group within a Catalog
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates the properties of an existing Group under the specified
+        Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      - description: Updated Group object
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Group'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Group'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a Group within a Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}/groups/{group}/controls:
@@ -2223,6 +2513,45 @@ paths:
       summary: List controls for a Group within a Catalog
       tags:
       - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Adds a control under the specified Catalog and Group.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Parent Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      - description: Control object
+        in: body
+        name: control
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new Control for a Catalog Group
+      tags:
+      - Oscal
   /oscal/catalogs/{id}/groups/{group}/groups:
     get:
       description: Retrieves the sub-groups of a specific Group in a given Catalog.
@@ -2257,6 +2586,45 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: List sub-groups for a Group within a Catalog
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Adds a sub-group under the specified Catalog and Group.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Parent Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      - description: Group object
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Group'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Group'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new Sub-Group for a Catalog Group
       tags:
       - Oscal
   /subjects:
