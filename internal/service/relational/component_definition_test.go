@@ -287,3 +287,27 @@ func TestImportComponentDefinition_OscalMarshalling(t *testing.T) {
 
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
+
+func TestResponsibleRole_OscalMarshalling(t *testing.T) {
+	osc := oscalTypes_1_1_3.ResponsibleRole{
+		RoleId:     "test-role",
+		Remarks:    "test remarks",
+		PartyUuids: &[]string{"uuid-1", "uuid-2"},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{Href: "http://example.com", Text: "example link"},
+		},
+		Props: &[]oscalTypes_1_1_3.Property{
+			{Name: "prop1", Value: "val1"},
+		},
+	}
+	inputJson, err := json.Marshal(osc)
+	assert.NoError(t, err)
+
+	rr := &ResponsibleRole{}
+	rr.UnmarshalOscal(osc)
+	output := rr.MarshalOscal()
+	outputJson, err := json.Marshal(output)
+	assert.NoError(t, err)
+
+	assert.JSONEq(t, string(inputJson), string(outputJson))
+}
