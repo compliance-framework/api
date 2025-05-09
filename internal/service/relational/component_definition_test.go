@@ -252,3 +252,21 @@ func TestControlImplementationSetMarshalUnmarshal(t *testing.T) {
 		})
 	}
 }
+
+func TestIncorporatesComponents_OscalMarshalling(t *testing.T) {
+	// Minimal test case
+	osc := oscalTypes_1_1_3.IncorporatesComponent{
+		ComponentUuid: uuid.New().String(),
+		Description:   "desc",
+	}
+	inputJson, err := json.Marshal(osc)
+	assert.NoError(t, err)
+
+	ic := &IncorporatesComponents{}
+	ic.UnmarshalOscal(osc)
+	output := ic.MarshalOscal()
+	outputJson, err := json.Marshal(output)
+	assert.NoError(t, err)
+
+	assert.JSONEq(t, string(inputJson), string(outputJson))
+}

@@ -493,3 +493,8 @@ func (ic *IncorporatesComponents) UnmarshalOscal(iic oscalTypes_1_1_3.Incorporat
 	*ic = IncorporatesComponents(iic)
 	return ic
 }
+
+func (ic *IncorporatesComponents) MarshalOscal() *oscalTypes_1_1_3.IncorporatesComponent {
+	osc := oscalTypes_1_1_3.IncorporatesComponent(*ic)
+	return &osc
+}
