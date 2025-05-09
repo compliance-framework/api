@@ -404,6 +404,11 @@ func (icd *ImportComponentDefinition) UnmarshalOscal(oicd oscalTypes_1_1_3.Impor
 	return icd
 }
 
+func (icd *ImportComponentDefinition) MarshalOscal() *oscalTypes_1_1_3.ImportComponentDefinition {
+	osc := oscalTypes_1_1_3.ImportComponentDefinition(*icd)
+	return &osc
+}
+
 type Capability struct {
 	UUIDModel          // required
 	Description string `json:"description"` // required

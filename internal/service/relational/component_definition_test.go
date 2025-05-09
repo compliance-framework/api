@@ -270,3 +270,20 @@ func TestIncorporatesComponents_OscalMarshalling(t *testing.T) {
 
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
+
+func TestImportComponentDefinition_OscalMarshalling(t *testing.T) {
+	// Minimal test case
+	osc := oscalTypes_1_1_3.ImportComponentDefinition{
+		Href: "#000000-1111-2222-333333333333",
+	}
+	inputJson, err := json.Marshal(osc)
+	assert.NoError(t, err)
+
+	icd := &ImportComponentDefinition{}
+	icd.UnmarshalOscal(osc)
+	output := icd.MarshalOscal()
+	outputJson, err := json.Marshal(output)
+	assert.NoError(t, err)
+
+	assert.JSONEq(t, string(inputJson), string(outputJson))
+}
