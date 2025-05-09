@@ -79,3 +79,91 @@ func TestControlStatementImplementationMarshalUnmarshal(t *testing.T) {
 		})
 	}
 }
+
+func TestImplementedRequirementControlImplementationMarshalUnmarshal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.ImplementedRequirementControlImplementation
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+				UUID:        uuid.New().String(),
+				ControlId:   "control-1",
+				Description: "minimal description",
+			},
+		},
+		{
+			name: "all fields set",
+			data: oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+				UUID:        uuid.New().String(),
+				ControlId:   "control-2",
+				Description: "full description",
+				Remarks:     "test remarks",
+				Props: &[]oscalTypes_1_1_3.Property{
+					{Name: "prop-name", Value: "prop-value"},
+				},
+				Links: &[]oscalTypes_1_1_3.Link{
+					{Href: "http://test-link", MediaType: "application/json", Text: "Test Link"},
+				},
+				SetParameters: &[]oscalTypes_1_1_3.SetParameter{
+					{ParamId: "param-1", Values: []string{"value1"}},
+				},
+				ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+					{RoleId: "role-1", Remarks: "role remarks"},
+				},
+				Statements: &[]oscalTypes_1_1_3.ControlStatementImplementation{
+					{
+						UUID:        uuid.New().String(),
+						StatementId: "statement-1",
+						Description: "statement description",
+					},
+				},
+			},
+		},
+		{
+			name: "with only statements",
+			data: oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+				UUID:        uuid.New().String(),
+				ControlId:   "control-3",
+				Description: "description with statements",
+				Statements: &[]oscalTypes_1_1_3.ControlStatementImplementation{
+					{
+						UUID:        uuid.New().String(),
+						StatementId: "statement-2",
+						Description: "nested statement",
+						Props: &[]oscalTypes_1_1_3.Property{
+							{Name: "nested-prop", Value: "nested-value"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with only set parameters",
+			data: oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+				UUID:        uuid.New().String(),
+				ControlId:   "control-4",
+				Description: "description with params",
+				SetParameters: &[]oscalTypes_1_1_3.SetParameter{
+					{ParamId: "param-2", Values: []string{"value2", "value3"}},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			irci := &ImplementedRequirementControlImplementation{}
+			irci.UnmarshalOscal(tt.data)
+			output := irci.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
+}

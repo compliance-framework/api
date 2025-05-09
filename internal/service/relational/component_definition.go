@@ -192,9 +192,9 @@ func (ci *ControlImplementationSet) UnmarshalOscal(oci oscalTypes_1_1_3.ControlI
 }
 
 type ImplementedRequirementControlImplementation struct {
-	UUIDModel
-	ControlId        string                               `json:"control-id"`
-	Description      string                               `json:"description"`
+	UUIDModel                                             //required
+	ControlId        string                               `json:"control-id"`  //required
+	Description      string                               `json:"description"` //required
 	SetParameters    datatypes.JSONSlice[SetParameter]    `json:"set-parameters"`
 	Props            datatypes.JSONSlice[Prop]            `json:"props"`
 	Links            datatypes.JSONSlice[Link]            `json:"links"`
@@ -203,13 +203,6 @@ type ImplementedRequirementControlImplementation struct {
 	Statements       []ControlStatementImplementation     `json:"statements"`
 
 	ControlImplementationSetID uuid.UUID
-
-	/** Required:
-	UUID
-	Control-ID
-	Description
-	*/
-	// oscalType_1_1_3.ImplementedRequirementControlImplementation
 }
 
 func (irci *ImplementedRequirementControlImplementation) UnmarshalOscal(oirci oscalTypes_1_1_3.ImplementedRequirementControlImplementation) *ImplementedRequirementControlImplementation {
@@ -250,6 +243,52 @@ func (irci *ImplementedRequirementControlImplementation) UnmarshalOscal(oirci os
 		Statements:       statements,
 	}
 	return irci
+}
+
+func (irci *ImplementedRequirementControlImplementation) MarshalOscal() *oscalTypes_1_1_3.ImplementedRequirementControlImplementation {
+	ret := oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+		UUID:        irci.UUIDModel.ID.String(),
+		ControlId:   irci.ControlId,
+		Description: irci.Description,
+	}
+
+	if len(irci.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(irci.Links)
+	}
+
+	if len(irci.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(irci.Props)
+	}
+
+	if len(irci.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(irci.ResponsibleRoles))
+		for i, role := range irci.ResponsibleRoles {
+			roles[i] = oscalTypes_1_1_3.ResponsibleRole(role)
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	if len(irci.Statements) > 0 {
+		statements := make([]oscalTypes_1_1_3.ControlStatementImplementation, len(irci.Statements))
+		for i, stmt := range irci.Statements {
+			statements[i] = *stmt.MarshalOscal()
+		}
+		ret.Statements = &statements
+	}
+
+	if len(irci.SetParameters) > 0 {
+		setParms := make([]oscalTypes_1_1_3.SetParameter, len(irci.SetParameters))
+		for i, sp := range irci.SetParameters {
+			setParms[i] = oscalTypes_1_1_3.SetParameter(sp)
+		}
+		ret.SetParameters = &setParms
+	}
+
+	if irci.Remarks != "" {
+		ret.Remarks = irci.Remarks
+	}
+
+	return &ret
 }
 
 type ControlStatementImplementation struct {
