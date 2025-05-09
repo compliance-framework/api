@@ -1,7 +1,6 @@
 package relational
 
 import (
-	"fmt"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -13,6 +12,7 @@ type Profile struct {
 	BackMatter *BackMatter `json:"back-matter" gorm:"Polymorphic:Parent"`
 	Imports    []Import    `json:"imports"`
 	Merge      Merge       `json:"merge"`
+	Modify     *Modify     `json:"modify"`
 }
 
 // UnmarshalOscal take type of oscalTypes_1_1_3.Profile from go-oscal and converts it into a relational model within the struct
@@ -20,43 +20,59 @@ type Profile struct {
 func (p *Profile) UnmarshalOscal(op oscalTypes_1_1_3.Profile) *Profile {
 	id := uuid.MustParse(op.UUID)
 
-	metadata := Metadata{}
-	metadata.UnmarshalOscal(op.Metadata)
-
-	backMatter := &BackMatter{}
-	backMatter.UnmarshalOscal(*op.BackMatter)
-
-	merge := Merge{}
-	merge.UnmarshalOscal(*op.Merge)
-
 	*p = Profile{
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
-		Metadata:   metadata,
-		BackMatter: backMatter,
 		Imports: ConvertList(&op.Imports, func(oi oscalTypes_1_1_3.Import) Import {
 			imp := Import{}
 			imp.UnmarshalOscal(oi)
 			return imp
 		}),
-		Merge: merge,
 	}
+
+	metadata := Metadata{}
+	metadata.UnmarshalOscal(op.Metadata)
+	p.Metadata = metadata
+
+	if op.BackMatter != nil {
+		backMatter := &BackMatter{}
+		backMatter.UnmarshalOscal(*op.BackMatter)
+		p.BackMatter = backMatter
+	}
+
+	if op.Merge != nil {
+		merge := Merge{}
+		merge.UnmarshalOscal(*op.Merge)
+		p.Merge = merge
+	}
+
+	if op.Modify != nil {
+		modify := Modify{}
+		modify.UnmarshalOscal(*op.Modify)
+		p.Modify = &modify
+	}
+
 	return p
 }
 
-// MarshalOscal returns the type of oscalTypes_1_1_3.Profile from the underlying struct, omitting internal properties
-// and ensuring that it is Oscal compliant
-func (p *Profile) MarshalOscal() oscalTypes_1_1_3.Profile {
-	ret := oscalTypes_1_1_3.Profile{
-		UUID:     p.ID.String(),
-		Metadata: *p.Metadata.MarshalOscal(),
-		Merge:    p.Merge.MarshalOscal(),
+// MarshalOscal converts the Profile struct into an oscalTypes_1_1_3.Profile.
+func (p *Profile) MarshalOscal() *oscalTypes_1_1_3.Profile {
+	ret := oscalTypes_1_1_3.Profile{}
+
+	if p.ID != nil {
+		ret.UUID = p.ID.String()
 	}
+
+	ret.Metadata = *p.Metadata.MarshalOscal()
 
 	if p.BackMatter != nil {
 		backMatter := p.BackMatter.MarshalOscal()
 		ret.BackMatter = backMatter
+	}
+
+	if p.Modify != nil {
+		ret.Modify = p.Modify.MarshalOscal()
 	}
 
 	imports := make([]oscalTypes_1_1_3.Import, len(p.Imports))
@@ -65,7 +81,9 @@ func (p *Profile) MarshalOscal() oscalTypes_1_1_3.Profile {
 	}
 	ret.Imports = imports
 
-	return ret
+	ret.Merge = p.Merge.MarshalOscal()
+
+	return &ret
 }
 
 type IncludeAll = map[string]interface{}
@@ -257,10 +275,9 @@ func (m *Merge) MarshalOscal() *oscalTypes_1_1_3.Merge {
 type Modify struct {
 	UUIDModel
 	SetParameters []ParameterSetting `json:"set-parameters"`
+	Alters        []Alteration       `json:"alters"`
 
 	ProfileID uuid.UUID
-
-	oscalTypes_1_1_3.Modify
 }
 
 func (m *Modify) UnmarshalOscal(o oscalTypes_1_1_3.Modify) *Modify {
@@ -270,6 +287,11 @@ func (m *Modify) UnmarshalOscal(o oscalTypes_1_1_3.Modify) *Modify {
 			param := ParameterSetting{}
 			param.UnmarshalOscal(osp)
 			return param
+		}),
+		Alters: ConvertList(o.Alters, func(oa oscalTypes_1_1_3.Alteration) Alteration {
+			alteration := Alteration{}
+			alteration.UnmarshalOscal(oa)
+			return alteration
 		}),
 	}
 
@@ -285,6 +307,14 @@ func (m *Modify) MarshalOscal() *oscalTypes_1_1_3.Modify {
 			params[i] = param.MarshalOscal()
 		}
 		ret.SetParameters = &params
+	}
+
+	if len(m.Alters) > 0 {
+		alterations := make([]oscalTypes_1_1_3.Alteration, len(m.Alters))
+		for i, alteration := range m.Alters {
+			alterations[i] = alteration.MarshalOscal()
+		}
+		ret.Alters = &alterations
 	}
 
 	return &ret
@@ -344,7 +374,6 @@ func (p *ParameterSetting) UnmarshalOscal(o oscalTypes_1_1_3.ParameterSetting) *
 }
 
 func (p *ParameterSetting) MarshalOscal() oscalTypes_1_1_3.ParameterSetting {
-	fmt.Println("ParamID", p.ParamID)
 	ret := oscalTypes_1_1_3.ParameterSetting{
 		ParamId:   p.ParamID,
 		Class:     p.Class,
@@ -388,5 +417,137 @@ func (p *ParameterSetting) MarshalOscal() oscalTypes_1_1_3.ParameterSetting {
 		ret.Select = selectJson.MarshalOscal()
 	}
 
+	return ret
+}
+
+type Removal oscalTypes_1_1_3.Removal
+
+func (r *Removal) UnmarshalOscal(o oscalTypes_1_1_3.Removal) *Removal {
+	*r = Removal(o)
+	return r
+}
+
+func (r *Removal) MarshalOscal() oscalTypes_1_1_3.Removal {
+	return oscalTypes_1_1_3.Removal(*r)
+}
+
+type Alteration struct {
+	UUIDModel
+	ControlID string                       `json:"control-id"` // required
+	Adds      []Addition                   `json:"adds"`
+	Removes   datatypes.JSONSlice[Removal] `json:"removes"`
+
+	ModifyID string `json:"modify-id"`
+}
+
+func (a *Alteration) UnmarshalOscal(o oscalTypes_1_1_3.Alteration) *Alteration {
+	*a = Alteration{
+		UUIDModel: UUIDModel{},
+		ControlID: o.ControlId,
+		Adds: ConvertList(o.Adds, func(addition oscalTypes_1_1_3.Addition) Addition {
+			add := Addition{}
+			add.UnmarshalOscal(addition)
+			return add
+		}),
+		Removes: ConvertList(o.Removes, func(removal oscalTypes_1_1_3.Removal) Removal {
+			remove := Removal{}
+			remove.UnmarshalOscal(removal)
+			return remove
+		}),
+	}
+	return a
+}
+
+func (a *Alteration) MarshalOscal() oscalTypes_1_1_3.Alteration {
+	ret := oscalTypes_1_1_3.Alteration{
+		ControlId: a.ControlID,
+	}
+
+	if len(a.Adds) > 0 {
+		additions := make([]oscalTypes_1_1_3.Addition, len(a.Adds))
+		for i, add := range a.Adds {
+			additions[i] = add.MarshalOscal()
+		}
+		ret.Adds = &additions
+	}
+
+	if len(a.Removes) > 0 {
+		removals := make([]oscalTypes_1_1_3.Removal, len(a.Removes))
+		for i, removal := range a.Removes {
+			removals[i] = removal.MarshalOscal()
+		}
+		ret.Removes = &removals
+	}
+
+	return ret
+}
+
+type Addition struct {
+	UUIDModel
+	Position string                         `json:"position"`
+	ByID     string                         `json:"by-id"`
+	Title    string                         `json:"title"`
+	Params   datatypes.JSONSlice[Parameter] `json:"params"`
+	Props    datatypes.JSONSlice[Prop]      `json:"props"`
+	Links    datatypes.JSONSlice[Link]      `json:"links"`
+	Parts    datatypes.JSONSlice[Part]      `json:"parts"`
+
+	AlterationID uuid.UUID
+}
+
+func (a *Addition) UnmarshalOscal(o oscalTypes_1_1_3.Addition) *Addition {
+	*a = Addition{
+		UUIDModel: UUIDModel{},
+		Position:  o.Position,
+		ByID:      o.ById,
+		Title:     o.Title,
+		Props:     ConvertOscalToProps(o.Props),
+		Links:     ConvertOscalToLinks(o.Links),
+		Params: ConvertList(o.Params, func(op oscalTypes_1_1_3.Parameter) Parameter {
+			p := Parameter{}
+			p.UnmarshalOscal(op)
+			return p
+		}),
+		Parts: ConvertList(o.Parts, func(op oscalTypes_1_1_3.Part) Part {
+			p := Part{}
+			p.UnmarshalOscal(op)
+			return p
+		}),
+	}
+
+	return a
+}
+
+func (a *Addition) MarshalOscal() oscalTypes_1_1_3.Addition {
+	ret := oscalTypes_1_1_3.Addition{}
+	if a.Position != "" {
+		ret.Position = a.Position
+	}
+	if a.ByID != "" {
+		ret.ById = a.ByID
+	}
+	if a.Title != "" {
+		ret.Title = a.Title
+	}
+	if a.Props != nil {
+		ret.Props = ConvertPropsToOscal(a.Props)
+	}
+	if a.Links != nil {
+		ret.Links = ConvertLinksToOscal(a.Links)
+	}
+	if a.Params != nil {
+		params := make([]oscalTypes_1_1_3.Parameter, len(a.Params))
+		for i, param := range a.Params {
+			params[i] = *param.MarshalOscal()
+		}
+		ret.Params = &params
+	}
+	if a.Parts != nil {
+		parts := make([]oscalTypes_1_1_3.Part, len(a.Parts))
+		for i, part := range a.Parts {
+			parts[i] = *part.MarshalOscal()
+		}
+		ret.Parts = &parts
+	}
 	return ret
 }

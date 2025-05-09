@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
@@ -211,4 +212,27 @@ func TestParameterSetting_MarshalOscal(t *testing.T) {
 			assert.JSONEq(t, string(inputJSON), string(outputJSON))
 		})
 	}
+}
+
+func TestProfile_MarshalOscal(t *testing.T) {
+	f, err := os.Open("../../../testdata/sp800_53_profile.json")
+	assert.NoError(t, err)
+	defer f.Close()
+
+	embed := struct {
+		Profile oscalTypes_1_1_3.Profile `json:"profile"`
+	}{}
+	err = json.NewDecoder(f).Decode(&embed)
+	assert.NoError(t, err)
+
+	inputJson, err := json.Marshal(embed.Profile)
+	assert.NoError(t, err)
+
+	profile := &Profile{}
+	profile.UnmarshalOscal(embed.Profile)
+
+	output := profile.MarshalOscal()
+	outputJSON, err := json.Marshal(output)
+	assert.NoError(t, err)
+	assert.JSONEq(t, string(inputJson), string(outputJSON))
 }
