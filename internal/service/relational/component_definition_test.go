@@ -167,3 +167,88 @@ func TestImplementedRequirementControlImplementationMarshalUnmarshal(t *testing.
 		})
 	}
 }
+
+func TestControlImplementationSetMarshalUnmarshal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.ControlImplementationSet
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.ControlImplementationSet{
+				UUID:        uuid.New().String(),
+				Source:      "source-1",
+				Description: "minimal description",
+				ImplementedRequirements: []oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+					{
+						UUID:        uuid.New().String(),
+						ControlId:   "control-1",
+						Description: "req description",
+					},
+				},
+			},
+		},
+		{
+			name: "all fields set",
+			data: oscalTypes_1_1_3.ControlImplementationSet{
+				UUID:        uuid.New().String(),
+				Source:      "source-2",
+				Description: "full description",
+				Props: &[]oscalTypes_1_1_3.Property{
+					{Name: "prop-name", Value: "prop-value"},
+				},
+				Links: &[]oscalTypes_1_1_3.Link{
+					{Href: "http://test-link", MediaType: "application/json", Text: "Test Link"},
+				},
+				SetParameters: &[]oscalTypes_1_1_3.SetParameter{
+					{ParamId: "param-1", Values: []string{"value1"}},
+				},
+				ImplementedRequirements: []oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+					{
+						UUID:        uuid.New().String(),
+						ControlId:   "control-2",
+						Description: "req description",
+						Props: &[]oscalTypes_1_1_3.Property{
+							{Name: "req-prop", Value: "req-value"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple implemented requirements",
+			data: oscalTypes_1_1_3.ControlImplementationSet{
+				UUID:        uuid.New().String(),
+				Source:      "source-3",
+				Description: "multiple requirements",
+				ImplementedRequirements: []oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+					{
+						UUID:        uuid.New().String(),
+						ControlId:   "control-3",
+						Description: "first requirement",
+					},
+					{
+						UUID:        uuid.New().String(),
+						ControlId:   "control-4",
+						Description: "second requirement",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			cis := &ControlImplementationSet{}
+			cis.UnmarshalOscal(tt.data)
+			output := cis.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
+}
