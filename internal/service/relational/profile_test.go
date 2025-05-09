@@ -217,7 +217,11 @@ func TestParameterSetting_MarshalOscal(t *testing.T) {
 func TestProfile_MarshalOscal(t *testing.T) {
 	f, err := os.Open("../../../testdata/sp800_53_profile.json")
 	assert.NoError(t, err)
-	defer f.Close()
+
+	defer func() {
+		err := f.Close()
+		assert.NoError(t, err)
+	}()
 
 	embed := struct {
 		Profile oscalTypes_1_1_3.Profile `json:"profile"`
