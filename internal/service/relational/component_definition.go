@@ -36,39 +36,33 @@ type ComponentDefinition struct {
 //
 // Returns a pointer to the converted ComponentDefinition.
 func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefinition) *ComponentDefinition {
-	// Initialize metadata and parse UUID from OSCAL definition
 	metadata := &Metadata{}
 	metadata.UnmarshalOscal(ocd.Metadata)
 	id := uuid.MustParse(ocd.UUID)
 
-	// Convert import component definitions using type conversion
 	importComponentDefs := ConvertList(ocd.ImportComponentDefinitions, func(oicd oscalTypes_1_1_3.ImportComponentDefinition) ImportComponentDefinition {
 		compDef := ImportComponentDefinition{}
 		compDef.UnmarshalOscal(oicd)
 		return compDef
 	})
 
-	// Convert components with their nested structures
 	components := ConvertList(ocd.Components, func(odc oscalTypes_1_1_3.DefinedComponent) DefinedComponent {
 		dc := &DefinedComponent{}
 		dc.UnmarshalOscal(odc)
 		return *dc
 	})
 
-	// Convert capabilities and their associated control implementations
 	capabilities := ConvertList(ocd.Capabilities, func(oc oscalTypes_1_1_3.Capability) Capability {
 		cap := Capability{}
 		cap.UnmarshalOscal(oc)
 		return cap
 	})
 
-	// Handle optional back matter if present
 	var backMatter BackMatter
 	if ocd.BackMatter != nil {
 		backMatter.UnmarshalOscal(*ocd.BackMatter)
 	}
 
-	// Construct and return the final ComponentDefinition
 	*c = ComponentDefinition{
 		UUIDModel: UUIDModel{
 			ID: &id,
