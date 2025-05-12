@@ -10,6 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestComponentDefinition_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ComponentDefinition
+// to and from OSCAL format. It verifies that the conversion process maintains data integrity
+// by comparing the original and converted JSON representations.
+//
+// The test cases cover various scenarios:
+//   - Minimal fields: Tests with only required fields
+//   - All fields set: Tests with all possible fields populated
+//   - Only back-matter: Tests with only back-matter section
+//   - Empty optional fields: Tests with empty optional fields
+//   - Nil back-matter: Tests with nil back-matter
 func TestComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
