@@ -115,7 +115,7 @@ type DefinedComponent struct {
 	Links     datatypes.JSONSlice[Link]     `json:"links"`
 	Protocols datatypes.JSONSlice[Protocol] `json:"protocols"`
 
-	ComponentDefinitionID uuid.UUID // required
+	ComponentDefinitionID uuid.UUID
 
 	// oscalTypes113.DefinedComponent
 }
