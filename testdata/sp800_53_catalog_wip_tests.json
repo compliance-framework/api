@@ -127,8 +127,8 @@
           ]
         }
       ]
-    },
-    "groups": [
+    }
+    , "groups": [
       {
         "id": "ac",
         "class": "family",
@@ -251019,8 +251019,8 @@
           }
         ]
       }
-    ],
-    "back-matter": {
+    ]
+    , "back-matter": {
       "resources": [
         {
           "uuid": "91f992fb-f668-4c91-a50f-0f05b95ccee3",

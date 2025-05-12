@@ -622,5 +622,5 @@ func TestIncorporatesComponents_MarshalUnmarshalOscal(t *testing.T) {
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
 
-//ToDo create a new full test using the full component definition with the file testdata/sp800_53_catalog_wip_tests.json
+//ToDo create a new full test using the full component definition with the file testdata/sp800_53_catalog_wip_tests_temp.json
 //Cut all moduls and work module by module and test each module
