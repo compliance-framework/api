@@ -59,10 +59,10 @@ func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefin
 }
 
 type DefinedComponent struct {
-	UUIDModel
-	Type        string `json:"type"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	UUIDModel          // required
+	Type        string `json:"type"`        // required
+	Title       string `json:"title"`       // required
+	Description string `json:"description"` // required
 	Purpose     string `json:"purpose"`
 	Remarks     string `json:"remarks"`
 
@@ -74,7 +74,7 @@ type DefinedComponent struct {
 	Links     datatypes.JSONSlice[Link]     `json:"links"`
 	Protocols datatypes.JSONSlice[Protocol] `json:"protocols"`
 
-	ComponentDefinitionID uuid.UUID
+	ComponentDefinitionID uuid.UUID // required
 
 	// oscalTypes113.DefinedComponent
 }
@@ -126,6 +126,11 @@ type Protocol oscalTypes_1_1_3.Protocol
 func (p *Protocol) UnmarshalOscal(op oscalTypes_1_1_3.Protocol) *Protocol {
 	*p = Protocol(op)
 	return p
+}
+
+func (p *Protocol) MarshalOscal() *oscalTypes_1_1_3.Protocol {
+	osc := oscalTypes_1_1_3.Protocol(*p)
+	return &osc
 }
 
 type SetParameter oscalTypes_1_1_3.SetParameter

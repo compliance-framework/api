@@ -364,3 +364,46 @@ func TestSetParameter_OscalMarshalling(t *testing.T) {
 		})
 	}
 }
+
+func TestProtocol_OscalMarshalling(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.Protocol
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.Protocol{
+				UUID: uuid.New().String(),
+			},
+		},
+		{
+			name: "all fields set",
+			data: oscalTypes_1_1_3.Protocol{
+				UUID:  uuid.New().String(),
+				Name:  "https",
+				Title: "Hypertext Transfer Protocol Secure",
+				PortRanges: &[]oscalTypes_1_1_3.PortRange{
+					{
+						Start: 443,
+						End:   443,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			p := &Protocol{}
+			p.UnmarshalOscal(tt.data)
+			output := p.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
+}
