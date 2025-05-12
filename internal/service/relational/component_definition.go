@@ -135,6 +135,11 @@ func (sp *SetParameter) UnmarshalOscal(osp oscalTypes_1_1_3.SetParameter) *SetPa
 	return sp
 }
 
+func (sp *SetParameter) MarshalOscal() *oscalTypes_1_1_3.SetParameter {
+	osc := oscalTypes_1_1_3.SetParameter(*sp)
+	return &osc
+}
+
 type ControlImplementationSet struct {
 	UUIDModel                                       // required
 	Source        string                            `json:"source"`      // required

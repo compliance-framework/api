@@ -311,3 +311,20 @@ func TestResponsibleRole_OscalMarshalling(t *testing.T) {
 
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
+
+func TestSetParameter_OscalMarshalling(t *testing.T) {
+	osc := oscalTypes_1_1_3.SetParameter{
+		ParamId: "test-param",
+		Values:  []string{"val1", "val2"},
+	}
+	inputJson, err := json.Marshal(osc)
+	assert.NoError(t, err)
+
+	sp := &SetParameter{}
+	sp.UnmarshalOscal(osc)
+	output := sp.MarshalOscal()
+	outputJson, err := json.Marshal(output)
+	assert.NoError(t, err)
+
+	assert.JSONEq(t, string(inputJson), string(outputJson))
+}
