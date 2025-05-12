@@ -674,6 +674,7 @@ func (h *CatalogHandler) GetControlSubControls(ctx echo.Context) error {
 	controlID := ctx.Param("control")
 	var control relational.Control
 	if err := h.db.
+		Preload("Controls").
 		Where("id = ? AND catalog_id = ?", controlID, id).
 		First(&control).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
