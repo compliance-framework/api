@@ -18,6 +18,23 @@ type ComponentDefinition struct {
 	//oscaltypes113.ComponentDefinition
 }
 
+// UnmarshalOscal converts an OSCAL ComponentDefinition into a relational ComponentDefinition.
+// It handles the conversion of all nested structures including:
+//   - Metadata
+//   - ImportComponentDefinitions
+//   - Components
+//   - Capabilities
+//   - BackMatter
+//
+// The function performs the following operations:
+//   - Parses the UUID from the OSCAL definition
+//   - Converts the metadata using the Metadata.UnmarshalOscal method
+//   - Transforms all import component definitions using ConvertList
+//   - Converts all components using ConvertList and DefinedComponent.UnmarshalOscal
+//   - Transforms all capabilities using ConvertList and Capability.UnmarshalOscal
+//   - Handles the optional BackMatter conversion if present
+//
+// Returns a pointer to the converted ComponentDefinition.
 func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefinition) *ComponentDefinition {
 	metadata := &Metadata{}
 	metadata.UnmarshalOscal(ocd.Metadata)
