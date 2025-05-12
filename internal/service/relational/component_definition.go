@@ -247,15 +247,7 @@ type ControlImplementationSet struct {
 	Props datatypes.JSONSlice[Prop] `json:"props"`
 	Links datatypes.JSONSlice[Link] `json:"links"`
 
-	DefinedComponentID uuid.UUID
-
-	/** required: [
-		"uuid:,
-		"source",
-		"description",
-		"implemented-requirements"
-	]
-	*/
+	DefinedComponentID uuid.UUID // required
 
 	// oscalType_1_1_3.ControlImplementationSet
 }
