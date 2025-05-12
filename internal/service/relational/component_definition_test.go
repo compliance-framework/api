@@ -313,18 +313,54 @@ func TestResponsibleRole_OscalMarshalling(t *testing.T) {
 }
 
 func TestSetParameter_OscalMarshalling(t *testing.T) {
-	osc := oscalTypes_1_1_3.SetParameter{
-		ParamId: "test-param",
-		Values:  []string{"val1", "val2"},
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.SetParameter
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.SetParameter{
+				ParamId: "test-param-minimal",
+				Values:  []string{"val1"},
+			},
+		},
+		{
+			name: "all fields set",
+			data: oscalTypes_1_1_3.SetParameter{
+				ParamId: "test-param-all",
+				Values:  []string{"val1", "val2"},
+				Remarks: "All fields remarks",
+			},
+		},
+		{
+			name: "only remarks",
+			data: oscalTypes_1_1_3.SetParameter{
+				ParamId: "test-param-remarks",
+				Values:  []string{"val3"},
+				Remarks: "Only remarks field set",
+			},
+		},
+		{
+			name: "only values",
+			data: oscalTypes_1_1_3.SetParameter{
+				ParamId: "test-param-values",
+				Values:  []string{"val4", "val5"},
+			},
+		},
 	}
-	inputJson, err := json.Marshal(osc)
-	assert.NoError(t, err)
 
-	sp := &SetParameter{}
-	sp.UnmarshalOscal(osc)
-	output := sp.MarshalOscal()
-	outputJson, err := json.Marshal(output)
-	assert.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
 
-	assert.JSONEq(t, string(inputJson), string(outputJson))
+			sp := &SetParameter{}
+			sp.UnmarshalOscal(tt.data)
+			output := sp.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
 }
