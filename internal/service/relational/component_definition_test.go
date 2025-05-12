@@ -407,3 +407,97 @@ func TestProtocol_OscalMarshalling(t *testing.T) {
 		})
 	}
 }
+
+func TestDefinedComponent_MarshalUnmarshalOscal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.DefinedComponent
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.DefinedComponent{
+				UUID:        uuid.New().String(),
+				Type:        "service",
+				Title:       "Minimal Component",
+				Description: "A minimal component definition",
+			},
+		},
+		{
+			name: "all fields set",
+			data: oscalTypes_1_1_3.DefinedComponent{
+				UUID:        uuid.New().String(),
+				Type:        "service",
+				Title:       "Full Component",
+				Description: "A full component definition",
+				Purpose:     "Test purpose",
+				Remarks:     "Some remarks",
+				Protocols: &[]oscalTypes_1_1_3.Protocol{
+					{
+						UUID: uuid.New().String(),
+						Name: "https",
+					},
+				},
+				Links: &[]oscalTypes_1_1_3.Link{
+					{Href: "http://example.com", Text: "Example"},
+				},
+				Props: &[]oscalTypes_1_1_3.Property{
+					{Name: "env", Value: "prod"},
+				},
+				ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+					{RoleId: "admin"},
+				},
+				ControlImplementations: &[]oscalTypes_1_1_3.ControlImplementationSet{
+					{
+						UUID:        uuid.New().String(),
+						Source:      "source-1",
+						Description: "desc",
+						ImplementedRequirements: []oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
+							{
+								UUID:        uuid.New().String(),
+								ControlId:   "ac-1",
+								Description: "req desc",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "only optional fields",
+			data: oscalTypes_1_1_3.DefinedComponent{
+				UUID:        uuid.New().String(),
+				Type:        "service",
+				Title:       "Optional Fields Component",
+				Description: "Component with only optional fields set",
+				Purpose:     "Optional purpose",
+				Remarks:     "Optional remarks",
+			},
+		},
+		{
+			name: "empty optional fields omitted",
+			data: oscalTypes_1_1_3.DefinedComponent{
+				UUID:        uuid.New().String(),
+				Type:        "service",
+				Title:       "Empty Optional Fields",
+				Description: "Component with empty optional fields",
+				Purpose:     "",
+				Remarks:     "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			dc := &DefinedComponent{}
+			dc.UnmarshalOscal(tt.data)
+			output := dc.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
+}

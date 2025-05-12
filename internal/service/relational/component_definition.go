@@ -121,6 +121,56 @@ func (dc *DefinedComponent) UnmarshalOscal(odc oscalTypes_1_1_3.DefinedComponent
 	return dc
 }
 
+func (dc *DefinedComponent) MarshalOscal() *oscalTypes_1_1_3.DefinedComponent {
+	ret := oscalTypes_1_1_3.DefinedComponent{
+		UUID:        dc.UUIDModel.ID.String(),
+		Type:        dc.Type,
+		Title:       dc.Title,
+		Description: dc.Description,
+	}
+
+	if dc.Purpose != "" {
+		ret.Purpose = dc.Purpose
+	}
+	if dc.Remarks != "" {
+		ret.Remarks = dc.Remarks
+	}
+
+	if len(dc.Protocols) > 0 {
+		protocols := make([]oscalTypes_1_1_3.Protocol, len(dc.Protocols))
+		for i, protocol := range dc.Protocols {
+			protocols[i] = *protocol.MarshalOscal()
+		}
+		ret.Protocols = &protocols
+	}
+
+	if len(dc.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(dc.Links)
+	}
+
+	if len(dc.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(dc.Props)
+	}
+
+	if len(dc.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(dc.ResponsibleRoles))
+		for i, role := range dc.ResponsibleRoles {
+			roles[i] = *role.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	if len(dc.ControlImplementations) > 0 {
+		impls := make([]oscalTypes_1_1_3.ControlImplementationSet, len(dc.ControlImplementations))
+		for i, impl := range dc.ControlImplementations {
+			impls[i] = *impl.MarshalOscal()
+		}
+		ret.ControlImplementations = &impls
+	}
+
+	return &ret
+}
+
 type Protocol oscalTypes_1_1_3.Protocol
 
 func (p *Protocol) UnmarshalOscal(op oscalTypes_1_1_3.Protocol) *Protocol {
