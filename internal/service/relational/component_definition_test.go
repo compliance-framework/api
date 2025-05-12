@@ -3,6 +3,7 @@ package relational
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -474,7 +475,7 @@ func TestDefinedComponent_MarshalUnmarshalOscal(t *testing.T) {
 			},
 		},
 		{
-			name: "empty optional fields omitted",
+			name: "empty optional fields",
 			data: oscalTypes_1_1_3.DefinedComponent{
 				UUID:        uuid.New().String(),
 				Type:        "service",
@@ -494,6 +495,128 @@ func TestDefinedComponent_MarshalUnmarshalOscal(t *testing.T) {
 			dc := &DefinedComponent{}
 			dc.UnmarshalOscal(tt.data)
 			output := dc.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
+}
+
+func TestComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.ComponentDefinition
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.ComponentDefinition{
+				UUID: uuid.New().String(),
+				Metadata: oscalTypes_1_1_3.Metadata{
+					Title:        "Minimal Metadata",
+					LastModified: time.Now(),
+					Version:      "1.0.0",
+					OscalVersion: "1.1.3",
+				},
+			},
+		},
+		{
+			name: "all fields set",
+			data: oscalTypes_1_1_3.ComponentDefinition{
+				UUID: uuid.New().String(),
+				Metadata: oscalTypes_1_1_3.Metadata{
+					Title:        "Full Metadata",
+					LastModified: time.Now(),
+					Version:      "2.0.0",
+					OscalVersion: "1.1.3",
+				},
+				ImportComponentDefinitions: &[]oscalTypes_1_1_3.ImportComponentDefinition{
+					{Href: "#import-1"},
+				},
+				Components: &[]oscalTypes_1_1_3.DefinedComponent{
+					{
+						UUID:        uuid.New().String(),
+						Type:        "service",
+						Title:       "Component 1",
+						Description: "A component",
+					},
+				},
+				Capabilities: &[]oscalTypes_1_1_3.Capability{
+					{
+						UUID:        uuid.New().String(),
+						Name:        "capability-1",
+						Description: "A capability",
+					},
+				},
+				BackMatter: &oscalTypes_1_1_3.BackMatter{
+					Resources: &[]oscalTypes_1_1_3.Resource{
+						{
+							UUID:        uuid.New().String(),
+							Title:       "Resource 1",
+							Description: "A resource",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "only back-matter",
+			data: oscalTypes_1_1_3.ComponentDefinition{
+				UUID: uuid.New().String(),
+				Metadata: oscalTypes_1_1_3.Metadata{
+					Title:        "BackMatter Only",
+					LastModified: time.Now(),
+					Version:      "1.0.1",
+					OscalVersion: "1.1.3",
+				},
+				BackMatter: &oscalTypes_1_1_3.BackMatter{
+					Resources: &[]oscalTypes_1_1_3.Resource{
+						{
+							UUID:        uuid.New().String(),
+							Title:       "Resource Only",
+							Description: "Resource only description",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "empty optional fields omitted",
+			data: oscalTypes_1_1_3.ComponentDefinition{
+				UUID: uuid.New().String(),
+				Metadata: oscalTypes_1_1_3.Metadata{
+					Title:        "Empty Optional",
+					LastModified: time.Now(),
+					Version:      "1.0.2",
+					OscalVersion: "1.1.3",
+				},
+			},
+		},
+		{
+			name: "nil back-matter",
+			data: oscalTypes_1_1_3.ComponentDefinition{
+				UUID: uuid.New().String(),
+				Metadata: oscalTypes_1_1_3.Metadata{
+					Title:        "Nil BackMatter",
+					LastModified: time.Now(),
+					Version:      "1.0.3",
+					OscalVersion: "1.1.3",
+				},
+				BackMatter: nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			cd := &ComponentDefinition{}
+			assert.NotPanics(t, func() {
+				cd.UnmarshalOscal(tt.data)
+			})
+			output := cd.MarshalOscal()
 			outputJson, err := json.Marshal(output)
 			assert.NoError(t, err)
 

@@ -7,8 +7,8 @@ import (
 )
 
 type ComponentDefinition struct {
-	UUIDModel
-	Metadata   Metadata   `json:"metadata" gorm:"polymorphic:Parent;"`
+	UUIDModel             // required
+	Metadata   Metadata   `json:"metadata" gorm:"polymorphic:Parent;"` // required
 	BackMatter BackMatter `json:"back-matter" gorm:"polymorphic:Parent;"`
 
 	ImportComponentDefinitions datatypes.JSONSlice[ImportComponentDefinition] `json:"import-component-definitions"`
@@ -42,8 +42,10 @@ func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefin
 		return cap
 	})
 
-	backMatter := &BackMatter{}
-	backMatter.UnmarshalOscal(*ocd.BackMatter)
+	var backMatter BackMatter
+	if ocd.BackMatter != nil {
+		backMatter.UnmarshalOscal(*ocd.BackMatter)
+	}
 
 	*c = ComponentDefinition{
 		UUIDModel: UUIDModel{
@@ -53,9 +55,48 @@ func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefin
 		ImportComponentDefinitions: datatypes.NewJSONSlice[ImportComponentDefinition](importComponentDefs),
 		Components:                 components,
 		Capabilities:               capabilities,
-		BackMatter:                 *backMatter,
+		BackMatter:                 backMatter,
 	}
 	return c
+}
+
+func (c *ComponentDefinition) MarshalOscal() *oscalTypes_1_1_3.ComponentDefinition {
+	ret := oscalTypes_1_1_3.ComponentDefinition{
+		UUID: c.UUIDModel.ID.String(),
+	}
+
+	ret.Metadata = *c.Metadata.MarshalOscal()
+
+	if len(c.ImportComponentDefinitions) > 0 {
+		imports := make([]oscalTypes_1_1_3.ImportComponentDefinition, len(c.ImportComponentDefinitions))
+		for i, icd := range c.ImportComponentDefinitions {
+			imports[i] = *icd.MarshalOscal()
+		}
+		ret.ImportComponentDefinitions = &imports
+	}
+
+	if len(c.Components) > 0 {
+		components := make([]oscalTypes_1_1_3.DefinedComponent, len(c.Components))
+		for i, comp := range c.Components {
+			components[i] = *comp.MarshalOscal()
+		}
+		ret.Components = &components
+	}
+
+	if len(c.Capabilities) > 0 {
+		capabilities := make([]oscalTypes_1_1_3.Capability, len(c.Capabilities))
+		for i, cap := range c.Capabilities {
+			capabilities[i] = *cap.MarshalOscal()
+		}
+		ret.Capabilities = &capabilities
+	}
+
+	if len(c.BackMatter.Resources) > 0 {
+		bm := c.BackMatter.MarshalOscal()
+		ret.BackMatter = bm
+	}
+
+	return &ret
 }
 
 type DefinedComponent struct {
