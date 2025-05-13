@@ -265,7 +265,7 @@ type ControlImplementationSet struct {
 	Props datatypes.JSONSlice[Prop] `json:"props"`
 	Links datatypes.JSONSlice[Link] `json:"links"`
 
-	DefinedComponentID uuid.UUID // required
+	DefinedComponentID uuid.UUID
 }
 
 // UnmarshalOscal converts an OSCAL ControlImplementationSet into a relational ControlImplementationSet.
