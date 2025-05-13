@@ -11,15 +11,7 @@ import (
 )
 
 // TestComponentDefinition_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ComponentDefinition
-// to and from OSCAL format. It verifies that the conversion process maintains data integrity
-// by comparing the original and converted JSON representations.
-//
-// The test cases cover various scenarios:
-//   - Minimal fields: Tests with only required fields
-//   - All fields set: Tests with all possible fields populated
-//   - Only back-matter: Tests with only back-matter section
-//   - Empty optional fields: Tests with empty optional fields
-//   - Nil back-matter: Tests with nil back-matter
+// to and from OSCAL format. It ensures that the conversion process preserves all fields and structure.
 func TestComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -142,6 +134,8 @@ func TestComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
+// TestDefinedComponent_MarshalUnmarshalOscal tests the marshaling and unmarshaling of DefinedComponent
+// to and from OSCAL format. It ensures that the conversion process preserves all fields and structure.
 func TestDefinedComponent_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -236,6 +230,8 @@ func TestDefinedComponent_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
+// TestProtocol_MarshalUnmarshalOscal tests the marshaling and unmarshaling of Protocol
+// to and from OSCAL format, verifying that all fields are correctly handled.
 func TestProtocol_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -279,6 +275,8 @@ func TestProtocol_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
+// TestSetParameter_MarshalUnmarshalOscal tests the marshaling and unmarshaling of SetParameter
+// to and from OSCAL format, ensuring all fields and edge cases are covered.
 func TestSetParameter_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -332,6 +330,8 @@ func TestSetParameter_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
+// TestControlImplementationSet_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ControlImplementationSet
+// to and from OSCAL format, verifying correct handling of implemented requirements and all fields.
 func TestControlImplementationSet_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -417,6 +417,8 @@ func TestControlImplementationSet_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
+// TestImplementedRequirementControlImplementation_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ImplementedRequirementControlImplementation
+// to and from OSCAL format, ensuring all nested and optional fields are preserved.
 func TestImplementedRequirementControlImplementation_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -505,6 +507,8 @@ func TestImplementedRequirementControlImplementation_MarshalUnmarshalOscal(t *te
 	}
 }
 
+// TestControlStatementImplementation_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ControlStatementImplementation
+// to and from OSCAL format, verifying correct handling of responsible roles, properties, and links.
 func TestControlStatementImplementation_MarshalUnmarshalOscal(t *testing.T) {
 	tests := []struct {
 		name string
@@ -575,6 +579,8 @@ func TestControlStatementImplementation_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
+// TestResponsibleRole_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ResponsibleRole
+// to and from OSCAL format, ensuring all fields and nested structures are handled.
 func TestResponsibleRole_MarshalUnmarshalOscal(t *testing.T) {
 	osc := oscalTypes_1_1_3.ResponsibleRole{
 		RoleId:     "test-role",
@@ -599,6 +605,8 @@ func TestResponsibleRole_MarshalUnmarshalOscal(t *testing.T) {
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
 
+// TestImportComponentDefinition_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ImportComponentDefinition
+// to and from OSCAL format, verifying correct conversion of the Href field.
 func TestImportComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 	osc := oscalTypes_1_1_3.ImportComponentDefinition{
 		Href: "#000000-1111-2222-333333333333",
@@ -615,6 +623,8 @@ func TestImportComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
 
+// TestIncorporatesComponents_MarshalUnmarshalOscal tests the marshaling and unmarshaling of IncorporatesComponents
+// to and from OSCAL format, ensuring all fields are correctly converted.
 func TestIncorporatesComponents_MarshalUnmarshalOscal(t *testing.T) {
 	osc := oscalTypes_1_1_3.IncorporatesComponent{
 		ComponentUuid: uuid.New().String(),
@@ -632,5 +642,5 @@ func TestIncorporatesComponents_MarshalUnmarshalOscal(t *testing.T) {
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
 
-//ToDo create a new full test using the full component definition with the file testdata/sp800_53_catalog_wip_tests_temp.json
-//Cut all moduls and work module by module and test each module
+// TODO create a new full test using the full component definition with the file testdata/sp800_53_catalog_wip_tests_temp.json
+// Cut all modules and work module by module and test each module

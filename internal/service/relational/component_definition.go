@@ -6,6 +6,8 @@ import (
 	"gorm.io/datatypes"
 )
 
+// ComponentDefinition represents a component definition in OSCAL.
+// It includes metadata, back matter, imported component definitions, components, and capabilities.
 type ComponentDefinition struct {
 	UUIDModel             // required
 	Metadata   Metadata   `json:"metadata" gorm:"polymorphic:Parent;"` // required
@@ -14,27 +16,10 @@ type ComponentDefinition struct {
 	ImportComponentDefinitions datatypes.JSONSlice[ImportComponentDefinition] `json:"import-component-definitions"`
 	Components                 []DefinedComponent                             `json:"components"`
 	Capabilities               []Capability                                   `json:"capabilities"`
-
-	//oscaltypes113.ComponentDefinition
 }
 
 // UnmarshalOscal converts an OSCAL ComponentDefinition into a relational ComponentDefinition.
-// It handles the conversion of all nested structures including:
-//   - Metadata
-//   - ImportComponentDefinitions
-//   - Components
-//   - Capabilities
-//   - BackMatter
-//
-// The function performs the following operations:
-//   - Parses the UUID from the OSCAL definition
-//   - Converts the metadata using the Metadata.UnmarshalOscal method
-//   - Transforms all import component definitions using ConvertList
-//   - Converts all components using ConvertList and DefinedComponent.UnmarshalOscal
-//   - Transforms all capabilities using ConvertList and Capability.UnmarshalOscal
-//   - Handles the optional BackMatter conversion if present
-//
-// Returns a pointer to the converted ComponentDefinition.
+// It includes metadata, import component definitions, components, and capabilities.
 func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefinition) *ComponentDefinition {
 	metadata := &Metadata{}
 	metadata.UnmarshalOscal(ocd.Metadata)
@@ -76,6 +61,7 @@ func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefin
 	return c
 }
 
+// MarshalOscal converts the relational ComponentDefinition back into an OSCAL ComponentDefinition structure.
 func (c *ComponentDefinition) MarshalOscal() *oscalTypes_1_1_3.ComponentDefinition {
 	ret := oscalTypes_1_1_3.ComponentDefinition{
 		UUID: c.UUIDModel.ID.String(),
@@ -115,6 +101,8 @@ func (c *ComponentDefinition) MarshalOscal() *oscalTypes_1_1_3.ComponentDefiniti
 	return &ret
 }
 
+// DefinedComponent represents a defined component in OSCAL.
+// It includes type, title, description, purpose, remarks, responsible roles, control implementations, properties, links, and protocols.
 type DefinedComponent struct {
 	UUIDModel          // required
 	Type        string `json:"type"`        // required
@@ -136,6 +124,8 @@ type DefinedComponent struct {
 	// oscalTypes113.DefinedComponent
 }
 
+// UnmarshalOscal converts an OSCAL DefinedComponent into a relational DefinedComponent.
+// It includes protocols, control implementations, responsible roles, links, and props.
 func (dc *DefinedComponent) UnmarshalOscal(odc oscalTypes_1_1_3.DefinedComponent) *DefinedComponent {
 	id := uuid.MustParse(odc.UUID)
 
@@ -178,6 +168,8 @@ func (dc *DefinedComponent) UnmarshalOscal(odc oscalTypes_1_1_3.DefinedComponent
 	return dc
 }
 
+// MarshalOscal converts the relational DefinedComponent back into an OSCAL DefinedComponent structure.
+// It includes protocols, control implementations, responsible roles, links, and props.
 func (dc *DefinedComponent) MarshalOscal() *oscalTypes_1_1_3.DefinedComponent {
 	ret := oscalTypes_1_1_3.DefinedComponent{
 		UUID:        dc.UUIDModel.ID.String(),
@@ -228,30 +220,40 @@ func (dc *DefinedComponent) MarshalOscal() *oscalTypes_1_1_3.DefinedComponent {
 	return &ret
 }
 
+// Protocol represents a network protocol in OSCAL.
+// It includes name, port ranges, title, and UUID.
 type Protocol oscalTypes_1_1_3.Protocol
 
+// UnmarshalOscal converts an OSCAL Protocol into a relational Protocol.
 func (p *Protocol) UnmarshalOscal(op oscalTypes_1_1_3.Protocol) *Protocol {
 	*p = Protocol(op)
 	return p
 }
 
+// MarshalOscal converts the relational Protocol back into an OSCAL Protocol structure.
 func (p *Protocol) MarshalOscal() *oscalTypes_1_1_3.Protocol {
 	osc := oscalTypes_1_1_3.Protocol(*p)
 	return &osc
 }
 
+// SetParameter represents a parameter setting in OSCAL.
+// It includes parameter ID, remarks, and values.
 type SetParameter oscalTypes_1_1_3.SetParameter
 
+// UnmarshalOscal converts an OSCAL SetParameter into a relational SetParameter.
 func (sp *SetParameter) UnmarshalOscal(osp oscalTypes_1_1_3.SetParameter) *SetParameter {
 	*sp = SetParameter(osp)
 	return sp
 }
 
+// MarshalOscal converts the relational SetParameter back into an OSCAL SetParameter structure.
 func (sp *SetParameter) MarshalOscal() *oscalTypes_1_1_3.SetParameter {
 	osc := oscalTypes_1_1_3.SetParameter(*sp)
 	return &osc
 }
 
+// ControlImplementationSet represents a set of control implementations in OSCAL.
+// It includes source, description, set parameters, implemented requirements, properties, and links.
 type ControlImplementationSet struct {
 	UUIDModel                                       // required
 	Source        string                            `json:"source"`      // required
@@ -264,10 +266,10 @@ type ControlImplementationSet struct {
 	Links datatypes.JSONSlice[Link] `json:"links"`
 
 	DefinedComponentID uuid.UUID // required
-
-	// oscalType_1_1_3.ControlImplementationSet
 }
 
+// UnmarshalOscal converts an OSCAL ControlImplementationSet into a relational ControlImplementationSet.
+// It includes set parameters, implemented requirements, props, and links.
 func (ci *ControlImplementationSet) UnmarshalOscal(oci oscalTypes_1_1_3.ControlImplementationSet) *ControlImplementationSet {
 	id := uuid.MustParse(oci.UUID)
 
@@ -300,6 +302,7 @@ func (ci *ControlImplementationSet) UnmarshalOscal(oci oscalTypes_1_1_3.ControlI
 	return ci
 }
 
+// MarshalOscal converts the relational ControlImplementationSet back into an OSCAL ControlImplementationSet structure.
 func (ci *ControlImplementationSet) MarshalOscal() *oscalTypes_1_1_3.ControlImplementationSet {
 	ret := oscalTypes_1_1_3.ControlImplementationSet{
 		UUID:        ci.UUIDModel.ID.String(),
@@ -332,6 +335,8 @@ func (ci *ControlImplementationSet) MarshalOscal() *oscalTypes_1_1_3.ControlImpl
 	return &ret
 }
 
+// ImplementedRequirementControlImplementation represents an implemented requirement in OSCAL.
+// It includes control ID, description, set parameters, properties, links, remarks, responsible roles, and statements.
 type ImplementedRequirementControlImplementation struct {
 	UUIDModel                                             //required
 	ControlId        string                               `json:"control-id"`  //required
@@ -346,6 +351,8 @@ type ImplementedRequirementControlImplementation struct {
 	ControlImplementationSetID uuid.UUID
 }
 
+// UnmarshalOscal converts an OSCAL ImplementedRequirementControlImplementation into a relational ImplementedRequirementControlImplementation.
+// It includes set parameters, props, links, responsible roles, and statements.
 func (irci *ImplementedRequirementControlImplementation) UnmarshalOscal(oirci oscalTypes_1_1_3.ImplementedRequirementControlImplementation) *ImplementedRequirementControlImplementation {
 	id := uuid.MustParse(oirci.UUID)
 
@@ -386,6 +393,7 @@ func (irci *ImplementedRequirementControlImplementation) UnmarshalOscal(oirci os
 	return irci
 }
 
+// MarshalOscal converts the relational ImplementedRequirementControlImplementation back into an OSCAL ImplementedRequirementControlImplementation structure.
 func (irci *ImplementedRequirementControlImplementation) MarshalOscal() *oscalTypes_1_1_3.ImplementedRequirementControlImplementation {
 	ret := oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
 		UUID:        irci.UUIDModel.ID.String(),
@@ -432,6 +440,8 @@ func (irci *ImplementedRequirementControlImplementation) MarshalOscal() *oscalTy
 	return &ret
 }
 
+// ControlStatementImplementation represents a control statement implementation in OSCAL.
+// It includes statement ID, description, properties, links, responsible roles, and remarks.
 type ControlStatementImplementation struct {
 	UUIDModel                                             // required
 	StatementId      string                               `json:"statement-id"` // required
@@ -444,6 +454,8 @@ type ControlStatementImplementation struct {
 	ImplementedRequirementControlImplementationId uuid.UUID
 }
 
+// UnmarshalOscal converts an OSCAL ControlStatementImplementation into a relational ControlStatementImplementation.
+// It includes props, links, and responsible roles.
 func (s *ControlStatementImplementation) UnmarshalOscal(oci oscalTypes_1_1_3.ControlStatementImplementation) *ControlStatementImplementation {
 	id := uuid.MustParse(oci.UUID)
 	links := ConvertOscalToLinks(oci.Links)
@@ -469,6 +481,7 @@ func (s *ControlStatementImplementation) UnmarshalOscal(oci oscalTypes_1_1_3.Con
 	return s
 }
 
+// MarshalOscal converts the relational ControlStatementImplementation back into an OSCAL ControlStatementImplementation structure.
 func (s *ControlStatementImplementation) MarshalOscal() *oscalTypes_1_1_3.ControlStatementImplementation {
 	ret := oscalTypes_1_1_3.ControlStatementImplementation{
 		UUID:        s.UUIDModel.ID.String(),
@@ -499,30 +512,40 @@ func (s *ControlStatementImplementation) MarshalOscal() *oscalTypes_1_1_3.Contro
 	return &ret
 }
 
+// ResponsibleRole represents a responsible role in OSCAL.
+// It includes links, party UUIDs, properties, remarks, and role ID.
 type ResponsibleRole oscalTypes_1_1_3.ResponsibleRole
 
+// UnmarshalOscal converts an OSCAL ResponsibleRole into a relational ResponsibleRole.
 func (rr *ResponsibleRole) UnmarshalOscal(osc oscalTypes_1_1_3.ResponsibleRole) *ResponsibleRole {
 	*rr = ResponsibleRole(osc)
 	return rr
 }
 
+// MarshalOscal converts the relational ResponsibleRole back into an OSCAL ResponsibleRole structure.
 func (rr *ResponsibleRole) MarshalOscal() *oscalTypes_1_1_3.ResponsibleRole {
 	osc := oscalTypes_1_1_3.ResponsibleRole(*rr)
 	return &osc
 }
 
+// ImportComponentDefinition represents an imported component definition in OSCAL.
+// It includes href for the imported component definition.
 type ImportComponentDefinition oscalTypes_1_1_3.ImportComponentDefinition
 
+// UnmarshalOscal converts an OSCAL ImportComponentDefinition into a relational ImportComponentDefinition.
 func (icd *ImportComponentDefinition) UnmarshalOscal(oicd oscalTypes_1_1_3.ImportComponentDefinition) *ImportComponentDefinition {
 	*icd = ImportComponentDefinition(oicd)
 	return icd
 }
 
+// MarshalOscal converts the relational ImportComponentDefinition back into an OSCAL ImportComponentDefinition structure.
 func (icd *ImportComponentDefinition) MarshalOscal() *oscalTypes_1_1_3.ImportComponentDefinition {
 	osc := oscalTypes_1_1_3.ImportComponentDefinition(*icd)
 	return &osc
 }
 
+// Capability represents a capability in OSCAL.
+// It includes description, name, remarks, links, properties, incorporates components, and control implementations.
 type Capability struct {
 	UUIDModel          // required
 	Description string `json:"description"` // required
@@ -535,9 +558,10 @@ type Capability struct {
 	ControlImplementations []ControlImplementationSet                  `json:"control-implementations" gorm:"many2many:capability_control_implementation_sets"`
 
 	ComponentDefinitionId uuid.UUID
-	// oscalTypes_1_1_3.Capability
 }
 
+// UnmarshalOscal converts an OSCAL Capability into a relational Capability.
+// It includes links, props, incorporates components, and control implementations.
 func (c *Capability) UnmarshalOscal(oc oscalTypes_1_1_3.Capability) *Capability {
 	id := uuid.MustParse(oc.UUID)
 	links := ConvertOscalToLinks(oc.Links)
@@ -571,6 +595,7 @@ func (c *Capability) UnmarshalOscal(oc oscalTypes_1_1_3.Capability) *Capability 
 	return c
 }
 
+// MarshalOscal converts the relational Capability back into an OSCAL Capability structure.
 func (c *Capability) MarshalOscal() *oscalTypes_1_1_3.Capability {
 	ret := oscalTypes_1_1_3.Capability{
 		UUID:        c.UUIDModel.ID.String(),
@@ -606,13 +631,17 @@ func (c *Capability) MarshalOscal() *oscalTypes_1_1_3.Capability {
 	return &ret
 }
 
+// IncorporatesComponents represents incorporated components in OSCAL.
+// It includes component UUID and description.
 type IncorporatesComponents oscalTypes_1_1_3.IncorporatesComponent
 
+// UnmarshalOscal converts an OSCAL IncorporatesComponent into a relational IncorporatesComponents.
 func (ic *IncorporatesComponents) UnmarshalOscal(iic oscalTypes_1_1_3.IncorporatesComponent) *IncorporatesComponents {
 	*ic = IncorporatesComponents(iic)
 	return ic
 }
 
+// MarshalOscal converts the relational IncorporatesComponents back into an OSCAL IncorporatesComponent structure.
 func (ic *IncorporatesComponents) MarshalOscal() *oscalTypes_1_1_3.IncorporatesComponent {
 	osc := oscalTypes_1_1_3.IncorporatesComponent(*ic)
 	return &osc
