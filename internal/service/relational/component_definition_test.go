@@ -2,6 +2,7 @@ package relational
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -642,5 +643,30 @@ func TestIncorporatesComponents_MarshalUnmarshalOscal(t *testing.T) {
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
 
-// TODO create a new full test using the full component definition with the file testdata/sp800_53_catalog_wip_tests_temp.json
-// Cut all modules and work module by module and test each module
+// Full test using the full component definition with the file testdata/sp800-53-component.json
+func TestFileComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
+	t.Run("Full Component Definition", func(t *testing.T) {
+		// This test ensures that a FULL component definition can be unmarshalled, and re-marshalled, producing the same JSON object.
+		// This proves our entire schema for a Component Definition works correctly.
+		f, err := os.Open("../../../testdata/sp800-53-component.json")
+		assert.NoError(t, err)
+		defer f.Close()
+
+		// Decode the JSON into a ComponentDefinition
+		embed := struct {
+			CD oscalTypes_1_1_3.ComponentDefinition `json:"component-definition"`
+		}{}
+		err = json.NewDecoder(f).Decode(&embed)
+		assert.NoError(t, err)
+
+		inputJson, err := json.Marshal(embed.CD)
+		assert.NoError(t, err)
+
+		componentDef := &ComponentDefinition{}
+		componentDef.UnmarshalOscal(embed.CD)
+		output := componentDef.MarshalOscal()
+		outputJson, err := json.Marshal(output)
+		assert.NoError(t, err)
+		assert.JSONEq(t, string(inputJson), string(outputJson))
+	})
+}
