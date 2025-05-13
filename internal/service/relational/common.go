@@ -7,6 +7,18 @@ import (
 	"gorm.io/gorm"
 )
 
+type UUIDModel struct {
+	ID *uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
+}
+
+func (u *UUIDModel) BeforeCreate(tx *gorm.DB) (err error) {
+	if u.ID == nil {
+		id := uuid.New()
+		u.ID = &id
+	}
+	return
+}
+
 type Prop oscaltypes113.Property
 
 func (p *Prop) UnmarshalOscal(data oscaltypes113.Property) *Prop {
@@ -200,7 +212,6 @@ func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *Re
 	return r
 }
 
-// MarshalOscal converts the ResponsibleParty back to an OSCAL ResponsibleParty
 func (r *ResponsibleParty) MarshalOscal() *oscaltypes113.ResponsibleParty {
 	rp := &oscaltypes113.ResponsibleParty{
 		Remarks: r.Remarks,
@@ -224,14 +235,38 @@ func (r *ResponsibleParty) MarshalOscal() *oscaltypes113.ResponsibleParty {
 	return rp
 }
 
-type UUIDModel struct {
-	ID *uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
+type SetParameter oscaltypes113.SetParameter
+
+func (sp *SetParameter) UnmarshalOscal(osp oscaltypes113.SetParameter) *SetParameter {
+	*sp = SetParameter(osp)
+	return sp
 }
 
-func (u *UUIDModel) BeforeCreate(tx *gorm.DB) (err error) {
-	if u.ID == nil {
-		id := uuid.New()
-		u.ID = &id
-	}
-	return
+func (sp *SetParameter) MarshalOscal() *oscaltypes113.SetParameter {
+	ret := oscaltypes113.SetParameter(*sp)
+	return &ret
+}
+
+type ResponsibleRole oscaltypes113.ResponsibleRole
+
+func (rr *ResponsibleRole) UnmarshalOscal(osc oscaltypes113.ResponsibleRole) *ResponsibleRole {
+	*rr = ResponsibleRole(osc)
+	return rr
+}
+
+func (rr *ResponsibleRole) MarshalOscal() *oscaltypes113.ResponsibleRole {
+	ret := oscaltypes113.ResponsibleRole(*rr)
+	return &ret
+}
+
+type Protocol oscaltypes113.Protocol
+
+func (p *Protocol) UnmarshalOscal(op oscaltypes113.Protocol) *Protocol {
+	*p = Protocol(op)
+	return p
+}
+
+func (p *Protocol) MarshalOscal() *oscaltypes113.Protocol {
+	proto := oscaltypes113.Protocol(*p)
+	return &proto
 }

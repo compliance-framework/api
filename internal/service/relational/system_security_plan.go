@@ -1,17 +1,17 @@
 package relational
 
 import (
-	"database/sql"
+	"time"
+
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
-	"time"
 )
 
 type SystemSecurityPlan struct {
 	UUIDModel
-	Metadata   Metadata   `json:"metadata" gorm:"polymorphic:Parent;"`
-	BackMatter BackMatter `json:"back-matter" gorm:"polymorphic:Parent;"`
+	Metadata   Metadata    `json:"metadata" gorm:"polymorphic:Parent;"`
+	BackMatter *BackMatter `json:"back-matter" gorm:"polymorphic:Parent;"`
 
 	ImportProfile         datatypes.JSONType[ImportProfile] `json:"import-profile"`
 	SystemCharacteristics SystemCharacteristics             `json:"system-characteristics"`
@@ -23,9 +23,6 @@ func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPl
 	id := uuid.MustParse(os.UUID)
 	metadata := Metadata{}
 	metadata.UnmarshalOscal(os.Metadata)
-
-	backMatter := BackMatter{}
-	backMatter.UnmarshalOscal(*os.BackMatter)
 
 	importProfile := ImportProfile{}
 	importProfile.UnmarshalOscal(os.ImportProfile)
@@ -44,14 +41,38 @@ func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPl
 			ID: &id,
 		},
 		Metadata:              metadata,
-		BackMatter:            backMatter,
 		ImportProfile:         datatypes.NewJSONType[ImportProfile](importProfile),
 		SystemCharacteristics: systemCharacteristics,
 		SystemImplementation:  systemImplementation,
 		ControlImplementation: controlImplementation,
 	}
 
+	if os.BackMatter != nil {
+		backMatter := &BackMatter{}
+		backMatter.UnmarshalOscal(*os.BackMatter)
+		s.BackMatter = backMatter
+	}
+
 	return s
+}
+
+func (s *SystemSecurityPlan) MarshalOscal() *oscalTypes_1_1_3.SystemSecurityPlan {
+	plan := &oscalTypes_1_1_3.SystemSecurityPlan{
+		UUID:                  s.UUIDModel.ID.String(),
+		Metadata:              *s.Metadata.MarshalOscal(),
+		ControlImplementation: *s.ControlImplementation.MarshalOscal(),
+		SystemCharacteristics: *s.SystemCharacteristics.MarshalOscal(),
+		SystemImplementation:  *s.SystemImplementation.MarshalOscal(),
+	}
+
+	importProfile := s.ImportProfile.Data()
+	plan.ImportProfile = *importProfile.MarshalOscal()
+
+	if s.BackMatter != nil {
+		plan.BackMatter = s.BackMatter.MarshalOscal()
+	}
+
+	return plan
 }
 
 type ImportProfile oscalTypes_1_1_3.ImportProfile
@@ -61,25 +82,30 @@ func (ip *ImportProfile) UnmarshalOscal(oip oscalTypes_1_1_3.ImportProfile) *Imp
 	return ip
 }
 
+func (ip *ImportProfile) MarshalOscal() *oscalTypes_1_1_3.ImportProfile {
+	p := oscalTypes_1_1_3.ImportProfile(*ip)
+	return &p
+}
+
 type SystemCharacteristics struct {
 	UUIDModel
-	SystemName               string       `json:"system-name"`
-	SystemNameShort          string       `json:"system-name-short"`
-	Description              string       `json:"description"`
-	DateAuthorized           sql.NullTime `json:"date-authorized"`
-	SecuritySensitivityLevel string       `json:"security-sensitivity-level"`
-	Remarks                  string       `json:"remarks"`
+	SystemName               string     `json:"system-name"`
+	SystemNameShort          string     `json:"system-name-short"`
+	Description              string     `json:"description"`
+	DateAuthorized           *time.Time `json:"date-authorized"`
+	SecuritySensitivityLevel string     `json:"security-sensitivity-level"`
+	Remarks                  string     `json:"remarks"`
 
-	SystemIds            datatypes.JSONSlice[SystemId] `json:"system-ids"`
-	SystemInformation    SystemInformation             `json:"system-information"`
-	Status               datatypes.JSONType[Status]    `json:"status"`
-	AuthorizationBoundry AuthorizationBoundary         `json:"authorization-boundary"`
-	NetworkArchitecture  NetworkArchitecture           `json:"network-architecture"`
-	DataFlow             DataFlow                      `json:"data-flow"`
-
-	Links              datatypes.JSONSlice[Link]             `json:"links"`
-	Props              datatypes.JSONSlice[Prop]             `json:"props"`
-	ResponsibleParties datatypes.JSONSlice[ResponsibleParty] `json:"responsible-role"`
+	SystemIds            datatypes.JSONSlice[SystemId]         `json:"system-ids"`
+	SystemInformation    SystemInformation                     `json:"system-information"`
+	Status               datatypes.JSONType[Status]            `json:"status"`
+	AuthorizationBoundry AuthorizationBoundary                 `json:"authorization-boundary"`
+	NetworkArchitecture  *NetworkArchitecture                  `json:"network-architecture"`
+	DataFlow             *DataFlow                             `json:"data-flow"`
+	SecurityImpactLevel  *SecurityImpactLevel                  `json:"security-impact-level"`
+	Links                datatypes.JSONSlice[Link]             `json:"links"`
+	Props                datatypes.JSONSlice[Prop]             `json:"props"`
+	ResponsibleParties   datatypes.JSONSlice[ResponsibleParty] `json:"responsible-role"`
 
 	SystemSecurityPlanId uuid.UUID
 }
@@ -87,20 +113,6 @@ type SystemCharacteristics struct {
 func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemCharacteristics) *SystemCharacteristics {
 	props := ConvertOscalToProps(osc.Props)
 	links := ConvertOscalToLinks(osc.Links)
-
-	dateAuthorized := sql.NullTime{}
-	if len(osc.DateAuthorized) > 0 {
-		// Todo: Assume that a timezone is attached as per the spec - https://pages.nist.gov/metaschema/specification/datatypes/#date
-		parsed, err := time.Parse(time.DateOnly, osc.DateAuthorized)
-		if err != nil {
-			panic(err)
-		}
-		dateAuthorized = sql.NullTime{
-			Time:  parsed,
-			Valid: true,
-		}
-
-	}
 
 	systemIds := ConvertList(&osc.SystemIds, func(osi oscalTypes_1_1_3.SystemId) SystemId {
 		sid := SystemId(osi)
@@ -116,18 +128,6 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 	authBoundary := AuthorizationBoundary{}
 	authBoundary.UnmarshalOscal(osc.AuthorizationBoundary)
 
-	var networkArchitecture NetworkArchitecture
-	if osc.NetworkArchitecture != nil {
-		networkArchitecture = NetworkArchitecture{}
-		networkArchitecture.UnmarshalOscal(*osc.NetworkArchitecture)
-	}
-
-	var dataflow DataFlow
-	if osc.DataFlow != nil {
-		dataflow = DataFlow{}
-		dataflow.UnmarshalOscal(*osc.DataFlow)
-	}
-
 	responsibleParties := ConvertList(osc.ResponsibleParties, func(orp oscalTypes_1_1_3.ResponsibleParty) ResponsibleParty {
 		rp := ResponsibleParty{}
 		rp.UnmarshalOscal(orp)
@@ -139,7 +139,6 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 		SystemName:               osc.SystemName,
 		SystemNameShort:          osc.SystemNameShort,
 		Description:              osc.Description,
-		DateAuthorized:           dateAuthorized,
 		SecuritySensitivityLevel: osc.SecuritySensitivityLevel,
 		Remarks:                  osc.Remarks,
 		Links:                    links,
@@ -148,12 +147,89 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 		SystemInformation:        systemInformation,
 		Status:                   datatypes.NewJSONType[Status](status),
 		AuthorizationBoundry:     authBoundary,
-		NetworkArchitecture:      networkArchitecture,
-		DataFlow:                 dataflow,
 		ResponsibleParties:       datatypes.NewJSONSlice[ResponsibleParty](responsibleParties),
 	}
 
+	if osc.NetworkArchitecture != nil {
+		networkArchitecture := NetworkArchitecture{}
+		sc.NetworkArchitecture = networkArchitecture.UnmarshalOscal(*osc.NetworkArchitecture)
+	}
+
+	if osc.DataFlow != nil {
+		dataFlow := DataFlow{}
+		sc.DataFlow = dataFlow.UnmarshalOscal(*osc.DataFlow)
+	}
+
+	if osc.DateAuthorized != "" {
+		if len(osc.DateAuthorized) > 0 {
+			// Todo: Assume that a timezone is attached as per the spec - https://pages.nist.gov/metaschema/specification/datatypes/#date
+			parsed, err := time.Parse(time.DateTime, osc.DateAuthorized)
+			if err != nil {
+				panic(err)
+			}
+			sc.DateAuthorized = &parsed
+		}
+	}
+
+	if osc.SecurityImpactLevel != nil {
+		securityImpact := SecurityImpactLevel{}
+		securityImpact.UnmarshalOscal(*osc.SecurityImpactLevel)
+		sc.SecurityImpactLevel = &securityImpact
+	}
+
 	return sc
+}
+
+// MarshalOscal converts the SystemCharacteristics back to an OSCAL SystemCharacteristics
+func (sc *SystemCharacteristics) MarshalOscal() *oscalTypes_1_1_3.SystemCharacteristics {
+	oc := &oscalTypes_1_1_3.SystemCharacteristics{
+		SystemName:               sc.SystemName,
+		SystemNameShort:          sc.SystemNameShort,
+		Description:              sc.Description,
+		SecuritySensitivityLevel: sc.SecuritySensitivityLevel,
+		Remarks:                  sc.Remarks,
+	}
+	if sc.DateAuthorized != nil {
+		oc.DateAuthorized = sc.DateAuthorized.Format(time.DateTime)
+	}
+	if len(sc.SystemIds) > 0 {
+		ids := make([]oscalTypes_1_1_3.SystemId, len(sc.SystemIds))
+		for i, sid := range sc.SystemIds {
+			ids[i] = *sid.MarshalOscal()
+		}
+		oc.SystemIds = ids
+	}
+
+	oc.SystemInformation = *sc.SystemInformation.MarshalOscal()
+
+	status := sc.Status.Data()
+	oc.Status = *status.MarshalOscal()
+
+	oc.AuthorizationBoundary = *sc.AuthorizationBoundry.MarshalOscal()
+
+	if sc.NetworkArchitecture != nil {
+		oc.NetworkArchitecture = sc.NetworkArchitecture.MarshalOscal()
+	}
+	if sc.DataFlow != nil {
+		oc.DataFlow = sc.DataFlow.MarshalOscal()
+	}
+	if sc.SecurityImpactLevel != nil {
+		oc.SecurityImpactLevel = sc.SecurityImpactLevel.MarshalOscal()
+	}
+	if len(sc.Props) > 0 {
+		oc.Props = ConvertPropsToOscal(sc.Props)
+	}
+	if len(sc.Links) > 0 {
+		oc.Links = ConvertLinksToOscal(sc.Links)
+	}
+	if len(sc.ResponsibleParties) > 0 {
+		rp := make([]oscalTypes_1_1_3.ResponsibleParty, len(sc.ResponsibleParties))
+		for i, party := range sc.ResponsibleParties {
+			rp[i] = *party.MarshalOscal()
+		}
+		oc.ResponsibleParties = &rp
+	}
+	return oc
 }
 
 type SystemId oscalTypes_1_1_3.SystemId
@@ -161,6 +237,11 @@ type SystemId oscalTypes_1_1_3.SystemId
 func (si *SystemId) UnmarshalOscal(osi oscalTypes_1_1_3.SystemId) *SystemId {
 	*si = SystemId(osi)
 	return si
+}
+
+func (si *SystemId) MarshalOscal() *oscalTypes_1_1_3.SystemId {
+	ret := oscalTypes_1_1_3.SystemId(*si)
+	return &ret
 }
 
 type SystemInformation struct {
@@ -193,19 +274,34 @@ func (si *SystemInformation) UnmarshalOscal(osi oscalTypes_1_1_3.SystemInformati
 	return si
 }
 
+func (si *SystemInformation) MarshalOscal() *oscalTypes_1_1_3.SystemInformation {
+	ret := &oscalTypes_1_1_3.SystemInformation{}
+	if len(si.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(si.Props)
+	}
+	if len(si.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(si.Links)
+	}
+	if len(si.InformationTypes) > 0 {
+		its := make([]oscalTypes_1_1_3.InformationType, len(si.InformationTypes))
+		for i, it := range si.InformationTypes {
+			its[i] = *it.MarshalOscal()
+		}
+		ret.InformationTypes = its
+	}
+	return ret
+}
+
 type InformationType struct {
 	UUIDModel
-	Title       string `json:"title"`
-	Description string `json:"description"`
-
-	Props datatypes.JSONSlice[Prop] `json:"props"`
-	Links datatypes.JSONSlice[Link] `json:"links"`
-
-	ConfidentialityImpact datatypes.JSONType[Impact] `json:"confidentiality-impact"`
-	IntegrityImpact       datatypes.JSONType[Impact] `json:"integrity-impact"`
-	AvailabilityImpact    datatypes.JSONType[Impact] `json:"availability-impact"`
-
-	Categorizations datatypes.JSONSlice[InformationTypeCategorization] `json:"categorizations"`
+	Title                 string                                             `json:"title"`
+	Description           string                                             `json:"description"`
+	Props                 datatypes.JSONSlice[Prop]                          `json:"props"`
+	Links                 datatypes.JSONSlice[Link]                          `json:"links"`
+	ConfidentialityImpact *datatypes.JSONType[Impact]                        `json:"confidentiality-impact"`
+	IntegrityImpact       *datatypes.JSONType[Impact]                        `json:"integrity-impact"`
+	AvailabilityImpact    *datatypes.JSONType[Impact]                        `json:"availability-impact"`
+	Categorizations       datatypes.JSONSlice[InformationTypeCategorization] `json:"categorizations"`
 
 	SystemInformationId uuid.UUID
 }
@@ -215,15 +311,6 @@ func (it *InformationType) UnmarshalOscal(oit oscalTypes_1_1_3.InformationType) 
 
 	props := ConvertOscalToProps(oit.Props)
 	links := ConvertOscalToLinks(oit.Links)
-
-	confImpact := Impact{}
-	confImpact.UnmarshalOscal(*oit.ConfidentialityImpact)
-
-	integrityImpact := Impact{}
-	integrityImpact.UnmarshalOscal(*oit.IntegrityImpact)
-
-	availabilityImpact := Impact{}
-	availabilityImpact.UnmarshalOscal(*oit.AvailabilityImpact)
 
 	categorizations := ConvertList(oit.Categorizations, func(oitc oscalTypes_1_1_3.InformationTypeCategorization) InformationTypeCategorization {
 		category := InformationTypeCategorization{}
@@ -235,17 +322,70 @@ func (it *InformationType) UnmarshalOscal(oit oscalTypes_1_1_3.InformationType) 
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
-		Title:                 oit.Title,
-		Description:           oit.Description,
-		Props:                 props,
-		Links:                 links,
-		ConfidentialityImpact: datatypes.NewJSONType[Impact](confImpact),
-		IntegrityImpact:       datatypes.NewJSONType[Impact](integrityImpact),
-		AvailabilityImpact:    datatypes.NewJSONType[Impact](availabilityImpact),
-		Categorizations:       categorizations,
+		Title:           oit.Title,
+		Description:     oit.Description,
+		Props:           props,
+		Links:           links,
+		Categorizations: categorizations,
+	}
+
+	if oit.ConfidentialityImpact != nil {
+		confImpact := Impact{}
+		confImpact.UnmarshalOscal(*oit.ConfidentialityImpact)
+		jsonImp := datatypes.NewJSONType(confImpact)
+		it.ConfidentialityImpact = &jsonImp
+	}
+
+	if oit.IntegrityImpact != nil {
+		intImpact := Impact{}
+		intImpact.UnmarshalOscal(*oit.IntegrityImpact)
+		jsonImp := datatypes.NewJSONType(intImpact)
+		it.IntegrityImpact = &jsonImp
+	}
+
+	if oit.AvailabilityImpact != nil {
+		availImpact := Impact{}
+		availImpact.UnmarshalOscal(*oit.AvailabilityImpact)
+		jsonImp := datatypes.NewJSONType(availImpact)
+		it.AvailabilityImpact = &jsonImp
 	}
 
 	return it
+}
+
+func (it *InformationType) MarshalOscal() *oscalTypes_1_1_3.InformationType {
+	ret := &oscalTypes_1_1_3.InformationType{
+		UUID:        it.UUIDModel.ID.String(),
+		Title:       it.Title,
+		Description: it.Description,
+	}
+	if len(it.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(it.Props)
+	}
+	if len(it.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(it.Links)
+	}
+	// JSONType fields
+	if it.ConfidentialityImpact != nil {
+		ci := it.ConfidentialityImpact.Data()
+		ret.ConfidentialityImpact = ci.MarshalOscal()
+	}
+	if it.IntegrityImpact != nil {
+		ii := it.IntegrityImpact.Data()
+		ret.IntegrityImpact = ii.MarshalOscal()
+	}
+	if it.AvailabilityImpact != nil {
+		ai := it.AvailabilityImpact.Data()
+		ret.AvailabilityImpact = ai.MarshalOscal()
+	}
+	if len(it.Categorizations) > 0 {
+		cats := make([]oscalTypes_1_1_3.InformationTypeCategorization, len(it.Categorizations))
+		for i, cat := range it.Categorizations {
+			cats[i] = *cat.MarshalOscal()
+		}
+		ret.Categorizations = &cats
+	}
+	return ret
 }
 
 type Impact oscalTypes_1_1_3.Impact
@@ -255,6 +395,11 @@ func (i *Impact) UnmarshalOscal(osi oscalTypes_1_1_3.Impact) *Impact {
 	return i
 }
 
+func (i *Impact) MarshalOscal() *oscalTypes_1_1_3.Impact {
+	ret := oscalTypes_1_1_3.Impact(*i)
+	return &ret
+}
+
 type InformationTypeCategorization oscalTypes_1_1_3.InformationTypeCategorization
 
 func (itc *InformationTypeCategorization) UnmarshalOscal(oitc oscalTypes_1_1_3.InformationTypeCategorization) *InformationTypeCategorization {
@@ -262,13 +407,33 @@ func (itc *InformationTypeCategorization) UnmarshalOscal(oitc oscalTypes_1_1_3.I
 	return itc
 }
 
+func (itc *InformationTypeCategorization) MarshalOscal() *oscalTypes_1_1_3.InformationTypeCategorization {
+	ret := oscalTypes_1_1_3.InformationTypeCategorization(*itc)
+	return &ret
+}
+
 type SecurityImpactLevel oscalTypes_1_1_3.SecurityImpactLevel
+
+func (s *SecurityImpactLevel) UnmarshalOscal(osi oscalTypes_1_1_3.SecurityImpactLevel) *SecurityImpactLevel {
+	*s = SecurityImpactLevel(osi)
+	return s
+}
+
+func (s *SecurityImpactLevel) MarshalOscal() *oscalTypes_1_1_3.SecurityImpactLevel {
+	ret := oscalTypes_1_1_3.SecurityImpactLevel(*s)
+	return &ret
+}
 
 type Status oscalTypes_1_1_3.Status
 
 func (s *Status) UnmarshalOscal(osi oscalTypes_1_1_3.Status) *Status {
 	*s = Status(osi)
 	return s
+}
+
+func (s *Status) MarshalOscal() *oscalTypes_1_1_3.Status {
+	ret := oscalTypes_1_1_3.Status(*s)
+	return &ret
 }
 
 type AuthorizationBoundary struct {
@@ -303,6 +468,27 @@ func (ab *AuthorizationBoundary) UnmarshalOscal(oab oscalTypes_1_1_3.Authorizati
 	return ab
 }
 
+func (ab *AuthorizationBoundary) MarshalOscal() *oscalTypes_1_1_3.AuthorizationBoundary {
+	ret := &oscalTypes_1_1_3.AuthorizationBoundary{
+		Description: ab.Description,
+		Remarks:     ab.Remarks,
+	}
+	if len(ab.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(ab.Props)
+	}
+	if len(ab.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(ab.Links)
+	}
+	if len(ab.Diagrams) > 0 {
+		diagrams := make([]oscalTypes_1_1_3.Diagram, len(ab.Diagrams))
+		for i, d := range ab.Diagrams {
+			diagrams[i] = *d.MarshalOscal()
+		}
+		ret.Diagrams = &diagrams
+	}
+	return ret
+}
+
 type NetworkArchitecture struct {
 	UUIDModel
 	Description string                    `json:"description"`
@@ -333,6 +519,27 @@ func (na *NetworkArchitecture) UnmarshalOscal(ona oscalTypes_1_1_3.NetworkArchit
 		Diagrams:    diagrams,
 	}
 	return na
+}
+
+func (na *NetworkArchitecture) MarshalOscal() *oscalTypes_1_1_3.NetworkArchitecture {
+	ret := &oscalTypes_1_1_3.NetworkArchitecture{
+		Description: na.Description,
+		Remarks:     na.Remarks,
+	}
+	if len(na.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(na.Props)
+	}
+	if len(na.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(na.Links)
+	}
+	if len(na.Diagrams) > 0 {
+		diagrams := make([]oscalTypes_1_1_3.Diagram, len(na.Diagrams))
+		for i, d := range na.Diagrams {
+			diagrams[i] = *d.MarshalOscal()
+		}
+		ret.Diagrams = &diagrams
+	}
+	return ret
 }
 
 type DataFlow struct {
@@ -368,6 +575,27 @@ func (df *DataFlow) UnmarshalOscal(odf oscalTypes_1_1_3.DataFlow) *DataFlow {
 	return df
 }
 
+func (df *DataFlow) MarshalOscal() *oscalTypes_1_1_3.DataFlow {
+	ret := &oscalTypes_1_1_3.DataFlow{
+		Description: df.Description,
+		Remarks:     df.Remarks,
+	}
+	if len(df.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(df.Props)
+	}
+	if len(df.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(df.Links)
+	}
+	if len(df.Diagrams) > 0 {
+		diagrams := make([]oscalTypes_1_1_3.Diagram, len(df.Diagrams))
+		for i, d := range df.Diagrams {
+			diagrams[i] = *d.MarshalOscal()
+		}
+		ret.Diagrams = &diagrams
+	}
+	return ret
+}
+
 type Diagram struct {
 	UUIDModel
 	Description string                    `json:"description"`
@@ -396,10 +624,26 @@ func (d *Diagram) UnmarshalOscal(od oscalTypes_1_1_3.Diagram) *Diagram {
 	return d
 }
 
+func (d *Diagram) MarshalOscal() *oscalTypes_1_1_3.Diagram {
+	ret := &oscalTypes_1_1_3.Diagram{
+		UUID:        d.UUIDModel.ID.String(),
+		Description: d.Description,
+		Caption:     d.Caption,
+		Remarks:     d.Remarks,
+	}
+	if len(d.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(d.Props)
+	}
+	if len(d.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(d.Links)
+	}
+	return ret
+}
+
 type SystemImplementation struct {
 	UUIDModel
-	Props                   datatypes.JSONSlice[Prop] `json:"props"`
-	Links                   datatypes.JSONSlice[Link] `json:"links"`
+	Props                   datatypes.JSONSlice[Prop] `json:"props,omitempty"`
+	Links                   datatypes.JSONSlice[Link] `json:"links,omitempty"`
 	Remarks                 string                    `json:"remarks"`
 	Users                   []SystemUser              `json:"users"`
 	LeveragedAuthorizations []LeveragedAuthorization  `json:"leveraged-authorizations"`
@@ -440,6 +684,49 @@ func (si *SystemImplementation) UnmarshalOscal(osi oscalTypes_1_1_3.SystemImplem
 	return si
 }
 
+func (si *SystemImplementation) MarshalOscal() *oscalTypes_1_1_3.SystemImplementation {
+	ret := oscalTypes_1_1_3.SystemImplementation{
+		Remarks: si.Remarks,
+	}
+
+	if len(si.Users) > 0 {
+		ret.Users = ConvertList(&si.Users, func(osu SystemUser) oscalTypes_1_1_3.SystemUser {
+			return *osu.MarshalOscal()
+		})
+	}
+
+	if len(si.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(si.Links)
+	}
+
+	if len(si.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(si.Props)
+	}
+
+	if len(si.LeveragedAuthorizations) > 0 {
+		auths := ConvertList(&si.LeveragedAuthorizations, func(osu LeveragedAuthorization) oscalTypes_1_1_3.LeveragedAuthorization {
+			return *osu.MarshalOscal()
+		})
+		ret.LeveragedAuthorizations = &auths
+	}
+
+	if len(si.Components) > 0 {
+		comps := ConvertList(&si.Components, func(in SystemComponent) oscalTypes_1_1_3.SystemComponent {
+			return *in.MarshalOscal()
+		})
+		ret.Components = comps
+	}
+
+	if len(si.InventoryItems) > 0 {
+		outs := ConvertList(&si.InventoryItems, func(in InventoryItem) oscalTypes_1_1_3.InventoryItem {
+			return in.MarshalOscal()
+		})
+		ret.InventoryItems = &outs
+	}
+
+	return &ret
+}
+
 type SystemUser struct {
 	UUIDModel
 	Title                string                      `json:"title"`
@@ -451,8 +738,6 @@ type SystemUser struct {
 	AuthorizedPrivileges []AuthorizedPrivilege       `json:"authorized-privileges"`
 
 	SystemImplementationId uuid.UUID
-
-	//oscalTypes_1_1_3.SystemUser
 }
 
 func (u *SystemUser) UnmarshalOscal(ou oscalTypes_1_1_3.SystemUser) *SystemUser {
@@ -466,7 +751,7 @@ func (u *SystemUser) UnmarshalOscal(ou oscalTypes_1_1_3.SystemUser) *SystemUser 
 		Description: ou.Description,
 		Props:       ConvertOscalToProps(ou.Props),
 		Links:       ConvertOscalToLinks(ou.Links),
-		RoleIDs:     datatypes.NewJSONSlice[string](u.RoleIDs),
+		RoleIDs:     datatypes.NewJSONSlice[string](*ou.RoleIds),
 		AuthorizedPrivileges: ConvertList(ou.AuthorizedPrivileges, func(oap oscalTypes_1_1_3.AuthorizedPrivilege) AuthorizedPrivilege {
 			privilege := AuthorizedPrivilege{}
 			privilege.UnmarshalOscal(oap)
@@ -474,6 +759,36 @@ func (u *SystemUser) UnmarshalOscal(ou oscalTypes_1_1_3.SystemUser) *SystemUser 
 		}),
 	}
 	return u
+}
+
+func (u *SystemUser) MarshalOscal() *oscalTypes_1_1_3.SystemUser {
+	ret := &oscalTypes_1_1_3.SystemUser{
+		UUID:        u.UUIDModel.ID.String(),
+		Title:       u.Title,
+		ShortName:   u.ShortName,
+		Description: u.Description,
+	}
+	if len(u.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(u.Props)
+	}
+	if len(u.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(u.Links)
+	}
+	if len(u.RoleIDs) > 0 {
+		rs := make([]string, len(u.RoleIDs))
+		for i, v := range u.RoleIDs {
+			rs[i] = v
+		}
+		ret.RoleIds = &rs
+	}
+	if len(u.AuthorizedPrivileges) > 0 {
+		privs := make([]oscalTypes_1_1_3.AuthorizedPrivilege, len(u.AuthorizedPrivileges))
+		for i, ap := range u.AuthorizedPrivileges {
+			privs[i] = *ap.MarshalOscal()
+		}
+		ret.AuthorizedPrivileges = &privs
+	}
+	return ret
 }
 
 type AuthorizedPrivilege struct {
@@ -494,6 +809,15 @@ func (ap *AuthorizedPrivilege) UnmarshalOscal(oap oscalTypes_1_1_3.AuthorizedPri
 	}
 
 	return ap
+}
+
+func (ap *AuthorizedPrivilege) MarshalOscal() *oscalTypes_1_1_3.AuthorizedPrivilege {
+	ret := &oscalTypes_1_1_3.AuthorizedPrivilege{
+		Title:              ap.Title,
+		Description:        ap.Description,
+		FunctionsPerformed: ap.FunctionsPerformed,
+	}
+	return ret
 }
 
 type LeveragedAuthorization struct {
@@ -532,11 +856,34 @@ func (la *LeveragedAuthorization) UnmarshalOscal(ola oscalTypes_1_1_3.LeveragedA
 	return la
 }
 
+// MarshalOscal converts the LeveragedAuthorization back to an OSCAL LeveragedAuthorization
+func (la *LeveragedAuthorization) MarshalOscal() *oscalTypes_1_1_3.LeveragedAuthorization {
+	ret := &oscalTypes_1_1_3.LeveragedAuthorization{
+		UUID:           la.UUIDModel.ID.String(),
+		Title:          la.Title,
+		PartyUuid:      la.PartyUUID.String(),
+		DateAuthorized: la.DateAuthorized.Format(time.DateOnly),
+		Remarks:        la.Remarks,
+	}
+	if len(la.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(la.Props)
+	}
+	if len(la.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(la.Links)
+	}
+	return ret
+}
+
 type SystemComponentStatus oscalTypes_1_1_3.SystemComponentStatus
 
 func (s *SystemComponentStatus) UnmarshalOscal(os oscalTypes_1_1_3.SystemComponentStatus) *SystemComponentStatus {
 	*s = SystemComponentStatus(os)
 	return s
+}
+
+func (s *SystemComponentStatus) MarshalOscal() *oscalTypes_1_1_3.SystemComponentStatus {
+	ret := oscalTypes_1_1_3.SystemComponentStatus(*s)
+	return &ret
 }
 
 type SystemComponent struct {
@@ -546,7 +893,7 @@ type SystemComponent struct {
 	Description      string                                    `json:"description"`
 	Purpose          string                                    `json:"purpose"`
 	Status           datatypes.JSONType[SystemComponentStatus] `json:"status"`
-	ResponsableRoles datatypes.JSONSlice[ResponsibleRole]      `json:"responsable-roles"`
+	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole]      `json:"responsable-roles"`
 	Protocols        datatypes.JSONSlice[Protocol]             `json:"protocols"`
 	Remarks          string                                    `json:"remarks"`
 	Props            datatypes.JSONSlice[Prop]                 `json:"props"`
@@ -569,7 +916,7 @@ func (sc *SystemComponent) UnmarshalOscal(osc oscalTypes_1_1_3.SystemComponent) 
 		Description: osc.Description,
 		Purpose:     osc.Purpose,
 		Status:      datatypes.NewJSONType[SystemComponentStatus](status),
-		ResponsableRoles: ConvertList(osc.ResponsibleRoles, func(orr oscalTypes_1_1_3.ResponsibleRole) ResponsibleRole {
+		ResponsibleRoles: ConvertList(osc.ResponsibleRoles, func(orr oscalTypes_1_1_3.ResponsibleRole) ResponsibleRole {
 			role := ResponsibleRole{}
 			role.UnmarshalOscal(orr)
 			return role
@@ -585,6 +932,42 @@ func (sc *SystemComponent) UnmarshalOscal(osc oscalTypes_1_1_3.SystemComponent) 
 	}
 
 	return sc
+}
+
+// MarshalOscal converts the SystemComponent back to an OSCAL SystemComponent
+func (sc *SystemComponent) MarshalOscal() *oscalTypes_1_1_3.SystemComponent {
+	status := sc.Status.Data()
+	ret := &oscalTypes_1_1_3.SystemComponent{
+		UUID:        sc.UUIDModel.ID.String(),
+		Type:        sc.Type,
+		Title:       sc.Title,
+		Description: sc.Description,
+		Purpose:     sc.Purpose,
+		Status:      *status.MarshalOscal(),
+		Remarks:     sc.Remarks,
+	}
+
+	if len(sc.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(sc.Props)
+	}
+	if len(sc.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(sc.Links)
+	}
+	if len(sc.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(sc.ResponsibleRoles))
+		for i, rr := range sc.ResponsibleRoles {
+			roles[i] = *rr.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+	if len(sc.Protocols) > 0 {
+		protos := make([]oscalTypes_1_1_3.Protocol, len(sc.Protocols))
+		for i, p := range sc.Protocols {
+			protos[i] = *p.MarshalOscal()
+		}
+		ret.Protocols = &protos
+	}
+	return ret
 }
 
 type InventoryItem struct {
@@ -625,6 +1008,40 @@ func (ii *InventoryItem) UnmarshalOscal(oii oscalTypes_1_1_3.InventoryItem) *Inv
 	return ii
 }
 
+func (ii *InventoryItem) MarshalOscal() oscalTypes_1_1_3.InventoryItem {
+	ret := oscalTypes_1_1_3.InventoryItem{
+		UUID:        ii.ID.String(),
+		Remarks:     ii.Remarks,
+		Description: ii.Description,
+	}
+
+	if len(ii.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(ii.Props)
+	}
+
+	if len(ii.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(ii.Links)
+	}
+
+	if len(ii.ResponsibleParties) > 0 {
+		outs := make([]oscalTypes_1_1_3.ResponsibleParty, len(ii.ResponsibleParties))
+		for i, rp := range ii.ResponsibleParties {
+			outs[i] = *rp.MarshalOscal()
+		}
+		ret.ResponsibleParties = &outs
+	}
+
+	if len(ii.ImplementedComponents) > 0 {
+		outs := make([]oscalTypes_1_1_3.ImplementedComponent, len(ii.ImplementedComponents))
+		for i, out := range ii.ImplementedComponents {
+			outs[i] = out.MarshalOscal()
+		}
+		ret.ImplementedComponents = &outs
+	}
+
+	return ret
+}
+
 type ImplementedComponent struct {
 	UUIDModel
 	ComponentUUID      uuid.UUID                             `json:"component-uuid"`
@@ -652,6 +1069,31 @@ func (ic *ImplementedComponent) UnmarshalOscal(oic oscalTypes_1_1_3.ImplementedC
 	}
 
 	return ic
+}
+
+func (ic *ImplementedComponent) MarshalOscal() oscalTypes_1_1_3.ImplementedComponent {
+	ret := oscalTypes_1_1_3.ImplementedComponent{
+		ComponentUuid: ic.ComponentUUID.String(),
+		Remarks:       ic.Remarks,
+	}
+
+	if len(ic.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(ic.Props)
+	}
+
+	if len(ic.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(ic.Links)
+	}
+
+	if len(ic.ResponsibleParties) > 0 {
+		outs := make([]oscalTypes_1_1_3.ResponsibleParty, len(ic.ResponsibleParties))
+		for i, rp := range ic.ResponsibleParties {
+			outs[i] = *rp.MarshalOscal()
+		}
+		ret.ResponsibleParties = &outs
+	}
+
+	return ret
 }
 
 type ControlImplementation struct {
@@ -682,8 +1124,31 @@ func (ci *ControlImplementation) UnmarshalOscal(oci oscalTypes_1_1_3.ControlImpl
 	return ci
 }
 
+func (ci *ControlImplementation) MarshalOscal() *oscalTypes_1_1_3.ControlImplementation {
+	ret := &oscalTypes_1_1_3.ControlImplementation{
+		Description: ci.Description,
+	}
+	if len(ci.SetParameters) > 0 {
+		params := make([]oscalTypes_1_1_3.SetParameter, len(ci.SetParameters))
+		for i, sp := range ci.SetParameters {
+			params[i] = *sp.MarshalOscal()
+		}
+		ret.SetParameters = &params
+	}
+	if len(ci.ImplementedRequirements) > 0 {
+		reqs := make([]oscalTypes_1_1_3.ImplementedRequirement, len(ci.ImplementedRequirements))
+		for i, ir := range ci.ImplementedRequirements {
+			reqs[i] = *ir.MarshalOscal()
+		}
+		ret.ImplementedRequirements = reqs
+	}
+	return ret
+}
+
 type ImplementedRequirement struct {
 	UUIDModel
+	ControlImplementationId uuid.UUID
+
 	ControlId        string                               `json:"control-id"`
 	Props            datatypes.JSONSlice[Prop]            `json:"props"`
 	Links            datatypes.JSONSlice[Link]            `json:"links"`
@@ -692,11 +1157,6 @@ type ImplementedRequirement struct {
 	Remarks          string                               `json:"remarks"`
 	ByComponents     []ByComponent                        `json:"by-components" gorm:"Polymorphic:Parent"`
 	Statements       []Statement                          `json:"statements"`
-
-	ControlImplementationId uuid.UUID
-
-	// Statements
-	// ByComponents
 }
 
 func (ir *ImplementedRequirement) UnmarshalOscal(oir oscalTypes_1_1_3.ImplementedRequirement) *ImplementedRequirement {
@@ -734,6 +1194,49 @@ func (ir *ImplementedRequirement) UnmarshalOscal(oir oscalTypes_1_1_3.Implemente
 	return ir
 }
 
+func (ir *ImplementedRequirement) MarshalOscal() *oscalTypes_1_1_3.ImplementedRequirement {
+	ret := &oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      ir.UUIDModel.ID.String(),
+		ControlId: ir.ControlId,
+		Remarks:   ir.Remarks,
+	}
+	if len(ir.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(ir.Props)
+	}
+	if len(ir.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(ir.Links)
+	}
+	if len(ir.SetParameters) > 0 {
+		params := make([]oscalTypes_1_1_3.SetParameter, len(ir.SetParameters))
+		for i, sp := range ir.SetParameters {
+			params[i] = *sp.MarshalOscal()
+		}
+		ret.SetParameters = &params
+	}
+	if len(ir.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(ir.ResponsibleRoles))
+		for i, rr := range ir.ResponsibleRoles {
+			roles[i] = *rr.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+	if len(ir.ByComponents) > 0 {
+		bcs := make([]oscalTypes_1_1_3.ByComponent, len(ir.ByComponents))
+		for i, bc := range ir.ByComponents {
+			bcs[i] = *bc.MarshalOscal()
+		}
+		ret.ByComponents = &bcs
+	}
+	if len(ir.Statements) > 0 {
+		stmts := make([]oscalTypes_1_1_3.Statement, len(ir.Statements))
+		for i, st := range ir.Statements {
+			stmts[i] = *st.MarshalOscal()
+		}
+		ret.Statements = &stmts
+	}
+	return ret
+}
+
 type ByComponent struct {
 	UUIDModel
 
@@ -748,9 +1251,9 @@ type ByComponent struct {
 	SetParameters        datatypes.JSONSlice[SetParameter]              `json:"set-parameters"`
 	ResponsibleRoles     datatypes.JSONSlice[ResponsibleRole]           `json:"responsible-parties"`
 	Remarks              string                                         `json:"remarks"`
-	ImplementationStatus datatypes.JSONSlice[ImplementationStatus]      `json:"implementation-status"`
-	Export               Export                                         `json:"export"`
-	Inherited            []InheritedControlImplementation               `json:"inherited-control-implementations"`
+	ImplementationStatus datatypes.JSONType[ImplementationStatus]       `json:"implementation-status"`
+	Export               *Export                                        `json:"export,omitempty"`
+	Inherited            []InheritedControlImplementation               `json:"inherited-control-implementations,omitempty"`
 	Satisfied            []SatisfiedControlImplementationResponsibility `json:"satisfied"`
 }
 
@@ -758,17 +1261,13 @@ func (bc *ByComponent) UnmarshalOscal(obc oscalTypes_1_1_3.ByComponent) *ByCompo
 	id := uuid.MustParse(obc.UUID)
 	componentId := uuid.MustParse(obc.ComponentUuid)
 
-	export := Export{}
-	if obc.Export != nil {
-		export.UnmarshalOscal(*obc.Export)
-	}
-
 	*bc = ByComponent{
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
 		ComponentUUID: componentId,
 		Description:   obc.Description,
+		Remarks:       obc.Remarks,
 		Props:         ConvertOscalToProps(obc.Props),
 		Links:         ConvertOscalToLinks(obc.Links),
 		SetParameters: ConvertList(obc.SetParameters, func(op oscalTypes_1_1_3.SetParameter) SetParameter {
@@ -781,10 +1280,71 @@ func (bc *ByComponent) UnmarshalOscal(obc oscalTypes_1_1_3.ByComponent) *ByCompo
 			role.UnmarshalOscal(orr)
 			return role
 		}),
-		Remarks: obc.Remarks,
-		Export:  export,
+		Inherited: ConvertList(obc.Inherited, func(in oscalTypes_1_1_3.InheritedControlImplementation) InheritedControlImplementation {
+			ret := InheritedControlImplementation{}
+			ret.UnmarshalOscal(in)
+			return ret
+		}),
+		Satisfied: ConvertList(obc.Satisfied, func(in oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility) SatisfiedControlImplementationResponsibility {
+			ret := SatisfiedControlImplementationResponsibility{}
+			ret.UnmarshalOscal(in)
+			return ret
+		}),
 	}
+
+	if obc.Export != nil {
+		export := Export{}
+		bc.Export = export.UnmarshalOscal(*obc.Export)
+	}
+
 	return bc
+}
+
+func (bc *ByComponent) MarshalOscal() *oscalTypes_1_1_3.ByComponent {
+	ret := &oscalTypes_1_1_3.ByComponent{
+		UUID:          bc.UUIDModel.ID.String(),
+		ComponentUuid: bc.ComponentUUID.String(),
+		Description:   bc.Description,
+		Remarks:       bc.Remarks,
+	}
+	if len(bc.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(bc.Props)
+	}
+	if len(bc.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(bc.Links)
+	}
+	if len(bc.SetParameters) > 0 {
+		params := make([]oscalTypes_1_1_3.SetParameter, len(bc.SetParameters))
+		for i, sp := range bc.SetParameters {
+			params[i] = *sp.MarshalOscal()
+		}
+		ret.SetParameters = &params
+	}
+	if len(bc.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(bc.ResponsibleRoles))
+		for i, rr := range bc.ResponsibleRoles {
+			roles[i] = *rr.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+	if len(bc.Inherited) > 0 {
+		inherited := make([]oscalTypes_1_1_3.InheritedControlImplementation, len(bc.Inherited))
+		for i, rr := range bc.Inherited {
+			inherited[i] = *rr.MarshalOscal()
+		}
+		ret.Inherited = &inherited
+	}
+	if bc.Export != nil {
+		ret.Export = bc.Export.MarshalOscal()
+	}
+	if len(bc.Satisfied) > 0 {
+		satisfied := make([]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility, len(bc.Inherited))
+		for i, rr := range bc.Satisfied {
+			satisfied[i] = *rr.MarshalOscal()
+		}
+		ret.Satisfied = &satisfied
+	}
+	return ret
 }
 
 type ImplementationStatus oscalTypes_1_1_3.ImplementationStatus
@@ -792,6 +1352,11 @@ type ImplementationStatus oscalTypes_1_1_3.ImplementationStatus
 func (is *ImplementationStatus) UnmarshalOscal(ois oscalTypes_1_1_3.ImplementationStatus) *ImplementationStatus {
 	*is = ImplementationStatus(ois)
 	return is
+}
+
+func (is *ImplementationStatus) MarshalOscal() *oscalTypes_1_1_3.ImplementationStatus {
+	ret := oscalTypes_1_1_3.ImplementationStatus(*is)
+	return &ret
 }
 
 type Export struct {
@@ -808,7 +1373,6 @@ type Export struct {
 
 func (e *Export) UnmarshalOscal(oe oscalTypes_1_1_3.Export) *Export {
 	*e = Export{
-		UUIDModel:   UUIDModel{},
 		Description: oe.Description,
 		Props:       ConvertOscalToProps(oe.Props),
 		Links:       ConvertOscalToLinks(oe.Links),
@@ -826,6 +1390,34 @@ func (e *Export) UnmarshalOscal(oe oscalTypes_1_1_3.Export) *Export {
 	}
 
 	return e
+}
+
+func (e *Export) MarshalOscal() *oscalTypes_1_1_3.Export {
+	ret := &oscalTypes_1_1_3.Export{
+		Description: e.Description,
+		Remarks:     e.Remarks,
+	}
+	if len(e.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(e.Props)
+	}
+	if len(e.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(e.Links)
+	}
+	if len(e.Provided) > 0 {
+		prov := make([]oscalTypes_1_1_3.ProvidedControlImplementation, len(e.Provided))
+		for i, p := range e.Provided {
+			prov[i] = *p.MarshalOscal()
+		}
+		ret.Provided = &prov
+	}
+	if len(e.Responsibilities) > 0 {
+		resp := make([]oscalTypes_1_1_3.ControlImplementationResponsibility, len(e.Responsibilities))
+		for i, r := range e.Responsibilities {
+			resp[i] = *r.MarshalOscal()
+		}
+		ret.Responsibilities = &resp
+	}
+	return ret
 }
 
 type ProvidedControlImplementation struct {
@@ -858,9 +1450,38 @@ func (pci *ProvidedControlImplementation) UnmarshalOscal(opci oscalTypes_1_1_3.P
 	return pci
 }
 
+func (pci *ProvidedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.ProvidedControlImplementation {
+	ret := oscalTypes_1_1_3.ProvidedControlImplementation{
+		UUID:        pci.UUIDModel.ID.String(),
+		Description: pci.Description,
+	}
+
+	if pci.Remarks != "" {
+		ret.Remarks = pci.Remarks
+	}
+
+	if len(pci.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(pci.Props)
+	}
+
+	if len(pci.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(pci.Links)
+	}
+
+	if len(pci.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(pci.ResponsibleRoles))
+		for i, role := range pci.ResponsibleRoles {
+			roles[i] = *role.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	return &ret
+}
+
 type ControlImplementationResponsibility struct {
 	UUIDModel
-	Description      string                               `json:"description"`
+	Description      string                               `json:"description"` // required
 	Links            datatypes.JSONSlice[Link]            `json:"links"`
 	Props            datatypes.JSONSlice[Prop]            `json:"props"`
 	ProvidedUuid     uuid.UUID                            `json:"provided-uuid"`
@@ -898,10 +1519,43 @@ func (cir *ControlImplementationResponsibility) UnmarshalOscal(ocir oscalTypes_1
 	return cir
 }
 
+func (cir *ControlImplementationResponsibility) MarshalOscal() *oscalTypes_1_1_3.ControlImplementationResponsibility {
+	ret := oscalTypes_1_1_3.ControlImplementationResponsibility{
+		UUID:        cir.UUIDModel.ID.String(),
+		Description: cir.Description,
+	}
+
+	if cir.ProvidedUuid != uuid.Nil {
+		ret.ProvidedUuid = cir.ProvidedUuid.String()
+	}
+
+	if cir.Remarks != "" {
+		ret.Remarks = cir.Remarks
+	}
+
+	if len(cir.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(cir.Props)
+	}
+
+	if len(cir.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(cir.Links)
+	}
+
+	if len(cir.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(cir.ResponsibleRoles))
+		for i, role := range cir.ResponsibleRoles {
+			roles[i] = *role.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	return &ret
+}
+
 type InheritedControlImplementation struct {
-	UUIDModel
+	UUIDModel                                             //required
 	ProvidedUuid     uuid.UUID                            `json:"provided-uuid"`
-	Description      string                               `json:"description"`
+	Description      string                               `json:"description"` //required
 	Links            datatypes.JSONSlice[Link]            `json:"links"`
 	Props            datatypes.JSONSlice[Prop]            `json:"props"`
 	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
@@ -910,12 +1564,15 @@ type InheritedControlImplementation struct {
 }
 
 func (i *InheritedControlImplementation) UnmarshalOscal(oi oscalTypes_1_1_3.InheritedControlImplementation) *InheritedControlImplementation {
+	id := uuid.MustParse(oi.UUID)
 	providedUuid, err := uuid.Parse(oi.ProvidedUuid)
 	if err != nil {
 		providedUuid = uuid.Nil
 	}
 	*i = InheritedControlImplementation{
-		UUIDModel:    UUIDModel{},
+		UUIDModel: UUIDModel{
+			ID: &id,
+		},
 		ProvidedUuid: providedUuid,
 		Description:  oi.Description,
 		Links:        ConvertOscalToLinks(oi.Links),
@@ -928,6 +1585,35 @@ func (i *InheritedControlImplementation) UnmarshalOscal(oi oscalTypes_1_1_3.Inhe
 	}
 
 	return i
+}
+
+func (i *InheritedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.InheritedControlImplementation {
+	ret := oscalTypes_1_1_3.InheritedControlImplementation{
+		UUID:        i.UUIDModel.ID.String(),
+		Description: i.Description,
+	}
+
+	if i.ProvidedUuid != uuid.Nil {
+		ret.ProvidedUuid = i.ProvidedUuid.String()
+	}
+
+	if len(i.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(i.Props)
+	}
+
+	if len(i.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(i.Links)
+	}
+
+	if len(i.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(i.ResponsibleRoles))
+		for i, role := range i.ResponsibleRoles {
+			roles[i] = *role.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	return &ret
 }
 
 type SatisfiedControlImplementationResponsibility struct {
@@ -967,13 +1653,52 @@ func (s *SatisfiedControlImplementationResponsibility) UnmarshalOscal(os oscalTy
 	return s
 }
 
+func (s *SatisfiedControlImplementationResponsibility) MarshalOscal() *oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility {
+	ret := oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility{
+		UUID:               s.UUIDModel.ID.String(),
+		ResponsibilityUuid: s.ResponsibilityUuid.String(),
+		Description:        "",
+		Remarks:            "",
+	}
+
+	if s.ResponsibilityUuid != uuid.Nil {
+		ret.ResponsibilityUuid = s.ResponsibilityUuid.String()
+	}
+
+	if len(s.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(s.Props)
+	}
+
+	if len(s.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(s.Links)
+	}
+
+	if s.Description != "" {
+		ret.Description = s.Description
+	}
+
+	if s.Remarks != "" {
+		ret.Remarks = s.Remarks
+	}
+
+	if len(s.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(s.ResponsibleRoles))
+		for i, role := range s.ResponsibleRoles {
+			roles[i] = *role.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+
+	return &ret
+}
+
 type Statement struct {
 	UUIDModel
 	StatementId      string                               `json:"statement-id"`
 	Props            datatypes.JSONSlice[Prop]            `json:"props"`
 	Links            datatypes.JSONSlice[Link]            `json:"links"`
 	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
-	ByComponents     []ByComponent                        `json:"by-components" gorm:"polymorphic:Parent"`
+	ByComponents     []ByComponent                        `json:"by-components,omitempty" gorm:"polymorphic:Parent"`
 	Remarks          string                               `json:"remarks"`
 
 	ImplementedRequirementId uuid.UUID
@@ -1003,4 +1728,32 @@ func (s *Statement) UnmarshalOscal(os oscalTypes_1_1_3.Statement) *Statement {
 	}
 
 	return s
+}
+
+func (s *Statement) MarshalOscal() *oscalTypes_1_1_3.Statement {
+	ret := &oscalTypes_1_1_3.Statement{
+		UUID:        s.UUIDModel.ID.String(),
+		StatementId: s.StatementId,
+		Remarks:     s.Remarks,
+	}
+	if len(s.Props) > 0 {
+		ret.Props = ConvertPropsToOscal(s.Props)
+	}
+	if len(s.Links) > 0 {
+		ret.Links = ConvertLinksToOscal(s.Links)
+	}
+	if len(s.ResponsibleRoles) > 0 {
+		roles := make([]oscalTypes_1_1_3.ResponsibleRole, len(s.ResponsibleRoles))
+		for i, rr := range s.ResponsibleRoles {
+			roles[i] = *rr.MarshalOscal()
+		}
+		ret.ResponsibleRoles = &roles
+	}
+	if len(s.ByComponents) > 0 {
+		comps := ConvertList(&s.ByComponents, func(in ByComponent) oscalTypes_1_1_3.ByComponent {
+			return *in.MarshalOscal()
+		})
+		ret.ByComponents = &comps
+	}
+	return ret
 }

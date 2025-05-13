@@ -11,4 +11,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	catalogHandler := NewCatalogHandler(logger, db)
 	catalogHandler.Register(oscalGroup.Group("/catalogs"))
+
+	sspHandler := NewSystemSecurityPlanHandler(logger, db)
+	sspHandler.Register(oscalGroup.Group("/ssp"))
 }

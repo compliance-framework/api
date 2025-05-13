@@ -121,20 +121,6 @@ func (dc *DefinedComponent) UnmarshalOscal(odc oscalTypes_1_1_3.DefinedComponent
 	return dc
 }
 
-type Protocol oscalTypes_1_1_3.Protocol
-
-func (p *Protocol) UnmarshalOscal(op oscalTypes_1_1_3.Protocol) *Protocol {
-	*p = Protocol(op)
-	return p
-}
-
-type SetParameter oscalTypes_1_1_3.SetParameter
-
-func (sp *SetParameter) UnmarshalOscal(osp oscalTypes_1_1_3.SetParameter) *SetParameter {
-	*sp = SetParameter(osp)
-	return sp
-}
-
 type ControlImplementationSet struct {
 	UUIDModel
 	Source        string                            `json:"source"`
@@ -287,13 +273,6 @@ func (s *ControlStatementImplementation) UnmarshalOscal(oci oscalTypes_1_1_3.Con
 	}
 
 	return s
-}
-
-type ResponsibleRole oscalTypes_1_1_3.ResponsibleRole
-
-func (rr *ResponsibleRole) UnmarshalOscal(osc oscalTypes_1_1_3.ResponsibleRole) *ResponsibleRole {
-	*rr = ResponsibleRole(osc)
-	return rr
 }
 
 type ImportComponentDefinition oscalTypes_1_1_3.ImportComponentDefinition
