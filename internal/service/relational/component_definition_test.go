@@ -648,7 +648,7 @@ func TestFileComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 	t.Run("Full Component Definition", func(t *testing.T) {
 		// This test ensures that a FULL component definition can be unmarshalled, and re-marshalled, producing the same JSON object.
 		// This proves our entire schema for a Component Definition works correctly.
-		f, err := os.Open("../../../testdata/sp800-53-component.json")
+		f, err := os.Open("../../../testdata/sp800-53-component-aws.json")
 		assert.NoError(t, err)
 		defer f.Close()
 
