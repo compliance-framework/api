@@ -2056,6 +2056,38 @@
                 }
             }
         },
+        "/oscal/component-definitions": {
+            "get": {
+                "description": "Retrieves all component definitions.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List component definitions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_List_responseComponentDefinition"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/ssp/{id}/back-matter": {
             "get": {
                 "description": "Retrieves the back-matter for a given System Security Plan by the specified param ID in the path",
@@ -2312,6 +2344,18 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.List.responseCatalog"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscal_List_responseComponentDefinition": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.List.responseComponentDefinition"
                     }
                 }
             }
@@ -2667,6 +2711,17 @@
             }
         },
         "oscal.List.responseCatalog": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.List.responseComponentDefinition": {
             "type": "object",
             "properties": {
                 "metadata": {
