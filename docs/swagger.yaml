@@ -8,6 +8,14 @@ definitions:
         additionalProperties: true
         type: object
     type: object
+  handler.GenericDataListResponse-oscal_List_response:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.List.response'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_List_responseCatalog:
     properties:
       data:
@@ -136,6 +144,13 @@ definitions:
           $ref: '#/definitions/service.Subject'
         type: array
     type: object
+  handler.GenericDataResponse-oscal_Get_response:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.Get.response'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_Get_responseCatalog:
     properties:
       data:
@@ -169,6 +184,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Group'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.SystemCharacteristics'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-service_Catalog:
@@ -251,7 +273,21 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  oscal.Get.response:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
   oscal.Get.responseCatalog:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
+  oscal.List.response:
     properties:
       metadata:
         $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
@@ -312,6 +348,25 @@ definitions:
       state:
         type: string
       type:
+        type: string
+    type: object
+  oscalTypes_1_1_3.AuthorizationBoundary:
+    properties:
+      description:
+        type: string
+      diagrams:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
         type: string
     type: object
   oscalTypes_1_1_3.BackMatter:
@@ -400,6 +455,44 @@ definitions:
       title:
         type: string
     type: object
+  oscalTypes_1_1_3.DataFlow:
+    properties:
+      description:
+        type: string
+      diagrams:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Diagram:
+    properties:
+      caption:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.DocumentId:
     properties:
       identifier:
@@ -445,6 +538,59 @@ definitions:
       algorithm:
         type: string
       value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Impact:
+    properties:
+      adjustment-justification:
+        type: string
+      base:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      selected:
+        type: string
+    type: object
+  oscalTypes_1_1_3.InformationType:
+    properties:
+      availability-impact:
+        $ref: '#/definitions/oscalTypes_1_1_3.Impact'
+      categorizations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InformationTypeCategorization'
+        type: array
+      confidentiality-impact:
+        $ref: '#/definitions/oscalTypes_1_1_3.Impact'
+      description:
+        type: string
+      integrity-impact:
+        $ref: '#/definitions/oscalTypes_1_1_3.Impact'
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.InformationTypeCategorization:
+    properties:
+      information-type-ids:
+        items:
+          type: string
+        type: array
+      system:
         type: string
     type: object
   oscalTypes_1_1_3.Link:
@@ -540,6 +686,25 @@ definitions:
       title:
         type: string
       version:
+        type: string
+    type: object
+  oscalTypes_1_1_3.NetworkArchitecture:
+    properties:
+      description:
+        type: string
+      diagrams:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
         type: string
     type: object
   oscalTypes_1_1_3.Parameter:
@@ -798,6 +963,87 @@ definitions:
         type: string
       title:
         type: string
+    type: object
+  oscalTypes_1_1_3.SecurityImpactLevel:
+    properties:
+      security-objective-availability:
+        type: string
+      security-objective-confidentiality:
+        type: string
+      security-objective-integrity:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Status:
+    properties:
+      remarks:
+        type: string
+      state:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SystemCharacteristics:
+    properties:
+      authorization-boundary:
+        $ref: '#/definitions/oscalTypes_1_1_3.AuthorizationBoundary'
+      data-flow:
+        $ref: '#/definitions/oscalTypes_1_1_3.DataFlow'
+      date-authorized:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      network-architecture:
+        $ref: '#/definitions/oscalTypes_1_1_3.NetworkArchitecture'
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+      security-impact-level:
+        $ref: '#/definitions/oscalTypes_1_1_3.SecurityImpactLevel'
+      security-sensitivity-level:
+        type: string
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.Status'
+      system-ids:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemId'
+        type: array
+      system-information:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemInformation'
+      system-name:
+        type: string
+      system-name-short:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SystemId:
+    properties:
+      id:
+        type: string
+      identifier-type:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SystemInformation:
+    properties:
+      information-types:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InformationType'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
     type: object
   oscalTypes_1_1_3.TelephoneNumber:
     properties:

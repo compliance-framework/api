@@ -96,16 +96,16 @@ type SystemCharacteristics struct {
 	SecuritySensitivityLevel string     `json:"security-sensitivity-level"`
 	Remarks                  string     `json:"remarks"`
 
-	SystemIds            datatypes.JSONSlice[SystemId]         `json:"system-ids"`
-	SystemInformation    SystemInformation                     `json:"system-information"`
-	Status               datatypes.JSONType[Status]            `json:"status"`
-	AuthorizationBoundry AuthorizationBoundary                 `json:"authorization-boundary"`
-	NetworkArchitecture  *NetworkArchitecture                  `json:"network-architecture"`
-	DataFlow             *DataFlow                             `json:"data-flow"`
-	SecurityImpactLevel  *SecurityImpactLevel                  `json:"security-impact-level"`
-	Links                datatypes.JSONSlice[Link]             `json:"links"`
-	Props                datatypes.JSONSlice[Prop]             `json:"props"`
-	ResponsibleParties   datatypes.JSONSlice[ResponsibleParty] `json:"responsible-role"`
+	SystemIds            datatypes.JSONSlice[SystemId]             `json:"system-ids"`
+	Status               datatypes.JSONType[Status]                `json:"status"`
+	SystemInformation    datatypes.JSONType[SystemInformation]     `json:"system-information"`
+	AuthorizationBoundry datatypes.JSONType[AuthorizationBoundary] `json:"authorization-boundary"`
+	NetworkArchitecture  *datatypes.JSONType[NetworkArchitecture]  `json:"network-architecture"`
+	DataFlow             *datatypes.JSONType[DataFlow]             `json:"data-flow"`
+	SecurityImpactLevel  *datatypes.JSONType[SecurityImpactLevel]  `json:"security-impact-level"`
+	Links                datatypes.JSONSlice[Link]                 `json:"links"`
+	Props                datatypes.JSONSlice[Prop]                 `json:"props"`
+	ResponsibleParties   datatypes.JSONSlice[ResponsibleParty]     `json:"responsible-parties"`
 
 	SystemSecurityPlanId uuid.UUID
 }
@@ -144,26 +144,27 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 		Links:                    links,
 		Props:                    props,
 		SystemIds:                systemIds,
-		SystemInformation:        systemInformation,
+		SystemInformation:        datatypes.NewJSONType(systemInformation),
 		Status:                   datatypes.NewJSONType[Status](status),
-		AuthorizationBoundry:     authBoundary,
+		AuthorizationBoundry:     datatypes.NewJSONType(authBoundary),
 		ResponsibleParties:       datatypes.NewJSONSlice[ResponsibleParty](responsibleParties),
 	}
 
 	if osc.NetworkArchitecture != nil {
 		networkArchitecture := NetworkArchitecture{}
-		sc.NetworkArchitecture = networkArchitecture.UnmarshalOscal(*osc.NetworkArchitecture)
+		jsonType := datatypes.NewJSONType[NetworkArchitecture](*networkArchitecture.UnmarshalOscal(*osc.NetworkArchitecture))
+		sc.NetworkArchitecture = &jsonType
 	}
 
 	if osc.DataFlow != nil {
 		dataFlow := DataFlow{}
-		sc.DataFlow = dataFlow.UnmarshalOscal(*osc.DataFlow)
+		jsonType := datatypes.NewJSONType[DataFlow](*dataFlow.UnmarshalOscal(*osc.DataFlow))
+		sc.DataFlow = &jsonType
 	}
 
 	if osc.DateAuthorized != "" {
 		if len(osc.DateAuthorized) > 0 {
-			// Todo: Assume that a timezone is attached as per the spec - https://pages.nist.gov/metaschema/specification/datatypes/#date
-			parsed, err := time.Parse(time.DateTime, osc.DateAuthorized)
+			parsed, err := time.Parse(time.DateOnly, osc.DateAuthorized)
 			if err != nil {
 				panic(err)
 			}
@@ -173,8 +174,8 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 
 	if osc.SecurityImpactLevel != nil {
 		securityImpact := SecurityImpactLevel{}
-		securityImpact.UnmarshalOscal(*osc.SecurityImpactLevel)
-		sc.SecurityImpactLevel = &securityImpact
+		jsonType := datatypes.NewJSONType[SecurityImpactLevel](*securityImpact.UnmarshalOscal(*osc.SecurityImpactLevel))
+		sc.SecurityImpactLevel = &jsonType
 	}
 
 	return sc
@@ -190,7 +191,7 @@ func (sc *SystemCharacteristics) MarshalOscal() *oscalTypes_1_1_3.SystemCharacte
 		Remarks:                  sc.Remarks,
 	}
 	if sc.DateAuthorized != nil {
-		oc.DateAuthorized = sc.DateAuthorized.Format(time.DateTime)
+		oc.DateAuthorized = sc.DateAuthorized.Format(time.DateOnly)
 	}
 	if len(sc.SystemIds) > 0 {
 		ids := make([]oscalTypes_1_1_3.SystemId, len(sc.SystemIds))
@@ -200,21 +201,26 @@ func (sc *SystemCharacteristics) MarshalOscal() *oscalTypes_1_1_3.SystemCharacte
 		oc.SystemIds = ids
 	}
 
-	oc.SystemInformation = *sc.SystemInformation.MarshalOscal()
+	systemInfo := sc.SystemInformation.Data()
+	oc.SystemInformation = *systemInfo.MarshalOscal()
 
 	status := sc.Status.Data()
 	oc.Status = *status.MarshalOscal()
 
-	oc.AuthorizationBoundary = *sc.AuthorizationBoundry.MarshalOscal()
+	authBoundary := sc.AuthorizationBoundry.Data()
+	oc.AuthorizationBoundary = *authBoundary.MarshalOscal()
 
 	if sc.NetworkArchitecture != nil {
-		oc.NetworkArchitecture = sc.NetworkArchitecture.MarshalOscal()
+		networkArch := sc.NetworkArchitecture.Data()
+		oc.NetworkArchitecture = networkArch.MarshalOscal()
 	}
 	if sc.DataFlow != nil {
-		oc.DataFlow = sc.DataFlow.MarshalOscal()
+		dataFlow := sc.DataFlow.Data()
+		oc.DataFlow = dataFlow.MarshalOscal()
 	}
 	if sc.SecurityImpactLevel != nil {
-		oc.SecurityImpactLevel = sc.SecurityImpactLevel.MarshalOscal()
+		securityImpact := sc.SecurityImpactLevel.Data()
+		oc.SecurityImpactLevel = securityImpact.MarshalOscal()
 	}
 	if len(sc.Props) > 0 {
 		oc.Props = ConvertPropsToOscal(sc.Props)

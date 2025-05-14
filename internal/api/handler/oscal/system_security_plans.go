@@ -30,18 +30,22 @@ func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *System
 func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
 	api.GET("/:id", h.Get)
+	api.GET("/:id/system-characteristics", h.GetCharacteristics)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 }
 
+//	@Success	200	{object}	handler.GenericDataListResponse[oscal.List.response]
 func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
+	type response struct {
+		UUID     uuid.UUID                 `json:"uuid"`
+		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
+	}
+
 	var ssps []relational.SystemSecurityPlan
 
-	// TODO: Add more preloads for other models we need to pull data from
-	// TODO: Add in pagination & limits within the API endpoint and the query
 	if err := h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
-		Preload("Metadata.Roles").
 		Find(&ssps).Error; err != nil {
 		h.sugar.Error(err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -49,19 +53,63 @@ func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
 
 	oscalSSP := make([]oscalTypes_1_1_3.SystemSecurityPlan, len(ssps))
 	for i, ssp := range ssps {
-		// TODO: Only the main SSP has been Marshaled with the UUID and Metadata - we need to expand it further down throughout the relational model
 		oscalSSP[i] = *ssp.MarshalOscal()
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: oscalSSP})
 }
 
+//	@Success	200	{object}	handler.GenericDataResponse[oscal.Get.response]
 func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
-	// TODO: Pull 1 specific SSP via an id specified within the URI
-	// TODO: make sure it exists and return an error if the UUID is not found that is sensible
-	var ssp oscalTypes_1_1_3.SystemSecurityPlan
+	type response struct {
+		UUID     uuid.UUID                 `json:"uuid"`
+		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
+	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: ssp})
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.SystemSecurityPlan]{Data: ssp.MarshalOscal()})
+}
+
+//	@Success	200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]
+func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("Metadata").
+		Preload("SystemCharacteristics").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]{Data: ssp.MarshalOscal().SystemCharacteristics})
 }
 
 // GetBackMatter godoc

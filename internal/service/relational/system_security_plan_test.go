@@ -590,7 +590,7 @@ func TestInformationType_OscalMarshalling(t *testing.T) {
 
 func TestSystemCharacteristics_OscalMarshalling(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	dateStr := now.Format(time.DateTime)
+	dateStr := now.Format(time.DateOnly)
 	oscalSC := oscalTypes_1_1_3.SystemCharacteristics{
 		SystemName:               "name",
 		SystemNameShort:          "short",

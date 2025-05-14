@@ -10,7 +10,7 @@ type BackMatter struct {
 	UUIDModel
 	ParentID   *string
 	ParentType *string
-	Resources  []BackMatterResource `json:"resources"`
+	Resources  []BackMatterResource
 }
 
 func (b *BackMatter) UnmarshalOscal(resource oscaltypes113.BackMatter) *BackMatter {
