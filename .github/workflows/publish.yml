@@ -10,7 +10,6 @@ on:
       - seed
     tags:
       - v*
-  pull_request:
 
 jobs:
   publish:
