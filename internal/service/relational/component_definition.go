@@ -220,38 +220,6 @@ func (dc *DefinedComponent) MarshalOscal() *oscalTypes_1_1_3.DefinedComponent {
 	return &ret
 }
 
-// Protocol represents a network protocol in OSCAL.
-// It includes name, port ranges, title, and UUID.
-// type Protocol oscalTypes_1_1_3.Protocol
-
-// UnmarshalOscal converts an OSCAL Protocol into a relational Protocol.
-// func (p *Protocol) UnmarshalOscal(op oscalTypes_1_1_3.Protocol) *Protocol {
-// 	*p = Protocol(op)
-// 	return p
-// }
-
-// MarshalOscal converts the relational Protocol back into an OSCAL Protocol structure.
-// func (p *Protocol) MarshalOscal() *oscalTypes_1_1_3.Protocol {
-// 	osc := oscalTypes_1_1_3.Protocol(*p)
-// 	return &osc
-// }
-
-// SetParameter represents a parameter setting in OSCAL.
-// It includes parameter ID, remarks, and values.
-// type SetParameter oscalTypes_1_1_3.SetParameter
-
-// UnmarshalOscal converts an OSCAL SetParameter into a relational SetParameter.
-// func (sp *SetParameter) UnmarshalOscal(osp oscalTypes_1_1_3.SetParameter) *SetParameter {
-// 	*sp = SetParameter(osp)
-// 	return sp
-// }
-
-// MarshalOscal converts the relational SetParameter back into an OSCAL SetParameter structure.
-// func (sp *SetParameter) MarshalOscal() *oscalTypes_1_1_3.SetParameter {
-// 	osc := oscalTypes_1_1_3.SetParameter(*sp)
-// 	return &osc
-// }
-
 // ControlImplementationSet represents a set of control implementations in OSCAL.
 // It includes source, description, set parameters, implemented requirements, properties, and links.
 type ControlImplementationSet struct {
@@ -511,22 +479,6 @@ func (s *ControlStatementImplementation) MarshalOscal() *oscalTypes_1_1_3.Contro
 
 	return &ret
 }
-
-// ResponsibleRole represents a responsible role in OSCAL.
-// It includes links, party UUIDs, properties, remarks, and role ID.
-// type ResponsibleRole oscalTypes_1_1_3.ResponsibleRole
-
-// UnmarshalOscal converts an OSCAL ResponsibleRole into a relational ResponsibleRole.
-// func (rr *ResponsibleRole) UnmarshalOscal(osc oscalTypes_1_1_3.ResponsibleRole) *ResponsibleRole {
-// 	*rr = ResponsibleRole(osc)
-// 	return rr
-// }
-
-// MarshalOscal converts the relational ResponsibleRole back into an OSCAL ResponsibleRole structure.
-// func (rr *ResponsibleRole) MarshalOscal() *oscalTypes_1_1_3.ResponsibleRole {
-// 	osc := oscalTypes_1_1_3.ResponsibleRole(*rr)
-// 	return &osc
-// }
 
 // ImportComponentDefinition represents an imported component definition in OSCAL.
 // It includes href for the imported component definition.
