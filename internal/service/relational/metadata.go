@@ -356,8 +356,16 @@ func (p *Party) UnmarshalOscal(oparty oscaltypes113.Party) *Party {
 			}
 			return location
 		}),
-		MemberOfOrganizations: nil,
-		Remarks:               &oparty.Remarks,
+		MemberOfOrganizations: ConvertList(oparty.MemberOfOrganizations, func(morg string) Party {
+			id := uuid.MustParse(morg)
+			organization := Party{
+				UUIDModel: UUIDModel{
+					ID: &id,
+				},
+			}
+			return organization
+		}),
+		Remarks: &oparty.Remarks,
 	}
 
 	if oparty.EmailAddresses != nil {
@@ -416,6 +424,21 @@ func (p *Party) MarshalOscal() *oscaltypes113.Party {
 	if p.Remarks != nil {
 		party.Remarks = *p.Remarks
 	}
+	if p.MemberOfOrganizations != nil {
+		morg := make([]string, len(p.MemberOfOrganizations))
+		for i, org := range p.MemberOfOrganizations {
+			morg[i] = org.ID.String()
+		}
+		party.MemberOfOrganizations = &morg
+	}
+	if p.Locations != nil {
+		locs := make([]string, len(p.Locations))
+		for i, loc := range p.Locations {
+			locs[i] = loc.ID.String()
+		}
+		party.LocationUuids = &locs
+	}
+
 	return party
 }
 
@@ -567,14 +590,12 @@ func (l *Location) UnmarshalOscal(olocation oscaltypes113.Location) *Location {
 				return &id
 			}(),
 		},
-		Title:          &olocation.Title,
-		EmailAddresses: *olocation.EmailAddresses,
+		Title: &olocation.Title,
 		TelephoneNumbers: ConvertList(olocation.TelephoneNumbers, func(onumb oscaltypes113.TelephoneNumber) TelephoneNumber {
 			numb := TelephoneNumber{}
 			numb.UnmarshalOscal(onumb)
 			return numb
 		}),
-		Urls: *olocation.Urls,
 		Props: ConvertList(olocation.Props, func(property oscaltypes113.Property) Prop {
 			prop := Prop{}
 			prop.UnmarshalOscal(property)
@@ -586,6 +607,14 @@ func (l *Location) UnmarshalOscal(olocation oscaltypes113.Location) *Location {
 			return link
 		}),
 		Remarks: &olocation.Remarks,
+	}
+
+	if olocation.Urls != nil {
+		l.Urls = *olocation.Urls
+	}
+
+	if olocation.EmailAddresses != nil {
+		l.EmailAddresses = *olocation.EmailAddresses
 	}
 
 	if olocation.Address != nil {
@@ -603,6 +632,7 @@ func (l *Location) MarshalOscal() *oscaltypes113.Location {
 	loc := &oscaltypes113.Location{
 		UUID:    l.UUIDModel.ID.String(),
 		Remarks: *l.Remarks,
+		Title:   *l.Title,
 	}
 	if len(l.Props) > 0 {
 		props := *ConvertPropsToOscal(l.Props)
@@ -628,6 +658,10 @@ func (l *Location) MarshalOscal() *oscaltypes113.Location {
 		urls := make([]string, len(l.Urls))
 		copy(urls, l.Urls)
 		loc.Urls = &urls
+	}
+	if l.Address != nil {
+		addr := l.Address.Data()
+		loc.Address = addr.MarshalOscal()
 	}
 	return loc
 }

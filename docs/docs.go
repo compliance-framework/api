@@ -2062,6 +2062,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/ssp/{id}/back-matter": {
+            "get": {
+                "description": "Retrieves the back-matter for a given System Security Plan by the specified param ID in the path",
+                "tags": [
+                    "Oscal System Security Plan"
+                ],
+                "summary": "Get back-matter for a System Security Plan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/subjects": {
             "get": {
                 "description": "Retrieves a list of all subjects from the database.",
