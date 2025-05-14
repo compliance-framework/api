@@ -16,6 +16,14 @@ definitions:
           $ref: '#/definitions/oscal.List.responseCatalog'
         type: array
     type: object
+  handler.GenericDataListResponse-oscal_List_responseComponentDefinition:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.List.responseComponentDefinition'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Control:
     properties:
       data:
@@ -251,6 +259,13 @@ definitions:
         type: string
     type: object
   oscal.List.responseCatalog:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
+  oscal.List.responseComponentDefinition:
     properties:
       metadata:
         $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
@@ -2625,6 +2640,27 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a new Sub-Group for a Catalog Group
+      tags:
+      - Oscal
+  /oscal/component-definitions:
+    get:
+      description: Retrieves all component definitions.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_List_responseComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List component definitions
       tags:
       - Oscal
   /oscal/ssp/{id}/back-matter:
