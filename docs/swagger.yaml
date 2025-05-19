@@ -8,14 +8,6 @@ definitions:
         additionalProperties: true
         type: object
     type: object
-  handler.GenericDataListResponse-oscal_List_response:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/oscal.List.response'
-        type: array
-    type: object
   handler.GenericDataListResponse-oscal_List_responseCatalog:
     properties:
       data:
@@ -46,6 +38,14 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Group'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemSecurityPlan'
         type: array
     type: object
   handler.GenericDataListResponse-service_Catalog:
@@ -144,18 +144,18 @@ definitions:
           $ref: '#/definitions/service.Subject'
         type: array
     type: object
-  handler.GenericDataResponse-oscal_Get_response:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/oscal.Get.response'
-        description: Items from the list response
-    type: object
   handler.GenericDataResponse-oscal_Get_responseCatalog:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscal.Get.responseCatalog'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_AuthorizationBoundary:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.AuthorizationBoundary'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter:
@@ -179,6 +179,20 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Control'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_DataFlow:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.DataFlow'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Diagram:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Group:
     properties:
       data:
@@ -186,11 +200,25 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Group'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_NetworkArchitecture:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.NetworkArchitecture'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemCharacteristics'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_SystemSecurityPlan:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.SystemSecurityPlan'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-service_Catalog:
@@ -273,21 +301,7 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
-  oscal.Get.response:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      uuid:
-        type: string
-    type: object
   oscal.Get.responseCatalog:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      uuid:
-        type: string
-    type: object
-  oscal.List.response:
     properties:
       metadata:
         $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
@@ -369,6 +383,17 @@ definitions:
       remarks:
         type: string
     type: object
+  oscalTypes_1_1_3.AuthorizedPrivilege:
+    properties:
+      description:
+        type: string
+      functions-performed:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
   oscalTypes_1_1_3.BackMatter:
     properties:
       resources:
@@ -383,6 +408,45 @@ definitions:
       media-type:
         type: string
       value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ByComponent:
+    properties:
+      component-uuid:
+        type: string
+      description:
+        type: string
+      export:
+        $ref: '#/definitions/oscalTypes_1_1_3.Export'
+      implementation-status:
+        $ref: '#/definitions/oscalTypes_1_1_3.ImplementationStatus'
+      inherited:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InheritedControlImplementation'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      satisfied:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SetParameter'
+        type: array
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Catalog:
@@ -455,6 +519,42 @@ definitions:
       title:
         type: string
     type: object
+  oscalTypes_1_1_3.ControlImplementation:
+    properties:
+      description:
+        type: string
+      implemented-requirements:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirement'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SetParameter'
+        type: array
+    type: object
+  oscalTypes_1_1_3.ControlImplementationResponsibility:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      provided-uuid:
+        type: string
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.DataFlow:
     properties:
       description:
@@ -499,6 +599,29 @@ definitions:
         type: string
       scheme:
         type: string
+    type: object
+  oscalTypes_1_1_3.Export:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      provided:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ProvidedControlImplementation'
+        type: array
+      remarks:
+        type: string
+      responsibilities:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
+        type: array
     type: object
   oscalTypes_1_1_3.Group:
     properties:
@@ -557,6 +680,72 @@ definitions:
       selected:
         type: string
     type: object
+  oscalTypes_1_1_3.ImplementationStatus:
+    properties:
+      remarks:
+        type: string
+      state:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ImplementedComponent:
+    properties:
+      component-uuid:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+    type: object
+  oscalTypes_1_1_3.ImplementedRequirement:
+    properties:
+      by-components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ByComponent'
+        type: array
+      control-id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SetParameter'
+        type: array
+      statements:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Statement'
+        type: array
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ImportProfile:
+    properties:
+      href:
+        type: string
+      remarks:
+        type: string
+    type: object
   oscalTypes_1_1_3.InformationType:
     properties:
       availability-impact:
@@ -591,6 +780,73 @@ definitions:
           type: string
         type: array
       system:
+        type: string
+    type: object
+  oscalTypes_1_1_3.InheritedControlImplementation:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      provided-uuid:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.InventoryItem:
+    properties:
+      description:
+        type: string
+      implemented-components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImplementedComponent'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.LeveragedAuthorization:
+    properties:
+      date-authorized:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      party-uuid:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Link:
@@ -846,6 +1102,15 @@ definitions:
       scheme:
         type: string
     type: object
+  oscalTypes_1_1_3.PortRange:
+    properties:
+      end:
+        type: integer
+      start:
+        type: integer
+      transport:
+        type: string
+    type: object
   oscalTypes_1_1_3.Property:
     properties:
       class:
@@ -861,6 +1126,40 @@ definitions:
       uuid:
         type: string
       value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Protocol:
+    properties:
+      name:
+        type: string
+      port-ranges:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.PortRange'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ProvidedControlImplementation:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Resource:
@@ -902,6 +1201,25 @@ definitions:
         type: string
     type: object
   oscalTypes_1_1_3.ResponsibleParty:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      party-uuids:
+        items:
+          type: string
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      role-id:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ResponsibleRole:
     properties:
       links:
         items:
@@ -964,6 +1282,29 @@ definitions:
       title:
         type: string
     type: object
+  oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsibility-uuid:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.SecurityImpactLevel:
     properties:
       security-objective-availability:
@@ -971,6 +1312,42 @@ definitions:
       security-objective-confidentiality:
         type: string
       security-objective-integrity:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SetParameter:
+    properties:
+      param-id:
+        type: string
+      remarks:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  oscalTypes_1_1_3.Statement:
+    properties:
+      by-components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ByComponent'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      statement-id:
+        type: string
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Status:
@@ -1023,12 +1400,81 @@ definitions:
       system-name-short:
         type: string
     type: object
+  oscalTypes_1_1_3.SystemComponent:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      protocols:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Protocol'
+        type: array
+      purpose:
+        type: string
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemComponentStatus'
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SystemComponentStatus:
+    properties:
+      remarks:
+        type: string
+      state:
+        type: string
+    type: object
   oscalTypes_1_1_3.SystemId:
     properties:
       id:
         type: string
       identifier-type:
         type: string
+    type: object
+  oscalTypes_1_1_3.SystemImplementation:
+    properties:
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
+      inventory-items:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+        type: array
+      leveraged-authorizations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.LeveragedAuthorization'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
+        type: array
     type: object
   oscalTypes_1_1_3.SystemInformation:
     properties:
@@ -1044,6 +1490,52 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Property'
         type: array
+    type: object
+  oscalTypes_1_1_3.SystemSecurityPlan:
+    properties:
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      control-implementation:
+        $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementation'
+      import-profile:
+        $ref: '#/definitions/oscalTypes_1_1_3.ImportProfile'
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      system-characteristics:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemCharacteristics'
+      system-implementation:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemImplementation'
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SystemUser:
+    properties:
+      authorized-privileges:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AuthorizedPrivilege'
+        type: array
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      role-ids:
+        items:
+          type: string
+        type: array
+      short-name:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
     type: object
   oscalTypes_1_1_3.TelephoneNumber:
     properties:
@@ -2909,21 +3401,43 @@ paths:
       summary: List component definitions
       tags:
       - Oscal
-  /oscal/ssp/{id}/back-matter:
+  /oscal/system-security-plans:
     get:
-      description: Retrieves the back-matter for a given System Security Plan by the
-        specified param ID in the path
+      description: Retrieves all System Security Plans.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List System Security Plans
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}:
+    get:
+      description: Retrieves a single System Security Plan by its unique ID.
       parameters:
       - description: System Security Plan ID
         in: path
         name: id
         required: true
         type: string
+      produces:
+      - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter'
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemSecurityPlan'
         "400":
           description: Bad Request
           schema:
@@ -2936,9 +3450,310 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Get back-matter for a System Security Plan
+      summary: Get a System Security Plan
       tags:
-      - Oscal System Security Plan
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics:
+    get:
+      description: Retrieves the System Characteristics for a given System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get System Characteristics
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates the System Characteristics for a given System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated System Characteristics object
+        in: body
+        name: characteristics
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemCharacteristics'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update System Characteristics
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics/authorization-boundary:
+    get:
+      description: Retrieves the Authorization Boundary for a given System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_AuthorizationBoundary'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get Authorization Boundary
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram}:
+    put:
+      consumes:
+      - application/json
+      description: Updates a specific Diagram under the Authorization Boundary of
+        a System Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Diagram ID
+        in: path
+        name: diagram
+        required: true
+        type: string
+      - description: Updated Diagram object
+        in: body
+        name: diagram
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update an Authorization Boundary Diagram
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics/data-flow:
+    get:
+      description: Retrieves the Data Flow for a given System Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_DataFlow'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get Data Flow
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram}:
+    put:
+      consumes:
+      - application/json
+      description: Updates a specific Diagram under the Data Flow of a System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Diagram ID
+        in: path
+        name: diagram
+        required: true
+        type: string
+      - description: Updated Diagram object
+        in: body
+        name: diagram
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a Data Flow Diagram
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics/network-architecture:
+    get:
+      description: Retrieves the Network Architecture for a given System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_NetworkArchitecture'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get Network Architecture
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram}:
+    put:
+      consumes:
+      - application/json
+      description: Updates a specific Diagram under the Network Architecture of a
+        System Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Diagram ID
+        in: path
+        name: diagram
+        required: true
+        type: string
+      - description: Updated Diagram object
+        in: body
+        name: diagram
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a Network Architecture Diagram
+      tags:
+      - Oscal
   /subjects:
     get:
       description: Retrieves a list of all subjects from the database.

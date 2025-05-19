@@ -100,10 +100,12 @@ func (m *Metadata) MarshalOscal() *oscaltypes113.Metadata {
 	md := &oscaltypes113.Metadata{
 		Title:        m.Title,
 		Published:    m.Published,
-		LastModified: *m.LastModified,
 		Version:      m.Version,
 		OscalVersion: m.OscalVersion,
 		Remarks:      m.Remarks,
+	}
+	if m.LastModified != nil {
+		md.LastModified = *m.LastModified
 	}
 	if len(m.DocumentIDs) > 0 {
 		docs := make([]oscaltypes113.DocumentId, len(m.DocumentIDs))
