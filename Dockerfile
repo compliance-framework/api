@@ -32,9 +32,9 @@ COPY . ./
 RUN make swag
 
 # Build it
-RUN CGO_ENABLED=0 GOOS=linux go build -o /configuration-service
+RUN GOOS=linux go build -o /configuration-service
 
-FROM alpine AS production
+FROM golang:1.23 AS production
 WORKDIR /
 
 COPY --from=builder /configuration-service /configuration-service
