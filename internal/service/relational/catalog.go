@@ -108,7 +108,7 @@ type Group struct {
 	Props  datatypes.JSONSlice[Prop]      `json:"props,omitempty"`
 	Links  datatypes.JSONSlice[Link]      `json:"links,omitempty"`
 
-	CatalogID  uuid.UUID
+	CatalogID  uuid.UUID `gorm:"primaryKey"`
 	ParentID   *string
 	ParentType *string
 
@@ -215,7 +215,7 @@ type Control struct {
 	Props  datatypes.JSONSlice[Prop]      `json:"props,omitempty"`
 	Links  datatypes.JSONSlice[Link]      `json:"links,omitempty"`
 
-	CatalogID  uuid.UUID
+	CatalogID  uuid.UUID `gorm:"primaryKey"`
 	ParentID   *string
 	ParentType *string
 
