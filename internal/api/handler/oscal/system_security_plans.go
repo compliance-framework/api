@@ -3,8 +3,10 @@ package oscal
 import (
 	"errors"
 	"fmt"
+	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
 	"net/http"
+	"time"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
@@ -30,7 +32,9 @@ func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *System
 
 func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
+	api.POST("", h.Create)
 	api.GET("/:id", h.Get)
+	api.GET("/:id/full", h.Full)
 	api.GET("/:id/system-characteristics", h.GetCharacteristics)
 	api.PUT("/:id/system-characteristics", h.UpdateCharacteristics)
 	api.GET("/:id/system-characteristics/network-architecture", h.GetCharacteristicsNetworkArchitecture)
@@ -113,6 +117,44 @@ func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.SystemSecurityPlan]{Data: ssp.MarshalOscal()})
+}
+
+// Create godoc
+//
+//	@Summary		Create a System Security Plan
+//	@Description	Creates a System Security Plan from input.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans [post]
+func (h *SystemSecurityPlanHandler) Create(ctx echo.Context) error {
+	type response struct {
+		UUID     uuid.UUID                 `json:"uuid"`
+		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
+	}
+
+	ssp := &oscalTypes_1_1_3.SystemSecurityPlan{}
+	err := ctx.Bind(ssp)
+	if err != nil {
+		h.sugar.Warnw("Invalid create ssp request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	now := time.Now()
+	relSsp := &relational.SystemSecurityPlan{}
+	relSsp.UnmarshalOscal(*ssp)
+	relSsp.Metadata.LastModified = &now
+	relSsp.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	if err := h.db.Create(relSsp).Error; err != nil {
+		h.sugar.Errorf("Failed to create ssp: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.SystemSecurityPlan]{Data: relSsp.MarshalOscal()})
 }
 
 // GetCharacteristics godoc
@@ -528,4 +570,43 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]{Data: *sc.MarshalOscal()})
+}
+
+func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid ssp id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		Preload("BackMatter").
+		Preload("BackMatter.Resources").
+		Preload("SystemCharacteristics").
+		Preload("SystemCharacteristics.AuthorizationBoundary").
+		Preload("SystemCharacteristics.AuthorizationBoundary.Diagrams").
+		Preload("SystemCharacteristics.NetworkArchitecture").
+		Preload("SystemCharacteristics.NetworkArchitecture.Diagrams").
+		Preload("SystemCharacteristics.DataFlow").
+		Preload("SystemCharacteristics.DataFlow.Diagrams").
+		Preload("SystemImplementation").
+		Preload("SystemImplementation.Users").
+		Preload("SystemImplementation.Users.AuthorizedPrivileges").
+		Preload("SystemImplementation.LeveragedAuthorizations").
+		Preload("SystemImplementation.Components").
+		Preload("SystemImplementation.InventoryItems").
+		Preload("SystemImplementation.InventoryItems.ImplementedComponents").
+		First(&ssp, "id = ?", id.String()).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load ssp", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: *ssp.MarshalOscal()})
 }

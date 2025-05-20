@@ -3422,6 +3422,30 @@ paths:
       summary: List System Security Plans
       tags:
       - Oscal
+    post:
+      description: Creates a System Security Plan from input.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemSecurityPlan'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a System Security Plan
+      tags:
+      - Oscal
   /oscal/system-security-plans/{id}:
     get:
       description: Retrieves a single System Security Plan by its unique ID.
