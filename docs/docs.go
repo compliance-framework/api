@@ -2094,6 +2094,420 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/profiles": {
+            "get": {
+                "description": "Retrieves all OSCAL profiles",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "List Profiles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_ProfileHandler"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new OSCAL Profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Create a new OSCAL Profile",
+                "parameters": [
+                    {
+                        "description": "Profile object",
+                        "name": "profile",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Profile"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}": {
+            "get": {
+                "description": "Get an OSCAL profile with the uuid provided",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Get Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_ProfileHandler"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}/back-matter": {
+            "get": {
+                "description": "Get the BackMatter for a specific profile",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Get Backmatter",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}/full": {
+            "get": {
+                "description": "Retrieves the full OSCAL Profile, including all nested content.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Get full Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Profile"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}/imports": {
+            "get": {
+                "description": "List imports for a specific profile",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "List Imports",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Import"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}/merge": {
+            "get": {
+                "description": "Retrieves the merge section for a specific profile.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Get merge section",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Merge"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}/modify": {
+            "get": {
+                "description": "Retrieves the modify section for a specific profile.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Get modify section",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Modify"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/profiles/{id}/resolve": {
+            "post": {
+                "description": "Resolves a Profiled identified by the \"profile ID\" param and stores a new catalog in the database",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal",
+                    "Profiles"
+                ],
+                "summary": "Resolves a Profile as a stored catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_ProfileHandler"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/system-security-plans": {
             "get": {
                 "description": "Retrieves all System Security Plans.",
@@ -2856,6 +3270,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Import": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Import"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan": {
             "type": "object",
             "properties": {
@@ -2888,6 +3314,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.List.responseComponentDefinition"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscal_ProfileHandler": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ProfileHandler"
                     }
                 }
             }
@@ -3127,6 +3565,32 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Merge": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Merge"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Modify": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Modify"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_NetworkArchitecture": {
             "type": "object",
             "properties": {
@@ -3135,6 +3599,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.NetworkArchitecture"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Profile": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
                         }
                     ]
                 }
@@ -3174,6 +3651,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.Get.responseCatalog"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscal_ProfileHandler": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.ProfileHandler"
                         }
                     ]
                 }
@@ -3342,6 +3832,9 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.ProfileHandler": {
+            "type": "object"
+        },
         "oscalTypes_1_1_3.Action": {
             "type": "object",
             "properties": {
@@ -3380,6 +3873,44 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Addition": {
+            "type": "object",
+            "properties": {
+                "by-id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "position": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Address": {
             "type": "object",
             "properties": {
@@ -3403,6 +3934,26 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Alteration": {
+            "type": "object",
+            "properties": {
+                "adds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Addition"
+                    }
+                },
+                "control-id": {
+                    "type": "string"
+                },
+                "removes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Removal"
+                    }
                 }
             }
         },
@@ -3588,6 +4139,14 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.CombinationRule": {
+            "type": "object",
+            "properties": {
+                "method": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.ConstraintTest": {
             "type": "object",
             "properties": {
@@ -3698,6 +4257,73 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.CustomGrouping": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.CustomGroupingGroup"
+                    }
+                },
+                "insert-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InsertControls"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.CustomGroupingGroup": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.CustomGroupingGroup"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "insert-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InsertControls"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Part"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.DataFlow": {
             "type": "object",
             "properties": {
@@ -3801,6 +4427,10 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "oscalTypes_1_1_3.FlatWithoutGrouping": {
+            "type": "object",
+            "additionalProperties": true
         },
         "oscalTypes_1_1_3.Group": {
             "type": "object",
@@ -3979,6 +4609,29 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Import": {
+            "type": "object",
+            "properties": {
+                "exclude-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectControlById"
+                    }
+                },
+                "href": {
+                    "type": "string"
+                },
+                "include-all": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
+                },
+                "include-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectControlById"
+                    }
+                }
+            }
+        },
         "oscalTypes_1_1_3.ImportProfile": {
             "type": "object",
             "properties": {
@@ -3989,6 +4642,10 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "oscalTypes_1_1_3.IncludeAll": {
+            "type": "object",
+            "additionalProperties": true
         },
         "oscalTypes_1_1_3.InformationType": {
             "type": "object",
@@ -4073,6 +4730,29 @@ const docTemplate = `{
                     }
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.InsertControls": {
+            "type": "object",
+            "properties": {
+                "exclude-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectControlById"
+                    }
+                },
+                "include-all": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
+                },
+                "include-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectControlById"
+                    }
+                },
+                "order": {
                     "type": "string"
                 }
             }
@@ -4214,6 +4894,31 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Matching": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Merge": {
+            "type": "object",
+            "properties": {
+                "as-is": {
+                    "type": "boolean"
+                },
+                "combine": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.CombinationRule"
+                },
+                "custom": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.CustomGrouping"
+                },
+                "flat": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.FlatWithoutGrouping"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Metadata": {
             "type": "object",
             "properties": {
@@ -4288,6 +4993,23 @@ const docTemplate = `{
                 },
                 "version": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Modify": {
+            "type": "object",
+            "properties": {
+                "alters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Alteration"
+                    }
+                },
+                "set-parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ParameterSetting"
+                    }
                 }
             }
         },
@@ -4409,6 +5131,59 @@ const docTemplate = `{
                 },
                 "how-many": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ParameterSetting": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ParameterConstraint"
+                    }
+                },
+                "depends-on": {
+                    "type": "string"
+                },
+                "guidelines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ParameterGuideline"
+                    }
+                },
+                "label": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "param-id": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "select": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ParameterSelection"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -4546,6 +5321,32 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Profile": {
+            "type": "object",
+            "properties": {
+                "back-matter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                },
+                "imports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Import"
+                    }
+                },
+                "merge": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Merge"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "modify": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Modify"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Property": {
             "type": "object",
             "properties": {
@@ -4620,6 +5421,26 @@ const docTemplate = `{
                     }
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Removal": {
+            "type": "object",
+            "properties": {
+                "by-class": {
+                    "type": "string"
+                },
+                "by-id": {
+                    "type": "string"
+                },
+                "by-item-name": {
+                    "type": "string"
+                },
+                "by-name": {
+                    "type": "string"
+                },
+                "by-ns": {
                     "type": "string"
                 }
             }
@@ -4853,6 +5674,26 @@ const docTemplate = `{
                 },
                 "security-objective-integrity": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SelectControlById": {
+            "type": "object",
+            "properties": {
+                "matching": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Matching"
+                    }
+                },
+                "with-child-controls": {
+                    "type": "string"
+                },
+                "with-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

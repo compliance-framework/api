@@ -96,8 +96,8 @@ type Import struct {
 	// back to an ingested catalog.
 	Href            string                          `json:"href"`
 	IncludeAll      datatypes.JSONType[*IncludeAll] `json:"include-all"`
-	IncludeControls []SelectControlById             `json:"include-controls" gorm:"Polymorphic:Parent"`
-	ExcludeControls []SelectControlById             `json:"exclude-controls" gorm:"Polymorphic:Parent"`
+	IncludeControls []SelectControlById             `json:"include-controls" gorm:"Polymorphic:Parent;polymorphicValue:included"`
+	ExcludeControls []SelectControlById             `json:"exclude-controls" gorm:"Polymorphic:Parent;polymorphicValue:excluded"`
 
 	ProfileID uuid.UUID
 }

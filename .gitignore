@@ -1,6 +1,7 @@
 cover.out
 
 .idea
+.vscode
 
 __debug_*
 
@@ -16,3 +17,5 @@ __debug_*
 *.db
 
 local.go
+resolver.go
+

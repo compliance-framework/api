@@ -3,10 +3,11 @@ package oscal
 import (
 	"errors"
 	"fmt"
-	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
-	"github.com/google/uuid"
 	"net/http"
 	"time"
+
+	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
+	"github.com/google/uuid"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"

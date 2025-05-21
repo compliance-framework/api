@@ -24,6 +24,14 @@ definitions:
           $ref: '#/definitions/oscal.List.responseComponentDefinition'
         type: array
     type: object
+  handler.GenericDataListResponse-oscal_ProfileHandler:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.ProfileHandler'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Control:
     properties:
       data:
@@ -38,6 +46,14 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Group'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Import:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Import'
         type: array
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan:
@@ -151,6 +167,13 @@ definitions:
         - $ref: '#/definitions/oscal.Get.responseCatalog'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscal_ProfileHandler:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.ProfileHandler'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_AuthorizationBoundary:
     properties:
       data:
@@ -200,11 +223,32 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Group'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Merge:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Merge'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Modify:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Modify'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_NetworkArchitecture:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.NetworkArchitecture'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Profile:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Profile'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics:
@@ -322,6 +366,8 @@ definitions:
       uuid:
         type: string
     type: object
+  oscal.ProfileHandler:
+    type: object
   oscalTypes_1_1_3.Action:
     properties:
       date:
@@ -347,6 +393,31 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.Addition:
+    properties:
+      by-id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      params:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Parameter'
+        type: array
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      position:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
+        type: string
+    type: object
   oscalTypes_1_1_3.Address:
     properties:
       addr-lines:
@@ -363,6 +434,19 @@ definitions:
         type: string
       type:
         type: string
+    type: object
+  oscalTypes_1_1_3.Alteration:
+    properties:
+      adds:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Addition'
+        type: array
+      control-id:
+        type: string
+      removes:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Removal'
+        type: array
     type: object
   oscalTypes_1_1_3.AuthorizationBoundary:
     properties:
@@ -483,6 +567,11 @@ definitions:
       text:
         type: string
     type: object
+  oscalTypes_1_1_3.CombinationRule:
+    properties:
+      method:
+        type: string
+    type: object
   oscalTypes_1_1_3.ConstraintTest:
     properties:
       expression:
@@ -555,6 +644,50 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.CustomGrouping:
+    properties:
+      groups:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.CustomGroupingGroup'
+        type: array
+      insert-controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InsertControls'
+        type: array
+    type: object
+  oscalTypes_1_1_3.CustomGroupingGroup:
+    properties:
+      class:
+        type: string
+      groups:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.CustomGroupingGroup'
+        type: array
+      id:
+        type: string
+      insert-controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InsertControls'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      params:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Parameter'
+        type: array
+      parts:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Part'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      title:
+        type: string
+    type: object
   oscalTypes_1_1_3.DataFlow:
     properties:
       description:
@@ -622,6 +755,9 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
         type: array
+    type: object
+  oscalTypes_1_1_3.FlatWithoutGrouping:
+    additionalProperties: true
     type: object
   oscalTypes_1_1_3.Group:
     properties:
@@ -739,12 +875,30 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.Import:
+    properties:
+      exclude-controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SelectControlById'
+        type: array
+      href:
+        type: string
+      include-all:
+        $ref: '#/definitions/oscalTypes_1_1_3.IncludeAll'
+      include-controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SelectControlById'
+        type: array
+    type: object
   oscalTypes_1_1_3.ImportProfile:
     properties:
       href:
         type: string
       remarks:
         type: string
+    type: object
+  oscalTypes_1_1_3.IncludeAll:
+    additionalProperties: true
     type: object
   oscalTypes_1_1_3.InformationType:
     properties:
@@ -801,6 +955,21 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
         type: array
       uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.InsertControls:
+    properties:
+      exclude-controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SelectControlById'
+        type: array
+      include-all:
+        $ref: '#/definitions/oscalTypes_1_1_3.IncludeAll'
+      include-controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SelectControlById'
+        type: array
+      order:
         type: string
     type: object
   oscalTypes_1_1_3.InventoryItem:
@@ -893,6 +1062,22 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.Matching:
+    properties:
+      pattern:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Merge:
+    properties:
+      as-is:
+        type: boolean
+      combine:
+        $ref: '#/definitions/oscalTypes_1_1_3.CombinationRule'
+      custom:
+        $ref: '#/definitions/oscalTypes_1_1_3.CustomGrouping'
+      flat:
+        $ref: '#/definitions/oscalTypes_1_1_3.FlatWithoutGrouping'
+    type: object
   oscalTypes_1_1_3.Metadata:
     properties:
       actions:
@@ -943,6 +1128,17 @@ definitions:
         type: string
       version:
         type: string
+    type: object
+  oscalTypes_1_1_3.Modify:
+    properties:
+      alters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Alteration'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ParameterSetting'
+        type: array
     type: object
   oscalTypes_1_1_3.NetworkArchitecture:
     properties:
@@ -1022,6 +1218,41 @@ definitions:
         type: array
       how-many:
         type: string
+    type: object
+  oscalTypes_1_1_3.ParameterSetting:
+    properties:
+      class:
+        type: string
+      constraints:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ParameterConstraint'
+        type: array
+      depends-on:
+        type: string
+      guidelines:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ParameterGuideline'
+        type: array
+      label:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      param-id:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      select:
+        $ref: '#/definitions/oscalTypes_1_1_3.ParameterSelection'
+      usage:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
     type: object
   oscalTypes_1_1_3.Part:
     properties:
@@ -1111,6 +1342,23 @@ definitions:
       transport:
         type: string
     type: object
+  oscalTypes_1_1_3.Profile:
+    properties:
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      imports:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Import'
+        type: array
+      merge:
+        $ref: '#/definitions/oscalTypes_1_1_3.Merge'
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      modify:
+        $ref: '#/definitions/oscalTypes_1_1_3.Modify'
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.Property:
     properties:
       class:
@@ -1160,6 +1408,19 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
         type: array
       uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Removal:
+    properties:
+      by-class:
+        type: string
+      by-id:
+        type: string
+      by-item-name:
+        type: string
+      by-name:
+        type: string
+      by-ns:
         type: string
     type: object
   oscalTypes_1_1_3.Resource:
@@ -1313,6 +1574,19 @@ definitions:
         type: string
       security-objective-integrity:
         type: string
+    type: object
+  oscalTypes_1_1_3.SelectControlById:
+    properties:
+      matching:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Matching'
+        type: array
+      with-child-controls:
+        type: string
+      with-ids:
+        items:
+          type: string
+        type: array
     type: object
   oscalTypes_1_1_3.SetParameter:
     properties:
@@ -3401,6 +3675,283 @@ paths:
       summary: List component definitions
       tags:
       - Oscal
+  /oscal/profiles:
+    get:
+      description: Retrieves all OSCAL profiles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_ProfileHandler'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List Profiles
+      tags:
+      - Oscal
+      - Profiles
+    post:
+      consumes:
+      - application/json
+      description: Creates a new OSCAL Profile.
+      parameters:
+      - description: Profile object
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Profile'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Profile'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new OSCAL Profile
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}:
+    get:
+      description: Get an OSCAL profile with the uuid provided
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_ProfileHandler'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get Profile
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}/back-matter:
+    get:
+      description: Get the BackMatter for a specific profile
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get Backmatter
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}/full:
+    get:
+      description: Retrieves the full OSCAL Profile, including all nested content.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Profile'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get full Profile
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}/imports:
+    get:
+      description: List imports for a specific profile
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Import'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List Imports
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}/merge:
+    get:
+      description: Retrieves the merge section for a specific profile.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Merge'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get merge section
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}/modify:
+    get:
+      description: Retrieves the modify section for a specific profile.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Modify'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get modify section
+      tags:
+      - Oscal
+      - Profiles
+  /oscal/profiles/{id}/resolve:
+    post:
+      description: Resolves a Profiled identified by the "profile ID" param and stores
+        a new catalog in the database
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_ProfileHandler'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Resolves a Profile as a stored catalog
+      tags:
+      - Oscal
+      - Profiles
   /oscal/system-security-plans:
     get:
       description: Retrieves all System Security Plans.

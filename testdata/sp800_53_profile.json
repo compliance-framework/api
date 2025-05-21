@@ -24442,6 +24442,14 @@
             {
               "href": "NIST_SP-800-53_rev5_catalog.json",
               "media-type": "application/oscal+json"
+            },
+            {
+              "href": "#9b0c9c43-2722-4bbb-b132-13d34fb94d45",
+              "media-type": "application/ccf+oscal+json"
+            },
+            {
+              "href": "https://ccf.example.com/catalogs/9b0c9c43-2722-4bbb-b132-13d34fb94d45",
+              "media-type": "application/ccf+oscal+json"
             }
           ]
         }
