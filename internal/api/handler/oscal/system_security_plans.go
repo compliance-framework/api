@@ -44,6 +44,12 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.PUT("/:id/system-characteristics/data-flow/diagrams/:diagram", h.UpdateCharacteristicsDataFlowDiagram)
 	api.GET("/:id/system-characteristics/authorization-boundary", h.GetCharacteristicsAuthorizationBoundary)
 	api.PUT("/:id/system-characteristics/authorization-boundary/diagrams/:diagram", h.UpdateCharacteristicsAuthorizationBoundaryDiagram)
+	api.GET("/:id/system-implementation", h.GetSystemImplementation)
+	api.GET("/:id/system-implementation/users", h.GetSystemImplementationUsers)
+	api.GET("/:id/system-implementation/components", h.GetSystemImplementationComponents)
+	api.GET("/:id/system-implementation/inventory-items", h.GetSystemImplementationInventoryItems)
+	api.GET("/:id/system-implementation/leveraged-authorizations", h.GetSystemImplementationLeveragedAuthorizations)
+	api.GET("/:id/control-implementation", h.GetControlImplementation)
 }
 
 // List godoc
@@ -544,6 +550,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+
 	var oscalSC oscalTypes_1_1_3.SystemCharacteristics
 	if err := ctx.Bind(&oscalSC); err != nil {
 		h.sugar.Warnw("Invalid update system characteristics request", "error", err)
@@ -566,11 +573,236 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 	sc.SystemSecurityPlanId = *ssp.ID
 	sc.ID = ssp.SystemCharacteristics.ID
 
-	if err = h.db.Model(&sc).Save(&sc).Error; err != nil {
+	// We do not want to update these subcomponents here.
+	if err = h.db.Model(&sc).Omit("AuthorizationBoundary", "NetworkArchitecture", "DataFlow").Updates(&sc).Error; err != nil {
 		h.sugar.Errorf("Failed to update system characteristics: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]{Data: *sc.MarshalOscal()})
+}
+
+// GetSystemImplementation godoc
+//
+//	@Summary		Get System Implementation
+//	@Description	Retrieves the System Implementation for a given System Security Plan.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/system-implementation [get]
+func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemImplementation").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]{Data: ssp.MarshalOscal().SystemImplementation})
+}
+
+// GetSystemImplementationUsers godoc
+//
+//	@Summary		List System Implementation Users
+//	@Description	Retrieves users in the System Implementation for a given System Security Plan.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemUser]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/system-implementation/users [get]
+func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemImplementation").
+		Preload("SystemImplementation.Users").
+		Preload("SystemImplementation.Users.AuthorizedPrivileges").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.SystemUser]{Data: ssp.MarshalOscal().SystemImplementation.Users})
+}
+
+// GetSystemImplementationComponents godoc
+//
+//	@Summary		List System Implementation Components
+//	@Description	Retrieves components in the System Implementation for a given System Security Plan.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/system-implementation/components [get]
+func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemImplementation").
+		Preload("SystemImplementation.Components").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]{Data: ssp.MarshalOscal().SystemImplementation.Components})
+}
+
+// GetSystemImplementationInventoryItems godoc
+//
+//	@Summary		List System Implementation Inventory Items
+//	@Description	Retrieves inventory items in the System Implementation for a given System Security Plan.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.InventoryItem]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/system-implementation/inventory-items [get]
+func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemImplementation").
+		Preload("SystemImplementation.InventoryItems").
+		Preload("SystemImplementation.InventoryItems.ImplementedComponents").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.InventoryItem]{Data: *ssp.MarshalOscal().SystemImplementation.InventoryItems})
+}
+
+// GetSystemImplementationLeveragedAuthorizations godoc
+//
+//	@Summary		List System Implementation Leveraged Authorizations
+//	@Description	Retrieves leveraged authorizations in the System Implementation for a given System Security Plan.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.LeveragedAuthorization]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations [get]
+func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizations(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemImplementation").
+		Preload("SystemImplementation.LeveragedAuthorizations").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.LeveragedAuthorization]{Data: *ssp.MarshalOscal().SystemImplementation.LeveragedAuthorizations})
+}
+
+// GetControlImplementation godoc
+//
+//	@Summary		Get Control Implementation
+//	@Description	Retrieves the Control Implementation for a given System Security Plan.
+//	@Tags			Oscal
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/control-implementation [get]
+func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("ControlImplementation").
+		Preload("ControlImplementation.ImplementedRequirements").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Provided").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Responsibilities").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Inherited").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Satisfied").
+		Preload("ControlImplementation.ImplementedRequirements.Statements").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Provided").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Responsibilities").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Inherited").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Satisfied").
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]{Data: ssp.MarshalOscal().ControlImplementation})
 }
 
 func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {

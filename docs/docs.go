@@ -2094,6 +2094,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/parties": {
+            "get": {
+                "description": "Retrieves all parties.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List parties",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Party"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/parties/{id}": {
+            "get": {
+                "description": "Retrieves a single Party by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "Get a Party",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Party ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Party"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/profiles": {
             "get": {
                 "description": "Retrieves all OSCAL profiles",
@@ -2508,6 +2587,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/roles": {
+            "get": {
+                "description": "Retrieves all roles.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List roles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Role"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/roles/{id}": {
+            "get": {
+                "description": "Retrieves a single Role by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "Get a Role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Party ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Role"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/system-security-plans": {
             "get": {
                 "description": "Retrieves all System Security Plans.",
@@ -2600,6 +2758,53 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemSecurityPlan"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation": {
+            "get": {
+                "description": "Retrieves the Control Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "Get Control Implementation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementation"
                         }
                     },
                     "400": {
@@ -3066,6 +3271,241 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/system-security-plans/{id}/system-implementation": {
+            "get": {
+                "description": "Retrieves the System Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "Get System Implementation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemImplementation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-implementation/components": {
+            "get": {
+                "description": "Retrieves components in the System Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List System Implementation Components",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-implementation/inventory-items": {
+            "get": {
+                "description": "Retrieves inventory items in the System Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List System Implementation Inventory Items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations": {
+            "get": {
+                "description": "Retrieves leveraged authorizations in the System Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List System Implementation Leveraged Authorizations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_LeveragedAuthorization"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-implementation/users": {
+            "get": {
+                "description": "Retrieves users in the System Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oscal"
+                ],
+                "summary": "List System Implementation Users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_SystemUser"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/subjects": {
             "get": {
                 "description": "Retrieves a list of all subjects from the database.",
@@ -3282,6 +3722,66 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_LeveragedAuthorization": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.LeveragedAuthorization"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Party": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Party"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Role": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Role"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan": {
             "type": "object",
             "properties": {
@@ -3290,6 +3790,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.SystemSecurityPlan"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_SystemUser": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemUser"
                     }
                 }
             }
@@ -3526,6 +4038,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.ControlImplementation"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_DataFlow": {
             "type": "object",
             "properties": {
@@ -3604,6 +4129,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Party": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Party"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Profile": {
             "type": "object",
             "properties": {
@@ -3617,6 +4155,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Role": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Role"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics": {
             "type": "object",
             "properties": {
@@ -3625,6 +4176,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.SystemCharacteristics"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_SystemImplementation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemImplementation"
                         }
                     ]
                 }

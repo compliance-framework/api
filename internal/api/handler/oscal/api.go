@@ -17,4 +17,10 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	sspHandler := NewSystemSecurityPlanHandler(logger, db)
 	sspHandler.Register(oscalGroup.Group("/system-security-plans"))
+
+	partyHandler := NewPartyHandler(logger, db)
+	partyHandler.Register(oscalGroup.Group("/parties"))
+
+	roleHandler := NewRoleHandler(logger, db)
+	roleHandler.Register(oscalGroup.Group("/roles"))
 }

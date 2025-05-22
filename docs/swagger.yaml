@@ -56,12 +56,60 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Import'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_LeveragedAuthorization:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.LeveragedAuthorization'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Party:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Party'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Role:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Role'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_SystemSecurityPlan:
     properties:
       data:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemSecurityPlan'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_SystemUser:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
         type: array
     type: object
   handler.GenericDataListResponse-service_Catalog:
@@ -202,6 +250,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Control'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementation:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementation'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_DataFlow:
     properties:
       data:
@@ -244,6 +299,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.NetworkArchitecture'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Party:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Party'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Profile:
     properties:
       data:
@@ -251,11 +313,25 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Profile'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Role:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Role'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemCharacteristics:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.SystemCharacteristics'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_SystemImplementation:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.SystemImplementation'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_SystemSecurityPlan:
@@ -3675,6 +3751,58 @@ paths:
       summary: List component definitions
       tags:
       - Oscal
+  /oscal/parties:
+    get:
+      description: Retrieves all parties.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Party'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List parties
+      tags:
+      - Oscal
+  /oscal/parties/{id}:
+    get:
+      description: Retrieves a single Party by its unique ID.
+      parameters:
+      - description: Party ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Party'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a Party
+      tags:
+      - Oscal
   /oscal/profiles:
     get:
       description: Retrieves all OSCAL profiles
@@ -3952,6 +4080,58 @@ paths:
       tags:
       - Oscal
       - Profiles
+  /oscal/roles:
+    get:
+      description: Retrieves all roles.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Role'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List roles
+      tags:
+      - Oscal
+  /oscal/roles/{id}:
+    get:
+      description: Retrieves a single Role by its unique ID.
+      parameters:
+      - description: Party ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Role'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a Role
+      tags:
+      - Oscal
   /oscal/system-security-plans:
     get:
       description: Retrieves all System Security Plans.
@@ -4026,6 +4206,38 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get a System Security Plan
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/control-implementation:
+    get:
+      description: Retrieves the Control Implementation for a given System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get Control Implementation
       tags:
       - Oscal
   /oscal/system-security-plans/{id}/system-characteristics:
@@ -4327,6 +4539,166 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a Network Architecture Diagram
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-implementation:
+    get:
+      description: Retrieves the System Implementation for a given System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get System Implementation
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-implementation/components:
+    get:
+      description: Retrieves components in the System Implementation for a given System
+        Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_SystemComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List System Implementation Components
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-implementation/inventory-items:
+    get:
+      description: Retrieves inventory items in the System Implementation for a given
+        System Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List System Implementation Inventory Items
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations:
+    get:
+      description: Retrieves leveraged authorizations in the System Implementation
+        for a given System Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_LeveragedAuthorization'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List System Implementation Leveraged Authorizations
+      tags:
+      - Oscal
+  /oscal/system-security-plans/{id}/system-implementation/users:
+    get:
+      description: Retrieves users in the System Implementation for a given System
+        Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_SystemUser'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List System Implementation Users
       tags:
       - Oscal
   /subjects:
