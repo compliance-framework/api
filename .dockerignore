@@ -2,4 +2,3 @@
 .github
 .env*
 local.go
-test.db

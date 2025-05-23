@@ -60,7 +60,7 @@ func main() {
 
 	handler.RegisterHandlers(server, mongoDatabase, sugar)
 
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("data/ccf.db"), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
