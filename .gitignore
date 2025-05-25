@@ -13,9 +13,7 @@ __debug_*
 
 .DS_Store
 
-# Remove any SQLite databases created
-*.db
-
 local.go
 resolver.go
 
+configuration-service

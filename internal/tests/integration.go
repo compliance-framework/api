@@ -3,14 +3,13 @@
 package tests
 
 import (
-	"fmt"
+	"context"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
-	"gorm.io/driver/sqlite"
+	"github.com/testcontainers/testcontainers-go"
+	postgresContainers "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"os"
 )
 
 const DatabaseName = "_integration_tests.db"
@@ -18,9 +17,9 @@ const DatabaseName = "_integration_tests.db"
 type IntegrationTestSuite struct {
 	suite.Suite
 
-	Migrator *TestMigrator
-	DB       *gorm.DB
-	dbname   *string // We generate a unique name for each run, so we can run tests concurrently.
+	Migrator    *TestMigrator
+	DB          *gorm.DB
+	dbcontainer *postgresContainers.PostgresContainer // We generate a unique name for each run, so we can run tests concurrently.
 }
 
 type TestMigrator struct {
@@ -150,11 +149,29 @@ func (t *TestMigrator) Down() error {
 }
 
 func (suite *IntegrationTestSuite) SetupSuite() {
-	var err error
+	ctx := context.Background()
 
-	dbName := uuid.New().String() + ".db"
+	postgresContainer, err := postgresContainers.Run(ctx,
+		"postgres:17.5",
+		postgresContainers.WithDatabase("ccf"),
+		postgresContainers.WithUsername("postgres"),
+		postgresContainers.WithPassword("postgres"),
+		postgresContainers.BasicWaitStrategies(),
+	)
+	if err != nil {
+		panic(err)
+	}
 
-	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{})
+	// explicitly set sslmode=disable because the container is not configured to use TLS
+	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable", "application_name=ccf")
+	if err != nil {
+		panic(err)
+	}
+	suite.dbcontainer = postgresContainer
+
+	db, err := gorm.Open(postgres.Open(connStr), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -165,12 +182,14 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 
 	suite.DB = db
 	suite.Migrator = migrator
-	suite.dbname = &dbName
+
+	err = suite.Migrator.Up()
+	suite.NoError(err, "failed to migrate")
 }
 
 func (suite *IntegrationTestSuite) TearDownSuite() {
-	err := os.Remove(*suite.dbname)
+	err := testcontainers.TerminateContainer(suite.dbcontainer)
 	if err != nil {
-		suite.T().Error(errors.Wrap(err, fmt.Sprintf("unable to remove db %s", *suite.dbname)))
+		suite.T().Fatal(err)
 	}
 }

@@ -10,8 +10,8 @@ type Catalog struct {
 	UUIDModel
 	Metadata   Metadata                       `json:"metadata" gorm:"polymorphic:Parent;"`
 	Params     datatypes.JSONSlice[Parameter] `json:"params"`
-	Groups     []Group                        `json:"groups" gorm:"polymorphic:Parent;"`
-	Controls   []Control                      `json:"controls" gorm:"polymorphic:Parent;"`
+	Groups     []Group                        `json:"groups"`
+	Controls   []Control                      `json:"controls"`
 	BackMatter *BackMatter                    `json:"back-matter,omitempty" gorm:"polymorphic:Parent;"`
 	/**
 	"required": [
@@ -100,15 +100,15 @@ func (c *Catalog) MarshalOscal() *oscalTypes_1_1_3.Catalog {
 }
 
 type Group struct {
-	ID     string                         `json:"id" gorm:"primary_key"` // required
-	Class  string                         `json:"class"`
-	Title  string                         `json:"title"` // required
-	Params datatypes.JSONSlice[Parameter] `json:"params"`
-	Parts  datatypes.JSONSlice[Part]      `json:"parts"`
-	Props  datatypes.JSONSlice[Prop]      `json:"props,omitempty"`
-	Links  datatypes.JSONSlice[Link]      `json:"links,omitempty"`
+	CatalogID uuid.UUID                      `gorm:"primary_key"`
+	ID        string                         `json:"id" gorm:"primary_key"` // required
+	Class     string                         `json:"class"`
+	Title     string                         `json:"title"` // required
+	Params    datatypes.JSONSlice[Parameter] `json:"params"`
+	Parts     datatypes.JSONSlice[Part]      `json:"parts"`
+	Props     datatypes.JSONSlice[Prop]      `json:"props,omitempty"`
+	Links     datatypes.JSONSlice[Link]      `json:"links,omitempty"`
 
-	CatalogID  uuid.UUID `gorm:"primaryKey"`
 	ParentID   *string
 	ParentType *string
 
@@ -207,15 +207,15 @@ func (c *Group) MarshalOscal() *oscalTypes_1_1_3.Group {
 }
 
 type Control struct {
-	ID     string                         `json:"id" gorm:"primary_key"` // required
-	Title  string                         `json:"title"`                 // required
-	Class  *string                        `json:"class"`
-	Params datatypes.JSONSlice[Parameter] `json:"params"`
-	Parts  datatypes.JSONSlice[Part]      `json:"parts"`
-	Props  datatypes.JSONSlice[Prop]      `json:"props,omitempty"`
-	Links  datatypes.JSONSlice[Link]      `json:"links,omitempty"`
+	CatalogID uuid.UUID                      `gorm:"primary_key"`
+	ID        string                         `json:"id" gorm:"primary_key"` // required
+	Title     string                         `json:"title"`                 // required
+	Class     *string                        `json:"class"`
+	Params    datatypes.JSONSlice[Parameter] `json:"params"`
+	Parts     datatypes.JSONSlice[Part]      `json:"parts"`
+	Props     datatypes.JSONSlice[Prop]      `json:"props,omitempty"`
+	Links     datatypes.JSONSlice[Link]      `json:"links,omitempty"`
 
-	CatalogID  uuid.UUID `gorm:"primaryKey"`
 	ParentID   *string
 	ParentType *string
 
