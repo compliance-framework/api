@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/api/handler/oscal"
@@ -11,8 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
-	"os"
 
 	"github.com/joho/godotenv"
 
@@ -104,30 +105,31 @@ func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, dat
 
 func migrateDB(db *gorm.DB) error {
 	err := db.AutoMigrate(
-		&relational.Metadata{},
 		&relational.Location{},
 		&relational.Party{},
-		&relational.BackMatter{},
 		&relational.BackMatterResource{},
+		&relational.BackMatter{},
 		&relational.Role{},
 		&relational.Revision{},
+		&relational.Control{},
+		&relational.Group{},
 		&relational.ResponsibleParty{},
 		&relational.Action{},
+		&relational.Metadata{},
 		&relational.Catalog{},
-		&relational.ControlImplementationSet{},
-		&relational.ImplementedRequirementControlImplementation{},
 		&relational.ControlStatementImplementation{},
+		&relational.ImplementedRequirementControlImplementation{},
+		&relational.ControlImplementationSet{},
 		&relational.ComponentDefinition{},
 		&relational.Capability{},
 		&relational.DefinedComponent{},
 		&relational.Diagram{},
-		&relational.SystemInformation{},
-		&relational.SystemSecurityPlan{},
-		&relational.SystemCharacteristics{},
 		&relational.DataFlow{},
 		&relational.NetworkArchitecture{},
 		&relational.AuthorizationBoundary{},
 		&relational.InformationType{},
+		&relational.SystemInformation{},
+		&relational.SystemCharacteristics{},
 		&relational.AuthorizedPrivilege{},
 		&relational.SystemUser{},
 		&relational.LeveragedAuthorization{},
@@ -144,9 +146,15 @@ func migrateDB(db *gorm.DB) error {
 		&relational.Statement{},
 		&relational.ImplementedRequirement{},
 		&relational.ControlImplementation{},
-
-		&relational.Control{},
-		&relational.Group{},
+		&relational.SystemSecurityPlan{},
+		&relational.SelectControlById{},
+		&relational.Import{},
+		&relational.Merge{},
+		&relational.ParameterSetting{},
+		&relational.Addition{},
+		&relational.Alteration{},
+		&relational.Modify{},
+		&relational.Profile{},
 	)
 	return err
 }

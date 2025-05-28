@@ -15,8 +15,8 @@ import (
 func main() {
 
 	db, err := gorm.Open(postgres.Open("host=localhost user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"), &gorm.Config{
-                                                                                                                               			DisableForeignKeyConstraintWhenMigrating: true,
-                                                                                                                               		})
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -67,6 +67,10 @@ func main() {
 		&relational.SelectControlById{},
 		&relational.Import{},
 		&relational.Merge{},
+		&relational.ParameterSetting{},
+		&relational.Addition{},
+		&relational.Alteration{},
+		&relational.Modify{},
 		&relational.Profile{},
 		"metadata_responsible_parties",
 		"party_locations",
@@ -130,6 +134,10 @@ func main() {
 		&relational.SelectControlById{},
 		&relational.Import{},
 		&relational.Merge{},
+		&relational.ParameterSetting{},
+		&relational.Addition{},
+		&relational.Alteration{},
+		&relational.Modify{},
 		&relational.Profile{},
 	)
 	if err != nil {
