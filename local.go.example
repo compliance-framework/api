@@ -22,6 +22,7 @@ func main() {
 	}
 
 	err = db.Migrator().DropTable(
+		&relational.ResponsibleRole{},
 		&relational.Location{},
 		&relational.Party{},
 		&relational.BackMatterResource{},
@@ -82,6 +83,10 @@ func main() {
 		"authorization_boundary_diagrams",
 		"network_architecture_diagrams",
 		"data_flow_diagrams",
+		"responsible_role_parties",
+		"responsible_role_roles",
+		"metadata_roles",
+		"metadata_parties",
 	)
 	if err != nil {
 		panic(err)
@@ -89,6 +94,7 @@ func main() {
 
 	// Migrate the schema
 	err = db.AutoMigrate(
+		&relational.ResponsibleRole{},
 		&relational.Location{},
 		&relational.Party{},
 		&relational.BackMatterResource{},

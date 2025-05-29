@@ -1,10 +1,11 @@
 package relational
 
 import (
+	"time"
+
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
-	"time"
 )
 
 type Metadata struct {
@@ -24,9 +25,9 @@ type Metadata struct {
 	Links              datatypes.JSONSlice[Link]       `json:"links"`
 	ResponsibleParties []ResponsibleParty              `gorm:"many2many:metadata_responsible_parties;"`
 	Revisions          []Revision                      `json:"revisions"`
-	Roles              []Role                          `json:"roles"`
+	Roles              []Role                          `json:"roles" gorm:"many2many:metadata_roles"`
 	Locations          []Location                      `json:"locations"`
-	Parties            []Party                         `json:"parties"`
+	Parties            []Party                         `json:"parties" gorm:"many2many:metadata_parties"`
 	Actions            []Action                        `json:"actions"`
 	Remarks            string                          `json:"remarks"`
 

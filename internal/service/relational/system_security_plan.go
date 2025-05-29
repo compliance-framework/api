@@ -900,7 +900,7 @@ type SystemComponent struct {
 	Description      string                                    `json:"description"`
 	Purpose          string                                    `json:"purpose"`
 	Status           datatypes.JSONType[SystemComponentStatus] `json:"status"`
-	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole]      `json:"responsable-roles"`
+	ResponsibleRoles []ResponsibleRole                         `json:"responsable-roles" gorm:"polymorphic:Parent;"`
 	Protocols        datatypes.JSONSlice[Protocol]             `json:"protocols"`
 	Remarks          string                                    `json:"remarks"`
 	Props            datatypes.JSONSlice[Prop]                 `json:"props"`
@@ -1156,14 +1156,14 @@ type ImplementedRequirement struct {
 	UUIDModel
 	ControlImplementationId uuid.UUID
 
-	ControlId        string                               `json:"control-id"`
-	Props            datatypes.JSONSlice[Prop]            `json:"props"`
-	Links            datatypes.JSONSlice[Link]            `json:"links"`
-	SetParameters    datatypes.JSONSlice[SetParameter]    `json:"set-parameters"`
-	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
-	Remarks          string                               `json:"remarks"`
-	ByComponents     []ByComponent                        `json:"by-components" gorm:"Polymorphic:Parent"`
-	Statements       []Statement                          `json:"statements"`
+	ControlId        string                            `json:"control-id"`
+	Props            datatypes.JSONSlice[Prop]         `json:"props"`
+	Links            datatypes.JSONSlice[Link]         `json:"links"`
+	SetParameters    datatypes.JSONSlice[SetParameter] `json:"set-parameters"`
+	ResponsibleRoles []ResponsibleRole                 `json:"responsible-roles" gorm:"polymorphic:Parent;"`
+	Remarks          string                            `json:"remarks"`
+	ByComponents     []ByComponent                     `json:"by-components" gorm:"Polymorphic:Parent"`
+	Statements       []Statement                       `json:"statements"`
 }
 
 func (ir *ImplementedRequirement) UnmarshalOscal(oir oscalTypes_1_1_3.ImplementedRequirement) *ImplementedRequirement {
@@ -1256,7 +1256,7 @@ type ByComponent struct {
 	Props                datatypes.JSONSlice[Prop]                      `json:"props"`
 	Links                datatypes.JSONSlice[Link]                      `json:"links"`
 	SetParameters        datatypes.JSONSlice[SetParameter]              `json:"set-parameters"`
-	ResponsibleRoles     datatypes.JSONSlice[ResponsibleRole]           `json:"responsible-parties"`
+	ResponsibleRoles     []ResponsibleRole                              `json:"responsible-parties" gorm:"polymorphic:Parent;"`
 	Remarks              string                                         `json:"remarks"`
 	ImplementationStatus datatypes.JSONType[ImplementationStatus]       `json:"implementation-status"`
 	Export               *Export                                        `json:"export,omitempty"`
@@ -1429,11 +1429,11 @@ func (e *Export) MarshalOscal() *oscalTypes_1_1_3.Export {
 
 type ProvidedControlImplementation struct {
 	UUIDModel
-	Description      string                               `json:"description"`
-	Links            datatypes.JSONSlice[Link]            `json:"links"`
-	Props            datatypes.JSONSlice[Prop]            `json:"props"`
-	Remarks          string                               `json:"remarks"`
-	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
+	Description      string                    `json:"description"`
+	Links            datatypes.JSONSlice[Link] `json:"links"`
+	Props            datatypes.JSONSlice[Prop] `json:"props"`
+	Remarks          string                    `json:"remarks"`
+	ResponsibleRoles []ResponsibleRole         `json:"responsible-roles" gorm:"polymorphic:Parent;"`
 
 	ExportId uuid.UUID
 }
@@ -1488,12 +1488,12 @@ func (pci *ProvidedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.Provi
 
 type ControlImplementationResponsibility struct {
 	UUIDModel
-	Description      string                               `json:"description"` // required
-	Links            datatypes.JSONSlice[Link]            `json:"links"`
-	Props            datatypes.JSONSlice[Prop]            `json:"props"`
-	ProvidedUuid     uuid.UUID                            `json:"provided-uuid"`
-	Remarks          string                               `json:"remarks"`
-	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
+	Description      string                    `json:"description"` // required
+	Links            datatypes.JSONSlice[Link] `json:"links"`
+	Props            datatypes.JSONSlice[Prop] `json:"props"`
+	ProvidedUuid     uuid.UUID                 `json:"provided-uuid"`
+	Remarks          string                    `json:"remarks"`
+	ResponsibleRoles []ResponsibleRole         `json:"responsible-roles" gorm:"polymorphic:Parent"`
 
 	ExportId uuid.UUID
 }
@@ -1560,12 +1560,12 @@ func (cir *ControlImplementationResponsibility) MarshalOscal() *oscalTypes_1_1_3
 }
 
 type InheritedControlImplementation struct {
-	UUIDModel                                             //required
-	ProvidedUuid     uuid.UUID                            `json:"provided-uuid"`
-	Description      string                               `json:"description"` //required
-	Links            datatypes.JSONSlice[Link]            `json:"links"`
-	Props            datatypes.JSONSlice[Prop]            `json:"props"`
-	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
+	UUIDModel                                  //required
+	ProvidedUuid     uuid.UUID                 `json:"provided-uuid"`
+	Description      string                    `json:"description"` //required
+	Links            datatypes.JSONSlice[Link] `json:"links"`
+	Props            datatypes.JSONSlice[Prop] `json:"props"`
+	ResponsibleRoles []ResponsibleRole         `json:"responsible-roles" gorm:"polymorphic:Parent"`
 
 	ByComponentId uuid.UUID
 }
@@ -1625,12 +1625,12 @@ func (i *InheritedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.Inheri
 
 type SatisfiedControlImplementationResponsibility struct {
 	UUIDModel
-	ResponsibilityUuid uuid.UUID                            `json:"responsibility-uuid"`
-	Description        string                               `json:"description"`
-	Props              datatypes.JSONSlice[Prop]            `json:"props"`
-	Links              datatypes.JSONSlice[Link]            `json:"links"`
-	ResponsibleRoles   datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
-	Remarks            string                               `json:"remarks"`
+	ResponsibilityUuid uuid.UUID                 `json:"responsibility-uuid"`
+	Description        string                    `json:"description"`
+	Props              datatypes.JSONSlice[Prop] `json:"props"`
+	Links              datatypes.JSONSlice[Link] `json:"links"`
+	ResponsibleRoles   []ResponsibleRole         `json:"responsible-roles" gorm:"polymorphic:Parent"`
+	Remarks            string                    `json:"remarks"`
 
 	ByComponentId uuid.UUID `json:"by-component-id"`
 }
@@ -1701,12 +1701,12 @@ func (s *SatisfiedControlImplementationResponsibility) MarshalOscal() *oscalType
 
 type Statement struct {
 	UUIDModel
-	StatementId      string                               `json:"statement-id"`
-	Props            datatypes.JSONSlice[Prop]            `json:"props"`
-	Links            datatypes.JSONSlice[Link]            `json:"links"`
-	ResponsibleRoles datatypes.JSONSlice[ResponsibleRole] `json:"responsible-roles"`
-	ByComponents     []ByComponent                        `json:"by-components,omitempty" gorm:"polymorphic:Parent"`
-	Remarks          string                               `json:"remarks"`
+	StatementId      string                    `json:"statement-id"`
+	Props            datatypes.JSONSlice[Prop] `json:"props"`
+	Links            datatypes.JSONSlice[Link] `json:"links"`
+	ResponsibleRoles []ResponsibleRole         `json:"responsible-roles" gorm:"polymorphic:Parent"`
+	ByComponents     []ByComponent             `json:"by-components,omitempty" gorm:"polymorphic:Parent"`
+	Remarks          string                    `json:"remarks"`
 
 	ImplementedRequirementId uuid.UUID
 }

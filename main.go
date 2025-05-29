@@ -105,6 +105,7 @@ func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, dat
 
 func migrateDB(db *gorm.DB) error {
 	err := db.AutoMigrate(
+		&relational.ResponsibleRole{},
 		&relational.Location{},
 		&relational.Party{},
 		&relational.BackMatterResource{},
