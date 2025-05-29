@@ -300,3 +300,117 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 	suite.Len(response.Data, 1)
 	suite.Equal(response.Data[0].Title, "Control 2.1")
 }
+
+// TestRootGroup ensures that when calling for the root groups on a catalog, only the root groups are returned.
+func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar())
+	RegisterHandlers(server, logger.Sugar(), suite.DB)
+
+	// Create two catalogs with the same group ID structure
+	catalog := oscaltypes.Catalog{
+		UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
+		Metadata: oscaltypes.Metadata{
+			Title: "Catalog 1",
+		},
+		Groups: &[]oscaltypes.Group{
+			{
+				ID:    "G-1",
+				Title: "Group 1",
+				Groups: &[]oscaltypes.Group{
+					{
+						ID:    "G-1.1",
+						Title: "Group 1.1",
+					},
+				},
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(catalog)
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
+	err = json.Unmarshal(rec.Body.Bytes(), response)
+	suite.Require().NoError(err)
+
+	// Now if we call to check the children for each catalogs' first group, we should only see 1 item
+
+	// The first catalog's group should have the Title Group 1
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/groups", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusOK, rec.Code)
+	listResponse := &handler.GenericDataListResponse[oscaltypes.Group]{}
+	err = json.Unmarshal(rec.Body.Bytes(), listResponse)
+	suite.Require().NoError(err)
+
+	// Make sure only one groups came back and it's the correct one.
+	suite.Len(listResponse.Data, 1)
+	suite.Equal(listResponse.Data[0].Title, "Group 1")
+}
+
+// TestRootControl ensures that when calling for the root groups on a catalog, only the root groups are returned.
+func (suite *CatalogApiIntegrationSuite) TestRootControl() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar())
+	RegisterHandlers(server, logger.Sugar(), suite.DB)
+
+	// Create two catalogs with the same group ID structure
+	catalog := oscaltypes.Catalog{
+		UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
+		Metadata: oscaltypes.Metadata{
+			Title: "Catalog 1",
+		},
+		Controls: &[]oscaltypes.Control{
+			{
+				ID:    "C-1",
+				Title: "Control 1",
+				Controls: &[]oscaltypes.Control{
+					{
+						ID:    "C-1.1",
+						Title: "Control 1.1",
+					},
+				},
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(catalog)
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
+	err = json.Unmarshal(rec.Body.Bytes(), response)
+	suite.Require().NoError(err)
+
+	// Now if we call to check the children for each catalogs' first group, we should only see 1 item
+
+	// The first catalog's group should have the Title Group 1
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/controls", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusOK, rec.Code)
+	listResponse := &handler.GenericDataListResponse[oscaltypes.Control]{}
+	err = json.Unmarshal(rec.Body.Bytes(), listResponse)
+	suite.Require().NoError(err)
+
+	// Make sure only one groups came back and it's the correct one.
+	suite.Len(listResponse.Data, 1)
+	suite.Equal(listResponse.Data[0].Title, "Control 1")
+}
