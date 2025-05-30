@@ -4,25 +4,33 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
-
+	"github.com/compliance-framework/configuration-service/internal/logging"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
+	"log"
+	"os"
 )
 
 func main() {
 
-	slowLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
-		SlowThreshold: time.Second * 10,
-	})
+	zapLogger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("Can't initialize zap logger: %v", err)
+	}
+	sugar := zapLogger.Sugar()
+	var gormLogLevel gormLogger.LogLevel
+	if os.Getenv("CCF_DB_DEBUG") == "1" {
+		gormLogLevel = gormLogger.Info
+	} else {
+		gormLogLevel = gormLogger.Warn
+	}
 	db, err := gorm.Open(postgres.Open("host=localhost user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-		Logger:                                   slowLogger,
+		Logger:                                   logging.NewZapGormLogger(sugar, gormLogLevel),
 	})
 	if err != nil {
 		panic("failed to connect database")

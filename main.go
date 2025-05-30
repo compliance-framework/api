@@ -12,8 +12,10 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/api/handler/oscal"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
+	"gorm.io/driver/postgres"
+	logging "github.com/compliance-framework/configuration-service/internal/logging" // adjust as needed
 
 	"github.com/joho/godotenv"
 
@@ -46,11 +48,11 @@ type Config struct {
 func main() {
 	ctx := context.Background()
 
-	logger, err := zap.NewProduction()
+	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
-	sugar := logger.Sugar()
+	sugar := zapLogger.Sugar()
 
 	config := loadConfig()
 
@@ -64,12 +66,20 @@ func main() {
 
 	handler.RegisterHandlers(server, mongoDatabase, sugar)
 
+	var gormLogLevel gormLogger.LogLevel
+	if os.Getenv("CCF_DB_DEBUG") == "1" {
+		gormLogLevel = gormLogger.Info
+	} else {
+		gormLogLevel = gormLogger.Warn
+	}
+
 	//TODO: farm this out to specific function/file
 	var db *gorm.DB
 	switch config.DBDriver {
 	case "postgres":
 		db, err = gorm.Open(postgres.Open(config.DBConnectionString), &gorm.Config{
 			DisableForeignKeyConstraintWhenMigrating: true,
+			Logger: logging.NewZapGormLogger(sugar, gormLogLevel),
 		})
 	default:
 		panic("unsupported DB driver: " + config.DBDriver)
