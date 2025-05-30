@@ -1051,7 +1051,9 @@ func (ii *InventoryItem) MarshalOscal() oscalTypes_1_1_3.InventoryItem {
 
 type ImplementedComponent struct {
 	UUIDModel
-	ComponentUUID      uuid.UUID                             `json:"component-uuid"`
+	ComponentID uuid.UUID `json:"component-uuid"`
+	Component   DefinedComponent
+
 	Props              datatypes.JSONSlice[Prop]             `json:"props"`
 	Links              datatypes.JSONSlice[Link]             `json:"links"`
 	ResponsibleParties datatypes.JSONSlice[ResponsibleParty] `json:"responsible-parties"`
@@ -1063,11 +1065,11 @@ type ImplementedComponent struct {
 func (ic *ImplementedComponent) UnmarshalOscal(oic oscalTypes_1_1_3.ImplementedComponent) *ImplementedComponent {
 	componentId := uuid.MustParse(oic.ComponentUuid)
 	*ic = ImplementedComponent{
-		UUIDModel:     UUIDModel{},
-		ComponentUUID: componentId,
-		Props:         ConvertOscalToProps(oic.Props),
-		Links:         ConvertOscalToLinks(oic.Links),
-		Remarks:       oic.Remarks,
+		UUIDModel:   UUIDModel{},
+		ComponentID: componentId,
+		Props:       ConvertOscalToProps(oic.Props),
+		Links:       ConvertOscalToLinks(oic.Links),
+		Remarks:     oic.Remarks,
 		ResponsibleParties: ConvertList(oic.ResponsibleParties, func(op oscalTypes_1_1_3.ResponsibleParty) ResponsibleParty {
 			party := ResponsibleParty{}
 			party.UnmarshalOscal(op)
@@ -1080,7 +1082,7 @@ func (ic *ImplementedComponent) UnmarshalOscal(oic oscalTypes_1_1_3.ImplementedC
 
 func (ic *ImplementedComponent) MarshalOscal() oscalTypes_1_1_3.ImplementedComponent {
 	ret := oscalTypes_1_1_3.ImplementedComponent{
-		ComponentUuid: ic.ComponentUUID.String(),
+		ComponentUuid: ic.ComponentID.String(),
 		Remarks:       ic.Remarks,
 	}
 

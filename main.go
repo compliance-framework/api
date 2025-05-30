@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/compliance-framework/configuration-service/internal/service"
 	"log"
 	"os"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/api/handler/oscal"
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -87,7 +87,8 @@ func main() {
 	if err != nil {
 		sugar.Fatal("Failed to open database", "err", err)
 	}
-	err = migrateDB(db)
+
+	err = service.MigrateUp(db)
 	if err != nil {
 		sugar.Fatal("Failed to migrate database", "err", err)
 	}
@@ -111,63 +112,6 @@ func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, dat
 	}
 
 	return client.Database(databaseName), nil
-}
-
-func migrateDB(db *gorm.DB) error {
-	err := db.AutoMigrate(
-		&relational.ResponsibleRole{},
-		&relational.Location{},
-		&relational.Party{},
-		&relational.BackMatterResource{},
-		&relational.BackMatter{},
-		&relational.Role{},
-		&relational.Revision{},
-		&relational.Control{},
-		&relational.Group{},
-		&relational.ResponsibleParty{},
-		&relational.Action{},
-		&relational.Metadata{},
-		&relational.Catalog{},
-		&relational.ControlStatementImplementation{},
-		&relational.ImplementedRequirementControlImplementation{},
-		&relational.ControlImplementationSet{},
-		&relational.ComponentDefinition{},
-		&relational.Capability{},
-		&relational.DefinedComponent{},
-		&relational.Diagram{},
-		&relational.DataFlow{},
-		&relational.NetworkArchitecture{},
-		&relational.AuthorizationBoundary{},
-		&relational.InformationType{},
-		&relational.SystemInformation{},
-		&relational.SystemCharacteristics{},
-		&relational.AuthorizedPrivilege{},
-		&relational.SystemUser{},
-		&relational.LeveragedAuthorization{},
-		&relational.SystemComponent{},
-		&relational.ImplementedComponent{},
-		&relational.InventoryItem{},
-		&relational.SystemImplementation{},
-		&relational.ControlImplementationResponsibility{},
-		&relational.ProvidedControlImplementation{},
-		&relational.SatisfiedControlImplementationResponsibility{},
-		&relational.Export{},
-		&relational.InheritedControlImplementation{},
-		&relational.ByComponent{},
-		&relational.Statement{},
-		&relational.ImplementedRequirement{},
-		&relational.ControlImplementation{},
-		&relational.SystemSecurityPlan{},
-		&relational.SelectControlById{},
-		&relational.Import{},
-		&relational.Merge{},
-		&relational.ParameterSetting{},
-		&relational.Addition{},
-		&relational.Alteration{},
-		&relational.Modify{},
-		&relational.Profile{},
-	)
-	return err
 }
 
 func loadConfig() (config Config) {
