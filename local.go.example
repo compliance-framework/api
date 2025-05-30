@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gorm.io/gorm/logger"
+	"log"
 	"os"
+	"time"
 
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -14,8 +17,12 @@ import (
 
 func main() {
 
+	slowLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+		SlowThreshold: time.Second * 10,
+	})
 	db, err := gorm.Open(postgres.Open("host=localhost user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger:                                   slowLogger,
 	})
 	if err != nil {
 		panic("failed to connect database")
@@ -161,6 +168,7 @@ func main() {
 		"testdata/sp800_53_component_definition_sample.json",
 		"testdata/example-ssp.json",
 		"testdata/sp800_53_profile.json",
+		"testdata/sp800-53-component-aws.json",
 	}
 
 	for _, f := range files {
