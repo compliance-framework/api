@@ -190,52 +190,52 @@ type Risk struct {
 // UnmarshalOscal converts an OSCAL Risk into a relational Risk.
 func (r *Risk) UnmarshalOscal(or oscalTypes_1_1_3.Risk) *Risk {
 	id := uuid.MustParse(or.UUID)
-	
+
 	props := ConvertOscalToProps(or.Props)
 	links := ConvertOscalToLinks(or.Links)
-	
+
 	origins := ConvertList(or.Origins, func(oo oscalTypes_1_1_3.Origin) Origin {
 		origin := Origin{}
 		origin.UnmarshalOscal(oo)
 		return origin
 	})
-	
+
 	threatIds := ConvertList(or.ThreatIds, func(ot oscalTypes_1_1_3.ThreatId) ThreatId {
 		threatId := ThreatId{}
 		threatId.UnmarshalOscal(ot)
 		return threatId
 	})
-	
+
 	characterizations := ConvertList(or.Characterizations, func(oc oscalTypes_1_1_3.Characterization) Characterization {
 		char := Characterization{}
 		char.UnmarshalOscal(oc)
 		return char
 	})
-	
+
 	mitigatingFactors := ConvertList(or.MitigatingFactors, func(om oscalTypes_1_1_3.MitigatingFactor) MitigatingFactor {
 		factor := MitigatingFactor{}
 		factor.UnmarshalOscal(om)
 		return factor
 	})
-	
+
 	remediations := ConvertList(or.Remediations, func(or oscalTypes_1_1_3.Response) Response {
 		response := Response{}
 		response.UnmarshalOscal(or)
 		return response
 	})
-	
+
 	relatedObservations := ConvertList(or.RelatedObservations, func(oro oscalTypes_1_1_3.RelatedObservation) RelatedObservation {
 		relObs := RelatedObservation{}
 		relObs.UnmarshalOscal(oro)
 		return relObs
 	})
-	
+
 	var riskLog *RiskLog
 	if or.RiskLog != nil {
 		riskLog = &RiskLog{}
 		riskLog.UnmarshalOscal(*or.RiskLog)
 	}
-	
+
 	*r = Risk{
 		UUIDModel: UUIDModel{
 			ID: &id,
@@ -267,15 +267,15 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		Statement:   r.Statement,
 		Status:      r.Status,
 	}
-	
+
 	if len(r.Props) > 0 {
 		ret.Props = ConvertPropsToOscal(r.Props)
 	}
-	
+
 	if len(r.Links) > 0 {
 		ret.Links = ConvertLinksToOscal(r.Links)
 	}
-	
+
 	if len(r.Origins) > 0 {
 		origins := make([]oscalTypes_1_1_3.Origin, len(r.Origins))
 		for i, origin := range r.Origins {
@@ -283,7 +283,7 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		}
 		ret.Origins = &origins
 	}
-	
+
 	if len(r.ThreatIds) > 0 {
 		threatIds := make([]oscalTypes_1_1_3.ThreatId, len(r.ThreatIds))
 		for i, threatId := range r.ThreatIds {
@@ -291,7 +291,7 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		}
 		ret.ThreatIds = &threatIds
 	}
-	
+
 	if len(r.Characterizations) > 0 {
 		characterizations := make([]oscalTypes_1_1_3.Characterization, len(r.Characterizations))
 		for i, char := range r.Characterizations {
@@ -299,7 +299,7 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		}
 		ret.Characterizations = &characterizations
 	}
-	
+
 	if len(r.MitigatingFactors) > 0 {
 		factors := make([]oscalTypes_1_1_3.MitigatingFactor, len(r.MitigatingFactors))
 		for i, factor := range r.MitigatingFactors {
@@ -307,11 +307,11 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		}
 		ret.MitigatingFactors = &factors
 	}
-	
+
 	if r.Deadline != nil {
 		ret.Deadline = r.Deadline
 	}
-	
+
 	if len(r.Remediations) > 0 {
 		remediations := make([]oscalTypes_1_1_3.Response, len(r.Remediations))
 		for i, response := range r.Remediations {
@@ -319,11 +319,11 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		}
 		ret.Remediations = &remediations
 	}
-	
+
 	if r.RiskLog != nil {
 		ret.RiskLog = r.RiskLog.MarshalOscal()
 	}
-	
+
 	if len(r.RelatedObservations) > 0 {
 		relatedObservations := make([]oscalTypes_1_1_3.RelatedObservation, len(r.RelatedObservations))
 		for i, relObs := range r.RelatedObservations {
@@ -331,7 +331,7 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		}
 		ret.RelatedObservations = &relatedObservations
 	}
-	
+
 	return &ret
 }
 
