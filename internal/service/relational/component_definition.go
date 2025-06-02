@@ -554,6 +554,10 @@ func (c *Capability) MarshalOscal() *oscalTypes_1_1_3.Capability {
 		Name:        c.Name,
 	}
 
+	if c.Remarks != "" {
+		ret.Remarks = c.Remarks
+	}
+
 	if len(c.Links) > 0 {
 		ret.Links = ConvertLinksToOscal(c.Links)
 	}
