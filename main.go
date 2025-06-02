@@ -52,9 +52,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
+	defer zapLogger.Sync() // flushes buffer, if any
 	sugar := zapLogger.Sugar()
 
-	config := loadConfig()
+	config := loadConfig(sugar)
 
 	mongoDatabase, err := connectMongo(ctx, options.Client().ApplyURI(config.MongoURI), "cf")
 	if err != nil {
@@ -96,7 +97,7 @@ func main() {
 
 	server.PrintRoutes()
 
-	checkErr(server.Start(config.AppPort))
+	checkErr(server.Start(config.AppPort), sugar)
 }
 
 func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, databaseName string) (*mongo.Database, error) {
@@ -114,10 +115,10 @@ func connectMongo(ctx context.Context, clientOptions *options.ClientOptions, dat
 	return client.Database(databaseName), nil
 }
 
-func loadConfig() (config Config) {
+func loadConfig(logger *zap.SugaredLogger) (config Config) {
 	if err := godotenv.Load(".env"); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			log.Fatalf("Error loading .env file: %v", err)
+			logger.Fatalf("Error loading .env file: %v", err)
 		}
 	}
 
@@ -143,11 +144,11 @@ func loadConfig() (config Config) {
 		case "postgres":
 			dbConnectionString = "host=db user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"
 		default:
-			log.Fatalf("Unrecognised db driver: %s", dbDriver)
+			logger.Fatalf("Unrecognised db driver: %s", dbDriver)
 		}
 	}
 
-	log.Printf("dbConnectionString: %s", dbConnectionString)
+	logger.Infof("dbConnectionString: %s", dbConnectionString)
 
 	config = Config{
 		MongoURI:           mongoURI,
@@ -159,8 +160,8 @@ func loadConfig() (config Config) {
 	return config
 }
 
-func checkErr(err error) {
+func checkErr(err error, logger *zap.SugaredLogger) {
 	if err != nil {
-		log.Fatalf("An error occurred: %v", err)
+		logger.Fatalf("An error occurred: %v", err)
 	}
 }
