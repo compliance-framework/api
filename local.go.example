@@ -1,3 +1,5 @@
+//go:build local
+
 package main
 
 import (
@@ -5,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/compliance-framework/configuration-service/internal/logging"
+	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"go.uber.org/zap"
@@ -16,7 +19,6 @@ import (
 )
 
 func main() {
-
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
@@ -36,147 +38,33 @@ func main() {
 		panic("failed to connect database")
 	}
 
-	err = db.Migrator().DropTable(
-		&relational.ResponsibleRole{},
-		&relational.Location{},
-		&relational.Party{},
-		&relational.BackMatterResource{},
-		&relational.BackMatter{},
-		&relational.Role{},
-		&relational.Revision{},
-		&relational.Control{},
-		&relational.Group{},
-		&relational.ResponsibleParty{},
-		&relational.Action{},
-		&relational.Metadata{},
-		&relational.Catalog{},
-		&relational.ControlStatementImplementation{},
-		&relational.ImplementedRequirementControlImplementation{},
-		&relational.ControlImplementationSet{},
-		&relational.ComponentDefinition{},
-		&relational.Capability{},
-		&relational.DefinedComponent{},
-		&relational.Diagram{},
-		&relational.DataFlow{},
-		&relational.NetworkArchitecture{},
-		&relational.AuthorizationBoundary{},
-		&relational.InformationType{},
-		&relational.SystemInformation{},
-		&relational.SystemCharacteristics{},
-		&relational.AuthorizedPrivilege{},
-		&relational.SystemUser{},
-		&relational.LeveragedAuthorization{},
-		&relational.SystemComponent{},
-		&relational.ImplementedComponent{},
-		&relational.InventoryItem{},
-		&relational.SystemImplementation{},
-		&relational.ControlImplementationResponsibility{},
-		&relational.ProvidedControlImplementation{},
-		&relational.SatisfiedControlImplementationResponsibility{},
-		&relational.Export{},
-		&relational.InheritedControlImplementation{},
-		&relational.ByComponent{},
-		&relational.Statement{},
-		&relational.ImplementedRequirement{},
-		&relational.ControlImplementation{},
-		&relational.SystemSecurityPlan{},
-		&relational.SelectControlById{},
-		&relational.Import{},
-		&relational.Merge{},
-		&relational.ParameterSetting{},
-		&relational.Addition{},
-		&relational.Alteration{},
-		&relational.Modify{},
-		&relational.Profile{},
-		"metadata_responsible_parties",
-		"party_locations",
-		"party_member_of_organisations",
-		"responsible_party_parties",
-		"action_responsible_parties",
-		"capability_control_implementation_sets",
-		"defined_components_control_implementation_sets",
-		"authorization_boundary_diagrams",
-		"network_architecture_diagrams",
-		"data_flow_diagrams",
-		"responsible_role_parties",
-		"responsible_role_roles",
-		"metadata_roles",
-		"metadata_parties",
-	)
+	// Reset the entire database in local
+	err = service.MigrateDown(db)
 	if err != nil {
 		panic(err)
 	}
 
-	// Migrate the schema
-	err = db.AutoMigrate(
-		&relational.ResponsibleRole{},
-		&relational.Location{},
-		&relational.Party{},
-		&relational.BackMatterResource{},
-		&relational.BackMatter{},
-		&relational.Role{},
-		&relational.Revision{},
-		&relational.Control{},
-		&relational.Group{},
-		&relational.ResponsibleParty{},
-		&relational.Action{},
-		&relational.Metadata{},
-		&relational.Catalog{},
-		&relational.ControlStatementImplementation{},
-		&relational.ImplementedRequirementControlImplementation{},
-		&relational.ControlImplementationSet{},
-		&relational.ComponentDefinition{},
-		&relational.Capability{},
-		&relational.DefinedComponent{},
-		&relational.Diagram{},
-		&relational.DataFlow{},
-		&relational.NetworkArchitecture{},
-		&relational.AuthorizationBoundary{},
-		&relational.InformationType{},
-		&relational.SystemInformation{},
-		&relational.SystemCharacteristics{},
-		&relational.AuthorizedPrivilege{},
-		&relational.SystemUser{},
-		&relational.LeveragedAuthorization{},
-		&relational.SystemComponent{},
-		&relational.ImplementedComponent{},
-		&relational.InventoryItem{},
-		&relational.SystemImplementation{},
-		&relational.ControlImplementationResponsibility{},
-		&relational.ProvidedControlImplementation{},
-		&relational.SatisfiedControlImplementationResponsibility{},
-		&relational.Export{},
-		&relational.InheritedControlImplementation{},
-		&relational.ByComponent{},
-		&relational.Statement{},
-		&relational.ImplementedRequirement{},
-		&relational.ControlImplementation{},
-		&relational.SystemSecurityPlan{},
-		&relational.SelectControlById{},
-		&relational.Import{},
-		&relational.Merge{},
-		&relational.ParameterSetting{},
-		&relational.Addition{},
-		&relational.Alteration{},
-		&relational.Modify{},
-		&relational.Profile{},
-	)
+	//os.Exit(1)
+
+	err = service.MigrateUp(db)
 	if err != nil {
 		panic(err)
 	}
 
 	files := []string{
-		//"testdata/NIST_SP-800_218_catalog.json",
-		//"testdata/OWASP_DSOMM_3.28.2.json",
-		//"testdata/SAMA_CSF_1.0_catalog.json",
-		//"testdata/SAMA_ITGF_1.0_catalog.json",
-
 		"testdata/basic-catalog.json",
+		"testdata/example-ap.json",
+		"testdata/example-ssp.json",
+		"testdata/full_ssp.json",
+		"testdata/NIST_SP-800_218_catalog.json",
+		"testdata/OWASP_DSOMM_3.28.2.json",
+		"testdata/SAMA_CSF_1.0_catalog.json",
+		"testdata/SAMA_ITGF_1.0_catalog.json",
+		"testdata/sp800-53-component.json",
+		"testdata/sp800-53-component-aws.json",
 		"testdata/sp800_53_catalog.json",
 		"testdata/sp800_53_component_definition_sample.json",
-		"testdata/example-ssp.json",
 		"testdata/sp800_53_profile.json",
-		"testdata/sp800-53-component-aws.json",
 	}
 
 	for _, f := range files {
@@ -190,6 +78,7 @@ func main() {
 			ComponentDefinition *oscaltypes113.ComponentDefinition `json:"component-definition"`
 			Catalog             *oscaltypes113.Catalog             `json:"catalog"`
 			SystemSecurityPlan  *oscaltypes113.SystemSecurityPlan  `json:"system-security-plan"`
+			AssessmentPlan      *oscaltypes113.AssessmentPlan      `json:"assessment-plan"`
 			Profile             *oscaltypes113.Profile             `json:"profile"`
 		}{}
 
@@ -231,6 +120,17 @@ func main() {
 			continue
 		}
 
+		if input.AssessmentPlan != nil {
+			def := &relational.AssessmentPlan{}
+			def.UnmarshalOscal(*input.AssessmentPlan)
+			out := db.Create(def)
+			if out.Error != nil {
+				panic(out.Error)
+			}
+			fmt.Println("Successfully Created Assessment Plan", f)
+			continue
+		}
+
 		if input.Profile != nil {
 			def := &relational.Profile{}
 			def.UnmarshalOscal(*input.Profile)
@@ -244,60 +144,4 @@ func main() {
 
 		panic(errors.New(fmt.Sprintf("File content wasn't understood or mapped, %s", f)))
 	}
-}
-
-func LoadComponentDefinitionDataFromJSON(db *gorm.DB, jsonPath string) error {
-	jsonFile, err := os.Open(jsonPath)
-	if err != nil {
-		return err
-	}
-	fmt.Println("Successfully Opened Component Definition")
-	defer jsonFile.Close()
-	input := &struct {
-		ComponentDefinition *oscaltypes113.ComponentDefinition `json:"component-definition"`
-	}{}
-
-	err = json.NewDecoder(jsonFile).Decode(input)
-	if err != nil {
-		return err
-	}
-
-	// First, the catalog
-	def := &relational.ComponentDefinition{}
-	def.UnmarshalOscal(*input.ComponentDefinition)
-	out := db.Create(def)
-	if out.Error != nil {
-		return out.Error
-	}
-
-	return nil
-}
-
-func LoadCatalogDataFromJSON(db *gorm.DB, jsonPath string) error {
-	jsonFile, err := os.Open(jsonPath)
-	// if we os.Open returns an error then handle it
-	if err != nil {
-		return err
-	}
-	fmt.Println("Successfully Opened Catalog")
-	// defer the closing of our jsonFile so that we can parse it later on
-	defer jsonFile.Close()
-
-	input := &struct {
-		Catalog *oscaltypes113.Catalog
-	}{}
-	err = json.NewDecoder(jsonFile).Decode(input)
-	if err != nil {
-		return err
-	}
-
-	// First, the catalog
-	catalog := &relational.Catalog{}
-	catalog.UnmarshalOscal(*input.Catalog)
-	out := db.Create(catalog)
-	if out.Error != nil {
-		return out.Error
-	}
-
-	return nil
 }
