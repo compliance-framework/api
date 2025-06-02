@@ -6,6 +6,8 @@ import (
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Metadata struct {
@@ -26,7 +28,7 @@ type Metadata struct {
 	ResponsibleParties []ResponsibleParty              `gorm:"many2many:metadata_responsible_parties;"`
 	Revisions          []Revision                      `json:"revisions"`
 	Roles              []Role                          `json:"roles" gorm:"many2many:metadata_roles"`
-	Locations          []Location                      `json:"locations"`
+	Locations          []Location                      `json:"locations" gorm:"many2many:metadata_locations"`
 	Parties            []Party                         `json:"parties" gorm:"many2many:metadata_parties"`
 	Actions            []Action                        `json:"actions"`
 	Remarks            string                          `json:"remarks"`
@@ -289,10 +291,6 @@ func (p *PartyExternalID) MarshalOscal() *oscaltypes113.PartyExternalIdentifier 
 
 type Party struct {
 	UUIDModel
-
-	// Parties only exist on a metadata object. We'll link them straight there with a BelongsTo relationship
-	MetadataID uuid.UUID `json:"metadata-id"`
-
 	Type                  PartyType                            `json:"type"`
 	Name                  *string                              `json:"name"`
 	ShortName             *string                              `json:"short-name"`
@@ -445,6 +443,13 @@ func (p *Party) MarshalOscal() *oscaltypes113.Party {
 	return party
 }
 
+func (p *Party) BeforeCreate(db *gorm.DB) error {
+	db.Statement.AddClause(clause.OnConflict{
+		DoNothing: true,
+	})
+	return nil
+}
+
 type Revision struct {
 	// Only version is required
 	UUIDModel
@@ -511,11 +516,7 @@ func (r *Revision) MarshalOscal() *oscaltypes113.RevisionHistoryEntry {
 }
 
 type Role struct {
-	ID string `json:"id" gorm:"primary_key;"`
-
-	// Roles only exist on a metadata object. We'll link them straight there with a BelongsTo relationship
-	MetadataID uuid.UUID `json:"metadata-id"`
-
+	ID          string                    `json:"id" gorm:"primary_key;"`
 	Title       string                    `json:"title"`
 	ShortName   *string                   `json:"short-name"`
 	Description *string                   `json:"description"`
@@ -566,10 +567,6 @@ func (r *Role) MarshalOscal() *oscaltypes113.Role {
 
 type Location struct {
 	UUIDModel
-
-	// Locations only exist on a metadata object. We'll link them straight there with a BelongsTo relationship
-	MetadataID uuid.UUID `json:"metadata-id"`
-
 	Title            *string                              `json:"title"`
 	Address          *datatypes.JSONType[Address]         `json:"address"`
 	EmailAddresses   datatypes.JSONSlice[string]          `json:"email-addresses"`

@@ -7,6 +7,7 @@ import (
 
 func MigrateUp(db *gorm.DB) error {
 	err := db.AutoMigrate(
+		&relational.ResponsiblePartyParties{},
 		&relational.Location{},
 		&relational.Party{},
 		&relational.BackMatterResource{},
@@ -14,6 +15,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Role{},
 		&relational.Revision{},
 		&relational.ResponsibleParty{},
+		&relational.ResponsibleRole{},
 		&relational.Action{},
 		&relational.Metadata{},
 		&relational.Group{},
@@ -71,6 +73,15 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.ControlSelection{},
 		&relational.ControlObjectiveSelection{},
 		&relational.SelectObjectiveById{},
+
+		&relational.Profile{},
+		&relational.Import{},
+		&relational.Merge{},
+		&relational.Modify{},
+		&relational.ParameterSetting{},
+		&relational.Alteration{},
+		&relational.Addition{},
+		&relational.SelectControlById{},
 	)
 	return err
 }
@@ -181,6 +192,15 @@ func MigrateDown(db *gorm.DB) error {
 		"task_subjects",
 		"task_tasks",
 		"uses_component_responsible_parties",
+
+		&relational.Profile{},
+		&relational.Import{},
+		&relational.Merge{},
+		&relational.Modify{},
+		&relational.ParameterSetting{},
+		&relational.Alteration{},
+		&relational.Addition{},
+		&relational.SelectControlById{},
 	)
 	return err
 }

@@ -32,12 +32,44 @@ definitions:
           $ref: '#/definitions/oscal.ProfileHandler'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Capability:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Control:
     properties:
       data:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationSet:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_ControlStatementImplementation:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlStatementImplementation'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_DefinedComponent:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
         type: array
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Group:
@@ -48,12 +80,36 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Group'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_ImplementedRequirementControlImplementation:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirementControlImplementation'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Import:
     properties:
       data:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Import'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_ImportComponentDefinition:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImportComponentDefinition'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_IncorporatesComponent:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.IncorporatesComponent'
         type: array
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_InventoryItem:
@@ -215,6 +271,13 @@ definitions:
         - $ref: '#/definitions/oscal.Get.responseCatalog'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscal_Get_responseComponentDefinition:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.Get.responseComponentDefinition'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_ProfileHandler:
     properties:
       data:
@@ -236,11 +299,25 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Capability:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Catalog:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.ComponentDefinition'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Control:
@@ -257,11 +334,25 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementation'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationSet:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_DataFlow:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/oscalTypes_1_1_3.DataFlow'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_DefinedComponent:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Diagram:
@@ -422,6 +513,13 @@ definitions:
         $ref: '#/definitions/labelfilter.Query'
     type: object
   oscal.Get.responseCatalog:
+    properties:
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
+  oscal.Get.responseComponentDefinition:
     properties:
       metadata:
         $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
@@ -609,6 +707,33 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.Capability:
+    properties:
+      control-implementations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+        type: array
+      description:
+        type: string
+      incorporates-components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.IncorporatesComponent'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.Catalog:
     properties:
       back-matter:
@@ -646,6 +771,27 @@ definitions:
   oscalTypes_1_1_3.CombinationRule:
     properties:
       method:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ComponentDefinition:
+    properties:
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      capabilities:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+        type: array
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+        type: array
+      import-component-definitions:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImportComponentDefinition'
+        type: array
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.ConstraintTest:
@@ -720,6 +866,54 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.ControlImplementationSet:
+    properties:
+      description:
+        type: string
+      implemented-requirements:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirementControlImplementation'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SetParameter'
+        type: array
+      source:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ControlStatementImplementation:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      statement-id:
+        type: string
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.CustomGrouping:
     properties:
       groups:
@@ -781,6 +975,41 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Property'
         type: array
       remarks:
+        type: string
+    type: object
+  oscalTypes_1_1_3.DefinedComponent:
+    properties:
+      control-implementations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+        type: array
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      protocols:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Protocol'
+        type: array
+      purpose:
+        type: string
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Diagram:
@@ -951,6 +1180,37 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.ImplementedRequirementControlImplementation:
+    properties:
+      control-id:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SetParameter'
+        type: array
+      statements:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlStatementImplementation'
+        type: array
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.Import:
     properties:
       exclude-controls:
@@ -966,6 +1226,11 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.SelectControlById'
         type: array
     type: object
+  oscalTypes_1_1_3.ImportComponentDefinition:
+    properties:
+      href:
+        type: string
+    type: object
   oscalTypes_1_1_3.ImportProfile:
     properties:
       href:
@@ -975,6 +1240,13 @@ definitions:
     type: object
   oscalTypes_1_1_3.IncludeAll:
     additionalProperties: true
+    type: object
+  oscalTypes_1_1_3.IncorporatesComponent:
+    properties:
+      component-uuid:
+        type: string
+      description:
+        type: string
     type: object
   oscalTypes_1_1_3.InformationType:
     properties:
@@ -3749,6 +4021,981 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: List component definitions
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates a new component definition.
+      parameters:
+      - description: Component Definition
+        in: body
+        name: componentDefinition
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ComponentDefinition'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}:
+    get:
+      description: Retrieves a single component definition by its unique ID.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_Get_responseComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a component definition
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated Component Definition object
+        in: body
+        name: componentDefinition
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ComponentDefinition'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/back-matter:
+    get:
+      description: Retrieves the back-matter for a given Component Definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get back-matter for a Component Definition
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates new back-matter for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Back Matter
+        in: body
+        name: back-matter
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create back-matter for a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/capabilities:
+    get:
+      description: Retrieves all capabilities for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Capability'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get capabilities for a component definition
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates new capabilities for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Capabilities
+        in: body
+        name: capabilities
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Capability'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create capabilities for a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/capabilities/{capability}:
+    put:
+      consumes:
+      - application/json
+      description: Updates a single capability for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Capability ID (UUID)
+        in: path
+        name: capability
+        required: true
+        type: string
+      - description: Capability to update
+        in: body
+        name: capability
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Capability'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a capability for a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/capabilities/incorporates-components:
+    get:
+      description: Retrieves all incorporates components for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_IncorporatesComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get incorporates components for a component definition
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates new incorporates components for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Incorporates Components
+        in: body
+        name: incorporates-components
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.IncorporatesComponent'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_IncorporatesComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create incorporates components for a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/components:
+    get:
+      description: Retrieves all components for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get components for a component definition
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates new components for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Components to create
+        in: body
+        name: components
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create components for a component definition
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates the components for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Components to update
+        in: body
+        name: components
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update components for a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/components/{defined-component}:
+    get:
+      description: Retrieves a defined component for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a defined component for a component definition
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates a new defined component for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component to create
+        in: body
+        name: defined-component
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a defined component for a component definition
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates a defined component for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      - description: Defined Component to update
+        in: body
+        name: defined-component
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a defined component for a component definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/components/{defined-component}/control-implementations:
+    get:
+      description: Retrieves all control implementations for a given defined component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationSet'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get control implementations for a defined component
+      tags:
+      - Oscal
+    post:
+      consumes:
+      - application/json
+      description: Creates new control implementations for a given defined component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      - description: Control Implementations
+        in: body
+        name: control-implementations
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationSet'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create control implementations for a defined component
+      tags:
+      - Oscal
+    put:
+      consumes:
+      - application/json
+      description: Updates control implementations for a given defined component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      - description: Control Implementations
+        in: body
+        name: control-implementations
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ControlImplementationSet'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update control implementations for a defined component
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/components/{defined-component}/control-implementations/{control-implementation}:
+    put:
+      consumes:
+      - application/json
+      description: Updates a specific control implementation for a given defined component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      - description: Control Implementation ID
+        in: path
+        name: control-implementation
+        required: true
+        type: string
+      - description: Control Implementation
+        in: body
+        name: control-implementation
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationSet'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ControlImplementationSet'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a single control implementation for a defined component
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements:
+    get:
+      description: Retrieves all implemented requirements for a given defined component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ImplementedRequirementControlImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get implemented requirements for a defined component
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements/statements:
+    get:
+      description: Retrieves all statements for a given defined component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ControlStatementImplementation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get statements for a defined component
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/full:
+    get:
+      description: Retrieves a complete Component Definition by its ID, including
+        all metadata and revisions.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a complete Component Definition
+      tags:
+      - Oscal
+  /oscal/component-definitions/{id}/import-component-definitions:
+    get:
+      description: Retrieves all import component definitions for a given defined
+        component.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Defined Component ID
+        in: path
+        name: defined-component
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ImportComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get import component definitions for a defined component
+      tags:
+      - Oscal
+    post:
+      description: Creates new import component definitions for a given component
+        definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import Component Definitions
+        in: body
+        name: import-component-definitions
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.ImportComponentDefinition'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ImportComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create import component definitions for a component definition
+      tags:
+      - Oscal
+    put:
+      description: Updates the import component definitions for a given component
+        definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import Component Definitions
+        in: body
+        name: import-component-definitions
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/oscalTypes_1_1_3.ImportComponentDefinition'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ImportComponentDefinition'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update import component definitions for a component definition
       tags:
       - Oscal
   /oscal/parties:

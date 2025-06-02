@@ -23,4 +23,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	roleHandler := NewRoleHandler(logger, db)
 	roleHandler.Register(oscalGroup.Group("/roles"))
+
+	componentDefinitionHandler := NewComponentDefinitionHandler(logger, db)
+	componentDefinitionHandler.Register(oscalGroup.Group("/component-definitions"))
 }
