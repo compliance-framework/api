@@ -6,6 +6,8 @@ import (
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Metadata struct {
@@ -439,6 +441,13 @@ func (p *Party) MarshalOscal() *oscaltypes113.Party {
 	}
 
 	return party
+}
+
+func (p *Party) BeforeCreate(db *gorm.DB) error {
+	db.Statement.AddClause(clause.OnConflict{
+		DoNothing: true,
+	})
+	return nil
 }
 
 type Revision struct {

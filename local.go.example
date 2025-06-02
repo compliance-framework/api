@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/compliance-framework/configuration-service/internal/logging"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
@@ -14,8 +17,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
-	"log"
-	"os"
 )
 
 func main() {

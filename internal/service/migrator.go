@@ -7,6 +7,7 @@ import (
 
 func MigrateUp(db *gorm.DB) error {
 	err := db.AutoMigrate(
+		&relational.ResponsiblePartyParties{},
 		&relational.Location{},
 		&relational.Party{},
 		&relational.BackMatterResource{},
