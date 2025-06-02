@@ -72,6 +72,14 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Finding:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Finding'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Group:
     properties:
       data:
@@ -128,12 +136,44 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.LeveragedAuthorization'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Observation:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Observation'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Party:
     properties:
       data:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Party'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_PoamItem:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.PoamItem'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Risk:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Risk'
         type: array
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Role:
@@ -397,6 +437,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Party'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Profile:
     properties:
       data:
@@ -622,6 +669,93 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Removal'
         type: array
     type: object
+  oscalTypes_1_1_3.AssessmentAssets:
+    properties:
+      assessment-platforms:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlatform'
+        type: array
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
+    type: object
+  oscalTypes_1_1_3.AssessmentPlatform:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      uses-components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.UsesComponent'
+        type: array
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.AssessmentSubject:
+    properties:
+      description:
+        type: string
+      exclude-subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SelectSubjectById'
+        type: array
+      include-all:
+        $ref: '#/definitions/oscalTypes_1_1_3.IncludeAll'
+      include-subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SelectSubjectById'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      type:
+        type: string
+    type: object
+  oscalTypes_1_1_3.AssociatedActivity:
+    properties:
+      activity-uuid:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
+        type: array
+    type: object
+  oscalTypes_1_1_3.AssociatedRisk:
+    properties:
+      risk-uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.AuthorizationBoundary:
     properties:
       description:
@@ -754,6 +888,23 @@ definitions:
         type: array
       uuid:
         type: string
+    type: object
+  oscalTypes_1_1_3.Characterization:
+    properties:
+      facets:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Facet'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origin:
+        $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
     type: object
   oscalTypes_1_1_3.Citation:
     properties:
@@ -1038,6 +1189,15 @@ definitions:
       scheme:
         type: string
     type: object
+  oscalTypes_1_1_3.EventTiming:
+    properties:
+      at-frequency:
+        $ref: '#/definitions/oscalTypes_1_1_3.FrequencyCondition'
+      on-date:
+        $ref: '#/definitions/oscalTypes_1_1_3.OnDateCondition'
+      within-date-range:
+        $ref: '#/definitions/oscalTypes_1_1_3.OnDateRangeCondition'
+    type: object
   oscalTypes_1_1_3.Export:
     properties:
       description:
@@ -1061,8 +1221,94 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.ControlImplementationResponsibility'
         type: array
     type: object
+  oscalTypes_1_1_3.Facet:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      system:
+        type: string
+      value:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Finding:
+    properties:
+      description:
+        type: string
+      implementation-statement-uuid:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      related-observations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
+        type: array
+      related-risks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedRisk'
+        type: array
+      remarks:
+        type: string
+      target:
+        $ref: '#/definitions/oscalTypes_1_1_3.FindingTarget'
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.FindingTarget:
+    properties:
+      description:
+        type: string
+      implementation-status:
+        $ref: '#/definitions/oscalTypes_1_1_3.ImplementationStatus'
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
+      target-id:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
   oscalTypes_1_1_3.FlatWithoutGrouping:
     additionalProperties: true
+    type: object
+  oscalTypes_1_1_3.FrequencyCondition:
+    properties:
+      period:
+        type: integer
+      unit:
+        type: string
     type: object
   oscalTypes_1_1_3.Group:
     properties:
@@ -1103,6 +1349,15 @@ definitions:
         type: string
       value:
         type: string
+    type: object
+  oscalTypes_1_1_3.IdentifiedSubject:
+    properties:
+      subject-placeholder-uuid:
+        type: string
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
+        type: array
     type: object
   oscalTypes_1_1_3.Impact:
     properties:
@@ -1232,6 +1487,13 @@ definitions:
         type: string
     type: object
   oscalTypes_1_1_3.ImportProfile:
+    properties:
+      href:
+        type: string
+      remarks:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ImportSsp:
     properties:
       href:
         type: string
@@ -1410,6 +1672,13 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.LoggedBy:
+    properties:
+      party-uuid:
+        type: string
+      role-id:
+        type: string
+    type: object
   oscalTypes_1_1_3.Matching:
     properties:
       pattern:
@@ -1477,6 +1746,27 @@ definitions:
       version:
         type: string
     type: object
+  oscalTypes_1_1_3.MitigatingFactor:
+    properties:
+      description:
+        type: string
+      implementation-uuid:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
+        type: array
+      uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.Modify:
     properties:
       alters:
@@ -1505,6 +1795,98 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Property'
         type: array
       remarks:
+        type: string
+    type: object
+  oscalTypes_1_1_3.ObjectiveStatus:
+    properties:
+      reason:
+        type: string
+      remarks:
+        type: string
+      state:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Observation:
+    properties:
+      collected:
+        type: string
+      description:
+        type: string
+      expires:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      methods:
+        items:
+          type: string
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      relevant-evidence:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelevantEvidence'
+        type: array
+      remarks:
+        type: string
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
+        type: array
+      title:
+        type: string
+      types:
+        items:
+          type: string
+        type: array
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.OnDateCondition:
+    properties:
+      date:
+        type: string
+    type: object
+  oscalTypes_1_1_3.OnDateRangeCondition:
+    properties:
+      end:
+        type: string
+      start:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Origin:
+    properties:
+      actors:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.OriginActor'
+        type: array
+      related-tasks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedTask'
+        type: array
+    type: object
+  oscalTypes_1_1_3.OriginActor:
+    properties:
+      actor-uuid:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      role-id:
+        type: string
+      type:
         type: string
     type: object
   oscalTypes_1_1_3.Parameter:
@@ -1681,6 +2063,94 @@ definitions:
       scheme:
         type: string
     type: object
+  oscalTypes_1_1_3.PlanOfActionAndMilestones:
+    properties:
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      findings:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Finding'
+        type: array
+      import-ssp:
+        $ref: '#/definitions/oscalTypes_1_1_3.ImportSsp'
+      local-definitions:
+        $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions'
+      metadata:
+        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      observations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Observation'
+        type: array
+      poam-items:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.PoamItem'
+        type: array
+      risks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Risk'
+        type: array
+      system-id:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemId'
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions:
+    properties:
+      assessment-assets:
+        $ref: '#/definitions/oscalTypes_1_1_3.AssessmentAssets'
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
+      inventory-items:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+        type: array
+      remarks:
+        type: string
+    type: object
+  oscalTypes_1_1_3.PoamItem:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.PoamItemOrigin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      related-findings:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedFinding'
+        type: array
+      related-observations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
+        type: array
+      related-risks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedRisk'
+        type: array
+      remarks:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.PoamItemOrigin:
+    properties:
+      actors:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.OriginActor'
+        type: array
+    type: object
   oscalTypes_1_1_3.PortRange:
     properties:
       end:
@@ -1758,6 +2228,58 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.RelatedFinding:
+    properties:
+      finding-uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RelatedObservation:
+    properties:
+      observation-uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RelatedTask:
+    properties:
+      identified-subject:
+        $ref: '#/definitions/oscalTypes_1_1_3.IdentifiedSubject'
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
+        type: array
+      task-uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RelevantEvidence:
+    properties:
+      description:
+        type: string
+      href:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+    type: object
   oscalTypes_1_1_3.Removal:
     properties:
       by-class:
@@ -1769,6 +2291,29 @@ definitions:
       by-name:
         type: string
       by-ns:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RequiredAsset:
+    properties:
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SubjectReference'
+        type: array
+      title:
+        type: string
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Resource:
@@ -1807,6 +2352,39 @@ definitions:
       href:
         type: string
       media-type:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Response:
+    properties:
+      description:
+        type: string
+      lifecycle:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      required-assets:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RequiredAsset'
+        type: array
+      tasks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Task'
+        type: array
+      title:
+        type: string
+      uuid:
         type: string
     type: object
   oscalTypes_1_1_3.ResponsibleParty:
@@ -1868,6 +2446,114 @@ definitions:
       title:
         type: string
       version:
+        type: string
+    type: object
+  oscalTypes_1_1_3.Risk:
+    properties:
+      characterizations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Characterization'
+        type: array
+      deadline:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      mitigating-factors:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.MitigatingFactor'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      related-observations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedObservation'
+        type: array
+      remediations:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Response'
+        type: array
+      risk-log:
+        $ref: '#/definitions/oscalTypes_1_1_3.RiskLog'
+      statement:
+        type: string
+      status:
+        type: string
+      threat-ids:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ThreatId'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RiskLog:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RiskLogEntry'
+        type: array
+    type: object
+  oscalTypes_1_1_3.RiskLogEntry:
+    properties:
+      description:
+        type: string
+      end:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      logged-by:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.LoggedBy'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      related-responses:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RiskResponseReference'
+        type: array
+      remarks:
+        type: string
+      start:
+        type: string
+      status-change:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.RiskResponseReference:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      related-tasks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.RelatedTask'
+        type: array
+      remarks:
+        type: string
+      response-uuid:
         type: string
     type: object
   oscalTypes_1_1_3.Role:
@@ -1936,6 +2622,23 @@ definitions:
           type: string
         type: array
     type: object
+  oscalTypes_1_1_3.SelectSubjectById:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      subject-uuid:
+        type: string
+      type:
+        type: string
+    type: object
   oscalTypes_1_1_3.SetParameter:
     properties:
       param-id:
@@ -1977,6 +2680,25 @@ definitions:
       remarks:
         type: string
       state:
+        type: string
+    type: object
+  oscalTypes_1_1_3.SubjectReference:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      subject-uuid:
+        type: string
+      title:
+        type: string
+      type:
         type: string
     type: object
   oscalTypes_1_1_3.SystemCharacteristics:
@@ -2159,12 +2881,90 @@ definitions:
       uuid:
         type: string
     type: object
+  oscalTypes_1_1_3.Task:
+    properties:
+      associated-activities:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedActivity'
+        type: array
+      dependencies:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.TaskDependency'
+        type: array
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
+        type: array
+      tasks:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Task'
+        type: array
+      timing:
+        $ref: '#/definitions/oscalTypes_1_1_3.EventTiming'
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
+  oscalTypes_1_1_3.TaskDependency:
+    properties:
+      remarks:
+        type: string
+      task-uuid:
+        type: string
+    type: object
   oscalTypes_1_1_3.TelephoneNumber:
     properties:
       number:
         type: string
       type:
         type: string
+    type: object
+  oscalTypes_1_1_3.ThreatId:
+    properties:
+      href:
+        type: string
+      id:
+        type: string
+      system:
+        type: string
+    type: object
+  oscalTypes_1_1_3.UsesComponent:
+    properties:
+      component-uuid:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
     type: object
   service.Catalog:
     properties:
@@ -5050,6 +5850,215 @@ paths:
       summary: Get a Party
       tags:
       - Oscal
+  /oscal/plan-of-action-and-milestones:
+    get:
+      description: Retrieves all Plan of Action and Milestones.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List POA&Ms
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}:
+    get:
+      description: Retrieves a single Plan of Action and Milestones by its unique
+        ID.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a POA&M
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/findings:
+    get:
+      description: Retrieves all findings for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Finding'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get findings for a POA&M
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/full:
+    get:
+      description: Retrieves a complete POA&M by its ID, including all metadata and
+        related objects.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a complete POA&M
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/observations:
+    get:
+      description: Retrieves all observations for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Observation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get observations for a POA&M
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/poam-items:
+    get:
+      description: Retrieves all POA&M items for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_PoamItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get POA&M items
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/risks:
+    get:
+      description: Retrieves all risks for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Risk'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get risks for a POA&M
+      tags:
+      - OScal
   /oscal/profiles:
     get:
       description: Retrieves all OSCAL profiles

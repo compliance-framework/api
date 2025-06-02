@@ -26,4 +26,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	componentDefinitionHandler := NewComponentDefinitionHandler(logger, db)
 	componentDefinitionHandler.Register(oscalGroup.Group("/component-definitions"))
+
+	poamHandler := NewPlanOfActionAndMilestonesHandler(logger, db)
+	poamHandler.Register(oscalGroup.Group("/plan-of-action-and-milestones"))
 }

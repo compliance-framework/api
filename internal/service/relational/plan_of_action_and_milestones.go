@@ -15,8 +15,8 @@ type PlanOfActionAndMilestones struct {
 	Metadata   Metadata   `json:"metadata" gorm:"polymorphic:Parent;"`
 	BackMatter BackMatter `json:"back-matter" gorm:"polymorphic:Parent;"`
 
-	ImportSsp        *ImportSsp                                 `json:"import-ssp"`
-	SystemId         *SystemId                                  `json:"system-id"`
+	ImportSsp        datatypes.JSONType[ImportSsp]              `json:"import-ssp"`
+	SystemId         datatypes.JSONType[SystemId]               `json:"system-id"`
 	LocalDefinitions *PlanOfActionAndMilestonesLocalDefinitions `json:"local-definitions"`
 	Observations     *[]Observation                             `json:"observations"`
 	Risks            *[]Risk                                    `json:"risks"`
@@ -31,16 +31,18 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 	metadata.UnmarshalOscal(opam.Metadata)
 	id := uuid.MustParse(opam.UUID)
 
-	var importSsp *ImportSsp
+	var importSsp datatypes.JSONType[ImportSsp]
 	if opam.ImportSsp != nil {
-		importSsp = &ImportSsp{}
-		importSsp.UnmarshalOscal(*opam.ImportSsp)
+		isp := ImportSsp{}
+		isp.UnmarshalOscal(*opam.ImportSsp)
+		importSsp = datatypes.NewJSONType(isp)
 	}
 
-	var systemId *SystemId
+	var systemId datatypes.JSONType[SystemId]
 	if opam.SystemId != nil {
-		systemId = &SystemId{}
-		systemId.UnmarshalOscal(*opam.SystemId)
+		sid := SystemId{}
+		sid.UnmarshalOscal(*opam.SystemId)
+		systemId = datatypes.NewJSONType(sid)
 	}
 
 	var localDefinitions *PlanOfActionAndMilestonesLocalDefinitions
@@ -115,12 +117,14 @@ func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActio
 
 	opam.Metadata = *p.Metadata.MarshalOscal()
 
-	if p.ImportSsp != nil {
-		opam.ImportSsp = p.ImportSsp.MarshalOscal()
+	if val, err := p.ImportSsp.Value(); err == nil && val != nil {
+		isp := val.(ImportSsp)
+		opam.ImportSsp = isp.MarshalOscal()
 	}
 
-	if p.SystemId != nil {
-		opam.SystemId = p.SystemId.MarshalOscal()
+	if val, err := p.SystemId.Value(); err == nil && val != nil {
+		sid := val.(SystemId)
+		opam.SystemId = sid.MarshalOscal()
 	}
 
 	if p.LocalDefinitions != nil {
@@ -170,21 +174,21 @@ func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActio
 // Risk represents a risk in OSCAL.
 // It includes uuid, title, description, statement, props, links, status, origins, threat-ids, characterizations, mitigating-factors, deadline, remediations, risk-log, and related-observations.
 type Risk struct {
-	UUIDModel                                                         // required
-	Title               string                                        `json:"title"`       // required
-	Description         string                                        `json:"description"` // required
-	Statement           string                                        `json:"statement"`   // required
-	Status              string                                        `json:"status"`      // required
-	Props               datatypes.JSONSlice[Prop]                     `json:"props"`
-	Links               datatypes.JSONSlice[Link]                     `json:"links"`
-	Origins             datatypes.JSONSlice[Origin]                   `json:"origins"`
-	ThreatIds           datatypes.JSONSlice[ThreatId]                 `json:"threat-ids"`
-	Characterizations   datatypes.JSONSlice[Characterization]         `json:"characterizations"`
-	MitigatingFactors   datatypes.JSONSlice[MitigatingFactor]         `json:"mitigating-factors"`
-	Deadline            *time.Time                                    `json:"deadline"`
-	Remediations        datatypes.JSONSlice[Response]                 `json:"remediations"`
-	RiskLog             *RiskLog                                      `json:"risk-log"`
-	RelatedObservations datatypes.JSONSlice[RelatedObservation]       `json:"related-observations"`
+	UUIDModel                                                   // required
+	Title               string                                  `json:"title"`       // required
+	Description         string                                  `json:"description"` // required
+	Statement           string                                  `json:"statement"`   // required
+	Status              string                                  `json:"status"`      // required
+	Props               datatypes.JSONSlice[Prop]               `json:"props"`
+	Links               datatypes.JSONSlice[Link]               `json:"links"`
+	Origins             datatypes.JSONSlice[Origin]             `json:"origins"`
+	ThreatIds           datatypes.JSONSlice[ThreatId]           `json:"threat-ids"`
+	Characterizations   datatypes.JSONSlice[Characterization]   `json:"characterizations"`
+	MitigatingFactors   datatypes.JSONSlice[MitigatingFactor]   `json:"mitigating-factors"`
+	Deadline            *time.Time                              `json:"deadline"`
+	Remediations        datatypes.JSONSlice[Response]           `json:"remediations"`
+	RiskLog             *RiskLog                                `json:"risk-log"`
+	RelatedObservations datatypes.JSONSlice[RelatedObservation] `json:"related-observations"`
 }
 
 // UnmarshalOscal converts an OSCAL Risk into a relational Risk.
@@ -441,13 +445,12 @@ func (p *PoamItem) MarshalOscal() *oscalTypes_1_1_3.PoamItem {
 	return &poamItem
 }
 
-
 // PlanOfActionAndMilestonesLocalDefinitions represents local definitions in POAM.
 type PlanOfActionAndMilestonesLocalDefinitions struct {
-	AssessmentAssets *AssessmentAssets                                       `json:"assessment-assets"`
-	Components       datatypes.JSONSlice[oscalTypes_1_1_3.SystemComponent]   `json:"components"`
-	InventoryItems   datatypes.JSONSlice[oscalTypes_1_1_3.InventoryItem]     `json:"inventory-items"`
-	Remarks          string                                                  `json:"remarks"`
+	AssessmentAssets *AssessmentAssets                                     `json:"assessment-assets"`
+	Components       datatypes.JSONSlice[oscalTypes_1_1_3.SystemComponent] `json:"components"`
+	InventoryItems   datatypes.JSONSlice[oscalTypes_1_1_3.InventoryItem]   `json:"inventory-items"`
+	Remarks          string                                                `json:"remarks"`
 }
 
 func (p *PlanOfActionAndMilestonesLocalDefinitions) UnmarshalOscal(op oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions) *PlanOfActionAndMilestonesLocalDefinitions {
@@ -504,19 +507,19 @@ func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1
 
 // Observation represents an observation in OSCAL.
 type Observation struct {
-	UUIDModel                                               // required
-	Collected        time.Time                              `json:"collected"`    // required
-	Description      string                                 `json:"description"`  // required
-	Methods          []string                               `json:"methods"`      // required
-	Expires          *time.Time                             `json:"expires"`
-	Links            datatypes.JSONSlice[Link]              `json:"links"`
-	Origins          datatypes.JSONSlice[Origin]            `json:"origins"`
-	Props            datatypes.JSONSlice[Prop]              `json:"props"`
-	RelevantEvidence datatypes.JSONSlice[RelevantEvidence]  `json:"relevant-evidence"`
-	Remarks          string                                 `json:"remarks"`
-	Subjects         datatypes.JSONSlice[SubjectReference]  `json:"subjects"`
-	Title            string                                 `json:"title"`
-	Types            []string                               `json:"types"`
+	UUIDModel                                              // required
+	Collected        time.Time                             `json:"collected"`   // required
+	Description      string                                `json:"description"` // required
+	Methods          []string                              `json:"methods"`     // required
+	Expires          *time.Time                            `json:"expires"`
+	Links            datatypes.JSONSlice[Link]             `json:"links"`
+	Origins          datatypes.JSONSlice[Origin]           `json:"origins"`
+	Props            datatypes.JSONSlice[Prop]             `json:"props"`
+	RelevantEvidence datatypes.JSONSlice[RelevantEvidence] `json:"relevant-evidence"`
+	Remarks          string                                `json:"remarks"`
+	Subjects         datatypes.JSONSlice[SubjectReference] `json:"subjects"`
+	Title            string                                `json:"title"`
+	Types            []string                              `json:"types"`
 }
 
 func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation) *Observation {
@@ -629,17 +632,17 @@ func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
 
 // Finding represents a finding in OSCAL.
 type Finding struct {
-	UUIDModel                                                       // required
-	Description                 string                              `json:"description"` // required
-	Title                       string                              `json:"title"`       // required
-	Target                      FindingTarget                       `json:"target"`      // required
-	ImplementationStatementUuid string                              `json:"implementation-statement-uuid"`
-	Links                       datatypes.JSONSlice[Link]           `json:"links"`
-	Origins                     datatypes.JSONSlice[Origin]         `json:"origins"`
-	Props                       datatypes.JSONSlice[Prop]           `json:"props"`
+	UUIDModel                                                           // required
+	Description                 string                                  `json:"description"` // required
+	Title                       string                                  `json:"title"`       // required
+	Target                      FindingTarget                           `json:"target"`      // required
+	ImplementationStatementUuid string                                  `json:"implementation-statement-uuid"`
+	Links                       datatypes.JSONSlice[Link]               `json:"links"`
+	Origins                     datatypes.JSONSlice[Origin]             `json:"origins"`
+	Props                       datatypes.JSONSlice[Prop]               `json:"props"`
 	RelatedObservations         datatypes.JSONSlice[RelatedObservation] `json:"related-observations"`
-	RelatedRisks                datatypes.JSONSlice[AssociatedRisk] `json:"related-risks"`
-	Remarks                     string                              `json:"remarks"`
+	RelatedRisks                datatypes.JSONSlice[AssociatedRisk]     `json:"related-risks"`
+	Remarks                     string                                  `json:"remarks"`
 }
 
 func (f *Finding) UnmarshalOscal(of oscalTypes_1_1_3.Finding) *Finding {
@@ -740,7 +743,6 @@ func (f *Finding) MarshalOscal() *oscalTypes_1_1_3.Finding {
 
 // Supporting types for the POAM structure
 
-
 // AssessmentAssets represents assessment assets in OSCAL.
 type AssessmentAssets oscalTypes_1_1_3.AssessmentAssets
 
@@ -753,7 +755,6 @@ func (a *AssessmentAssets) MarshalOscal() *oscalTypes_1_1_3.AssessmentAssets {
 	assets := oscalTypes_1_1_3.AssessmentAssets(*a)
 	return &assets
 }
-
 
 // RelevantEvidence represents relevant evidence in OSCAL.
 type RelevantEvidence oscalTypes_1_1_3.RelevantEvidence
@@ -832,4 +833,3 @@ func (p *PoamItemOrigin) MarshalOscal() *oscalTypes_1_1_3.PoamItemOrigin {
 	origin := oscalTypes_1_1_3.PoamItemOrigin(*p)
 	return &origin
 }
-

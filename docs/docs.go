@@ -3631,6 +3631,320 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/plan-of-action-and-milestones": {
+            "get": {
+                "description": "Retrieves all Plan of Action and Milestones.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "List POA\u0026Ms",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}": {
+            "get": {
+                "description": "Retrieves a single Plan of Action and Milestones by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Get a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/findings": {
+            "get": {
+                "description": "Retrieves all findings for a given POA\u0026M.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Get findings for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Finding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/full": {
+            "get": {
+                "description": "Retrieves a complete POA\u0026M by its ID, including all metadata and related objects.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Get a complete POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/observations": {
+            "get": {
+                "description": "Retrieves all observations for a given POA\u0026M.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Get observations for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Observation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/poam-items": {
+            "get": {
+                "description": "Retrieves all POA\u0026M items for a given POA\u0026M.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Get POA\u0026M items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_PoamItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/risks": {
+            "get": {
+                "description": "Retrieves all risks for a given POA\u0026M.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Get risks for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Risk"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/profiles": {
             "get": {
                 "description": "Retrieves all OSCAL profiles",
@@ -5204,6 +5518,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Finding": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Group": {
             "type": "object",
             "properties": {
@@ -5288,6 +5614,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Observation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Party": {
             "type": "object",
             "properties": {
@@ -5296,6 +5634,42 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Party"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_PoamItem": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Risk": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
                     }
                 }
             }
@@ -5736,6 +6110,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Profile": {
             "type": "object",
             "properties": {
@@ -6139,6 +6526,139 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.AssessmentAssets": {
+            "type": "object",
+            "properties": {
+                "assessment-platforms": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentPlatform"
+                    }
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentPlatform": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uses-components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.UsesComponent"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssessmentSubject": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "exclude-subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectSubjectById"
+                    }
+                },
+                "include-all": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IncludeAll"
+                },
+                "include-subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SelectSubjectById"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssociatedActivity": {
+            "type": "object",
+            "properties": {
+                "activity-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.AssociatedRisk": {
+            "type": "object",
+            "properties": {
+                "risk-uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.AuthorizationBoundary": {
             "type": "object",
             "properties": {
@@ -6339,6 +6859,32 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Characterization": {
+            "type": "object",
+            "properties": {
+                "facets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Facet"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origin": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
                 }
             }
         },
@@ -6774,6 +7320,20 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.EventTiming": {
+            "type": "object",
+            "properties": {
+                "at-frequency": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.FrequencyCondition"
+                },
+                "on-date": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.OnDateCondition"
+                },
+                "within-date-range": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.OnDateRangeCondition"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Export": {
             "type": "object",
             "properties": {
@@ -6809,9 +7369,140 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Facet": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Finding": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-statement-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
+                    }
+                },
+                "related-risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedRisk"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.FindingTarget"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.FindingTarget": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ImplementationStatus"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
+                },
+                "target-id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.FlatWithoutGrouping": {
             "type": "object",
             "additionalProperties": true
+        },
+        "oscalTypes_1_1_3.FrequencyCondition": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "integer"
+                },
+                "unit": {
+                    "type": "string"
+                }
+            }
         },
         "oscalTypes_1_1_3.Group": {
             "type": "object",
@@ -6871,6 +7562,20 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.IdentifiedSubject": {
+            "type": "object",
+            "properties": {
+                "subject-placeholder-uuid": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
                 }
             }
         },
@@ -7069,6 +7774,17 @@ const docTemplate = `{
             }
         },
         "oscalTypes_1_1_3.ImportProfile": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ImportSsp": {
             "type": "object",
             "properties": {
                 "href": {
@@ -7341,6 +8057,17 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.LoggedBy": {
+            "type": "object",
+            "properties": {
+                "party-uuid": {
+                    "type": "string"
+                },
+                "role-id": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Matching": {
             "type": "object",
             "properties": {
@@ -7443,6 +8170,38 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.MitigatingFactor": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implementation-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Modify": {
             "type": "object",
             "properties": {
@@ -7485,6 +8244,147 @@ const docTemplate = `{
                     }
                 },
                 "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ObjectiveStatus": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Observation": {
+            "type": "object",
+            "properties": {
+                "collected": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "relevant-evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelevantEvidence"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.OnDateCondition": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.OnDateRangeCondition": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Origin": {
+            "type": "object",
+            "properties": {
+                "actors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.OriginActor"
+                    }
+                },
+                "related-tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.OriginActor": {
+            "type": "object",
+            "properties": {
+                "actor-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "role-id": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -7754,6 +8654,140 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.PlanOfActionAndMilestones": {
+            "type": "object",
+            "properties": {
+                "back-matter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
+                    }
+                },
+                "import-ssp": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ImportSsp"
+                },
+                "local-definitions": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
+                    }
+                },
+                "poam-items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
+                    }
+                },
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
+                    }
+                },
+                "system-id": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.SystemId"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions": {
+            "type": "object",
+            "properties": {
+                "assessment-assets": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentAssets"
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                },
+                "inventory-items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.PoamItem": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.PoamItemOrigin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedFinding"
+                    }
+                },
+                "related-observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
+                    }
+                },
+                "related-risks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedRisk"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.PoamItemOrigin": {
+            "type": "object",
+            "properties": {
+                "actors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.OriginActor"
+                    }
+                }
+            }
+        },
         "oscalTypes_1_1_3.PortRange": {
             "type": "object",
             "properties": {
@@ -7872,6 +8906,86 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.RelatedFinding": {
+            "type": "object",
+            "properties": {
+                "finding-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RelatedObservation": {
+            "type": "object",
+            "properties": {
+                "observation-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RelatedTask": {
+            "type": "object",
+            "properties": {
+                "identified-subject": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.IdentifiedSubject"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "task-uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RelevantEvidence": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.Removal": {
             "type": "object",
             "properties": {
@@ -7888,6 +9002,41 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "by-ns": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RequiredAsset": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SubjectReference"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
                     "type": "string"
                 }
             }
@@ -7946,6 +9095,56 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "media-type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Response": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "lifecycle": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "required-assets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RequiredAsset"
+                    }
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
                     "type": "string"
                 }
             }
@@ -8039,6 +9238,170 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.Risk": {
+            "type": "object",
+            "properties": {
+                "characterizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Characterization"
+                    }
+                },
+                "deadline": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "mitigating-factors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.MitigatingFactor"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-observations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedObservation"
+                    }
+                },
+                "remediations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Response"
+                    }
+                },
+                "risk-log": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.RiskLog"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ThreatId"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RiskLog": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RiskLogEntry"
+                    }
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RiskLogEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "logged-by": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.LoggedBy"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-responses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RiskResponseReference"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "status-change": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.RiskResponseReference": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "related-tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.RelatedTask"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "response-uuid": {
                     "type": "string"
                 }
             }
@@ -8144,6 +9507,32 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.SelectSubjectById": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subject-uuid": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.SetParameter": {
             "type": "object",
             "properties": {
@@ -8206,6 +9595,35 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.SubjectReference": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "subject-uuid": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -8484,6 +9902,82 @@ const docTemplate = `{
                 }
             }
         },
+        "oscalTypes_1_1_3.Task": {
+            "type": "object",
+            "properties": {
+                "associated-activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedActivity"
+                    }
+                },
+                "dependencies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.TaskDependency"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Task"
+                    }
+                },
+                "timing": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.EventTiming"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.TaskDependency": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string"
+                },
+                "task-uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "oscalTypes_1_1_3.TelephoneNumber": {
             "type": "object",
             "properties": {
@@ -8492,6 +9986,49 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.ThreatId": {
+            "type": "object",
+            "properties": {
+                "href": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscalTypes_1_1_3.UsesComponent": {
+            "type": "object",
+            "properties": {
+                "component-uuid": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
                 }
             }
         },
