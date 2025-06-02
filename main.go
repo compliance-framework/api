@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/compliance-framework/configuration-service/internal/service"
 	"log"
 	"os"
+
+	"github.com/compliance-framework/configuration-service/internal/service"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/api/handler/oscal"
+
+	logging "github.com/compliance-framework/configuration-service/internal/logging" // adjust as needed
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
-	"gorm.io/driver/postgres"
-	logging "github.com/compliance-framework/configuration-service/internal/logging" // adjust as needed
 
 	"github.com/joho/godotenv"
 
@@ -80,7 +82,7 @@ func main() {
 	case "postgres":
 		db, err = gorm.Open(postgres.Open(config.DBConnectionString), &gorm.Config{
 			DisableForeignKeyConstraintWhenMigrating: true,
-			Logger: logging.NewZapGormLogger(sugar, gormLogLevel),
+			Logger:                                   logging.NewZapGormLogger(sugar, gormLogLevel),
 		})
 	default:
 		panic("unsupported DB driver: " + config.DBDriver)

@@ -1,10 +1,11 @@
 package binders
 
 import (
-	"github.com/labstack/echo/v4"
-	"gopkg.in/yaml.v2"
 	"io"
 	"net/http"
+
+	"github.com/labstack/echo/v4"
+	"gopkg.in/yaml.v2"
 )
 
 const (
