@@ -57,7 +57,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Diagram{},
 
 		&relational.AssessmentPlan{},
-		&relational.LocalDefinition{},
+		&relational.LocalDefinitions{},
 		&relational.LocalObjective{},
 		&relational.Task{},
 		&relational.TaskDependency{},
@@ -82,6 +82,15 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Alteration{},
 		&relational.Addition{},
 		&relational.SelectControlById{},
+		&relational.ResponsibleRole{},
+		&relational.AssessmentResult{},
+		&relational.Activity{},
+		&relational.Step{},
+		&relational.Task{},
+		&relational.AssessedControlsSelectControlById{},
+		&relational.Result{},
+		&relational.AssessmentLog{},
+		&relational.AssessmentLogEntry{},
 	)
 	return err
 }
@@ -146,7 +155,7 @@ func MigrateDown(db *gorm.DB) error {
 		"back_matter_resources",
 
 		&relational.AssessmentPlan{},
-		&relational.LocalDefinition{},
+		&relational.LocalDefinitions{},
 		&relational.LocalObjective{},
 		&relational.Task{},
 		&relational.TaskDependency{},
@@ -181,6 +190,7 @@ func MigrateDown(db *gorm.DB) error {
 		"merges",
 		"metadata_parties",
 		"metadata_roles",
+		"metadata_locations",
 		"modifies",
 		"parameter_settings",
 		"profiles",
@@ -192,7 +202,6 @@ func MigrateDown(db *gorm.DB) error {
 		"task_subjects",
 		"task_tasks",
 		"uses_component_responsible_parties",
-
 		&relational.Profile{},
 		&relational.Import{},
 		&relational.Merge{},
@@ -201,6 +210,15 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.Alteration{},
 		&relational.Addition{},
 		&relational.SelectControlById{},
+		&relational.AssessmentResult{},
+		&relational.Activity{},
+		&relational.Step{},
+		&relational.Task{},
+		&relational.AssessedControlsSelectControlById{},
+		&relational.Result{},
+		&relational.AssessmentLog{},
+		&relational.AssessmentLogEntry{},
+		"assessed_controls_select_control_by_id_statements",
 	)
 	return err
 }
