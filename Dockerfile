@@ -42,6 +42,6 @@ COPY --from=builder /configuration-service /configuration-service
 EXPOSE 8080
 
 # Specify the command to run on container start.
-CMD ["/configuration-service"]
+CMD ["/configuration-service", "run"]
 
 FROM production

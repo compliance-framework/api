@@ -1,40 +1,39 @@
-//go:build local
-
-package main
+package oscal
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/compliance-framework/configuration-service/internal/logging"
+	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 )
 
-func main() {
+var (
+	importCmd = &cobra.Command{
+		Use:   "import",
+		Short: "Import OSCAL data into the system",
+		Long:  "This command allows you to import OSCAL data such as catalogs, profiles, and system security plans into the compliance framework configuration service.",
+		Run:   ImportOscal,
+	}
+)
+
+func ImportOscal(cmd *cobra.Command, args []string) {
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	var gormLogLevel gormLogger.LogLevel
-	if os.Getenv("CCF_DB_DEBUG") == "1" {
-		gormLogLevel = gormLogger.Info
-	} else {
-		gormLogLevel = gormLogger.Warn
-	}
-	db, err := gorm.Open(postgres.Open("host=localhost user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"), &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-		Logger:                                   logging.NewZapGormLogger(sugar, gormLogLevel),
-	})
+	defer zapLogger.Sync() // flushes buffer, if any
+
+	config := config.NewConfig(sugar)
+
+	db, err := service.ConnectSQLDb(config, sugar)
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -44,8 +43,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	//os.Exit(1)
 
 	err = service.MigrateUp(db)
 	if err != nil {
@@ -76,16 +73,16 @@ func main() {
 
 		defer jsonFile.Close()
 		input := &struct {
-			ComponentDefinition *oscaltypes113.ComponentDefinition `json:"component-definition"`
-			Catalog             *oscaltypes113.Catalog             `json:"catalog"`
-			SystemSecurityPlan  *oscaltypes113.SystemSecurityPlan  `json:"system-security-plan"`
-			AssessmentPlan      *oscaltypes113.AssessmentPlan      `json:"assessment-plan"`
-			Profile             *oscaltypes113.Profile             `json:"profile"`
+			ComponentDefinition *oscalTypes_1_1_3.ComponentDefinition `json:"component-definition"`
+			Catalog             *oscalTypes_1_1_3.Catalog             `json:"catalog"`
+			SystemSecurityPlan  *oscalTypes_1_1_3.SystemSecurityPlan  `json:"system-security-plan"`
+			AssessmentPlan      *oscalTypes_1_1_3.AssessmentPlan      `json:"assessment-plan"`
+			Profile             *oscalTypes_1_1_3.Profile             `json:"profile"`
 		}{}
 
 		err = json.NewDecoder(jsonFile).Decode(input)
 		if err != nil {
-			panic(err)
+			sugar.Error(err)
 		}
 
 		if input.Catalog != nil {
@@ -93,7 +90,7 @@ func main() {
 			def.UnmarshalOscal(*input.Catalog)
 			out := db.Create(def)
 			if out.Error != nil {
-				panic(out.Error)
+				sugar.Error(out.Error)
 			}
 			fmt.Println("Successfully Created Catalog", f)
 			continue
@@ -104,7 +101,7 @@ func main() {
 			def.UnmarshalOscal(*input.ComponentDefinition)
 			out := db.Create(def)
 			if out.Error != nil {
-				panic(out.Error)
+				sugar.Error(out.Error)
 			}
 			fmt.Println("Successfully Created ComponentDefinition", f)
 			continue
@@ -115,7 +112,7 @@ func main() {
 			def.UnmarshalOscal(*input.SystemSecurityPlan)
 			out := db.Create(def)
 			if out.Error != nil {
-				panic(out.Error)
+				sugar.Error(out.Error)
 			}
 			fmt.Println("Successfully Created SystemSecurityPlan", f)
 			continue
@@ -143,6 +140,6 @@ func main() {
 			continue
 		}
 
-		panic(errors.New(fmt.Sprintf("File content wasn't understood or mapped, %s", f)))
+		sugar.Fatal("File content wasn't understood or mapped: ", f)
 	}
 }
