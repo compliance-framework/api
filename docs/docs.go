@@ -5140,7 +5140,7 @@ const docTemplate = `{
             "properties": {
                 "errors": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 }
             }
         },

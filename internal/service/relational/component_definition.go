@@ -53,7 +53,7 @@ func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefin
 			ID: &id,
 		},
 		Metadata:                   *metadata,
-		ImportComponentDefinitions: datatypes.NewJSONSlice[ImportComponentDefinition](importComponentDefs),
+		ImportComponentDefinitions: datatypes.NewJSONSlice(importComponentDefs),
 		Components:                 components,
 		Capabilities:               capabilities,
 		BackMatter:                 backMatter,

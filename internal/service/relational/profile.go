@@ -86,8 +86,8 @@ func (p *Profile) MarshalOscal() *oscalTypes_1_1_3.Profile {
 	return &ret
 }
 
-type IncludeAll = map[string]interface{}
-type FlatWithoutGrouping = map[string]interface{}
+type IncludeAll = map[string]any
+type FlatWithoutGrouping = map[string]any
 
 type Import struct {
 	UUIDModel
@@ -241,11 +241,11 @@ func (m *Merge) UnmarshalOscal(o oscalTypes_1_1_3.Merge) *Merge {
 	if o.Combine != nil {
 		combinationRule := CombinationRule{}
 		combinationRule.UnmarshalOscal(*o.Combine)
-		m.Combine = datatypes.NewJSONType[*CombinationRule](&combinationRule)
+		m.Combine = datatypes.NewJSONType(&combinationRule)
 	}
 	if !m.AsIs {
 		if o.Flat != nil {
-			m.Flat = datatypes.NewJSONType[*FlatWithoutGrouping](o.Flat)
+			m.Flat = datatypes.NewJSONType(o.Flat)
 		}
 		// Custom Merge is not implemented at this time to save complexity
 	}
@@ -350,7 +350,7 @@ func (p *ParameterSetting) UnmarshalOscal(o oscalTypes_1_1_3.ParameterSetting) *
 	if o.Select != nil {
 		selection := ParameterSelection{}
 		selection.UnmarshalOscal(*o.Select)
-		selectionJson := datatypes.NewJSONType[ParameterSelection](selection)
+		selectionJson := datatypes.NewJSONType(selection)
 		p.Select = &selectionJson
 	}
 	if o.Constraints != nil {

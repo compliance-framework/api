@@ -15,7 +15,7 @@ const (
 
 type CustomBinder struct{}
 
-func (cb *CustomBinder) Bind(i interface{}, c echo.Context) error {
+func (cb *CustomBinder) Bind(i any, c echo.Context) error {
 	req := c.Request()
 	contentType := req.Header.Get(echo.HeaderContentType)
 

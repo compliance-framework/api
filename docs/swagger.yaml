@@ -5,7 +5,7 @@ definitions:
   api.Error:
     properties:
       errors:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
     type: object
   handler.GenericDataListResponse-oscal_List_responseCatalog:

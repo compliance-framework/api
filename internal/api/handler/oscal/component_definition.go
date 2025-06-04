@@ -718,7 +718,7 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 			}
 		} else {
 			// Component exists, update it using a map instead of struct to handle zero values
-			updateFields := map[string]interface{}{
+			updateFields := map[string]any{
 				"component_definition_id": id,
 				"title":                   relationalComponent.Title,
 				"description":             relationalComponent.Description,
@@ -963,7 +963,7 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 	definedComponent.ComponentDefinitionID = id // Ensure proper association
 
 	// Convert struct to map for updates to properly handle zero values
-	updateFields := map[string]interface{}{
+	updateFields := map[string]any{
 		"component_definition_id": id,
 		"title":                   definedComponent.Title,
 		"description":             definedComponent.Description,
@@ -2049,7 +2049,7 @@ func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.
 	relationalControlImpl.ID = existingControlImpl.ID // Preserve the existing ID
 
 	// Update the control implementation (only simple fields)
-	if err := tx.Model(&relational.ControlImplementationSet{}).Where("id = ?", controlImplID).Updates(map[string]interface{}{
+	if err := tx.Model(&relational.ControlImplementationSet{}).Where("id = ?", controlImplID).Updates(map[string]any{
 		"source":         relationalControlImpl.Source,
 		"description":    relationalControlImpl.Description,
 		"set_parameters": relationalControlImpl.SetParameters,
@@ -2163,7 +2163,7 @@ func (h *ComponentDefinitionHandler) UpdateCapability(ctx echo.Context) error {
 	}
 
 	// Update the basic fields
-	updateFields := map[string]interface{}{
+	updateFields := map[string]any{
 		"name":                    relationalCapability.Name,
 		"description":             relationalCapability.Description,
 		"remarks":                 relationalCapability.Remarks,
