@@ -18,7 +18,7 @@ type PlanOfActionAndMilestones struct {
 	// Simple fields stored as JSON
 	ImportSsp        datatypes.JSONType[ImportSsp]              `json:"import-ssp"`
 	SystemId         datatypes.JSONType[SystemId]               `json:"system-id"`
-	LocalDefinitions *PlanOfActionAndMilestonesLocalDefinitions `json:"local-definitions"`
+	LocalDefinitions *PlanOfActionAndMilestonesLocalDefinitions `json:"local-definitions" gorm:"type:json"`
 
 	// Complex entities as proper tables with relationships
 	PoamItems    []PoamItem    `json:"poam-items" gorm:"foreignKey:PlanOfActionAndMilestonesID"`
@@ -188,7 +188,7 @@ type Risk struct {
 	MitigatingFactors           datatypes.JSONSlice[MitigatingFactor]   `json:"mitigating-factors"`
 	Deadline                    *time.Time                              `json:"deadline" gorm:"index"` // Indexed for date queries
 	Remediations                datatypes.JSONSlice[Response]           `json:"remediations"`
-	RiskLog                     *RiskLog                                `json:"risk-log"`
+	RiskLog                     datatypes.JSONType[oscalTypes_1_1_3.RiskLog] `json:"risk-log"`
 	RelatedObservations         datatypes.JSONSlice[RelatedObservation] `json:"related-observations"`
 }
 
@@ -235,10 +235,9 @@ func (r *Risk) UnmarshalOscal(or oscalTypes_1_1_3.Risk, planID uuid.UUID) *Risk 
 		return relObs
 	})
 
-	var riskLog *RiskLog
+	var riskLog datatypes.JSONType[oscalTypes_1_1_3.RiskLog]
 	if or.RiskLog != nil {
-		riskLog = &RiskLog{}
-		riskLog.UnmarshalOscal(*or.RiskLog)
+		riskLog = datatypes.NewJSONType(*or.RiskLog)
 	}
 
 	*r = Risk{
@@ -326,8 +325,9 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		ret.Remediations = &remediations
 	}
 
-	if r.RiskLog != nil {
-		ret.RiskLog = r.RiskLog.MarshalOscal()
+	if val, err := r.RiskLog.Value(); err == nil && val != nil {
+		riskLog := val.(oscalTypes_1_1_3.RiskLog)
+		ret.RiskLog = &riskLog
 	}
 
 	if len(r.RelatedObservations) > 0 {
@@ -549,17 +549,16 @@ func (p *PoamItem) MarshalOscal() *oscalTypes_1_1_3.PoamItem {
 
 // PlanOfActionAndMilestonesLocalDefinitions represents local definitions in POAM.
 type PlanOfActionAndMilestonesLocalDefinitions struct {
-	AssessmentAssets *AssessmentAssets                                     `json:"assessment-assets"`
-	Components       datatypes.JSONSlice[oscalTypes_1_1_3.SystemComponent] `json:"components"`
-	InventoryItems   datatypes.JSONSlice[oscalTypes_1_1_3.InventoryItem]   `json:"inventory-items"`
+	AssessmentAssets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets] `json:"assessment-assets"`
+	Components       datatypes.JSONSlice[oscalTypes_1_1_3.SystemComponent] `json:"components" gorm:"type:json"`
+	InventoryItems   datatypes.JSONSlice[oscalTypes_1_1_3.InventoryItem]   `json:"inventory-items" gorm:"type:json"`
 	Remarks          string                                                `json:"remarks"`
 }
 
 func (p *PlanOfActionAndMilestonesLocalDefinitions) UnmarshalOscal(op oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions) *PlanOfActionAndMilestonesLocalDefinitions {
-	var assessmentAssets *AssessmentAssets
+	var assessmentAssets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets]
 	if op.AssessmentAssets != nil {
-		assessmentAssets = &AssessmentAssets{}
-		assessmentAssets.UnmarshalOscal(*op.AssessmentAssets)
+		assessmentAssets = datatypes.NewJSONType(*op.AssessmentAssets)
 	}
 
 	components := ConvertList(op.Components, func(oc oscalTypes_1_1_3.SystemComponent) oscalTypes_1_1_3.SystemComponent {
@@ -584,8 +583,9 @@ func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1
 		Remarks: p.Remarks,
 	}
 
-	if p.AssessmentAssets != nil {
-		ret.AssessmentAssets = p.AssessmentAssets.MarshalOscal()
+	if val, err := p.AssessmentAssets.Value(); err == nil && val != nil {
+		assessmentAssets := val.(oscalTypes_1_1_3.AssessmentAssets)
+		ret.AssessmentAssets = &assessmentAssets
 	}
 
 	if len(p.Components) > 0 {
@@ -740,7 +740,7 @@ type Finding struct {
 	PlanOfActionAndMilestonesID *uuid.UUID                              `gorm:"index"`       // Parent reference (optional)
 	Description                 string                                  `json:"description"` // required
 	Title                       string                                  `json:"title"`       // required
-	Target                      FindingTarget                           `json:"target"`      // required
+	Target                      datatypes.JSONType[oscalTypes_1_1_3.FindingTarget] `json:"target"`      // required
 	ImplementationStatementUuid *string                                 `json:"implementation-statement-uuid"`
 	Links                       datatypes.JSONSlice[Link]               `json:"links"`
 	Origins                     datatypes.JSONSlice[Origin]             `json:"origins"`
@@ -774,8 +774,7 @@ func (f *Finding) UnmarshalOscal(of oscalTypes_1_1_3.Finding, planID *uuid.UUID)
 		return assocRisk
 	})
 
-	target := FindingTarget{}
-	target.UnmarshalOscal(of.Target)
+	target := datatypes.NewJSONType(of.Target)
 
 	*f = Finding{
 		UUIDModel: UUIDModel{
@@ -801,7 +800,7 @@ func (f *Finding) MarshalOscal() *oscalTypes_1_1_3.Finding {
 		UUID:        f.UUIDModel.ID.String(),
 		Description: f.Description,
 		Title:       f.Title,
-		Target:      *f.Target.MarshalOscal(),
+		Target:      f.Target.Data(),
 	}
 
 	if f.ImplementationStatementUuid != nil && *f.ImplementationStatementUuid != "" {

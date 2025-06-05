@@ -149,8 +149,8 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 	if poam.Observations == nil {
 		return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Observation]{Data: []oscalTypes_1_1_3.Observation{}})
 	}
-	oscalObs := make([]oscalTypes_1_1_3.Observation, len(*poam.Observations))
-	for i, obs := range *poam.Observations {
+	oscalObs := make([]oscalTypes_1_1_3.Observation, len(poam.Observations))
+	for i, obs := range poam.Observations {
 		oscalObs[i] = *obs.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Observation]{Data: oscalObs})
@@ -183,8 +183,8 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 	if poam.Risks == nil {
 		return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Risk]{Data: []oscalTypes_1_1_3.Risk{}})
 	}
-	oscalRisks := make([]oscalTypes_1_1_3.Risk, len(*poam.Risks))
-	for i, risk := range *poam.Risks {
+	oscalRisks := make([]oscalTypes_1_1_3.Risk, len(poam.Risks))
+	for i, risk := range poam.Risks {
 		oscalRisks[i] = *risk.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Risk]{Data: oscalRisks})
@@ -217,8 +217,8 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 	if poam.Findings == nil {
 		return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Finding]{Data: []oscalTypes_1_1_3.Finding{}})
 	}
-	oscalFindings := make([]oscalTypes_1_1_3.Finding, len(*poam.Findings))
-	for i, finding := range *poam.Findings {
+	oscalFindings := make([]oscalTypes_1_1_3.Finding, len(poam.Findings))
+	for i, finding := range poam.Findings {
 		oscalFindings[i] = *finding.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Finding]{Data: oscalFindings})
