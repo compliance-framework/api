@@ -32,7 +32,7 @@ func ConvertOscalToProps(data *[]oscaltypes113.Property) datatypes.JSONSlice[Pro
 		prop.UnmarshalOscal(op)
 		return prop
 	})
-	return datatypes.NewJSONSlice[Prop](props)
+	return datatypes.NewJSONSlice(props)
 }
 
 func ConvertPropsToOscal(data datatypes.JSONSlice[Prop]) *[]oscaltypes113.Property {
@@ -56,7 +56,7 @@ func ConvertOscalToLinks(data *[]oscaltypes113.Link) datatypes.JSONSlice[Link] {
 		link.UnmarshalOscal(ol)
 		return link
 	})
-	return datatypes.NewJSONSlice[Link](links)
+	return datatypes.NewJSONSlice(links)
 }
 
 func ConvertLinksToOscal(data datatypes.JSONSlice[Link]) *[]oscaltypes113.Link {

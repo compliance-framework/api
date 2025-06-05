@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -45,7 +46,7 @@ func (s *ObservationService) FindById(ctx context.Context, id *uuid.UUID) (*Obse
 }
 
 // Find retrieves observations based on the provided filter. The filter can be any BSON-compatible query.
-func (s *ObservationService) Find(ctx context.Context, filter interface{}) ([]*Observation, error) {
+func (s *ObservationService) Find(ctx context.Context, filter any) ([]*Observation, error) {
 	cursor, err := s.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err

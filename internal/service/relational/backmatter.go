@@ -81,14 +81,14 @@ func (c *BackMatterResource) UnmarshalOscal(resource oscaltypes113.Resource) *Ba
 	if resource.Citation != nil {
 		citation := Citation{}
 		citation.UnmarshalOscal(*resource.Citation)
-		jcitation := datatypes.NewJSONType[Citation](citation)
+		jcitation := datatypes.NewJSONType(citation)
 		c.Citation = &jcitation
 	}
 
 	if resource.Base64 != nil {
 		base64 := Base64{}
 		base64.UnmarshalOscal(*resource.Base64)
-		jbase64 := datatypes.NewJSONType[Base64](base64)
+		jbase64 := datatypes.NewJSONType(base64)
 		c.Base64 = &jbase64
 	}
 

@@ -59,7 +59,7 @@ func (s *ComponentService) FindByIdentifier(ctx context.Context, identifier stri
 
 // Find retrieves components based on a provided filter.
 // The filter parameter allows for flexible queries using bson.M or other BSON types.
-func (s *ComponentService) Find(ctx context.Context, filter interface{}) ([]*Component, error) {
+func (s *ComponentService) Find(ctx context.Context, filter any) ([]*Component, error) {
 	cursor, err := s.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err

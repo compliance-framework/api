@@ -53,7 +53,7 @@ func (suite *ComponentDefinitionApiIntegrationSuite) SetupTest() {
 }
 
 // Helper method to create a test request
-func (suite *ComponentDefinitionApiIntegrationSuite) createRequest(method, path string, body interface{}) (*httptest.ResponseRecorder, *http.Request) {
+func (suite *ComponentDefinitionApiIntegrationSuite) createRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {
 	var reqBody []byte
 	var err error
 

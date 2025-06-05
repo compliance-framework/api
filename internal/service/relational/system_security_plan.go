@@ -145,9 +145,9 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 		Props:                    props,
 		SystemIds:                systemIds,
 		SystemInformation:        datatypes.NewJSONType(systemInformation),
-		Status:                   datatypes.NewJSONType[Status](status),
+		Status:                   datatypes.NewJSONType(status),
 		AuthorizationBoundary:    authBoundary,
-		ResponsibleParties:       datatypes.NewJSONSlice[ResponsibleParty](responsibleParties),
+		ResponsibleParties:       datatypes.NewJSONSlice(responsibleParties),
 	}
 
 	if osc.NetworkArchitecture != nil {
@@ -174,7 +174,7 @@ func (sc *SystemCharacteristics) UnmarshalOscal(osc oscalTypes_1_1_3.SystemChara
 
 	if osc.SecurityImpactLevel != nil {
 		securityImpact := SecurityImpactLevel{}
-		jsonType := datatypes.NewJSONType[SecurityImpactLevel](*securityImpact.UnmarshalOscal(*osc.SecurityImpactLevel))
+		jsonType := datatypes.NewJSONType(*securityImpact.UnmarshalOscal(*osc.SecurityImpactLevel))
 		sc.SecurityImpactLevel = &jsonType
 	}
 
@@ -758,7 +758,7 @@ func (u *SystemUser) UnmarshalOscal(ou oscalTypes_1_1_3.SystemUser) *SystemUser 
 		Description: ou.Description,
 		Props:       ConvertOscalToProps(ou.Props),
 		Links:       ConvertOscalToLinks(ou.Links),
-		RoleIDs:     datatypes.NewJSONSlice[string](*ou.RoleIds),
+		RoleIDs:     datatypes.NewJSONSlice(*ou.RoleIds),
 		AuthorizedPrivileges: ConvertList(ou.AuthorizedPrivileges, func(oap oscalTypes_1_1_3.AuthorizedPrivilege) AuthorizedPrivilege {
 			privilege := AuthorizedPrivilege{}
 			privilege.UnmarshalOscal(oap)
@@ -812,7 +812,7 @@ func (ap *AuthorizedPrivilege) UnmarshalOscal(oap oscalTypes_1_1_3.AuthorizedPri
 		UUIDModel:          UUIDModel{},
 		Title:              oap.Title,
 		Description:        oap.Description,
-		FunctionsPerformed: datatypes.NewJSONSlice[string](oap.FunctionsPerformed),
+		FunctionsPerformed: datatypes.NewJSONSlice(oap.FunctionsPerformed),
 	}
 
 	return ap
@@ -922,7 +922,7 @@ func (sc *SystemComponent) UnmarshalOscal(osc oscalTypes_1_1_3.SystemComponent) 
 		Title:       osc.Title,
 		Description: osc.Description,
 		Purpose:     osc.Purpose,
-		Status:      datatypes.NewJSONType[SystemComponentStatus](status),
+		Status:      datatypes.NewJSONType(status),
 		ResponsibleRoles: ConvertList(osc.ResponsibleRoles, func(orr oscalTypes_1_1_3.ResponsibleRole) ResponsibleRole {
 			role := ResponsibleRole{}
 			role.UnmarshalOscal(orr)

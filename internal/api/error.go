@@ -10,12 +10,12 @@ import (
 )
 
 type Error struct {
-	Errors map[string]interface{} `json:"errors" yaml:"errors"`
+	Errors map[string]any `json:"errors" yaml:"errors"`
 }
 
 func NewError(err error) Error {
 	e := Error{}
-	e.Errors = make(map[string]interface{})
+	e.Errors = make(map[string]any)
 	var v *echo.HTTPError
 	switch {
 	case errors.As(err, &v):
@@ -28,7 +28,7 @@ func NewError(err error) Error {
 
 func Validator(err error) Error {
 	e := Error{}
-	e.Errors = make(map[string]interface{})
+	e.Errors = make(map[string]any)
 	var errs validator.ValidationErrors
 	errors.As(err, &errs)
 	for _, v := range errs {
@@ -39,14 +39,14 @@ func Validator(err error) Error {
 
 func AccessForbidden() Error {
 	e := Error{}
-	e.Errors = make(map[string]interface{})
+	e.Errors = make(map[string]any)
 	e.Errors["body"] = "access forbidden"
 	return e
 }
 
 func NotFound() Error {
 	e := Error{}
-	e.Errors = make(map[string]interface{})
+	e.Errors = make(map[string]any)
 	e.Errors["body"] = "resource not found"
 	return e
 }

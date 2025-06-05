@@ -59,7 +59,7 @@ func (m *Metadata) UnmarshalOscal(metadata oscaltypes113.Metadata) *Metadata {
 					list = append(list, doc)
 				}
 			}
-			return datatypes.NewJSONSlice[DocumentID](list)
+			return datatypes.NewJSONSlice(list)
 		}(),
 		Props: ConvertOscalToProps(metadata.Props),
 		Links: ConvertOscalToLinks(metadata.Links),
@@ -620,7 +620,7 @@ func (l *Location) UnmarshalOscal(olocation oscaltypes113.Location) *Location {
 	if olocation.Address != nil {
 		address := Address{}
 		address.UnmarshalOscal(*olocation.Address)
-		addressJson := datatypes.NewJSONType[Address](address)
+		addressJson := datatypes.NewJSONType(address)
 		l.Address = &addressJson
 	}
 

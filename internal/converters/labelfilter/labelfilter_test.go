@@ -2,8 +2,9 @@ package labelfilter
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestScopeMarshalling ensures a scope can be serialised and deserialized from JSON to support storing it in a data store
@@ -64,8 +65,8 @@ func TestScopeMarshalling(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		expectedMarshalled, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		expectedMarshalled, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
 				"scopes": []map[string]map[string]string{
 					{"condition": {"label": "foo", "operator": "=", "value": "bar"}},
@@ -122,19 +123,19 @@ func TestScopeMarshalling(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		expectedMarshalled, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		expectedMarshalled, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{
-						"condition": map[string]interface{}{
+						"condition": map[string]any{
 							"label":    "foo",
 							"operator": "=",
 							"value":    "bar",
 						},
 					},
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
 							"scopes": []map[string]map[string]string{
 								{"condition": {"label": "top", "operator": "=", "value": "foo"}},
@@ -208,12 +209,12 @@ func TestScopeMarshalling(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		expectedMarshalled, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		expectedMarshalled, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
 							"scopes": []map[string]map[string]string{
 								{"condition": {"label": "foo", "operator": "=", "value": "foo"}},
@@ -222,7 +223,7 @@ func TestScopeMarshalling(t *testing.T) {
 						},
 					},
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
 							"scopes": []map[string]map[string]string{
 								{"condition": {"label": "baz", "operator": "=", "value": "baz"}},
@@ -282,16 +283,16 @@ func TestScopeMarshalling(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		expectedMarshalled, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		expectedMarshalled, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
-							"scopes": []map[string]interface{}{
+							"scopes": []map[string]any{
 								{
-									"query": map[string]interface{}{
+									"query": map[string]any{
 										"operator": "AND",
 										"scopes": []map[string]map[string]string{
 											{"condition": {"label": "foo", "operator": "=", "value": "foo"}},
@@ -340,8 +341,8 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 	t.Run("Simple Query", func(t *testing.T) {
 		scope := &Scope{}
-		scopeJson, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		scopeJson, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
 				"scopes": []map[string]map[string]string{
 					{"condition": {"label": "foo", "operator": "=", "value": "bar"}},
@@ -381,19 +382,19 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 	t.Run("Single Nested Query", func(t *testing.T) {
 		scope := &Scope{}
-		scopeJson, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		scopeJson, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{
-						"condition": map[string]interface{}{
+						"condition": map[string]any{
 							"label":    "foo",
 							"operator": "=",
 							"value":    "bar",
 						},
 					},
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
 							"scopes": []map[string]map[string]string{
 								{"condition": {"label": "top", "operator": "=", "value": "foo"}},
@@ -431,12 +432,12 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 	t.Run("Nested Queries", func(t *testing.T) {
 		scope := &Scope{}
-		scopeJson, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		scopeJson, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
 							"scopes": []map[string]map[string]string{
 								{"condition": {"label": "foo", "operator": "=", "value": "foo"}},
@@ -445,7 +446,7 @@ func TestScopeUnmarshalling(t *testing.T) {
 						},
 					},
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
 							"scopes": []map[string]map[string]string{
 								{"condition": {"label": "baz", "operator": "=", "value": "baz"}},
@@ -473,16 +474,16 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 	t.Run("Double Nested Queries", func(t *testing.T) {
 		scope := &Scope{}
-		scopeJson, err := json.Marshal(map[string]interface{}{
-			"query": map[string]interface{}{
+		scopeJson, err := json.Marshal(map[string]any{
+			"query": map[string]any{
 				"operator": "AND",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{
-						"query": map[string]interface{}{
+						"query": map[string]any{
 							"operator": "OR",
-							"scopes": []map[string]interface{}{
+							"scopes": []map[string]any{
 								{
-									"query": map[string]interface{}{
+									"query": map[string]any{
 										"operator": "AND",
 										"scopes": []map[string]map[string]string{
 											{"condition": {"label": "foo", "operator": "=", "value": "foo"}},

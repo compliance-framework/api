@@ -70,7 +70,7 @@ func (s *SubjectService) FindById(ctx context.Context, id *uuid.UUID) (*Subject,
 
 // Find retrieves subjects based on a provided filter.
 // The filter parameter allows flexible querying using BSON types.
-func (s *SubjectService) Find(ctx context.Context, filter interface{}) ([]*Subject, error) {
+func (s *SubjectService) Find(ctx context.Context, filter any) ([]*Subject, error) {
 	cursor, err := s.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err

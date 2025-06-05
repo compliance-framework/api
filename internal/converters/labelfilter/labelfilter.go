@@ -47,14 +47,14 @@ func (qc *Scope) IsCondition() bool {
 
 func (s *Scope) MarshalJSON() ([]byte, error) {
 	if s.IsCondition() {
-		return json.Marshal(map[string]interface{}{
+		return json.Marshal(map[string]any{
 			"condition": s.Condition,
 		})
 	}
 	if s.IsQuery() {
-		return json.Marshal(map[string]interface{}{
+		return json.Marshal(map[string]any{
 			"query": s.Query,
 		})
 	}
-	return json.Marshal(map[string]interface{}{})
+	return json.Marshal(map[string]any{})
 }

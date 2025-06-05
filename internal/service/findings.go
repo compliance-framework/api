@@ -49,7 +49,7 @@ func (s *FindingService) FindOneById(ctx context.Context, id *uuid.UUID) (*Findi
 }
 
 // Find retrieves findings based on a provided filter.
-func (s *FindingService) Find(ctx context.Context, filter interface{}) ([]*Finding, error) {
+func (s *FindingService) Find(ctx context.Context, filter any) ([]*Finding, error) {
 	cursor, err := s.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -383,7 +383,7 @@ func FillStatusOverTimeGroupGaps(ctx context.Context, statusses []StatusOverTime
 
 	earliestTime := statusses[0].Interval
 	latestTime := statusses[0].Interval
-	var times = map[time.Time]interface{}{}
+	var times = map[time.Time]any{}
 	for _, record := range statusses {
 		if record.Interval.Before(earliestTime) {
 			earliestTime = record.Interval
