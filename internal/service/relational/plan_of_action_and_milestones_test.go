@@ -311,8 +311,9 @@ func TestRisk_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			risk := &Risk{}
+			testParentID := uuid.New()
 			assert.NotPanics(t, func() {
-				risk.UnmarshalOscal(tt.data)
+				risk.UnmarshalOscal(tt.data, testParentID, "TestParent")
 			})
 			output := risk.MarshalOscal()
 			outputJson, err := json.Marshal(output)
@@ -770,7 +771,8 @@ func TestObservation_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			obs := &Observation{}
-			obs.UnmarshalOscal(tt.data)
+			testParentID := uuid.New()
+			obs.UnmarshalOscal(tt.data, &testParentID, "TestParent")
 			output := obs.MarshalOscal()
 			outputJson, err := json.Marshal(output)
 			assert.NoError(t, err)
@@ -858,7 +860,8 @@ func TestFinding_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			finding := &Finding{}
-			finding.UnmarshalOscal(tt.data)
+			testParentID := uuid.New()
+			finding.UnmarshalOscal(tt.data, &testParentID, "TestParent")
 			output := finding.MarshalOscal()
 			outputJson, err := json.Marshal(output)
 			assert.NoError(t, err)
@@ -992,7 +995,8 @@ func TestPoamItem_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			poamItem := &PoamItem{}
-			poamItem.UnmarshalOscal(tt.data)
+			testParentID := uuid.New()
+			poamItem.UnmarshalOscal(tt.data, testParentID)
 			output := poamItem.MarshalOscal()
 			outputJson, err := json.Marshal(output)
 			assert.NoError(t, err)
