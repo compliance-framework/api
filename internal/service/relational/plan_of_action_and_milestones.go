@@ -18,7 +18,7 @@ type PlanOfActionAndMilestones struct {
 	// Simple fields stored as JSON
 	ImportSsp        datatypes.JSONType[ImportSsp]              `json:"import-ssp"`
 	SystemId         datatypes.JSONType[SystemId]               `json:"system-id"`
-	LocalDefinitions *PlanOfActionAndMilestonesLocalDefinitions `json:"local-definitions" gorm:"type:json"`
+	LocalDefinitions datatypes.JSONType[PlanOfActionAndMilestonesLocalDefinitions] `json:"local-definitions"`
 
 	// Complex entities as proper tables with polymorphic relationships
 	PoamItems    []PoamItem    `json:"poam-items" gorm:"foreignKey:PlanOfActionAndMilestonesID"`
@@ -48,10 +48,11 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 		systemId = datatypes.NewJSONType(sid)
 	}
 
-	var localDefinitions *PlanOfActionAndMilestonesLocalDefinitions
+	var localDefinitions datatypes.JSONType[PlanOfActionAndMilestonesLocalDefinitions]
 	if opam.LocalDefinitions != nil {
-		localDefinitions = &PlanOfActionAndMilestonesLocalDefinitions{}
-		localDefinitions.UnmarshalOscal(*opam.LocalDefinitions)
+		ld := PlanOfActionAndMilestonesLocalDefinitions{}
+		ld.UnmarshalOscal(*opam.LocalDefinitions)
+		localDefinitions = datatypes.NewJSONType(ld)
 	}
 
 	var observations []Observation
@@ -127,8 +128,9 @@ func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActio
 		opam.SystemId = sid.MarshalOscal()
 	}
 
-	if p.LocalDefinitions != nil {
-		opam.LocalDefinitions = p.LocalDefinitions.MarshalOscal()
+	if val, err := p.LocalDefinitions.Value(); err == nil && val != nil {
+		ld := val.(PlanOfActionAndMilestonesLocalDefinitions)
+		opam.LocalDefinitions = ld.MarshalOscal()
 	}
 
 	if len(p.Observations) > 0 {
@@ -616,7 +618,7 @@ type Observation struct {
 	ParentType                  string                                `gorm:"index"`                      // Polymorphic type (POAM or AssessmentResult)
 	Collected                   time.Time                             `json:"collected" gorm:"index"`     // required, indexed
 	Description                 string                                `json:"description"`                // required
-	Methods                     []string                              `gorm:"type:text[]" json:"methods"` // required, PostgreSQL array
+	Methods                     datatypes.JSONSlice[string]          `json:"methods"`                     // required, stored as JSON array
 	Expires                     *time.Time                            `json:"expires" gorm:"index"`       // Indexed for date queries
 	Links                       datatypes.JSONSlice[Link]             `json:"links"`
 	Origins                     datatypes.JSONSlice[Origin]           `json:"origins"`
@@ -625,7 +627,7 @@ type Observation struct {
 	Remarks                     *string                               `json:"remarks"`
 	Subjects                    datatypes.JSONSlice[SubjectReference] `json:"subjects"`
 	Title                       *string                               `json:"title"`
-	Types                       []string                              `gorm:"type:text[]" json:"types"` // PostgreSQL array
+	Types                       datatypes.JSONSlice[string]          `json:"types"`                // stored as JSON array
 }
 
 func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation, parentID *uuid.UUID, parentType string) *Observation {
@@ -652,9 +654,9 @@ func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation, parentID *
 		return subject
 	})
 
-	var types []string
+	var types datatypes.JSONSlice[string]
 	if oo.Types != nil {
-		types = *oo.Types
+		types = datatypes.NewJSONSlice(*oo.Types)
 	}
 
 	*o = Observation{
@@ -665,7 +667,7 @@ func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation, parentID *
 		ParentType: parentType,
 		Collected:                   oo.Collected,
 		Description:                 oo.Description,
-		Methods:                     oo.Methods,
+		Methods:                     datatypes.NewJSONSlice(oo.Methods),
 		Expires:                     oo.Expires,
 		Links:                       links,
 		Origins:                     datatypes.NewJSONSlice(origins),
@@ -680,11 +682,16 @@ func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation, parentID *
 }
 
 func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
+	methods := make([]string, len(o.Methods))
+	for i, method := range o.Methods {
+		methods[i] = method
+	}
+	
 	ret := oscalTypes_1_1_3.Observation{
 		UUID:        o.UUIDModel.ID.String(),
 		Collected:   o.Collected,
 		Description: o.Description,
-		Methods:     o.Methods,
+		Methods:     methods,
 	}
 
 	if o.Expires != nil {
@@ -732,7 +739,11 @@ func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
 	}
 
 	if len(o.Types) > 0 {
-		ret.Types = &o.Types
+		types := make([]string, len(o.Types))
+		for i, typ := range o.Types {
+			types[i] = typ
+		}
+		ret.Types = &types
 	}
 
 	return &ret

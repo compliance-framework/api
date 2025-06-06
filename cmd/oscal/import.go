@@ -50,19 +50,17 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 	}
 
 	files := []string{
+		"testdata/fedramp_poam.json",
+		// Basic catalog works
 		"testdata/basic-catalog.json",
-		"testdata/example-ap.json",
-		"testdata/example-ssp.json",
-		"testdata/full_ssp.json",
-		"testdata/NIST_SP-800_218_catalog.json",
-		"testdata/OWASP_DSOMM_3.28.2.json",
-		"testdata/SAMA_CSF_1.0_catalog.json",
-		"testdata/SAMA_ITGF_1.0_catalog.json",
-		"testdata/sp800-53-component.json",
-		"testdata/sp800-53-component-aws.json",
-		"testdata/sp800_53_catalog.json",
-		"testdata/sp800_53_component_definition_sample.json",
-		"testdata/sp800_53_profile.json",
+		// "testdata/sp800_53_profile.json",
+		// "testdata/example-ap.json",
+		// "testdata/example-ssp.json",
+		// "testdata/full_ssp.json",
+		// "testdata/sp800-53-component.json",
+		// "testdata/sp800-53-component-aws.json",
+		// "testdata/sp800_53_catalog.json",
+		// "testdata/sp800_53_component_definition_sample.json",
 	}
 
 	for _, f := range files {
@@ -73,11 +71,12 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 
 		defer jsonFile.Close()
 		input := &struct {
-			ComponentDefinition *oscalTypes_1_1_3.ComponentDefinition `json:"component-definition"`
-			Catalog             *oscalTypes_1_1_3.Catalog             `json:"catalog"`
-			SystemSecurityPlan  *oscalTypes_1_1_3.SystemSecurityPlan  `json:"system-security-plan"`
-			AssessmentPlan      *oscalTypes_1_1_3.AssessmentPlan      `json:"assessment-plan"`
-			Profile             *oscalTypes_1_1_3.Profile             `json:"profile"`
+			ComponentDefinition       *oscalTypes_1_1_3.ComponentDefinition       `json:"component-definition"`
+			Catalog                   *oscalTypes_1_1_3.Catalog                   `json:"catalog"`
+			SystemSecurityPlan        *oscalTypes_1_1_3.SystemSecurityPlan        `json:"system-security-plan"`
+			AssessmentPlan            *oscalTypes_1_1_3.AssessmentPlan            `json:"assessment-plan"`
+			Profile                   *oscalTypes_1_1_3.Profile                   `json:"profile"`
+			PlanOfActionAndMilestones *oscalTypes_1_1_3.PlanOfActionAndMilestones `json:"plan-of-action-and-milestones"`
 		}{}
 
 		err = json.NewDecoder(jsonFile).Decode(input)
@@ -137,6 +136,24 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 				panic(out.Error)
 			}
 			fmt.Println("Successfully Created Profile", f)
+			continue
+		}
+
+		if input.PlanOfActionAndMilestones != nil {
+			def := &relational.PlanOfActionAndMilestones{}
+			def.UnmarshalOscal(*input.PlanOfActionAndMilestones)
+
+			// Print what we're going to import
+			fmt.Printf("Importing POAM with %d risks, %d observations, %d findings\n",
+				len(def.Risks), len(def.Observations), len(def.Findings))
+
+			// Create with polymorphic entities, but skip metadata/backmatter due to missing relationship tables
+			out := db.Omit("Metadata", "BackMatter").Create(def)
+			if out.Error != nil {
+				sugar.Errorf("Error creating POAM: %v", out.Error)
+				continue
+			}
+			fmt.Println("Successfully Created Plan of Action and Milestones", f)
 			continue
 		}
 
