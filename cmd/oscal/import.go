@@ -51,12 +51,11 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 
 	files := []string{
 		"testdata/fedramp_poam.json",
-		// Basic catalog works
-		"testdata/basic-catalog.json",
-		// "testdata/sp800_53_profile.json",
-		// "testdata/example-ap.json",
-		// "testdata/example-ssp.json",
-		// "testdata/full_ssp.json",
+		// "testdata/basic-catalog.json",
+		// "testdata/sp800_53_profile.json", // Profile not in migrator yet
+		// "testdata/example-ap.json", // AssessmentPlan has junction table issues
+		// "testdata/example-ssp.json", // Testing one by one
+		// "testdata/full_ssp.json", // Testing one by one  
 		// "testdata/sp800-53-component.json",
 		// "testdata/sp800-53-component-aws.json",
 		// "testdata/sp800_53_catalog.json",
@@ -147,8 +146,8 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 			fmt.Printf("Importing POAM with %d risks, %d observations, %d findings\n",
 				len(def.Risks), len(def.Observations), len(def.Findings))
 
-			// Create with polymorphic entities, but skip metadata/backmatter due to missing relationship tables
-			out := db.Omit("Metadata", "BackMatter").Create(def)
+			// Create with polymorphic entities
+			out := db.Create(def)
 			if out.Error != nil {
 				sugar.Errorf("Error creating POAM: %v", out.Error)
 				continue

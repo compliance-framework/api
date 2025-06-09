@@ -174,10 +174,6 @@ func (t *TelephoneNumber) MarshalOscal() *oscaltypes113.TelephoneNumber {
 	return tn
 }
 
-type ResponsiblePartyParties struct {
-	ResponsiblePartyID *uuid.UUID `gorm:"primaryKey"`
-	PartyID            *uuid.UUID `gorm:"primaryKey"`
-}
 
 type ResponsibleParty struct {
 	UUIDModel
@@ -187,7 +183,7 @@ type ResponsibleParty struct {
 
 	RoleID  string `json:"role-id"` // required
 	Role    Role
-	Parties []ResponsiblePartyParties
+	Parties []Party `gorm:"many2many:responsible_party_parties;"`
 }
 
 func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *ResponsibleParty {
@@ -204,11 +200,12 @@ func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *Re
 		}),
 		Remarks: or.Remarks,
 		RoleID:  or.RoleId,
-		Parties: ConvertList(&or.PartyUuids, func(olink string) ResponsiblePartyParties {
+		Parties: ConvertList(&or.PartyUuids, func(olink string) Party {
 			id := uuid.MustParse(olink)
-			return ResponsiblePartyParties{
-				ResponsiblePartyID: r.UUIDModel.ID,
-				PartyID:            &id,
+			return Party{
+				UUIDModel: UUIDModel{
+					ID: &id,
+				},
 			}
 		}),
 	}
@@ -232,7 +229,7 @@ func (r *ResponsibleParty) MarshalOscal() *oscaltypes113.ResponsibleParty {
 	if len(r.Parties) > 0 {
 		uuids := make([]string, len(r.Parties))
 		for i, p := range r.Parties {
-			uuids[i] = p.PartyID.String()
+			uuids[i] = p.ID.String()
 		}
 		rp.PartyUuids = uuids
 	}
