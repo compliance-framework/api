@@ -184,6 +184,10 @@ type ResponsibleParty struct {
 	RoleID  string `json:"role-id"` // required
 	Role    Role
 	Parties []Party `gorm:"many2many:responsible_party_parties;"`
+
+	// Polymorphic relationship - allows ResponsibleParty to belong to different parent types
+	ParentID   *uuid.UUID
+	ParentType string
 }
 
 func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *ResponsibleParty {
