@@ -118,18 +118,15 @@ func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActio
 
 	opam.Metadata = *p.Metadata.MarshalOscal()
 
-	if val, err := p.ImportSsp.Value(); err == nil && val != nil {
-		isp := val.(ImportSsp)
+	if isp := p.ImportSsp.Data(); isp.Href != "" {
 		opam.ImportSsp = isp.MarshalOscal()
 	}
 
-	if val, err := p.SystemId.Value(); err == nil && val != nil {
-		sid := val.(SystemId)
+	if sid := p.SystemId.Data(); sid.ID != "" {
 		opam.SystemId = sid.MarshalOscal()
 	}
 
-	if val, err := p.LocalDefinitions.Value(); err == nil && val != nil {
-		ld := val.(PlanOfActionAndMilestonesLocalDefinitions)
+	if ld := p.LocalDefinitions.Data(); ld.Remarks != "" || len(ld.Components) > 0 || len(ld.InventoryItems) > 0 {
 		opam.LocalDefinitions = ld.MarshalOscal()
 	}
 
@@ -329,8 +326,7 @@ func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 		ret.Remediations = &remediations
 	}
 
-	if val, err := r.RiskLog.Value(); err == nil && val != nil {
-		riskLog := val.(oscalTypes_1_1_3.RiskLog)
+	if riskLog := r.RiskLog.Data(); len(riskLog.Entries) > 0 {
 		ret.RiskLog = &riskLog
 	}
 
@@ -587,8 +583,7 @@ func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1
 		Remarks: p.Remarks,
 	}
 
-	if val, err := p.AssessmentAssets.Value(); err == nil && val != nil {
-		assessmentAssets := val.(oscalTypes_1_1_3.AssessmentAssets)
+	if assessmentAssets := p.AssessmentAssets.Data(); len(assessmentAssets.AssessmentPlatforms) > 0 || (assessmentAssets.Components != nil && len(*assessmentAssets.Components) > 0) {
 		ret.AssessmentAssets = &assessmentAssets
 	}
 
