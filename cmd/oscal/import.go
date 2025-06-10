@@ -52,14 +52,18 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 	files := []string{
 		"testdata/fedramp_poam.json",
 		"testdata/basic-catalog.json",
-		"testdata/sp800_53_profile.json",
 		"testdata/example-ap.json",
 		"testdata/example-ssp.json",
 		"testdata/full_ssp.json",
+		"testdata/NIST_SP-800_218_catalog.json",
+		"testdata/OWASP_DSOMM_3.28.2.json",
+		"testdata/SAMA_CSF_1.0_catalog.json",
+		"testdata/SAMA_ITGF_1.0_catalog.json",
 		"testdata/sp800-53-component.json",
 		"testdata/sp800-53-component-aws.json",
 		"testdata/sp800_53_catalog.json",
 		"testdata/sp800_53_component_definition_sample.json",
+		"testdata/sp800_53_profile.json",
 	}
 
 	for _, f := range files {
