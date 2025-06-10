@@ -74,6 +74,14 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.ControlObjectiveSelection{},
 		&relational.SelectObjectiveById{},
 
+		// POAM entities
+		&relational.PlanOfActionAndMilestones{},
+		&relational.PlanOfActionAndMilestonesLocalDefinitions{},
+		&relational.PoamItem{},
+		&relational.Risk{},
+		&relational.Observation{},
+		&relational.Finding{},
+
 		&relational.Profile{},
 		&relational.Import{},
 		&relational.Merge{},

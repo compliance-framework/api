@@ -25,7 +25,7 @@ type AssessmentPlan struct {
 
 func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *AssessmentPlan {
 	*i = AssessmentPlan{
-		ImportSSP: datatypes.NewJSONType[ImportSsp](ImportSsp(op.ImportSsp)),
+		ImportSSP: datatypes.NewJSONType(ImportSsp(op.ImportSsp)),
 		Metadata:  *(&Metadata{}).UnmarshalOscal(op.Metadata),
 	}
 	// Metadata and BackMatter are polymorphic, skip for now or implement if necessary
@@ -158,10 +158,10 @@ type Result struct {
 	AssessmentLogID    *uuid.UUID
 	AssessmentLog      *AssessmentLog
 
-	// TODO - These are being defined as part of POAMs
-	//Observations []Observation `gorm:"polymorphic:Parent"`
-	//Findings     []Finding     `gorm:"polymorphic:Parent"`
-	//Risks        []Risk        `gorm:"polymorphic:Parent"`
+	// Shared entities now using polymorphic associations
+	Observations []Observation `json:"observations" gorm:"polymorphic:Parent;"`
+	Findings     []Finding     `json:"findings" gorm:"polymorphic:Parent;"`
+	Risks        []Risk        `json:"risks" gorm:"polymorphic:Parent;"`
 }
 
 func (i *Result) UnmarshalOscal(op oscalTypes_1_1_3.Result) *Result {
@@ -197,6 +197,27 @@ func (i *Result) UnmarshalOscal(op oscalTypes_1_1_3.Result) *Result {
 	// AssessmentLogs
 	if op.AssessmentLog != nil {
 		i.AssessmentLog = (&AssessmentLog{}).UnmarshalOscal(*op.AssessmentLog)
+	}
+	// Observations
+	if op.Observations != nil {
+		i.Observations = make([]Observation, len(*op.Observations))
+		for idx, obs := range *op.Observations {
+			i.Observations[idx] = *(&Observation{}).UnmarshalOscal(obs, i.ID, "Result")
+		}
+	}
+	// Findings
+	if op.Findings != nil {
+		i.Findings = make([]Finding, len(*op.Findings))
+		for idx, finding := range *op.Findings {
+			i.Findings[idx] = *(&Finding{}).UnmarshalOscal(finding, i.ID, "Result")
+		}
+	}
+	// Risks
+	if op.Risks != nil {
+		i.Risks = make([]Risk, len(*op.Risks))
+		for idx, risk := range *op.Risks {
+			i.Risks[idx] = *(&Risk{}).UnmarshalOscal(risk, *i.ID, "Result")
+		}
 	}
 	return i
 }
@@ -238,6 +259,30 @@ func (i *Result) MarshalOscal() *oscalTypes_1_1_3.Result {
 	// AssessmentLogs
 	if i.AssessmentLog != nil {
 		ret.AssessmentLog = i.AssessmentLog.MarshalOscal()
+	}
+	// Observations
+	if len(i.Observations) > 0 {
+		observations := make([]oscalTypes_1_1_3.Observation, len(i.Observations))
+		for idx, obs := range i.Observations {
+			observations[idx] = *obs.MarshalOscal()
+		}
+		ret.Observations = &observations
+	}
+	// Findings
+	if len(i.Findings) > 0 {
+		findings := make([]oscalTypes_1_1_3.Finding, len(i.Findings))
+		for idx, finding := range i.Findings {
+			findings[idx] = *finding.MarshalOscal()
+		}
+		ret.Findings = &findings
+	}
+	// Risks
+	if len(i.Risks) > 0 {
+		risks := make([]oscalTypes_1_1_3.Risk, len(i.Risks))
+		for idx, risk := range i.Risks {
+			risks[idx] = *risk.MarshalOscal()
+		}
+		ret.Risks = &risks
 	}
 	return &ret
 }
@@ -1634,7 +1679,7 @@ func (i *ControlObjectiveSelection) UnmarshalOscal(op oscalTypes_1_1_3.Reference
 		i.Links = ConvertOscalToLinks(op.Links)
 	}
 	if op.IncludeAll != nil {
-		includeAll := datatypes.NewJSONType[IncludeAll](*op.IncludeAll)
+		includeAll := datatypes.NewJSONType(*op.IncludeAll)
 		i.IncludeAll = &includeAll
 	}
 	if op.IncludeObjectives != nil {

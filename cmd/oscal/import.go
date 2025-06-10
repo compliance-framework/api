@@ -50,6 +50,7 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 	}
 
 	files := []string{
+		"testdata/fedramp_poam.json",
 		"testdata/basic-catalog.json",
 		"testdata/example-ap.json",
 		"testdata/example-ssp.json",
@@ -73,11 +74,12 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 
 		defer jsonFile.Close()
 		input := &struct {
-			ComponentDefinition *oscalTypes_1_1_3.ComponentDefinition `json:"component-definition"`
-			Catalog             *oscalTypes_1_1_3.Catalog             `json:"catalog"`
-			SystemSecurityPlan  *oscalTypes_1_1_3.SystemSecurityPlan  `json:"system-security-plan"`
-			AssessmentPlan      *oscalTypes_1_1_3.AssessmentPlan      `json:"assessment-plan"`
-			Profile             *oscalTypes_1_1_3.Profile             `json:"profile"`
+			ComponentDefinition       *oscalTypes_1_1_3.ComponentDefinition       `json:"component-definition"`
+			Catalog                   *oscalTypes_1_1_3.Catalog                   `json:"catalog"`
+			SystemSecurityPlan        *oscalTypes_1_1_3.SystemSecurityPlan        `json:"system-security-plan"`
+			AssessmentPlan            *oscalTypes_1_1_3.AssessmentPlan            `json:"assessment-plan"`
+			Profile                   *oscalTypes_1_1_3.Profile                   `json:"profile"`
+			PlanOfActionAndMilestones *oscalTypes_1_1_3.PlanOfActionAndMilestones `json:"plan-of-action-and-milestones"`
 		}{}
 
 		err = json.NewDecoder(jsonFile).Decode(input)
@@ -137,6 +139,24 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 				panic(out.Error)
 			}
 			fmt.Println("Successfully Created Profile", f)
+			continue
+		}
+
+		if input.PlanOfActionAndMilestones != nil {
+			def := &relational.PlanOfActionAndMilestones{}
+			def.UnmarshalOscal(*input.PlanOfActionAndMilestones)
+
+			// Print what we're going to import
+			sugar.Infof("Importing POAM with %d risks, %d observations, %d findings",
+				len(def.Risks), len(def.Observations), len(def.Findings))
+
+			// Create with polymorphic entities
+			out := db.Create(def)
+			if out.Error != nil {
+				sugar.Errorf("Error creating POAM: %v", out.Error)
+				continue
+			}
+			fmt.Println("Successfully Created Plan of Action and Milestones", f)
 			continue
 		}
 

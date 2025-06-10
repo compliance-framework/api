@@ -17,8 +17,8 @@ services:
     environment:
       - MONGO_URI=mongodb://mongodb:27017
       - APP_PORT=8080
-      - CCF_DB_DRIVER="postgres"
-      - CCF_DB_CONNECTION="host=postgres user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"
+      - CCF_DB_DRIVER=postgres
+      - CCF_DB_CONNECTION=host=postgres user=postgres password=postgres dbname=ccf port=5432 sslmode=disable
     networks:
       - continuous-compliance
 

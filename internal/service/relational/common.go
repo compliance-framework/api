@@ -174,6 +174,7 @@ func (t *TelephoneNumber) MarshalOscal() *oscaltypes113.TelephoneNumber {
 	return tn
 }
 
+
 type ResponsiblePartyParties struct {
 	ResponsiblePartyID *uuid.UUID `gorm:"primaryKey"`
 	PartyID            *uuid.UUID `gorm:"primaryKey"`
@@ -188,6 +189,10 @@ type ResponsibleParty struct {
 	RoleID  string `json:"role-id"` // required
 	Role    Role
 	Parties []ResponsiblePartyParties
+
+	// Polymorphic relationship - allows ResponsibleParty to belong to different parent types
+	ParentID   *uuid.UUID
+	ParentType string
 }
 
 func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *ResponsibleParty {
