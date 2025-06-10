@@ -65,7 +65,6 @@ func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 	// Simplified response to avoid marshaling issues
 	type SimplePOAM struct {
 		UUID string `json:"uuid"`
-		Title string `json:"title,omitempty"`
 	}
 	
 	simplePoams := make([]SimplePOAM, len(poams))

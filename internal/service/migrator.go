@@ -99,13 +99,6 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Result{},
 		&relational.AssessmentLog{},
 		&relational.AssessmentLogEntry{},
-		// POAM entities
-		&relational.PlanOfActionAndMilestones{},
-		&relational.PlanOfActionAndMilestonesLocalDefinitions{},
-		&relational.PoamItem{},
-		&relational.Risk{},
-		&relational.Observation{},
-		&relational.Finding{},
 	)
 	return err
 }
