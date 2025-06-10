@@ -143,7 +143,7 @@ func ImportOscal(cmd *cobra.Command, args []string) {
 			def.UnmarshalOscal(*input.PlanOfActionAndMilestones)
 
 			// Print what we're going to import
-			fmt.Printf("Importing POAM with %d risks, %d observations, %d findings\n",
+			sugar.Infof("Importing POAM with %d risks, %d observations, %d findings",
 				len(def.Risks), len(def.Observations), len(def.Findings))
 
 			// Create with polymorphic entities
