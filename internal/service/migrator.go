@@ -7,6 +7,7 @@ import (
 
 func MigrateUp(db *gorm.DB) error {
 	err := db.AutoMigrate(
+		&relational.ResponsiblePartyParties{},
 		&relational.Location{},
 		&relational.Party{},
 		&relational.BackMatterResource{},
@@ -14,6 +15,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Role{},
 		&relational.Revision{},
 		&relational.ResponsibleParty{},
+		&relational.ResponsibleRole{},
 		&relational.Action{},
 		&relational.Metadata{},
 		&relational.Group{},
@@ -72,6 +74,31 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.ControlObjectiveSelection{},
 		&relational.SelectObjectiveById{},
 
+		// POAM entities
+		&relational.PlanOfActionAndMilestones{},
+		&relational.PlanOfActionAndMilestonesLocalDefinitions{},
+		&relational.PoamItem{},
+		&relational.Risk{},
+		&relational.Observation{},
+		&relational.Finding{},
+
+		&relational.Profile{},
+		&relational.Import{},
+		&relational.Merge{},
+		&relational.Modify{},
+		&relational.ParameterSetting{},
+		&relational.Alteration{},
+		&relational.Addition{},
+		&relational.SelectControlById{},
+		&relational.ResponsibleRole{},
+		&relational.AssessmentResult{},
+		&relational.Activity{},
+		&relational.Step{},
+		&relational.Task{},
+		&relational.AssessedControlsSelectControlById{},
+		&relational.Result{},
+		&relational.AssessmentLog{},
+		&relational.AssessmentLogEntry{},
 		// POAM entities
 		&relational.PlanOfActionAndMilestones{},
 		&relational.PlanOfActionAndMilestonesLocalDefinitions{},
@@ -159,15 +186,6 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.ControlSelection{},
 		&relational.ControlObjectiveSelection{},
 		&relational.SelectObjectiveById{},
-
-		// POAM entities
-		&relational.PlanOfActionAndMilestones{},
-		&relational.PlanOfActionAndMilestonesLocalDefinitions{},
-		&relational.PoamItem{},
-		&relational.Risk{},
-		&relational.Observation{},
-		&relational.Finding{},
-
 		"activity_related_controls",
 		"additions",
 		"alterations",
@@ -187,6 +205,7 @@ func MigrateDown(db *gorm.DB) error {
 		"merges",
 		"metadata_parties",
 		"metadata_roles",
+		"metadata_locations",
 		"modifies",
 		"parameter_settings",
 		"profiles",
@@ -198,6 +217,23 @@ func MigrateDown(db *gorm.DB) error {
 		"task_subjects",
 		"task_tasks",
 		"uses_component_responsible_parties",
+		&relational.Profile{},
+		&relational.Import{},
+		&relational.Merge{},
+		&relational.Modify{},
+		&relational.ParameterSetting{},
+		&relational.Alteration{},
+		&relational.Addition{},
+		&relational.SelectControlById{},
+		&relational.AssessmentResult{},
+		&relational.Activity{},
+		&relational.Step{},
+		&relational.Task{},
+		&relational.AssessedControlsSelectControlById{},
+		&relational.Result{},
+		&relational.AssessmentLog{},
+		&relational.AssessmentLogEntry{},
+		"assessed_controls_select_control_by_id_statements",
 	)
 	return err
 }
