@@ -2,7 +2,9 @@ package oscal
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -35,7 +37,7 @@ func NewPlanOfActionAndMilestonesHandler(sugar *zap.SugaredLogger, db *gorm.DB) 
 // Register registers POA&M endpoints to the API group.
 func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.GET("", h.List) // GET /oscal/plan-of-action-and-milestones
-	// api.POST("", h.Create)      // POST /oscal/plan-of-action-and-milestones (not implemented)
+	api.POST("", h.Create) // POST /oscal/plan-of-action-and-milestones
 	api.GET("/:id", h.Get) // GET /oscal/plan-of-action-and-milestones/:id
 	// api.PUT("/:id", h.Update)    // PUT /oscal/plan-of-action-and-milestones/:id (not implemented)
 	api.GET("/:id/full", h.Full) // GET /oscal/plan-of-action-and-milestones/:id/full
@@ -45,9 +47,13 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.GET("/:id/observations", h.GetObservations)
+	api.POST("/:id/observations", h.CreateObservation)
 	api.GET("/:id/risks", h.GetRisks)
+	api.POST("/:id/risks", h.CreateRisk)
 	api.GET("/:id/findings", h.GetFindings)
+	api.POST("/:id/findings", h.CreateFinding)
 	api.GET("/:id/poam-items", h.GetPoamItems)
+	api.POST("/:id/poam-items", h.CreatePoamItem)
 }
 
 // List godoc
@@ -419,4 +425,222 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]{Data: *poam.BackMatter.MarshalOscal()})
+}
+
+// Create godoc
+//
+//	@Summary		Create a new POA&M
+//	@Description	Creates a new Plan of Action and Milestones.
+//	@Tags			OScal
+//	@Accept			json
+//	@Produce		json
+//	@Param			poam	body		oscalTypes_1_1_3.PlanOfActionAndMilestones	true	"POA&M data"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
+//	@Failure		400		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones [post]
+func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
+	now := time.Now()
+
+	var oscalPoam oscalTypes_1_1_3.PlanOfActionAndMilestones
+	if err := ctx.Bind(&oscalPoam); err != nil {
+		h.sugar.Warnw("Invalid create POAM request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relPoam := &relational.PlanOfActionAndMilestones{}
+	relPoam.UnmarshalOscal(oscalPoam)
+	relPoam.Metadata.LastModified = &now
+	relPoam.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	if err := h.db.Create(relPoam).Error; err != nil {
+		h.sugar.Errorf("Failed to create POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *relPoam.MarshalOscal()})
+}
+
+// CreateObservation godoc
+//
+//	@Summary		Create a new observation for a POA&M
+//	@Description	Creates a new observation for a given POA&M.
+//	@Tags			OScal
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string							true	"POA&M ID"
+//	@Param			observation	body		oscalTypes_1_1_3.Observation	true	"Observation data"
+//	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Observation]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/observations [post]
+func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	var oscalObs oscalTypes_1_1_3.Observation
+	if err := ctx.Bind(&oscalObs); err != nil {
+		h.sugar.Warnw("Invalid create observation request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relObs := &relational.Observation{}
+	relObs.UnmarshalOscal(oscalObs, &id, "plan_of_action_and_milestones")
+
+	if err := h.db.Create(relObs).Error; err != nil {
+		h.sugar.Errorf("Failed to create observation: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Observation]{Data: *relObs.MarshalOscal()})
+}
+
+// CreateRisk godoc
+//
+//	@Summary		Create a new risk for a POA&M
+//	@Description	Creates a new risk for a given POA&M.
+//	@Tags			OScal
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"POA&M ID"
+//	@Param			risk	body		oscalTypes_1_1_3.Risk	true	"Risk data"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Risk]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/risks [post]
+func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	var oscalRisk oscalTypes_1_1_3.Risk
+	if err := ctx.Bind(&oscalRisk); err != nil {
+		h.sugar.Warnw("Invalid create risk request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relRisk := &relational.Risk{}
+	relRisk.UnmarshalOscal(oscalRisk, id, "plan_of_action_and_milestones")
+
+	if err := h.db.Create(relRisk).Error; err != nil {
+		h.sugar.Errorf("Failed to create risk: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Risk]{Data: *relRisk.MarshalOscal()})
+}
+
+// CreateFinding godoc
+//
+//	@Summary		Create a new finding for a POA&M
+//	@Description	Creates a new finding for a given POA&M.
+//	@Tags			OScal
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"POA&M ID"
+//	@Param			finding	body		oscalTypes_1_1_3.Finding	true	"Finding data"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Finding]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/findings [post]
+func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	var oscalFinding oscalTypes_1_1_3.Finding
+	if err := ctx.Bind(&oscalFinding); err != nil {
+		h.sugar.Warnw("Invalid create finding request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relFinding := &relational.Finding{}
+	relFinding.UnmarshalOscal(oscalFinding, &id, "plan_of_action_and_milestones")
+
+	if err := h.db.Create(relFinding).Error; err != nil {
+		h.sugar.Errorf("Failed to create finding: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Finding]{Data: *relFinding.MarshalOscal()})
+}
+
+// CreatePoamItem godoc
+//
+//	@Summary		Create a new POAM item for a POA&M
+//	@Description	Creates a new POAM item for a given POA&M.
+//	@Tags			OScal
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string						true	"POA&M ID"
+//	@Param			poam-item	body		oscalTypes_1_1_3.PoamItem	true	"POAM Item data"
+//	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/poam-items [post]
+func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	var oscalPoamItem oscalTypes_1_1_3.PoamItem
+	if err := ctx.Bind(&oscalPoamItem); err != nil {
+		h.sugar.Warnw("Invalid create POAM item request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relPoamItem := &relational.PoamItem{}
+	relPoamItem.UnmarshalOscal(oscalPoamItem, id)
+
+	if err := h.db.Create(relPoamItem).Error; err != nil {
+		h.sugar.Errorf("Failed to create POAM item: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]{Data: *relPoamItem.MarshalOscal()})
 }

@@ -3929,6 +3929,50 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "description": "Creates a new Plan of Action and Milestones.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Create a new POA\u0026M",
+                "parameters": [
+                    {
+                        "description": "POA\u0026M data",
+                        "name": "poam",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}": {
@@ -4049,6 +4093,63 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Finding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new finding for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Create a new finding for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Finding data",
+                        "name": "finding",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding"
                         }
                     },
                     "400": {
@@ -4305,6 +4406,63 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "description": "Creates a new observation for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Create a new observation for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Observation data",
+                        "name": "observation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Observation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/poam-items": {
@@ -4352,6 +4510,63 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "description": "Creates a new POAM item for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Create a new POAM item for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "POAM Item data",
+                        "name": "poam-item",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/risks": {
@@ -4378,6 +4593,63 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Risk"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new risk for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Create a new risk for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk data",
+                        "name": "risk",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk"
                         }
                     },
                     "400": {
@@ -6844,6 +7116,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Finding": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Group": {
             "type": "object",
             "properties": {
@@ -6922,6 +7207,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Observation": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Party": {
             "type": "object",
             "properties": {
@@ -6961,6 +7259,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Profile": {
             "type": "object",
             "properties": {
@@ -6969,6 +7280,19 @@
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_Risk": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
                         }
                     ]
                 }
