@@ -39,6 +39,11 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.GET("/:id", h.Get) // GET /oscal/plan-of-action-and-milestones/:id
 	// api.PUT("/:id", h.Update)    // PUT /oscal/plan-of-action-and-milestones/:id (not implemented)
 	api.GET("/:id/full", h.Full) // GET /oscal/plan-of-action-and-milestones/:id/full
+	api.GET("/:id/metadata", h.GetMetadata)
+	api.GET("/:id/import-ssp", h.GetImportSsp)
+	api.GET("/:id/system-id", h.GetSystemId)
+	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
+	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.GET("/:id/observations", h.GetObservations)
 	api.GET("/:id/risks", h.GetRisks)
 	api.GET("/:id/findings", h.GetFindings)
@@ -57,21 +62,16 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 //	@Router			/oscal/plan-of-action-and-milestones [get]
 func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 	var poams []relational.PlanOfActionAndMilestones
-	if err := h.db.Find(&poams).Error; err != nil {
+	if err := h.db.Preload("Metadata").Find(&poams).Error; err != nil {
 		h.sugar.Errorw("failed to list poams", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	// Simplified response to avoid marshaling issues
-	type SimplePOAM struct {
-		UUID string `json:"uuid"`
-	}
-	simplePoams := make([]SimplePOAM, len(poams))
+	
+	oscalPoams := make([]oscalTypes_1_1_3.PlanOfActionAndMilestones, len(poams))
 	for i, poam := range poams {
-		simplePoams[i] = SimplePOAM{
-			UUID: poam.ID.String(),
-		}
+		oscalPoams[i] = *poam.MarshalOscal()
 	}
-	return ctx.JSON(http.StatusOK, map[string]any{"data": simplePoams})
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: oscalPoams})
 }
 
 // Get godoc
@@ -94,24 +94,12 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Metadata").First(&poam, "id = ?", id).Error; err != nil {
 		h.sugar.Errorw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
-	// Simplified response to avoid marshaling issues
-	type SimplePOAM struct {
-		UUID             string `json:"uuid"`
-		ObservationCount int    `json:"observation_count"`
-		RiskCount        int    `json:"risk_count"`
-		FindingCount     int    `json:"finding_count"`
-	}
-	result := SimplePOAM{
-		UUID:             poam.ID.String(),
-		ObservationCount: len(poam.Observations),
-		RiskCount:        len(poam.Risks),
-		FindingCount:     len(poam.Findings),
-	}
-	return ctx.JSON(http.StatusOK, map[string]any{"data": result})
+	
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *poam.MarshalOscal()})
 }
 
 // Full godoc
@@ -281,4 +269,154 @@ func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx echo.Context) error 
 		oscalItems[i] = *item.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.PoamItem]{Data: oscalItems})
+}
+
+// GetMetadata godoc
+//
+//	@Summary		Get POA&M metadata
+//	@Description	Retrieves metadata for a given POA&M.
+//	@Tags			OScal
+//	@Produce		json
+//	@Param			id	path		string	true	"POA&M ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/metadata [get]
+func (h *PlanOfActionAndMilestonesHandler) GetMetadata(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.Preload("Metadata").First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]{Data: *poam.Metadata.MarshalOscal()})
+}
+
+// GetImportSsp godoc
+//
+//	@Summary		Get POA&M import-ssp
+//	@Description	Retrieves import-ssp for a given POA&M.
+//	@Tags			OScal
+//	@Produce		json
+//	@Param			id	path		string	true	"POA&M ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ImportSsp]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/import-ssp [get]
+func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	importSsp := poam.ImportSsp.Data()
+	if importSsp.Href == "" {
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ImportSsp]{Data: *importSsp.MarshalOscal()})
+}
+
+// GetSystemId godoc
+//
+//	@Summary		Get POA&M system-id
+//	@Description	Retrieves system-id for a given POA&M.
+//	@Tags			OScal
+//	@Produce		json
+//	@Param			id	path		string	true	"POA&M ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemId]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/system-id [get]
+func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	systemId := poam.SystemId.Data()
+	if systemId.ID == "" {
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemId]{Data: *systemId.MarshalOscal()})
+}
+
+// GetLocalDefinitions godoc
+//
+//	@Summary		Get POA&M local definitions
+//	@Description	Retrieves local definitions for a given POA&M.
+//	@Tags			OScal
+//	@Produce		json
+//	@Param			id	path		string	true	"POA&M ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions [get]
+func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	localDefs := poam.LocalDefinitions.Data()
+	if localDefs.Remarks == "" && len(localDefs.Components) == 0 && len(localDefs.InventoryItems) == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs.MarshalOscal()})
+}
+
+// GetBackMatter godoc
+//
+//	@Summary		Get POA&M back-matter
+//	@Description	Retrieves back-matter for a given POA&M.
+//	@Tags			OScal
+//	@Produce		json
+//	@Param			id	path		string	true	"POA&M ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/back-matter [get]
+func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.Preload("BackMatter").First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	if len(poam.BackMatter.Resources) == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]{Data: *poam.BackMatter.MarshalOscal()})
 }
