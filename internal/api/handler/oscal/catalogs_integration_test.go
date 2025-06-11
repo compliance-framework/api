@@ -6,6 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/tests"
@@ -13,9 +18,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -37,9 +39,11 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
 
 	server := api.NewServer(context.Background(), logger.Sugar())
-	RegisterHandlers(server, logger.Sugar(), suite.DB)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
 	catalogs := []oscaltypes.Catalog{
@@ -85,6 +89,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 		reqBody, _ := json.Marshal(catalog)
 		req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 		response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
@@ -98,6 +103,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/groups/G-1/groups", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	response := &handler.GenericDataListResponse[oscaltypes.Group]{}
@@ -110,6 +116,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B32/groups/G-1/groups", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	response = &handler.GenericDataListResponse[oscaltypes.Group]{}
@@ -128,9 +135,11 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
 
 	server := api.NewServer(context.Background(), logger.Sugar())
-	RegisterHandlers(server, logger.Sugar(), suite.DB)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
 	catalogs := []oscaltypes.Catalog{
@@ -176,6 +185,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 		reqBody, _ := json.Marshal(catalog)
 		req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 		response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
@@ -189,6 +199,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/groups/G-1/controls", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	response := &handler.GenericDataListResponse[oscaltypes.Control]{}
@@ -201,6 +212,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B32/groups/G-1/controls", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	response = &handler.GenericDataListResponse[oscaltypes.Control]{}
@@ -219,9 +231,11 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
 
 	server := api.NewServer(context.Background(), logger.Sugar())
-	RegisterHandlers(server, logger.Sugar(), suite.DB)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
 	catalogs := []oscaltypes.Catalog{
@@ -267,6 +281,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 		reqBody, _ := json.Marshal(catalog)
 		req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 		response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
@@ -280,6 +295,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/controls/G-1/controls", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	response := &handler.GenericDataListResponse[oscaltypes.Control]{}
@@ -292,6 +308,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B32/controls/G-1/controls", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	response = &handler.GenericDataListResponse[oscaltypes.Control]{}
@@ -307,9 +324,11 @@ func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
 
 	server := api.NewServer(context.Background(), logger.Sugar())
-	RegisterHandlers(server, logger.Sugar(), suite.DB)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
 	catalog := oscaltypes.Catalog{
@@ -335,6 +354,7 @@ func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
 	reqBody, _ := json.Marshal(catalog)
 	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
@@ -347,6 +367,7 @@ func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/groups", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	listResponse := &handler.GenericDataListResponse[oscaltypes.Group]{}
@@ -364,9 +385,10 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
 
 	server := api.NewServer(context.Background(), logger.Sugar())
-	RegisterHandlers(server, logger.Sugar(), suite.DB)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
 	catalog := oscaltypes.Catalog{
@@ -392,6 +414,7 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 	reqBody, _ := json.Marshal(catalog)
 	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	response := &handler.GenericDataResponse[oscaltypes.Catalog]{}
@@ -404,6 +427,7 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D20DB907-B87D-4D12-8760-D36FDB7A1B31/controls", bytes.NewReader([]byte{}))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	listResponse := &handler.GenericDataListResponse[oscaltypes.Control]{}

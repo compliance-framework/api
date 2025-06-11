@@ -2,12 +2,15 @@ package oscal
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/api"
+	"github.com/compliance-framework/configuration-service/internal/api/middleware"
+	"github.com/compliance-framework/configuration-service/internal/config"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB) {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) {
 	oscalGroup := server.API().Group("/oscal")
+	oscalGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 
 	catalogHandler := NewCatalogHandler(logger, db)
 	catalogHandler.Register(oscalGroup.Group("/catalogs"))

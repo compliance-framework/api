@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+
 	"github.com/compliance-framework/configuration-service/internal/api/binders"
 	mw "github.com/compliance-framework/configuration-service/internal/api/middleware"
 
@@ -26,7 +27,7 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger) *Server {
 	e.Use(middleware.Logger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 	}))
 	e.Validator = mw.NewValidator()
 	e.GET("/swagger/*", echoSwagger.WrapHandler)

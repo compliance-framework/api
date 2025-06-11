@@ -54,7 +54,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 }
 
 // List godoc
-//
+
 //	@Summary		List catalogs
 //	@Description	Retrieves all catalogs.
 //	@Tags			Oscal
@@ -62,6 +62,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 //	@Success		200	{object}	handler.GenericDataListResponse[oscal.List.responseCatalog]
 //	@Failure		400	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs [get]
 func (h *CatalogHandler) List(ctx echo.Context) error {
 	type responseCatalog struct {
@@ -87,7 +88,7 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 }
 
 // Get godoc
-//
+
 //	@Summary		Get a Catalog
 //	@Description	Retrieves a single Catalog by its unique ID.
 //	@Tags			Oscal
@@ -96,8 +97,12 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 //	@Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseCatalog]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router			/oscal/catalogs/{id} [get]
+
+//	@Failure	401	{object}	api.Error
+
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/oscal/catalogs/{id} [get]
 func (h *CatalogHandler) Get(ctx echo.Context) error {
 	type responseCatalog struct {
 		UUID     uuid.UUID                 `json:"uuid"`
@@ -127,7 +132,7 @@ func (h *CatalogHandler) Get(ctx echo.Context) error {
 }
 
 // Create godoc
-//
+
 //	@Summary		Create a new Catalog
 //	@Description	Creates a new OSCAL Catalog.
 //	@Tags			Oscal
@@ -137,6 +142,7 @@ func (h *CatalogHandler) Get(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs [post]
 func (h *CatalogHandler) Create(ctx echo.Context) error {
 	now := time.Now()
@@ -158,7 +164,7 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 }
 
 // Update godoc
-//
+
 //	@Summary		Update a Catalog
 //	@Description	Updates an existing OSCAL Catalog.
 //	@Tags			Oscal
@@ -170,6 +176,7 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id} [put]
 func (h *CatalogHandler) Update(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -202,7 +209,7 @@ func (h *CatalogHandler) Update(ctx echo.Context) error {
 }
 
 // GetBackMatter godoc
-//
+
 //	@Summary		Get back-matter for a Catalog
 //	@Description	Retrieves the back-matter for a given Catalog.
 //	@Tags			Oscal
@@ -211,8 +218,12 @@ func (h *CatalogHandler) Update(ctx echo.Context) error {
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router			/oscal/catalogs/{id}/back-matter [get]
+
+//	@Failure	401	{object}	api.Error
+
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/oscal/catalogs/{id}/back-matter [get]
 func (h *CatalogHandler) GetBackMatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -242,7 +253,7 @@ func (h *CatalogHandler) GetBackMatter(ctx echo.Context) error {
 }
 
 // GetGroup godoc
-//
+
 //	@Summary		Get a specific Group within a Catalog
 //	@Description	Retrieves a single Group by its ID for a given Catalog.
 //	@Tags			Oscal
@@ -253,6 +264,7 @@ func (h *CatalogHandler) GetBackMatter(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group} [get]
 func (h *CatalogHandler) GetGroup(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -276,7 +288,7 @@ func (h *CatalogHandler) GetGroup(ctx echo.Context) error {
 }
 
 // GetGroups godoc
-//
+
 //	@Summary		List groups for a Catalog
 //	@Description	Retrieves the top-level groups for a given Catalog.
 //	@Tags			Oscal
@@ -285,8 +297,12 @@ func (h *CatalogHandler) GetGroup(ctx echo.Context) error {
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Group]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router			/oscal/catalogs/{id}/groups [get]
+
+//	@Failure	401	{object}	api.Error
+
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/oscal/catalogs/{id}/groups [get]
 func (h *CatalogHandler) GetGroups(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -312,7 +328,7 @@ func (h *CatalogHandler) GetGroups(ctx echo.Context) error {
 }
 
 // GetGroupSubGroups godoc
-//
+
 //	@Summary		List sub-groups for a Group within a Catalog
 //	@Description	Retrieves the sub-groups of a specific Group in a given Catalog.
 //	@Tags			Oscal
@@ -323,6 +339,7 @@ func (h *CatalogHandler) GetGroups(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/groups [get]
 func (h *CatalogHandler) GetGroupSubGroups(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -351,7 +368,7 @@ func (h *CatalogHandler) GetGroupSubGroups(ctx echo.Context) error {
 }
 
 // GetGroupControls godoc
-//
+
 //	@Summary		List controls for a Group within a Catalog
 //	@Description	Retrieves the controls directly under a specific Group in a given Catalog.
 //	@Tags			Oscal
@@ -362,6 +379,7 @@ func (h *CatalogHandler) GetGroupSubGroups(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/controls [get]
 func (h *CatalogHandler) GetGroupControls(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -390,7 +408,7 @@ func (h *CatalogHandler) GetGroupControls(ctx echo.Context) error {
 }
 
 // CreateGroup godoc
-//
+
 //	@Summary		Create a new Group for a Catalog
 //	@Description	Adds a top-level group under the specified Catalog.
 //	@Tags			Oscal
@@ -401,6 +419,7 @@ func (h *CatalogHandler) GetGroupControls(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Group]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups [post]
 func (h *CatalogHandler) CreateGroup(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -437,7 +456,7 @@ func (h *CatalogHandler) CreateGroup(ctx echo.Context) error {
 }
 
 // UpdateGroup godoc
-//
+
 //	@Summary		Update a Group within a Catalog
 //	@Description	Updates the properties of an existing Group under the specified Catalog.
 //	@Tags			Oscal
@@ -450,6 +469,7 @@ func (h *CatalogHandler) CreateGroup(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group} [put]
 func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -480,7 +500,7 @@ func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
 }
 
 // CreateGroupSubGroup godoc
-//
+
 //	@Summary		Create a new Sub-Group for a Catalog Group
 //	@Description	Adds a sub-group under the specified Catalog and Group.
 //	@Tags			Oscal
@@ -492,6 +512,7 @@ func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Group]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/groups [post]
 func (h *CatalogHandler) CreateGroupSubGroup(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -531,7 +552,7 @@ func (h *CatalogHandler) CreateGroupSubGroup(ctx echo.Context) error {
 }
 
 // CreateGroupControl godoc
-//
+
 //	@Summary		Create a new Control for a Catalog Group
 //	@Description	Adds a control under the specified Catalog and Group.
 //	@Tags			Oscal
@@ -543,6 +564,7 @@ func (h *CatalogHandler) CreateGroupSubGroup(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Control]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/groups/{group}/controls [post]
 func (h *CatalogHandler) CreateGroupControl(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -582,7 +604,7 @@ func (h *CatalogHandler) CreateGroupControl(ctx echo.Context) error {
 }
 
 // GetControl godoc
-//
+
 //	@Summary		Get a specific Control within a Catalog
 //	@Description	Retrieves a single Control by its ID for a given Catalog.
 //	@Tags			Oscal
@@ -593,6 +615,7 @@ func (h *CatalogHandler) CreateGroupControl(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls/{control} [get]
 func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -616,7 +639,7 @@ func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 }
 
 // GetControls godoc
-//
+
 //	@Summary		List controls for a Catalog
 //	@Description	Retrieves the top-level controls for a given Catalog.
 //	@Tags			Oscal
@@ -625,8 +648,12 @@ func (h *CatalogHandler) GetControl(ctx echo.Context) error {
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Control]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router			/oscal/catalogs/{id}/controls [get]
+
+//	@Failure	401	{object}	api.Error
+
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/oscal/catalogs/{id}/controls [get]
 func (h *CatalogHandler) GetControls(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -652,7 +679,7 @@ func (h *CatalogHandler) GetControls(ctx echo.Context) error {
 }
 
 // GetControlSubControls godoc
-//
+
 //	@Summary		List child controls for a Control within a Catalog
 //	@Description	Retrieves the controls directly under a specific Control in a given Catalog.
 //	@Tags			Oscal
@@ -663,6 +690,7 @@ func (h *CatalogHandler) GetControls(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls/{control}/controls [get]
 func (h *CatalogHandler) GetControlSubControls(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -693,7 +721,7 @@ func (h *CatalogHandler) GetControlSubControls(ctx echo.Context) error {
 }
 
 // CreateControl godoc
-//
+
 //	@Summary		Create a new Control for a Catalog
 //	@Description	Adds a top-level control under the specified Catalog.
 //	@Tags			Oscal
@@ -704,6 +732,7 @@ func (h *CatalogHandler) GetControlSubControls(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Control]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls [post]
 func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -739,7 +768,7 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 }
 
 // UpdateControl godoc
-//
+
 //	@Summary		Update a Control within a Catalog
 //	@Description	Updates the properties of an existing Control under the specified Catalog.
 //	@Tags			Oscal
@@ -752,6 +781,7 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls/{control} [put]
 func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -782,7 +812,7 @@ func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 }
 
 // CreateControlSubControl godoc
-//
+
 //	@Summary		Create a new Sub-Control for a Control within a Catalog
 //	@Description	Adds a child control under the specified Catalog Control.
 //	@Tags			Oscal
@@ -794,6 +824,7 @@ func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Control]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id}/controls/{control}/controls [post]
 func (h *CatalogHandler) CreateControlSubControl(ctx echo.Context) error {
 	idParam := ctx.Param("id")

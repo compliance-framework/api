@@ -117,5 +117,12 @@ swag: ## swag setup and lint
 	@swag init --parseDependency --parseInternal
 	@swag fmt
 
+.PHONY: generate-keys
+generate-keys: 
+	@$(INFO) "Generating keys for the service"
+	@openssl genrsa -out private_key.pem 2048
+	@openssl rsa -in private_key.pem -pubout -out public_key.pem
+	@$(OK) keys generated
+
 tag:   ## Build and tag a production-based image of the service
 	@docker build -t ghcr.io/compliance-framework/configuration-service:latest_local .

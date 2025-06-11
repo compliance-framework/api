@@ -17,3 +17,5 @@ local.go
 resolver.go
 
 configuration-service
+
+*.pem

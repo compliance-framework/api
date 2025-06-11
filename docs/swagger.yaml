@@ -304,13 +304,6 @@ definitions:
           $ref: '#/definitions/service.Subject'
         type: array
     type: object
-  handler.GenericDataResponse-oscal_Get_responseCatalog:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/oscal.Get.responseCatalog'
-        description: Items from the list response
-    type: object
   handler.GenericDataResponse-oscal_Get_responseComponentDefinition:
     properties:
       data:
@@ -558,13 +551,6 @@ definitions:
         $ref: '#/definitions/labelfilter.Condition'
       query:
         $ref: '#/definitions/labelfilter.Query'
-    type: object
-  oscal.Get.responseCatalog:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      uuid:
-        type: string
     type: object
   oscal.Get.responseComponentDefinition:
     properties:
@@ -4153,6 +4139,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List catalogs
       tags:
       - Oscal
@@ -4182,40 +4170,20 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}:
     get:
-      description: Retrieves a single Catalog by its unique ID.
-      parameters:
-      - description: Catalog ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscal_Get_responseCatalog'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Get a Catalog
-      tags:
-      - Oscal
+      security:
+      - OAuth2Password: []
     put:
       consumes:
       - application/json
@@ -4251,71 +4219,29 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}/back-matter:
     get:
-      description: Retrieves the back-matter for a given Catalog.
-      parameters:
-      - description: Catalog ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_BackMatter'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Get back-matter for a Catalog
-      tags:
-      - Oscal
+      security:
+      - OAuth2Password: []
   /oscal/catalogs/{id}/controls:
     get:
-      description: Retrieves the top-level controls for a given Catalog.
-      parameters:
-      - description: Catalog ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: List controls for a Catalog
-      tags:
-      - Oscal
+      security:
+      - OAuth2Password: []
     post:
       consumes:
       - application/json
@@ -4347,6 +4273,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new Control for a Catalog
       tags:
       - Oscal
@@ -4383,6 +4311,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a specific Control within a Catalog
       tags:
       - Oscal
@@ -4427,6 +4357,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a Control within a Catalog
       tags:
       - Oscal
@@ -4464,6 +4396,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List child controls for a Control within a Catalog
       tags:
       - Oscal
@@ -4503,40 +4437,20 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new Sub-Control for a Control within a Catalog
       tags:
       - Oscal
   /oscal/catalogs/{id}/groups:
     get:
-      description: Retrieves the top-level groups for a given Catalog.
-      parameters:
-      - description: Catalog ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Group'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: List groups for a Catalog
-      tags:
-      - Oscal
+      security:
+      - OAuth2Password: []
     post:
       consumes:
       - application/json
@@ -4568,6 +4482,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new Group for a Catalog
       tags:
       - Oscal
@@ -4604,6 +4520,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a specific Group within a Catalog
       tags:
       - Oscal
@@ -4648,6 +4566,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a Group within a Catalog
       tags:
       - Oscal
@@ -4685,6 +4605,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List controls for a Group within a Catalog
       tags:
       - Oscal
@@ -4724,6 +4646,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new Control for a Catalog Group
       tags:
       - Oscal
@@ -4760,6 +4684,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List sub-groups for a Group within a Catalog
       tags:
       - Oscal
@@ -4799,6 +4725,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new Sub-Group for a Catalog Group
       tags:
       - Oscal
@@ -4816,10 +4744,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List component definitions
       tags:
       - Oscal
@@ -4845,10 +4779,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a component definition
       tags:
       - Oscal
@@ -4872,6 +4812,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -4880,6 +4824,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a component definition
       tags:
       - Oscal
@@ -4910,6 +4856,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -4918,6 +4868,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a component definition
       tags:
       - Oscal
@@ -4941,6 +4893,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -4949,6 +4905,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get back-matter for a Component Definition
       tags:
       - Oscal
@@ -4979,6 +4937,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -4987,6 +4949,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create back-matter for a component definition
       tags:
       - Oscal
@@ -5010,6 +4974,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5018,6 +4986,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get capabilities for a component definition
       tags:
       - Oscal
@@ -5050,6 +5020,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5058,6 +5032,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create capabilities for a component definition
       tags:
       - Oscal
@@ -5094,6 +5070,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5102,6 +5082,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a capability for a component definition
       tags:
       - Oscal
@@ -5125,6 +5107,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5133,6 +5119,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get incorporates components for a component definition
       tags:
       - Oscal
@@ -5165,6 +5153,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5173,6 +5165,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create incorporates components for a component definition
       tags:
       - Oscal
@@ -5196,6 +5190,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5204,6 +5202,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get components for a component definition
       tags:
       - Oscal
@@ -5236,6 +5236,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5244,6 +5248,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create components for a component definition
       tags:
       - Oscal
@@ -5276,6 +5282,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5284,6 +5294,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update components for a component definition
       tags:
       - Oscal
@@ -5312,6 +5324,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5320,6 +5336,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a defined component for a component definition
       tags:
       - Oscal
@@ -5350,6 +5368,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5358,6 +5380,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a defined component for a component definition
       tags:
       - Oscal
@@ -5393,6 +5417,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5401,6 +5429,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a defined component for a component definition
       tags:
       - Oscal
@@ -5429,6 +5459,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5437,6 +5471,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get control implementations for a defined component
       tags:
       - Oscal
@@ -5474,6 +5510,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5482,6 +5522,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create control implementations for a defined component
       tags:
       - Oscal
@@ -5519,6 +5561,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5527,6 +5573,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update control implementations for a defined component
       tags:
       - Oscal
@@ -5568,6 +5616,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5576,6 +5628,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a single control implementation for a defined component
       tags:
       - Oscal
@@ -5604,6 +5658,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5612,6 +5670,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get implemented requirements for a defined component
       tags:
       - Oscal
@@ -5640,6 +5700,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5648,6 +5712,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get statements for a defined component
       tags:
       - Oscal
@@ -5672,6 +5738,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5680,6 +5750,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a complete Component Definition
       tags:
       - Oscal
@@ -5709,6 +5781,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5717,6 +5793,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get import component definitions for a defined component
       tags:
       - Oscal
@@ -5748,6 +5826,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5756,6 +5838,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create import component definitions for a component definition
       tags:
       - Oscal
@@ -5787,6 +5871,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5795,6 +5883,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update import component definitions for a component definition
       tags:
       - Oscal
@@ -5812,10 +5902,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List parties
       tags:
       - Oscal
@@ -5839,6 +5935,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -5847,6 +5947,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a Party
       tags:
       - Oscal
@@ -6073,10 +6175,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List Profiles
       tags:
       - Oscal
@@ -6103,10 +6211,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a new OSCAL Profile
       tags:
       - Oscal
@@ -6131,6 +6245,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6139,6 +6257,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get Profile
       tags:
       - Oscal
@@ -6163,6 +6283,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6171,6 +6295,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get Backmatter
       tags:
       - Oscal
@@ -6195,6 +6321,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6203,6 +6333,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get full Profile
       tags:
       - Oscal
@@ -6227,6 +6359,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6235,6 +6371,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List Imports
       tags:
       - Oscal
@@ -6259,6 +6397,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6267,6 +6409,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get merge section
       tags:
       - Oscal
@@ -6299,6 +6443,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get modify section
       tags:
       - Oscal
@@ -6324,14 +6470,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Resolves a Profile as a stored catalog
       tags:
       - Oscal
@@ -6350,10 +6498,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List roles
       tags:
       - Oscal
@@ -6377,6 +6531,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6385,6 +6543,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a Role
       tags:
       - Oscal
@@ -6402,10 +6562,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List System Security Plans
       tags:
       - Oscal
@@ -6422,6 +6588,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6430,6 +6600,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Create a System Security Plan
       tags:
       - Oscal
@@ -6453,6 +6625,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6461,6 +6637,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get a System Security Plan
       tags:
       - Oscal
@@ -6485,6 +6663,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6493,6 +6675,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get Control Implementation
       tags:
       - Oscal
@@ -6517,6 +6701,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6525,6 +6713,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get System Characteristics
       tags:
       - Oscal
@@ -6556,6 +6746,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6564,6 +6758,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update System Characteristics
       tags:
       - Oscal
@@ -6588,6 +6784,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6596,6 +6796,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get Authorization Boundary
       tags:
       - Oscal
@@ -6633,6 +6835,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6641,6 +6847,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update an Authorization Boundary Diagram
       tags:
       - Oscal
@@ -6664,6 +6872,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6672,6 +6884,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get Data Flow
       tags:
       - Oscal
@@ -6709,6 +6923,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6717,6 +6935,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a Data Flow Diagram
       tags:
       - Oscal
@@ -6741,6 +6961,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6749,6 +6973,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get Network Architecture
       tags:
       - Oscal
@@ -6786,6 +7012,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6794,6 +7024,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Update a Network Architecture Diagram
       tags:
       - Oscal
@@ -6818,6 +7050,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6826,6 +7062,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: Get System Implementation
       tags:
       - Oscal
@@ -6850,6 +7088,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6858,6 +7100,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List System Implementation Components
       tags:
       - Oscal
@@ -6882,6 +7126,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6890,6 +7138,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List System Implementation Inventory Items
       tags:
       - Oscal
@@ -6914,6 +7164,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6922,6 +7176,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List System Implementation Leveraged Authorizations
       tags:
       - Oscal
@@ -6946,6 +7202,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -6954,6 +7214,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
       summary: List System Implementation Users
       tags:
       - Oscal
@@ -7073,4 +7335,9 @@ paths:
       - Subjects
 produces:
 - application/json
+securityDefinitions:
+  OAuth2Password:
+    flow: password
+    tokenUrl: /api/auth/token
+    type: oauth2
 swagger: "2.0"

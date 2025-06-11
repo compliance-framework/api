@@ -49,7 +49,9 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscal.ProfileHandler.List.response]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles [get]
 func (h *ProfileHandler) List(ctx echo.Context) error {
 	type response struct {
@@ -87,8 +89,10 @@ func (h *ProfileHandler) List(ctx echo.Context) error {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscal.ProfileHandler.Get.response]
 //	@Failure		404	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		400	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id} [get]
 func (h *ProfileHandler) Get(ctx echo.Context) error {
 	type response struct {
@@ -132,9 +136,11 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Import]
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		400	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/imports [get]
 func (h *ProfileHandler) ListImports(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -171,9 +177,11 @@ func (h *ProfileHandler) ListImports(ctx echo.Context) error {
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		400	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/back-matter [get]
 func (h *ProfileHandler) GetBackmatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -205,9 +213,10 @@ func (h *ProfileHandler) GetBackmatter(ctx echo.Context) error {
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		201	{object}	handler.GenericDataResponse[oscal.ProfileHandler.Resolve.response]
-//	@Failure		404	{object}	api.Error
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/resolve [post]
 func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 	type response struct {
@@ -290,7 +299,9 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 //	@Param			profile	body		oscalTypes_1_1_3.Profile	true	"Profile object"
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Profile]
 //	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles [post]
 func (h *ProfileHandler) Create(ctx echo.Context) error {
 	now := time.Now()
@@ -322,8 +333,10 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 //	@Param			id	path		string	true	"Profile ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Profile]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/full [get]
 func (h *ProfileHandler) GetFull(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -356,6 +369,7 @@ func (h *ProfileHandler) GetFull(ctx echo.Context) error {
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/modify [get]
 func (h *ProfileHandler) GetModify(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -392,8 +406,10 @@ func (h *ProfileHandler) GetModify(ctx echo.Context) error {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Merge]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/merge [get]
 func (h *ProfileHandler) GetMerge(ctx echo.Context) error {
 	idParam := ctx.Param("id")

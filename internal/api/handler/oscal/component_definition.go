@@ -74,7 +74,9 @@ func (h *ComponentDefinitionHandler) Register(api *echo.Group) {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscal.List.responseComponentDefinition]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions [get]
 func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
 	type responseComponentDefinition struct {
@@ -108,8 +110,10 @@ func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseComponentDefinition]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id} [get]
 func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
 	type responseComponentDefinition struct {
@@ -155,7 +159,9 @@ func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
 //	@Param			componentDefinition	body		oscalTypes_1_1_3.ComponentDefinition	true	"Component Definition"
 //	@Success		201					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions [post]
 func (h *ComponentDefinitionHandler) Create(ctx echo.Context) error {
 	now := time.Now()
@@ -187,8 +193,10 @@ func (h *ComponentDefinitionHandler) Create(ctx echo.Context) error {
 //	@Param			componentDefinition	body		oscalTypes_1_1_3.ComponentDefinition	true	"Updated Component Definition object"
 //	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id} [put]
 func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -278,8 +286,10 @@ func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/full [get]
 func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -314,8 +324,10 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 //	@Param			defined-component	path		string	true	"Defined Component ID"
 //	@Success		200					{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ImportComponentDefinition]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [get]
 func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -351,8 +363,10 @@ func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx echo.Cont
 //	@Param			import-component-definitions	body		[]oscalTypes_1_1_3.ImportComponentDefinition	true	"Import Component Definitions"
 //	@Success		200								{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ImportComponentDefinition]
 //	@Failure		400								{object}	api.Error
+//	@Failure		401								{object}	api.Error
 //	@Failure		404								{object}	api.Error
 //	@Failure		500								{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [post]
 func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -436,8 +450,10 @@ func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.C
 //	@Param			import-component-definitions	body		[]oscalTypes_1_1_3.ImportComponentDefinition	true	"Import Component Definitions"
 //	@Success		200								{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ImportComponentDefinition]
 //	@Failure		400								{object}	api.Error
+//	@Failure		401								{object}	api.Error
 //	@Failure		404								{object}	api.Error
 //	@Failure		500								{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [put]
 func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -519,8 +535,10 @@ func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.C
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.DefinedComponent]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [get]
 func (h *ComponentDefinitionHandler) GetComponents(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -559,8 +577,10 @@ func (h *ComponentDefinitionHandler) GetComponents(ctx echo.Context) error {
 //	@Param			components	body		[]oscalTypes_1_1_3.DefinedComponent	true	"Components to create"
 //	@Success		200			{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.DefinedComponent]
 //	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [post]
 func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -660,8 +680,10 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 //	@Param			components	body		[]oscalTypes_1_1_3.DefinedComponent	true	"Components to update"
 //	@Success		200			{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.DefinedComponent]
 //	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [put]
 func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -782,8 +804,10 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 //	@Param			defined-component	path		string	true	"Defined Component ID"
 //	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.DefinedComponent]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [get]
 func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -830,8 +854,10 @@ func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx echo.Context) error
 //	@Param			defined-component	body		oscalTypes_1_1_3.DefinedComponent	true	"Defined Component to create"
 //	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.DefinedComponent]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [post]
 func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -915,8 +941,10 @@ func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) er
 //	@Param			defined-component	body		oscalTypes_1_1_3.DefinedComponent	true	"Defined Component to update"
 //	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.DefinedComponent]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [put]
 func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1024,8 +1052,10 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 //	@Param			defined-component	path		string	true	"Defined Component ID"
 //	@Success		200					{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ControlImplementationSet]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [get]
 func (h *ComponentDefinitionHandler) GetControlImplementations(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1109,8 +1139,10 @@ func (h *ComponentDefinitionHandler) GetControlImplementations(ctx echo.Context)
 //	@Param			control-implementations	body		[]oscalTypes_1_1_3.ControlImplementationSet	true	"Control Implementations"
 //	@Success		200						{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ControlImplementationSet]
 //	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
 //	@Failure		404						{object}	api.Error
 //	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [post]
 func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1188,8 +1220,10 @@ func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Conte
 //	@Param			defined-component	path		string	true	"Defined Component ID"
 //	@Success		200					{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ImplementedRequirementControlImplementation]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements [get]
 func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1242,8 +1276,10 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 // //	@Param			implemented-requirements	body		[]oscalTypes_1_1_3.ImplementedRequirementControlImplementation	true	"Implemented Requirements"
 // //	@Success		200							{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ImplementedRequirementControlImplementation]
 // //	@Failure		400							{object}	api.Error
+//	@Failure	401	{object}	api.Error
 // //	@Failure		404							{object}	api.Error
 // //	@Failure		500							{object}	api.Error
+// //  @Security		OAuth2Password
 // //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements [post]
 // func (h *ComponentDefinitionHandler) CreateImplementedRequirements(ctx echo.Context) error {
 // 	idParam := ctx.Param("id")
@@ -1323,8 +1359,10 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 //	@Param			defined-component	path		string	true	"Defined Component ID"
 //	@Success		200					{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ControlStatementImplementation]
 //	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
 //	@Failure		404					{object}	api.Error
 //	@Failure		500					{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements/statements [get]
 func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1382,8 +1420,10 @@ func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 // //	@Param			statements				body		[]oscalTypes_1_1_3.ControlStatementImplementation	true	"Statements"
 // //	@Success		200						{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ControlStatementImplementation]
 // //	@Failure		400						{object}	api.Error
+// //	@Failure		401		{object}	api.Error
 // //	@Failure		404						{object}	api.Error
 // //	@Failure		500						{object}	api.Error
+// //  @Security		OAuth2Password
 // //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/statements [post]
 // func (h *ComponentDefinitionHandler) CreateStatements(ctx echo.Context) error {
 // 	idParam := ctx.Param("id")
@@ -1483,8 +1523,10 @@ func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Capability]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities [get]
 func (h *ComponentDefinitionHandler) GetCapabilities(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1523,8 +1565,10 @@ func (h *ComponentDefinitionHandler) GetCapabilities(ctx echo.Context) error {
 //	@Param			capabilities	body		[]oscalTypes_1_1_3.Capability	true	"Capabilities"
 //	@Success		200				{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Capability]
 //	@Failure		400				{object}	api.Error
+//	@Failure		401				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities [post]
 func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1626,8 +1670,10 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.IncorporatesComponent]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/incorporates-components [get]
 func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1683,8 +1729,10 @@ func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx echo.Context)
 //	@Param			incorporates-components	body		[]oscalTypes_1_1_3.IncorporatesComponent	true	"Incorporates Components"
 //	@Success		200						{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.IncorporatesComponent]
 //	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
 //	@Failure		404						{object}	api.Error
 //	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/incorporates-components [post]
 func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1752,8 +1800,10 @@ func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Conte
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/back-matter [get]
 func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1794,8 +1844,10 @@ func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
 //	@Param			back-matter	body		oscalTypes_1_1_3.BackMatter	true	"Back Matter"
 //	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
 //	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/back-matter [post]
 func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1890,8 +1942,10 @@ func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 //	@Param			control-implementations	body		[]oscalTypes_1_1_3.ControlImplementationSet	true	"Control Implementations"
 //	@Success		200						{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ControlImplementationSet]
 //	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
 //	@Failure		404						{object}	api.Error
 //	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [put]
 func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1990,8 +2044,10 @@ func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Conte
 //	@Param			control-implementation	body		oscalTypes_1_1_3.ControlImplementationSet	true	"Control Implementation"
 //	@Success		200						{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementationSet]
 //	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
 //	@Failure		404						{object}	api.Error
 //	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/{control-implementation} [put]
 func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -2096,8 +2152,10 @@ func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.
 //	@Param			capability	body		oscalTypes_1_1_3.Capability	true	"Capability to update"
 //	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Capability]
 //	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/{capability} [put]
 func (h *ComponentDefinitionHandler) UpdateCapability(ctx echo.Context) error {
 	idParam := ctx.Param("id")

@@ -60,7 +60,9 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemSecurityPlan]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans [get]
 func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
 	type response struct {
@@ -95,8 +97,10 @@ func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id} [get]
 func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
 	type response struct {
@@ -134,8 +138,10 @@ func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans [post]
 func (h *SystemSecurityPlanHandler) Create(ctx echo.Context) error {
 	type response struct {
@@ -173,8 +179,10 @@ func (h *SystemSecurityPlanHandler) Create(ctx echo.Context) error {
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics [get]
 func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -207,8 +215,10 @@ func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx echo.Context) error {
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.NetworkArchitecture]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture [get]
 func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -247,8 +257,10 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx ec
 //	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Updated Diagram object"
 //	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
 //	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram} [put]
 func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -316,8 +328,10 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiag
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.DataFlow]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow [get]
 func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -356,8 +370,10 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context)
 //	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Updated Diagram object"
 //	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
 //	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram} [put]
 func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -425,8 +441,10 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx ech
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AuthorizationBoundary]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary [get]
 func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -465,8 +483,10 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx 
 //	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Updated Diagram object"
 //	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
 //	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram} [put]
 func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
 
@@ -540,8 +560,10 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDi
 //	@Param			characteristics	body		oscalTypes_1_1_3.SystemCharacteristics	true	"Updated System Characteristics object"
 //	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]
 //	@Failure		400				{object}	api.Error
+//	@Failure		401				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-characteristics [put]
 func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -590,8 +612,10 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation [get]
 func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -624,8 +648,10 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx echo.Context) er
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemUser]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/users [get]
 func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -660,8 +686,10 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx echo.Contex
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/components [get]
 func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -695,8 +723,10 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.C
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.InventoryItem]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/inventory-items [get]
 func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -731,8 +761,10 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx ec
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.LeveragedAuthorization]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations [get]
 func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizations(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -766,8 +798,10 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizatio
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id}/control-implementation [get]
 func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) error {
 	idParam := ctx.Param("id")

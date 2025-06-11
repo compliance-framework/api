@@ -4,6 +4,9 @@ package tests
 
 import (
 	"context"
+
+	"github.com/compliance-framework/configuration-service/internal/authn"
+	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -20,6 +23,7 @@ type IntegrationTestSuite struct {
 	Migrator    *TestMigrator
 	DB          *gorm.DB
 	dbcontainer *postgresContainers.PostgresContainer // We generate a unique name for each run, so we can run tests concurrently.
+	Config      *config.Config
 }
 
 type TestMigrator struct {
@@ -33,6 +37,10 @@ func (t *TestMigrator) Refresh() error {
 	}
 
 	err = t.Up()
+	if err != nil {
+		return err
+	}
+	err = t.CreateUser()
 	if err != nil {
 		return err
 	}
@@ -84,6 +92,7 @@ func (t *TestMigrator) Up() error {
 		&relational.ImplementedRequirement{},
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
+		&relational.User{},
 	)
 }
 
@@ -134,6 +143,7 @@ func (t *TestMigrator) Down() error {
 		&relational.ImplementedRequirement{},
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
+		&relational.User{},
 		"metadata_responsible_parties",
 		"party_locations",
 		"party_member_of_organisations",
@@ -148,8 +158,26 @@ func (t *TestMigrator) Down() error {
 	)
 }
 
+func (t *TestMigrator) CreateUser() error {
+	user := &relational.User{
+		Email:     "test@example.com",
+		FirstName: "Test",
+		LastName:  "User",
+	}
+	user.SetPassword("Pa55w0rd")
+	return t.db.Create(user).Error
+}
+
 func (suite *IntegrationTestSuite) SetupSuite() {
 	ctx := context.Background()
+
+	cfg := &config.Config{}
+	privKey, pubKey, err := config.GenerateKeyPair(2048)
+	suite.NoError(err, "failed to generate RSA key pair")
+
+	cfg.JWTPrivateKey = privKey
+	cfg.JWTPublicKey = pubKey
+	suite.Config = cfg
 
 	postgresContainer, err := postgresContainers.Run(ctx,
 		"postgres:17.5",
@@ -185,6 +213,9 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 
 	err = suite.Migrator.Up()
 	suite.NoError(err, "failed to migrate")
+
+	err = suite.Migrator.CreateUser()
+	suite.NoError(err, "failed to create test user")
 }
 
 func (suite *IntegrationTestSuite) TearDownSuite() {
@@ -192,4 +223,14 @@ func (suite *IntegrationTestSuite) TearDownSuite() {
 	if err != nil {
 		suite.T().Fatal(err)
 	}
+}
+
+func (suite *IntegrationTestSuite) GetAuthToken() (*string, error) {
+	dummyUser := relational.User{
+		Email:     "dummy@example.com",
+		FirstName: "Dummy",
+		LastName:  "User",
+	}
+
+	return authn.GenerateJWTToken(&dummyUser, suite.Config.JWTPrivateKey)
 }

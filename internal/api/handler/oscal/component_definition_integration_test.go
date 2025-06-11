@@ -41,7 +41,7 @@ func (suite *ComponentDefinitionApiIntegrationSuite) SetupSuite() {
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
 	suite.server = api.NewServer(context.Background(), suite.logger)
-	RegisterHandlers(suite.server, suite.logger, suite.DB)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 	fmt.Println("Server initialized")
 }
 
@@ -62,9 +62,13 @@ func (suite *ComponentDefinitionApiIntegrationSuite) createRequest(method, path 
 		suite.Require().NoError(err, "Failed to marshal request body")
 	}
 
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, bytes.NewReader(reqBody))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 
 	return rec, req
 }

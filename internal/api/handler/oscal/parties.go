@@ -2,13 +2,14 @@ package oscal
 
 import (
 	"errors"
+	"net/http"
+
 	"github.com/compliance-framework/configuration-service/internal/api"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"net/http"
 
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
@@ -39,7 +40,9 @@ func (h *PartyHandler) Register(api *echo.Group) {
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Party]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/parties [get]
 func (h *PartyHandler) List(ctx echo.Context) error {
 	var parties []relational.Party
@@ -68,8 +71,10 @@ func (h *PartyHandler) List(ctx echo.Context) error {
 //	@Param			id	path		string	true	"Party ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Party]
 //	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
 //	@Router			/oscal/parties/{id} [get]
 func (h *PartyHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")

@@ -61,19 +61,17 @@ func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 		h.sugar.Errorw("failed to list poams", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	
 	// Simplified response to avoid marshaling issues
 	type SimplePOAM struct {
 		UUID string `json:"uuid"`
 	}
-	
 	simplePoams := make([]SimplePOAM, len(poams))
 	for i, poam := range poams {
 		simplePoams[i] = SimplePOAM{
 			UUID: poam.ID.String(),
 		}
 	}
-	return ctx.JSON(http.StatusOK, map[string]interface{}{"data": simplePoams})
+	return ctx.JSON(http.StatusOK, map[string]any{"data": simplePoams})
 }
 
 // Get godoc
@@ -100,23 +98,20 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 		h.sugar.Errorw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
-	
 	// Simplified response to avoid marshaling issues
 	type SimplePOAM struct {
-		UUID string `json:"uuid"`
-		ObservationCount int `json:"observation_count"`
-		RiskCount int `json:"risk_count"`
-		FindingCount int `json:"finding_count"`
+		UUID             string `json:"uuid"`
+		ObservationCount int    `json:"observation_count"`
+		RiskCount        int    `json:"risk_count"`
+		FindingCount     int    `json:"finding_count"`
 	}
-	
 	result := SimplePOAM{
-		UUID: poam.ID.String(),
+		UUID:             poam.ID.String(),
 		ObservationCount: len(poam.Observations),
-		RiskCount: len(poam.Risks),
-		FindingCount: len(poam.Findings),
+		RiskCount:        len(poam.Risks),
+		FindingCount:     len(poam.Findings),
 	}
-	
-	return ctx.JSON(http.StatusOK, map[string]interface{}{"data": result})
+	return ctx.JSON(http.StatusOK, map[string]any{"data": result})
 }
 
 // Full godoc
@@ -176,7 +171,6 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 		h.sugar.Errorw("failed to get observations", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	
 	oscalObs := make([]oscalTypes_1_1_3.Observation, len(observations))
 	for i, obs := range observations {
 		oscalObs[i] = *obs.MarshalOscal()
@@ -214,7 +208,6 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 		h.sugar.Errorw("failed to get risks", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	
 	oscalRisks := make([]oscalTypes_1_1_3.Risk, len(risks))
 	for i, risk := range risks {
 		oscalRisks[i] = *risk.MarshalOscal()
@@ -252,7 +245,6 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 		h.sugar.Errorw("failed to get findings", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	
 	oscalFindings := make([]oscalTypes_1_1_3.Finding, len(findings))
 	for i, finding := range findings {
 		oscalFindings[i] = *finding.MarshalOscal()

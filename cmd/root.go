@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/compliance-framework/configuration-service/cmd/oscal"
+	"github.com/compliance-framework/configuration-service/cmd/users"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -30,6 +31,9 @@ func configEnvKeys() {
 	viper.BindEnv("db_driver")
 	viper.BindEnv("db_connection")
 	viper.BindEnv("db_debug")
+	viper.BindEnv("jwt_secret")
+	viper.BindEnv("jwt_private_key")
+	viper.BindEnv("jwt_public_key")
 }
 
 func init() {
@@ -49,7 +53,7 @@ func init() {
 	// Subcommands
 	rootCmd.AddCommand(RunCmd)
 	rootCmd.AddCommand(oscal.RootCmd)
-
+	rootCmd.AddCommand(users.RootCmd)
 }
 
 func Execute() error {
