@@ -4020,6 +4020,63 @@
                         }
                     }
                 }
+            },
+            "put": {
+                "description": "Updates an existing Plan of Action and Milestones.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Update a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "POA\u0026M data",
+                        "name": "poam",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/back-matter": {
@@ -4148,6 +4205,72 @@
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/findings/{findingId}": {
+            "put": {
+                "description": "Updates an existing finding for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Update a finding for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Finding ID",
+                        "name": "findingId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Finding data",
+                        "name": "finding",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Finding"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding"
                         }
@@ -4465,6 +4588,72 @@
                 }
             }
         },
+        "/oscal/plan-of-action-and-milestones/{id}/observations/{obsId}": {
+            "put": {
+                "description": "Updates an existing observation for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Update an observation for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Observation ID",
+                        "name": "obsId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Observation data",
+                        "name": "observation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Observation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Observation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/plan-of-action-and-milestones/{id}/poam-items": {
             "get": {
                 "description": "Retrieves all POA\u0026M items for a given POA\u0026M.",
@@ -4569,6 +4758,72 @@
                 }
             }
         },
+        "/oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId}": {
+            "put": {
+                "description": "Updates an existing POAM item for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Update a POAM item for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "POAM Item ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "POAM Item data",
+                        "name": "poam-item",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PoamItem"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/plan-of-action-and-milestones/{id}/risks": {
             "get": {
                 "description": "Retrieves all risks for a given POA\u0026M.",
@@ -4648,6 +4903,72 @@
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/plan-of-action-and-milestones/{id}/risks/{riskId}": {
+            "put": {
+                "description": "Updates an existing risk for a given POA\u0026M.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Update a risk for a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "riskId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk data",
+                        "name": "risk",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Risk"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk"
                         }

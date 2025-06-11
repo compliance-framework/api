@@ -6090,6 +6090,44 @@ paths:
       summary: Get a POA&M
       tags:
       - OScal
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing Plan of Action and Milestones.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: POA&M data
+        in: body
+        name: poam
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestones'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a POA&M
+      tags:
+      - OScal
   /oscal/plan-of-action-and-milestones/{id}/back-matter:
     get:
       description: Retrieves back-matter for a given POA&M.
@@ -6188,6 +6226,50 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a new finding for a POA&M
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/findings/{findingId}:
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing finding for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Finding ID
+        in: path
+        name: findingId
+        required: true
+        type: string
+      - description: Finding data
+        in: body
+        name: finding
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Finding'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a finding for a POA&M
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}/full:
@@ -6384,6 +6466,50 @@ paths:
       summary: Create a new observation for a POA&M
       tags:
       - OScal
+  /oscal/plan-of-action-and-milestones/{id}/observations/{obsId}:
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing observation for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Observation ID
+        in: path
+        name: obsId
+        required: true
+        type: string
+      - description: Observation data
+        in: body
+        name: observation
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Observation'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Observation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update an observation for a POA&M
+      tags:
+      - OScal
   /oscal/plan-of-action-and-milestones/{id}/poam-items:
     get:
       description: Retrieves all POA&M items for a given POA&M.
@@ -6453,6 +6579,50 @@ paths:
       summary: Create a new POAM item for a POA&M
       tags:
       - OScal
+  /oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId}:
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing POAM item for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: POAM Item ID
+        in: path
+        name: itemId
+        required: true
+        type: string
+      - description: POAM Item data
+        in: body
+        name: poam-item
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.PoamItem'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a POAM item for a POA&M
+      tags:
+      - OScal
   /oscal/plan-of-action-and-milestones/{id}/risks:
     get:
       description: Retrieves all risks for a given POA&M.
@@ -6520,6 +6690,50 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Create a new risk for a POA&M
+      tags:
+      - OScal
+  /oscal/plan-of-action-and-milestones/{id}/risks/{riskId}:
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing risk for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: riskId
+        required: true
+        type: string
+      - description: Risk data
+        in: body
+        name: risk
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Risk'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a risk for a POA&M
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}/system-id:
