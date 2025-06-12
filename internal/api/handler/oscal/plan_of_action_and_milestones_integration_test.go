@@ -17,6 +17,7 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 )
@@ -40,7 +41,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) SetupSuite() {
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
 	suite.server = api.NewServer(context.Background(), suite.logger)
-	RegisterHandlers(suite.server, suite.logger, suite.DB)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 	fmt.Println("Server initialized")
 }
 
@@ -50,6 +51,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) SetupTest() {
 	suite.Require().NoError(err)
 }
 
+// Helper method to create a test request with Bearer token authentication
 func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) createRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {
 	var reqBody []byte
 	var err error
@@ -59,9 +61,13 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) createRequest(method,
 		suite.Require().NoError(err, "Failed to marshal request body")
 	}
 
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, bytes.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 
 	return rec, req
 }
@@ -88,7 +94,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) createBasicPOAM() str
 
 	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", createPoam)
 	suite.server.E().ServeHTTP(rec, req)
-	suite.Equal(http.StatusOK, rec.Code)
+	suite.Equal(http.StatusCreated, rec.Code)
 
 	return poamUUID
 }
@@ -127,7 +133,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestObservationDelete
 
 	obsRec, obsReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), createObs)
 	suite.server.E().ServeHTTP(obsRec, obsReq)
-	suite.Equal(http.StatusOK, obsRec.Code)
+	suite.Equal(http.StatusCreated, obsRec.Code)
 
 	// Delete observation
 	deleteObsRec, deleteObsReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations/%s", poamUUID, obsUUID), nil)
@@ -162,7 +168,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestRiskDeleteEndpoin
 
 	riskRec, riskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), createRisk)
 	suite.server.E().ServeHTTP(riskRec, riskReq)
-	suite.Equal(http.StatusOK, riskRec.Code)
+	suite.Equal(http.StatusCreated, riskRec.Code)
 
 	// Delete risk
 	deleteRiskRec, deleteRiskReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks/%s", poamUUID, riskUUID), nil)
@@ -197,7 +203,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestFindingDeleteEndp
 
 	findingRec, findingReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), createFinding)
 	suite.server.E().ServeHTTP(findingRec, findingReq)
-	suite.Equal(http.StatusOK, findingRec.Code)
+	suite.Equal(http.StatusCreated, findingRec.Code)
 
 	// Delete finding
 	deleteFindingRec, deleteFindingReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings/%s", poamUUID, findingUUID), nil)
@@ -228,7 +234,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestPoamItemDeleteEnd
 
 	itemRec, itemReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), createItem)
 	suite.server.E().ServeHTTP(itemRec, itemReq)
-	suite.Equal(http.StatusOK, itemRec.Code)
+	suite.Equal(http.StatusCreated, itemRec.Code)
 
 	// Delete POAM item
 	deleteItemRec, deleteItemReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items/%s", poamUUID, itemUUID), nil)
@@ -332,7 +338,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestObservationUpdate
 
 	obsRec, obsReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), createObs)
 	suite.server.E().ServeHTTP(obsRec, obsReq)
-	suite.Equal(http.StatusOK, obsRec.Code)
+	suite.Equal(http.StatusCreated, obsRec.Code)
 
 	// Update observation
 	laterTime := now.Add(time.Hour)
@@ -386,7 +392,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestRiskUpdateEndpoin
 
 	riskRec, riskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), createRisk)
 	suite.server.E().ServeHTTP(riskRec, riskReq)
-	suite.Equal(http.StatusOK, riskRec.Code)
+	suite.Equal(http.StatusCreated, riskRec.Code)
 
 	// Update risk
 	laterTime := now.Add(24 * time.Hour)
@@ -442,7 +448,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestFindingUpdateEndp
 
 	findingRec, findingReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), createFinding)
 	suite.server.E().ServeHTTP(findingRec, findingReq)
-	suite.Equal(http.StatusOK, findingRec.Code)
+	suite.Equal(http.StatusCreated, findingRec.Code)
 
 	// Update finding
 	updatedFinding := oscaltypes.Finding{
@@ -502,7 +508,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestPoamItemUpdateEnd
 
 	itemRec, itemReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), createItem)
 	suite.server.E().ServeHTTP(itemRec, itemReq)
-	suite.Equal(http.StatusOK, itemRec.Code)
+	suite.Equal(http.StatusCreated, itemRec.Code)
 
 	// Update POAM item
 	updatedItem := oscaltypes.PoamItem{
@@ -688,7 +694,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMFull() {
 	}
 	obsRec, obsReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), createObs)
 	suite.server.E().ServeHTTP(obsRec, obsReq)
-	suite.Equal(http.StatusOK, obsRec.Code)
+	suite.Equal(http.StatusCreated, obsRec.Code)
 
 	// Create risk
 	createRisk := oscaltypes.Risk{
@@ -701,7 +707,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMFull() {
 	}
 	riskRec, riskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), createRisk)
 	suite.server.E().ServeHTTP(riskRec, riskReq)
-	suite.Equal(http.StatusOK, riskRec.Code)
+	suite.Equal(http.StatusCreated, riskRec.Code)
 
 	// Create finding
 	createFinding := oscaltypes.Finding{
@@ -715,7 +721,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMFull() {
 	}
 	findingRec, findingReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), createFinding)
 	suite.server.E().ServeHTTP(findingRec, findingReq)
-	suite.Equal(http.StatusOK, findingRec.Code)
+	suite.Equal(http.StatusCreated, findingRec.Code)
 
 	// Create POAM item
 	createItem := oscaltypes.PoamItem{
@@ -725,7 +731,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMFull() {
 	}
 	itemRec, itemReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), createItem)
 	suite.server.E().ServeHTTP(itemRec, itemReq)
-	suite.Equal(http.StatusOK, itemRec.Code)
+	suite.Equal(http.StatusCreated, itemRec.Code)
 
 	// Get full POA&M with all relationships
 	fullRec, fullReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/full", poamUUID), nil)
@@ -785,11 +791,11 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetObservations()
 	// Create observations
 	obs1Rec, obs1Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), createObs1)
 	suite.server.E().ServeHTTP(obs1Rec, obs1Req)
-	suite.Equal(http.StatusOK, obs1Rec.Code)
+	suite.Equal(http.StatusCreated, obs1Rec.Code)
 
 	obs2Rec, obs2Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), createObs2)
 	suite.server.E().ServeHTTP(obs2Rec, obs2Req)
-	suite.Equal(http.StatusOK, obs2Rec.Code)
+	suite.Equal(http.StatusCreated, obs2Rec.Code)
 
 	// Get observations list
 	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), nil)
@@ -839,11 +845,11 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetRisks() {
 	// Create risks
 	risk1Rec, risk1Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), createRisk1)
 	suite.server.E().ServeHTTP(risk1Rec, risk1Req)
-	suite.Equal(http.StatusOK, risk1Rec.Code)
+	suite.Equal(http.StatusCreated, risk1Rec.Code)
 
 	risk2Rec, risk2Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), createRisk2)
 	suite.server.E().ServeHTTP(risk2Rec, risk2Req)
-	suite.Equal(http.StatusOK, risk2Rec.Code)
+	suite.Equal(http.StatusCreated, risk2Rec.Code)
 
 	// Get risks list
 	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), nil)
@@ -894,11 +900,11 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetFindings() {
 	// Create findings
 	finding1Rec, finding1Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), createFinding1)
 	suite.server.E().ServeHTTP(finding1Rec, finding1Req)
-	suite.Equal(http.StatusOK, finding1Rec.Code)
+	suite.Equal(http.StatusCreated, finding1Rec.Code)
 
 	finding2Rec, finding2Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), createFinding2)
 	suite.server.E().ServeHTTP(finding2Rec, finding2Req)
-	suite.Equal(http.StatusOK, finding2Rec.Code)
+	suite.Equal(http.StatusCreated, finding2Rec.Code)
 
 	// Get findings list
 	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), nil)
@@ -953,11 +959,11 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPoamItems() {
 	// Create POAM items
 	item1Rec, item1Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), createItem1)
 	suite.server.E().ServeHTTP(item1Rec, item1Req)
-	suite.Equal(http.StatusOK, item1Rec.Code)
+	suite.Equal(http.StatusCreated, item1Rec.Code)
 
 	item2Rec, item2Req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), createItem2)
 	suite.server.E().ServeHTTP(item2Rec, item2Req)
-	suite.Equal(http.StatusOK, item2Rec.Code)
+	suite.Equal(http.StatusCreated, item2Rec.Code)
 
 	// Get POAM items list
 	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), nil)
@@ -1123,7 +1129,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 
 	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", createPoam)
 	suite.server.E().ServeHTTP(rec, req)
-	suite.Equal(http.StatusOK, rec.Code)
+	suite.Equal(http.StatusCreated, rec.Code)
 
 	// 2. Add multiple observations with different collection methods
 	observations := []oscaltypes.Observation{
@@ -1165,7 +1171,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 	for _, obs := range observations {
 		obsRec, obsReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), obs)
 		suite.server.E().ServeHTTP(obsRec, obsReq)
-		suite.Equal(http.StatusOK, obsRec.Code)
+		suite.Equal(http.StatusCreated, obsRec.Code)
 	}
 
 	// 3. Add multiple risks with different priorities and deadlines
@@ -1201,7 +1207,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 	for _, risk := range risks {
 		riskRec, riskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), risk)
 		suite.server.E().ServeHTTP(riskRec, riskReq)
-		suite.Equal(http.StatusOK, riskRec.Code)
+		suite.Equal(http.StatusCreated, riskRec.Code)
 	}
 
 	// 4. Add findings linking to specific controls
@@ -1239,7 +1245,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 	for _, finding := range findings {
 		findingRec, findingReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), finding)
 		suite.server.E().ServeHTTP(findingRec, findingReq)
-		suite.Equal(http.StatusOK, findingRec.Code)
+		suite.Equal(http.StatusCreated, findingRec.Code)
 	}
 
 	// 5. Add POAM items with detailed remediation plans
@@ -1288,7 +1294,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 	for _, item := range poamItems {
 		itemRec, itemReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/poam-items", poamUUID), item)
 		suite.server.E().ServeHTTP(itemRec, itemReq)
-		suite.Equal(http.StatusOK, itemRec.Code)
+		suite.Equal(http.StatusCreated, itemRec.Code)
 	}
 
 	// 6. Verify full POA&M with all relationships
@@ -1372,7 +1378,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestConcurrentPOAMOpe
 
 		rec, req := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", createPoam)
 		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
+		suite.Equal(http.StatusCreated, rec.Code)
 	}
 
 	// Verify all POA&Ms were created
@@ -1446,7 +1452,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseConstrain
 	// Create first POA&M
 	rec1, req1 := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", createPoam)
 	suite.server.E().ServeHTTP(rec1, req1)
-	suite.Equal(http.StatusOK, rec1.Code)
+	suite.Equal(http.StatusCreated, rec1.Code)
 
 	// Try to create duplicate POA&M with same UUID
 	duplicatePoam := createPoam
@@ -1508,7 +1514,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseTransacti
 	}
 	obsRec, obsReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), obs)
 	suite.server.E().ServeHTTP(obsRec, obsReq)
-	suite.Equal(http.StatusOK, obsRec.Code)
+	suite.Equal(http.StatusCreated, obsRec.Code)
 
 	// Create risk
 	risk := oscaltypes.Risk{
@@ -1521,7 +1527,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseTransacti
 	}
 	riskRec, riskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), risk)
 	suite.server.E().ServeHTTP(riskRec, riskReq)
-	suite.Equal(http.StatusOK, riskRec.Code)
+	suite.Equal(http.StatusCreated, riskRec.Code)
 
 	// Create finding
 	finding := oscaltypes.Finding{
@@ -1535,7 +1541,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseTransacti
 	}
 	findingRec, findingReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/findings", poamUUID), finding)
 	suite.server.E().ServeHTTP(findingRec, findingReq)
-	suite.Equal(http.StatusOK, findingRec.Code)
+	suite.Equal(http.StatusCreated, findingRec.Code)
 
 	// Verify all entities exist
 	fullRec, fullReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/full", poamUUID), nil)
@@ -1596,7 +1602,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLargeDatasetPerfo
 
 		obsRec, obsReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), obs)
 		suite.server.E().ServeHTTP(obsRec, obsReq)
-		suite.Equal(http.StatusOK, obsRec.Code)
+		suite.Equal(http.StatusCreated, obsRec.Code)
 	}
 
 	// Create multiple risks
@@ -1617,7 +1623,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLargeDatasetPerfo
 
 		riskRec, riskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/risks", poamUUID), risk)
 		suite.server.E().ServeHTTP(riskRec, riskReq)
-		suite.Equal(http.StatusOK, riskRec.Code)
+		suite.Equal(http.StatusCreated, riskRec.Code)
 	}
 
 	// Test retrieval performance with large dataset
