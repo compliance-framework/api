@@ -6059,6 +6059,33 @@ paths:
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}:
+    delete:
+      description: Deletes an existing Plan of Action and Milestones and all its related
+        data.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a POA&M
+      tags:
+      - OScal
     get:
       description: Retrieves a single Plan of Action and Milestones by its unique
         ID.
@@ -6229,6 +6256,37 @@ paths:
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}/findings/{findingId}:
+    delete:
+      description: Deletes an existing finding for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Finding ID
+        in: path
+        name: findingId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a finding from a POA&M
+      tags:
+      - OScal
     put:
       consumes:
       - application/json
@@ -6467,6 +6525,37 @@ paths:
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}/observations/{obsId}:
+    delete:
+      description: Deletes an existing observation for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Observation ID
+        in: path
+        name: obsId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete an observation from a POA&M
+      tags:
+      - OScal
     put:
       consumes:
       - application/json
@@ -6580,6 +6669,37 @@ paths:
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId}:
+    delete:
+      description: Deletes an existing POAM item for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: POAM Item ID
+        in: path
+        name: itemId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a POAM item from a POA&M
+      tags:
+      - OScal
     put:
       consumes:
       - application/json
@@ -6693,6 +6813,37 @@ paths:
       tags:
       - OScal
   /oscal/plan-of-action-and-milestones/{id}/risks/{riskId}:
+    delete:
+      description: Deletes an existing risk for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: riskId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a risk from a POA&M
+      tags:
+      - OScal
     put:
       consumes:
       - application/json

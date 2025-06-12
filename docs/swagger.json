@@ -4077,6 +4077,45 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "description": "Deletes an existing Plan of Action and Milestones and all its related data.",
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Delete a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/back-matter": {
@@ -4274,6 +4313,52 @@
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes an existing finding for a given POA\u0026M.",
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Delete a finding from a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Finding ID",
+                        "name": "findingId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -4652,6 +4737,52 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "description": "Deletes an existing observation for a given POA\u0026M.",
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Delete an observation from a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Observation ID",
+                        "name": "obsId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/poam-items": {
@@ -4822,6 +4953,52 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "description": "Deletes an existing POAM item for a given POA\u0026M.",
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Delete a POAM item from a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "POAM Item ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/risks": {
@@ -4972,6 +5149,52 @@
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes an existing risk for a given POA\u0026M.",
+                "tags": [
+                    "OScal"
+                ],
+                "summary": "Delete a risk from a POA\u0026M",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "riskId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",

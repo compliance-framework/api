@@ -2,6 +2,7 @@ package oscal
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 
 // PlanOfActionAndMilestonesHandler handles OSCAL Plan of Action and Milestones (POA&M) endpoints.
 //
-//	@Tags	OScal
+//	@Tags	Oscal
 //
 // All types are defined in oscalTypes_1_1_3 (see types.go)
 type PlanOfActionAndMilestonesHandler struct {
@@ -35,12 +36,26 @@ func NewPlanOfActionAndMilestonesHandler(sugar *zap.SugaredLogger, db *gorm.DB) 
 	}
 }
 
+// verifyPoamExists checks if a POA&M exists by ID and returns appropriate HTTP error if not
+func (h *PlanOfActionAndMilestonesHandler) verifyPoamExists(ctx echo.Context, poamID uuid.UUID) error {
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("POAM not found")))
+		}
+		h.sugar.Errorf("Failed to find POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	return nil
+}
+
 // Register registers POA&M endpoints to the API group.
 func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.GET("", h.List) // GET /oscal/plan-of-action-and-milestones
 	api.POST("", h.Create) // POST /oscal/plan-of-action-and-milestones
 	api.GET("/:id", h.Get) // GET /oscal/plan-of-action-and-milestones/:id
 	api.PUT("/:id", h.Update) // PUT /oscal/plan-of-action-and-milestones/:id
+	api.DELETE("/:id", h.Delete) // DELETE /oscal/plan-of-action-and-milestones/:id
 	api.GET("/:id/full", h.Full) // GET /oscal/plan-of-action-and-milestones/:id/full
 	api.GET("/:id/metadata", h.GetMetadata)
 	api.GET("/:id/import-ssp", h.GetImportSsp)
@@ -50,22 +65,123 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.GET("/:id/observations", h.GetObservations)
 	api.POST("/:id/observations", h.CreateObservation)
 	api.PUT("/:id/observations/:obsId", h.UpdateObservation)
+	api.DELETE("/:id/observations/:obsId", h.DeleteObservation)
 	api.GET("/:id/risks", h.GetRisks)
 	api.POST("/:id/risks", h.CreateRisk)
 	api.PUT("/:id/risks/:riskId", h.UpdateRisk)
+	api.DELETE("/:id/risks/:riskId", h.DeleteRisk)
 	api.GET("/:id/findings", h.GetFindings)
 	api.POST("/:id/findings", h.CreateFinding)
 	api.PUT("/:id/findings/:findingId", h.UpdateFinding)
+	api.DELETE("/:id/findings/:findingId", h.DeleteFinding)
 	api.GET("/:id/poam-items", h.GetPoamItems)
 	api.POST("/:id/poam-items", h.CreatePoamItem)
 	api.PUT("/:id/poam-items/:itemId", h.UpdatePoamItem)
+	api.DELETE("/:id/poam-items/:itemId", h.DeletePoamItem)
+}
+
+// validatePoamInput validates POAM input following OSCAL requirements
+func (h *PlanOfActionAndMilestonesHandler) validatePoamInput(poam *oscalTypes_1_1_3.PlanOfActionAndMilestones) error {
+	if poam.UUID == "" {
+		return fmt.Errorf("UUID is required")
+	}
+	if _, err := uuid.Parse(poam.UUID); err != nil {
+		return fmt.Errorf("invalid UUID format: %v", err)
+	}
+	if poam.Metadata.Title == "" {
+		return fmt.Errorf("metadata.title is required")
+	}
+	if poam.Metadata.Version == "" {
+		return fmt.Errorf("metadata.version is required")
+	}
+	if poam.SystemId == nil || poam.SystemId.ID == "" {
+		return fmt.Errorf("system-id is required")
+	}
+	return nil
+}
+
+// validateObservationInput validates observation input
+func (h *PlanOfActionAndMilestonesHandler) validateObservationInput(obs *oscalTypes_1_1_3.Observation) error {
+	if obs.UUID == "" {
+		return fmt.Errorf("UUID is required")
+	}
+	if _, err := uuid.Parse(obs.UUID); err != nil {
+		return fmt.Errorf("invalid UUID format: %v", err)
+	}
+	if obs.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	if obs.Methods == nil || len(obs.Methods) == 0 {
+		return fmt.Errorf("methods are required")
+	}
+	return nil
+}
+
+// validateRiskInput validates risk input
+func (h *PlanOfActionAndMilestonesHandler) validateRiskInput(risk *oscalTypes_1_1_3.Risk) error {
+	if risk.UUID == "" {
+		return fmt.Errorf("UUID is required")
+	}
+	if _, err := uuid.Parse(risk.UUID); err != nil {
+		return fmt.Errorf("invalid UUID format: %v", err)
+	}
+	if risk.Title == "" {
+		return fmt.Errorf("title is required")
+	}
+	if risk.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	if risk.Statement == "" {
+		return fmt.Errorf("statement is required")
+	}
+	if risk.Status == "" {
+		return fmt.Errorf("status is required")
+	}
+	return nil
+}
+
+// validateFindingInput validates finding input
+func (h *PlanOfActionAndMilestonesHandler) validateFindingInput(finding *oscalTypes_1_1_3.Finding) error {
+	if finding.UUID == "" {
+		return fmt.Errorf("UUID is required")
+	}
+	if _, err := uuid.Parse(finding.UUID); err != nil {
+		return fmt.Errorf("invalid UUID format: %v", err)
+	}
+	if finding.Title == "" {
+		return fmt.Errorf("title is required")
+	}
+	if finding.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	if finding.Target.Type == "" {
+		return fmt.Errorf("target.type is required")
+	}
+	if finding.Target.TargetId == "" {
+		return fmt.Errorf("target.target-id is required")
+	}
+	return nil
+}
+
+// validatePoamItemInput validates POAM item input
+func (h *PlanOfActionAndMilestonesHandler) validatePoamItemInput(item *oscalTypes_1_1_3.PoamItem) error {
+	if item.UUID == "" {
+		return fmt.Errorf("UUID is required")
+	}
+	if item.Title == "" {
+		return fmt.Errorf("title is required")
+	}
+	if item.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	return nil
 }
 
 // List godoc
 //
 //	@Summary		List POA&Ms
 //	@Description	Retrieves all Plan of Action and Milestones.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
 //	@Failure		400	{object}	api.Error
@@ -73,7 +189,7 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 //	@Router			/oscal/plan-of-action-and-milestones [get]
 func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 	var poams []relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Metadata").Find(&poams).Error; err != nil {
+	if err := h.db.Preload("Metadata").Preload("Metadata.Revisions").Find(&poams).Error; err != nil {
 		h.sugar.Errorw("failed to list poams", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -89,7 +205,7 @@ func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 //
 //	@Summary		Get a POA&M
 //	@Description	Retrieves a single Plan of Action and Milestones by its unique ID.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
@@ -105,9 +221,12 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Metadata").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.db.Preload("Metadata").Preload("Metadata.Revisions").First(&poam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *poam.MarshalOscal()})
@@ -117,7 +236,7 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 //
 //	@Summary		Get a complete POA&M
 //	@Description	Retrieves a complete POA&M by its ID, including all metadata and related objects.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
@@ -133,9 +252,12 @@ func (h *PlanOfActionAndMilestonesHandler) Full(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Metadata").Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
 		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *poam.MarshalOscal()})
 }
@@ -144,7 +266,7 @@ func (h *PlanOfActionAndMilestonesHandler) Full(ctx echo.Context) error {
 //
 //	@Summary		Get observations for a POA&M
 //	@Description	Retrieves all observations for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Observation]
@@ -160,9 +282,12 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	// Query polymorphic observations directly
 	var observations []relational.Observation
@@ -181,7 +306,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 //
 //	@Summary		Get risks for a POA&M
 //	@Description	Retrieves all risks for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Risk]
@@ -197,9 +322,12 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	// Query polymorphic risks directly
 	var risks []relational.Risk
@@ -218,7 +346,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 //
 //	@Summary		Get findings for a POA&M
 //	@Description	Retrieves all findings for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Finding]
@@ -234,9 +362,12 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	// Query polymorphic findings directly
 	var findings []relational.Finding
@@ -255,7 +386,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 //
 //	@Summary		Get POA&M items
 //	@Description	Retrieves all POA&M items for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.PoamItem]
@@ -271,9 +402,12 @@ func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx echo.Context) error 
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.Preload("Observations").Preload("Risks").Preload("Findings").Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.db.Preload("PoamItems").First(&poam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	oscalItems := make([]oscalTypes_1_1_3.PoamItem, len(poam.PoamItems))
 	for i, item := range poam.PoamItems {
@@ -286,7 +420,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx echo.Context) error 
 //
 //	@Summary		Get POA&M metadata
 //	@Description	Retrieves metadata for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]
@@ -313,7 +447,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetMetadata(ctx echo.Context) error {
 //
 //	@Summary		Get POA&M import-ssp
 //	@Description	Retrieves import-ssp for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ImportSsp]
@@ -335,7 +469,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error 
 	}
 	importSsp := poam.ImportSsp.Data()
 	if importSsp.Href == "" {
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no import-ssp for POA&M %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ImportSsp]{Data: *importSsp.MarshalOscal()})
 }
@@ -344,7 +478,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error 
 //
 //	@Summary		Get POA&M system-id
 //	@Description	Retrieves system-id for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemId]
@@ -366,7 +500,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
 	}
 	systemId := poam.SystemId.Data()
 	if systemId.ID == "" {
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no system-id for POA&M %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemId]{Data: *systemId.MarshalOscal()})
 }
@@ -375,7 +509,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
 //
 //	@Summary		Get POA&M local definitions
 //	@Description	Retrieves local definitions for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
@@ -397,7 +531,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 	}
 	localDefs := poam.LocalDefinitions.Data()
 	if localDefs.Remarks == "" && len(localDefs.Components) == 0 && len(localDefs.InventoryItems) == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no local-definitions for POA&M %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs.MarshalOscal()})
 }
@@ -406,7 +540,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 //
 //	@Summary		Get POA&M back-matter
 //	@Description	Retrieves back-matter for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
@@ -427,7 +561,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 	if len(poam.BackMatter.Resources) == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no back-matter for POA&M %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]{Data: *poam.BackMatter.MarshalOscal()})
 }
@@ -436,11 +570,11 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error
 //
 //	@Summary		Create a new POA&M
 //	@Description	Creates a new Plan of Action and Milestones.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			poam	body		oscalTypes_1_1_3.PlanOfActionAndMilestones	true	"POA&M data"
-//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/oscal/plan-of-action-and-milestones [post]
@@ -450,6 +584,12 @@ func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
 	var oscalPoam oscalTypes_1_1_3.PlanOfActionAndMilestones
 	if err := ctx.Bind(&oscalPoam); err != nil {
 		h.sugar.Warnw("Invalid create POAM request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validatePoamInput(&oscalPoam); err != nil {
+		h.sugar.Warnw("Invalid POAM input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -463,19 +603,19 @@ func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *relPoam.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *relPoam.MarshalOscal()})
 }
 
 // CreateObservation godoc
 //
 //	@Summary		Create a new observation for a POA&M
 //	@Description	Creates a new observation for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string							true	"POA&M ID"
 //	@Param			observation	body		oscalTypes_1_1_3.Observation	true	"Observation data"
-//	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Observation]
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Observation]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
@@ -489,15 +629,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) e
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
 	}
 
 	var oscalObs oscalTypes_1_1_3.Observation
 	if err := ctx.Bind(&oscalObs); err != nil {
 		h.sugar.Warnw("Invalid create observation request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validateObservationInput(&oscalObs); err != nil {
+		h.sugar.Warnw("Invalid observation input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -509,19 +653,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) e
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Observation]{Data: *relObs.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Observation]{Data: *relObs.MarshalOscal()})
 }
 
 // CreateRisk godoc
 //
 //	@Summary		Create a new risk for a POA&M
 //	@Description	Creates a new risk for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"POA&M ID"
 //	@Param			risk	body		oscalTypes_1_1_3.Risk	true	"Risk data"
-//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Risk]
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Risk]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -535,15 +679,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
 	}
 
 	var oscalRisk oscalTypes_1_1_3.Risk
 	if err := ctx.Bind(&oscalRisk); err != nil {
 		h.sugar.Warnw("Invalid create risk request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validateRiskInput(&oscalRisk); err != nil {
+		h.sugar.Warnw("Invalid risk input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -555,19 +703,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Risk]{Data: *relRisk.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Risk]{Data: *relRisk.MarshalOscal()})
 }
 
 // CreateFinding godoc
 //
 //	@Summary		Create a new finding for a POA&M
 //	@Description	Creates a new finding for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"POA&M ID"
 //	@Param			finding	body		oscalTypes_1_1_3.Finding	true	"Finding data"
-//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Finding]
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Finding]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -581,15 +729,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
 	}
 
 	var oscalFinding oscalTypes_1_1_3.Finding
 	if err := ctx.Bind(&oscalFinding); err != nil {
 		h.sugar.Warnw("Invalid create finding request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validateFindingInput(&oscalFinding); err != nil {
+		h.sugar.Warnw("Invalid finding input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -601,19 +753,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Finding]{Data: *relFinding.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Finding]{Data: *relFinding.MarshalOscal()})
 }
 
 // CreatePoamItem godoc
 //
 //	@Summary		Create a new POAM item for a POA&M
 //	@Description	Creates a new POAM item for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"POA&M ID"
 //	@Param			poam-item	body		oscalTypes_1_1_3.PoamItem	true	"POAM Item data"
-//	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
@@ -627,15 +779,19 @@ func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) erro
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
 	}
 
 	var oscalPoamItem oscalTypes_1_1_3.PoamItem
 	if err := ctx.Bind(&oscalPoamItem); err != nil {
 		h.sugar.Warnw("Invalid create POAM item request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validatePoamItemInput(&oscalPoamItem); err != nil {
+		h.sugar.Warnw("Invalid POAM item input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -647,14 +803,14 @@ func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) erro
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]{Data: *relPoamItem.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]{Data: *relPoamItem.MarshalOscal()})
 }
 
 // Update godoc
 //
 //	@Summary		Update a POA&M
 //	@Description	Updates an existing Plan of Action and Milestones.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string										true	"POA&M ID"
@@ -677,6 +833,12 @@ func (h *PlanOfActionAndMilestonesHandler) Update(ctx echo.Context) error {
 	var oscalPoam oscalTypes_1_1_3.PlanOfActionAndMilestones
 	if err := ctx.Bind(&oscalPoam); err != nil {
 		h.sugar.Warnw("Invalid update POAM request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validatePoamInput(&oscalPoam); err != nil {
+		h.sugar.Warnw("Invalid POAM input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -712,7 +874,7 @@ func (h *PlanOfActionAndMilestonesHandler) Update(ctx echo.Context) error {
 //
 //	@Summary		Update an observation for a POA&M
 //	@Description	Updates an existing observation for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string							true	"POA&M ID"
@@ -740,13 +902,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorf("Failed to find POAM: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, poamID); err != nil {
+		return err
 	}
 
 	// Check if observation exists and belongs to this POAM
@@ -784,7 +941,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 //
 //	@Summary		Update a risk for a POA&M
 //	@Description	Updates an existing risk for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"POA&M ID"
@@ -812,13 +969,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorf("Failed to find POAM: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, poamID); err != nil {
+		return err
 	}
 
 	// Check if risk exists and belongs to this POAM
@@ -856,7 +1008,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 //
 //	@Summary		Update a finding for a POA&M
 //	@Description	Updates an existing finding for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"POA&M ID"
@@ -884,13 +1036,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorf("Failed to find POAM: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, poamID); err != nil {
+		return err
 	}
 
 	// Check if finding exists and belongs to this POAM
@@ -928,7 +1075,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 //
 //	@Summary		Update a POAM item for a POA&M
 //	@Description	Updates an existing POAM item for a given POA&M.
-//	@Tags			OScal
+//	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"POA&M ID"
@@ -956,13 +1103,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) erro
 	}
 
 	// Verify POAM exists
-	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorf("Failed to find POAM: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.verifyPoamExists(ctx, poamID); err != nil {
+		return err
 	}
 
 	// Check if POAM item exists and belongs to this POAM
@@ -995,4 +1137,274 @@ func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) erro
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]{Data: *relPoamItem.MarshalOscal()})
+}
+//
+//	@Summary		Delete a POA&M
+//	@Description	Deletes an existing Plan of Action and Milestones and all its related data.
+//	@Tags			Oscal
+//	@Param			id	path	string	true	"POA&M ID"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id} [delete]
+func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
+	// Parse and validate ID parameter
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid POAM id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Check if record exists
+	var existingPoam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&existingPoam, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorf("Failed to find POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Delete all related entities and main record in a transaction
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		// Delete all related entities first (cascading delete)
+		if err := tx.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Delete(&relational.Observation{}).Error; err != nil {
+			return fmt.Errorf("failed to delete observations: %v", err)
+		}
+
+		if err := tx.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Delete(&relational.Risk{}).Error; err != nil {
+			return fmt.Errorf("failed to delete risks: %v", err)
+		}
+
+		if err := tx.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Delete(&relational.Finding{}).Error; err != nil {
+			return fmt.Errorf("failed to delete findings: %v", err)
+		}
+
+		if err := tx.Where("plan_of_action_and_milestones_id = ?", id).Delete(&relational.PoamItem{}).Error; err != nil {
+			return fmt.Errorf("failed to delete POAM items: %v", err)
+		}
+
+		// Delete the main POAM record
+		if err := tx.Delete(&existingPoam).Error; err != nil {
+			return fmt.Errorf("failed to delete POAM: %v", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		h.sugar.Errorf("Failed to delete POAM and related entities: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// DeleteObservation godoc
+//
+//	@Summary		Delete an observation from a POA&M
+//	@Description	Deletes an existing observation for a given POA&M.
+//	@Tags			Oscal
+//	@Param			id		path	string	true	"POA&M ID"
+//	@Param			obsId	path	string	true	"Observation ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/observations/{obsId} [delete]
+func (h *PlanOfActionAndMilestonesHandler) DeleteObservation(ctx echo.Context) error {
+	// Parse and validate ID parameters
+	idParam := ctx.Param("id")
+	poamID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid POAM id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	obsIdParam := ctx.Param("obsId")
+	obsID, err := uuid.Parse(obsIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid observation id", "obsId", obsIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("POAM not found")))
+		}
+		h.sugar.Errorf("Failed to find POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Delete observation
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", obsID, poamID, "plan_of_action_and_milestones").Delete(&relational.Observation{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete observation: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("observation not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// DeleteRisk godoc
+//
+//	@Summary		Delete a risk from a POA&M
+//	@Description	Deletes an existing risk for a given POA&M.
+//	@Tags			Oscal
+//	@Param			id		path	string	true	"POA&M ID"
+//	@Param			riskId	path	string	true	"Risk ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/risks/{riskId} [delete]
+func (h *PlanOfActionAndMilestonesHandler) DeleteRisk(ctx echo.Context) error {
+	// Parse and validate ID parameters
+	idParam := ctx.Param("id")
+	poamID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid POAM id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	riskIdParam := ctx.Param("riskId")
+	riskID, err := uuid.Parse(riskIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid risk id", "riskId", riskIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("POAM not found")))
+		}
+		h.sugar.Errorf("Failed to find POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Delete risk
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", riskID, poamID, "plan_of_action_and_milestones").Delete(&relational.Risk{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete risk: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// DeleteFinding godoc
+//
+//	@Summary		Delete a finding from a POA&M
+//	@Description	Deletes an existing finding for a given POA&M.
+//	@Tags			Oscal
+//	@Param			id			path	string	true	"POA&M ID"
+//	@Param			findingId	path	string	true	"Finding ID"
+//	@Success		204			"No Content"
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/findings/{findingId} [delete]
+func (h *PlanOfActionAndMilestonesHandler) DeleteFinding(ctx echo.Context) error {
+	// Parse and validate ID parameters
+	idParam := ctx.Param("id")
+	poamID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid POAM id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	findingIdParam := ctx.Param("findingId")
+	findingID, err := uuid.Parse(findingIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid finding id", "findingId", findingIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("POAM not found")))
+		}
+		h.sugar.Errorf("Failed to find POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Delete finding
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", findingID, poamID, "plan_of_action_and_milestones").Delete(&relational.Finding{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete finding: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("finding not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// DeletePoamItem godoc
+//
+//	@Summary		Delete a POAM item from a POA&M
+//	@Description	Deletes an existing POAM item for a given POA&M.
+//	@Tags			Oscal
+//	@Param			id		path	string	true	"POA&M ID"
+//	@Param			itemId	path	string	true	"POAM Item ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId} [delete]
+func (h *PlanOfActionAndMilestonesHandler) DeletePoamItem(ctx echo.Context) error {
+	// Parse and validate ID parameters
+	idParam := ctx.Param("id")
+	poamID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid POAM id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	itemIdParam := ctx.Param("itemId")
+	if itemIdParam == "" {
+		h.sugar.Warnw("Missing POAM item id", "itemId", itemIdParam)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("itemId is required")))
+	}
+
+	// Verify POAM exists
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", poamID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("POAM not found")))
+		}
+		h.sugar.Errorf("Failed to find POAM: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Delete POAM item
+	result := h.db.Where("uuid = ? AND plan_of_action_and_milestones_id = ?", itemIdParam, poamID).Delete(&relational.PoamItem{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete POAM item: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("POAM item not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
 }
