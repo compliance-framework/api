@@ -3912,7 +3912,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "List POA\u0026Ms",
                 "responses": {
@@ -3945,7 +3945,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Create a new POA\u0026M",
                 "parameters": [
@@ -3960,8 +3960,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones"
                         }
@@ -3988,7 +3988,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get a POA\u0026M",
                 "parameters": [
@@ -4036,7 +4036,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Update a POA\u0026M",
                 "parameters": [
@@ -4087,7 +4087,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing Plan of Action and Milestones and all its related data.",
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Delete a POA\u0026M",
                 "parameters": [
@@ -4131,7 +4131,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get POA\u0026M back-matter",
                 "parameters": [
@@ -4178,7 +4178,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get findings for a POA\u0026M",
                 "parameters": [
@@ -4226,7 +4226,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Create a new finding for a POA\u0026M",
                 "parameters": [
@@ -4248,8 +4248,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding"
                         }
@@ -4285,7 +4285,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Update a finding for a POA\u0026M",
                 "parameters": [
@@ -4343,7 +4343,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing finding for a given POA\u0026M.",
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Delete a finding from a POA\u0026M",
                 "parameters": [
@@ -4394,7 +4394,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get a complete POA\u0026M",
                 "parameters": [
@@ -4441,7 +4441,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get POA\u0026M import-ssp",
                 "parameters": [
@@ -4488,7 +4488,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get POA\u0026M local definitions",
                 "parameters": [
@@ -4535,7 +4535,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get POA\u0026M metadata",
                 "parameters": [
@@ -4582,7 +4582,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get observations for a POA\u0026M",
                 "parameters": [
@@ -4630,7 +4630,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Create a new observation for a POA\u0026M",
                 "parameters": [
@@ -4652,8 +4652,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Observation"
                         }
@@ -4689,7 +4689,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Update an observation for a POA\u0026M",
                 "parameters": [
@@ -4747,7 +4747,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing observation for a given POA\u0026M.",
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Delete an observation from a POA\u0026M",
                 "parameters": [
@@ -4798,7 +4798,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get POA\u0026M items",
                 "parameters": [
@@ -4846,7 +4846,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Create a new POAM item for a POA\u0026M",
                 "parameters": [
@@ -4868,8 +4868,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem"
                         }
@@ -4905,7 +4905,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Update a POAM item for a POA\u0026M",
                 "parameters": [
@@ -4963,7 +4963,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing POAM item for a given POA\u0026M.",
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Delete a POAM item from a POA\u0026M",
                 "parameters": [
@@ -5014,7 +5014,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get risks for a POA\u0026M",
                 "parameters": [
@@ -5062,7 +5062,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Create a new risk for a POA\u0026M",
                 "parameters": [
@@ -5084,8 +5084,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk"
                         }
@@ -5121,7 +5121,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Update a risk for a POA\u0026M",
                 "parameters": [
@@ -5179,7 +5179,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing risk for a given POA\u0026M.",
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Delete a risk from a POA\u0026M",
                 "parameters": [
@@ -5230,7 +5230,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OScal"
+                    "Oscal"
                 ],
                 "summary": "Get POA\u0026M system-id",
                 "parameters": [

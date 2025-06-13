@@ -6028,7 +6028,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: List POA&Ms
       tags:
-      - OScal
+      - Oscal
     post:
       consumes:
       - application/json
@@ -6043,8 +6043,8 @@ paths:
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestones'
         "400":
@@ -6057,7 +6057,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}:
     delete:
       description: Deletes an existing Plan of Action and Milestones and all its related
@@ -6085,7 +6085,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a POA&M
       tags:
-      - OScal
+      - Oscal
     get:
       description: Retrieves a single Plan of Action and Milestones by its unique
         ID.
@@ -6116,7 +6116,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get a POA&M
       tags:
-      - OScal
+      - Oscal
     put:
       consumes:
       - application/json
@@ -6154,7 +6154,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/back-matter:
     get:
       description: Retrieves back-matter for a given POA&M.
@@ -6185,7 +6185,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M back-matter
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/findings:
     get:
       description: Retrieves all findings for a given POA&M.
@@ -6216,7 +6216,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get findings for a POA&M
       tags:
-      - OScal
+      - Oscal
     post:
       consumes:
       - application/json
@@ -6236,8 +6236,8 @@ paths:
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Finding'
         "400":
@@ -6254,7 +6254,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new finding for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/findings/{findingId}:
     delete:
       description: Deletes an existing finding for a given POA&M.
@@ -6286,7 +6286,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a finding from a POA&M
       tags:
-      - OScal
+      - Oscal
     put:
       consumes:
       - application/json
@@ -6329,7 +6329,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a finding for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/full:
     get:
       description: Retrieves a complete POA&M by its ID, including all metadata and
@@ -6361,7 +6361,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get a complete POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/import-ssp:
     get:
       description: Retrieves import-ssp for a given POA&M.
@@ -6392,7 +6392,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M import-ssp
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/local-definitions:
     get:
       description: Retrieves local definitions for a given POA&M.
@@ -6423,7 +6423,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M local definitions
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/metadata:
     get:
       description: Retrieves metadata for a given POA&M.
@@ -6454,7 +6454,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M metadata
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/observations:
     get:
       description: Retrieves all observations for a given POA&M.
@@ -6485,7 +6485,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get observations for a POA&M
       tags:
-      - OScal
+      - Oscal
     post:
       consumes:
       - application/json
@@ -6505,8 +6505,8 @@ paths:
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Observation'
         "400":
@@ -6523,7 +6523,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new observation for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/observations/{obsId}:
     delete:
       description: Deletes an existing observation for a given POA&M.
@@ -6555,7 +6555,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete an observation from a POA&M
       tags:
-      - OScal
+      - Oscal
     put:
       consumes:
       - application/json
@@ -6598,7 +6598,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update an observation for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/poam-items:
     get:
       description: Retrieves all POA&M items for a given POA&M.
@@ -6629,7 +6629,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M items
       tags:
-      - OScal
+      - Oscal
     post:
       consumes:
       - application/json
@@ -6649,8 +6649,8 @@ paths:
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PoamItem'
         "400":
@@ -6667,7 +6667,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new POAM item for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/poam-items/{itemId}:
     delete:
       description: Deletes an existing POAM item for a given POA&M.
@@ -6699,7 +6699,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a POAM item from a POA&M
       tags:
-      - OScal
+      - Oscal
     put:
       consumes:
       - application/json
@@ -6742,7 +6742,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a POAM item for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/risks:
     get:
       description: Retrieves all risks for a given POA&M.
@@ -6773,7 +6773,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get risks for a POA&M
       tags:
-      - OScal
+      - Oscal
     post:
       consumes:
       - application/json
@@ -6793,8 +6793,8 @@ paths:
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Risk'
         "400":
@@ -6811,7 +6811,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new risk for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/risks/{riskId}:
     delete:
       description: Deletes an existing risk for a given POA&M.
@@ -6843,7 +6843,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a risk from a POA&M
       tags:
-      - OScal
+      - Oscal
     put:
       consumes:
       - application/json
@@ -6886,7 +6886,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a risk for a POA&M
       tags:
-      - OScal
+      - Oscal
   /oscal/plan-of-action-and-milestones/{id}/system-id:
     get:
       description: Retrieves system-id for a given POA&M.
@@ -6917,7 +6917,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M system-id
       tags:
-      - OScal
+      - Oscal
   /oscal/profiles:
     get:
       description: Retrieves all OSCAL profiles
