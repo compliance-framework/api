@@ -5,7 +5,7 @@ FROM golang:1.23 AS local
 # Create and change to the app directory.
 WORKDIR /app
 
-RUN go install github.com/swaggo/swag/cmd/swag@latest && go install github.com/air-verse/air@latest
+RUN go install github.com/swaggo/swag/cmd/swag@latest && go install github.com/air-verse/air@v1.61.5
 
 # Copy local code to the container image.
 COPY . ./

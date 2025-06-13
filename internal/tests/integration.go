@@ -93,6 +93,12 @@ func (t *TestMigrator) Up() error {
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
 		&relational.User{},
+		// POAM entities
+		&relational.PlanOfActionAndMilestones{},
+		&relational.Observation{},
+		&relational.Risk{},
+		&relational.Finding{},
+		&relational.PoamItem{},
 	)
 }
 
@@ -144,6 +150,12 @@ func (t *TestMigrator) Down() error {
 		&relational.ControlImplementation{},
 		&relational.SystemSecurityPlan{},
 		&relational.User{},
+		// POAM entities
+		&relational.PlanOfActionAndMilestones{},
+		&relational.Observation{},
+		&relational.Risk{},
+		&relational.Finding{},
+		&relational.PoamItem{},
 		"metadata_responsible_parties",
 		"party_locations",
 		"party_member_of_organisations",
