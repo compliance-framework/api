@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-
 	"net/http"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
@@ -55,11 +54,19 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	incorrectCredentialsValidation := handler.GenericDataResponse[map[string][]string]{
+		Data: map[string][]string{
+			"email": {
+				"Invalid email or password",
+			},
+		},
+	}
+
 	var user relational.User
 	if err := h.db.Where("email = ?", loginReq.Email).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			h.sugar.Warnw("User not found", "email", loginReq.Email)
-			return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("invalid email or password")))
+			return ctx.JSON(http.StatusUnauthorized, incorrectCredentialsValidation)
 		}
 		h.sugar.Errorw("Failed to query user", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -67,7 +74,7 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 
 	if !user.CheckPassword(loginReq.Password) {
 		h.sugar.Warnw("Invalid password attempt", "email", loginReq.Email)
-		return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("invalid email or password")))
+		return ctx.JSON(http.StatusUnauthorized, incorrectCredentialsValidation)
 	}
 
 	token, err := authn.GenerateJWTToken(&user, h.config.JWTPrivateKey)
