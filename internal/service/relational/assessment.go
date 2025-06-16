@@ -103,9 +103,13 @@ type AssessmentResult struct {
 }
 
 func (i *AssessmentResult) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentResults) *AssessmentResult {
+	id := uuid.MustParse(op.UUID)
 	*i = AssessmentResult{
 		ImportAp: datatypes.NewJSONType(*(&ImportAp{}).UnmarshalOscal(op.ImportAp)),
 		Metadata: *(&Metadata{}).UnmarshalOscal(op.Metadata),
+		UUIDModel: UUIDModel{
+			ID: &id,
+		},
 	}
 	// LocalDefinitions
 	if op.LocalDefinitions != nil {
@@ -126,9 +130,9 @@ func (i *AssessmentResult) MarshalOscal() *oscalTypes_1_1_3.AssessmentResults {
 		ImportAp:         oscalTypes_1_1_3.ImportAp(i.ImportAp.Data()),
 		Metadata:         *i.Metadata.MarshalOscal(),
 		LocalDefinitions: i.LocalDefinitions.MarshalOscal(),
+		UUID:             i.ID.String(),
 	}
-	// LocalDefinitions
-	ret.LocalDefinitions = i.LocalDefinitions.MarshalOscal()
+
 	// Results
 	if len(i.Results) > 0 {
 		res := make([]oscalTypes_1_1_3.Result, len(i.Results))
