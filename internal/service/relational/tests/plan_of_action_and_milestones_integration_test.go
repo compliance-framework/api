@@ -87,25 +87,20 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMWithObservations
 			Published:    &now,
 			Version:      "1.0.0",
 		},
+		Observations: []relational.Observation{
+			{
+				UUIDModel: relational.UUIDModel{
+					ID: &obsId,
+				},
+				Collected:   now,
+				Description: "Test observation for POAM",
+				Methods:     datatypes.NewJSONSlice([]string{"AUTOMATED", "INTERVIEW"}),
+				Title:       stringPtr("Test Security Observation"),
+			},
+		},
 	}
 
 	err = suite.DB.Create(poam).Error
-	suite.Require().NoError(err)
-
-	// Create Observation linked to POAM
-	observation := &relational.Observation{
-		UUIDModel: relational.UUIDModel{
-			ID: &obsId,
-		},
-		ParentID:    &poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Collected:   now,
-		Description: "Test observation for POAM",
-		Methods:     datatypes.NewJSONSlice([]string{"AUTOMATED", "INTERVIEW"}),
-		Title:       stringPtr("Test Security Observation"),
-	}
-
-	err = suite.DB.Create(observation).Error
 	suite.Require().NoError(err)
 
 	// Verify the relationship
@@ -138,26 +133,21 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMWithRisks() {
 			Published:    &now,
 			Version:      "1.0.0",
 		},
+		Risks: []relational.Risk{
+			{
+				UUIDModel: relational.UUIDModel{
+					ID: &riskId,
+				},
+				Title:       "Critical Security Risk",
+				Description: "A high-impact security vulnerability requiring immediate attention",
+				Statement:   "This risk poses a significant threat to system security",
+				Status:      "open",
+				Deadline:    &now,
+			},
+		},
 	}
 
 	err = suite.DB.Create(poam).Error
-	suite.Require().NoError(err)
-
-	// Create Risk linked to POAM
-	risk := &relational.Risk{
-		UUIDModel: relational.UUIDModel{
-			ID: &riskId,
-		},
-		ParentID:    poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Title:       "Critical Security Risk",
-		Description: "A high-impact security vulnerability requiring immediate attention",
-		Statement:   "This risk poses a significant threat to system security",
-		Status:      "open",
-		Deadline:    &now,
-	}
-
-	err = suite.DB.Create(risk).Error
 	suite.Require().NoError(err)
 
 	// Verify the relationship
@@ -178,6 +168,19 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMWithFindings() {
 	poamId := uuid.New()
 	findingId := uuid.New()
 
+	finding := &relational.Finding{
+		UUIDModel: relational.UUIDModel{
+			ID: &findingId,
+		},
+		Title:       "Configuration Compliance Finding",
+		Description: "System configuration does not meet security baseline requirements",
+		Target: datatypes.NewJSONType(oscalTypes_1_1_3.FindingTarget{
+			Type:        "statement-id",
+			TargetId:    "ac-2_smt.a",
+			Description: "Access Control Implementation Statement",
+		}),
+	}
+
 	// Create POAM
 	poam := &relational.PlanOfActionAndMilestones{
 		UUIDModel: relational.UUIDModel{
@@ -190,30 +193,12 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMWithFindings() {
 			Published:    &now,
 			Version:      "1.0.0",
 		},
+		Findings: []relational.Finding{
+			*finding,
+		},
 	}
 
 	err = suite.DB.Create(poam).Error
-	suite.Require().NoError(err)
-
-	// Create Finding linked to POAM
-	findingTarget := oscalTypes_1_1_3.FindingTarget{
-		Type:        "statement-id",
-		TargetId:    "ac-2_smt.a",
-		Description: "Access Control Implementation Statement",
-	}
-
-	finding := &relational.Finding{
-		UUIDModel: relational.UUIDModel{
-			ID: &findingId,
-		},
-		ParentID:    &poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Title:       "Configuration Compliance Finding",
-		Description: "System configuration does not meet security baseline requirements",
-		Target:      datatypes.NewJSONType(findingTarget),
-	}
-
-	err = suite.DB.Create(finding).Error
 	suite.Require().NoError(err)
 
 	// Verify the relationship
@@ -290,8 +275,46 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMCompleteStructur
 	suite.Require().NoError(err)
 
 	now := time.Now()
+	// Add observations, risks, findings, and POAM items
+	observation := &relational.Observation{
+		UUIDModel: relational.UUIDModel{
+			ID: func() *uuid.UUID { id := uuid.New(); return &id }(),
+		},
+		Collected:   now,
+		Description: "Security compliance observation",
+		Methods:     datatypes.NewJSONSlice([]string{"AUTOMATED"}),
+	}
+
+	risk := &relational.Risk{
+		UUIDModel: relational.UUIDModel{
+			ID: func() *uuid.UUID { id := uuid.New(); return &id }(),
+		},
+		Title:       "Data Breach Risk",
+		Description: "Risk of unauthorized data access",
+		Statement:   "Vulnerability in access controls",
+		Status:      "open",
+	}
+
+	finding := &relational.Finding{
+		UUIDModel: relational.UUIDModel{
+			ID: func() *uuid.UUID { id := uuid.New(); return &id }(),
+		},
+		Title:       "Access Control Finding",
+		Description: "Inadequate access control implementation",
+		Target: datatypes.NewJSONType(oscalTypes_1_1_3.FindingTarget{
+			Type:     "statement-id",
+			TargetId: "ac-2_smt.a",
+		}),
+	}
+
 	poamId := uuid.New()
 
+	poamItem := &relational.PoamItem{
+		PlanOfActionAndMilestonesID: poamId,
+		UUID:                        "complete-test-item",
+		Title:                       "Complete Security Enhancement",
+		Description:                 "Comprehensive security improvement plan",
+	}
 	// Create a complete POAM with all relationships
 	poam := &relational.PlanOfActionAndMilestones{
 		UUIDModel: relational.UUIDModel{
@@ -315,64 +338,21 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMCompleteStructur
 		LocalDefinitions: datatypes.NewJSONType(relational.PlanOfActionAndMilestonesLocalDefinitions{
 			Remarks: "Local definitions for POAM-specific components and assets",
 		}),
+		PoamItems: []relational.PoamItem{
+			*poamItem,
+		},
+		Observations: []relational.Observation{
+			*observation,
+		},
+		Findings: []relational.Finding{
+			*finding,
+		},
+		Risks: []relational.Risk{
+			*risk,
+		},
 	}
 
 	err = suite.DB.Create(poam).Error
-	suite.Require().NoError(err)
-
-	// Add observations, risks, findings, and POAM items
-	observation := &relational.Observation{
-		UUIDModel: relational.UUIDModel{
-			ID: func() *uuid.UUID { id := uuid.New(); return &id }(),
-		},
-		ParentID:    &poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Collected:   now,
-		Description: "Security compliance observation",
-		Methods:     datatypes.NewJSONSlice([]string{"AUTOMATED"}),
-	}
-
-	risk := &relational.Risk{
-		UUIDModel: relational.UUIDModel{
-			ID: func() *uuid.UUID { id := uuid.New(); return &id }(),
-		},
-		ParentID:    poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Title:       "Data Breach Risk",
-		Description: "Risk of unauthorized data access",
-		Statement:   "Vulnerability in access controls",
-		Status:      "open",
-	}
-
-	finding := &relational.Finding{
-		UUIDModel: relational.UUIDModel{
-			ID: func() *uuid.UUID { id := uuid.New(); return &id }(),
-		},
-		ParentID:    &poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Title:       "Access Control Finding",
-		Description: "Inadequate access control implementation",
-		Target: datatypes.NewJSONType(oscalTypes_1_1_3.FindingTarget{
-			Type:     "statement-id",
-			TargetId: "ac-2_smt.a",
-		}),
-	}
-
-	poamItem := &relational.PoamItem{
-		PlanOfActionAndMilestonesID: poamId,
-		UUID:                        "complete-test-item",
-		Title:                       "Complete Security Enhancement",
-		Description:                 "Comprehensive security improvement plan",
-	}
-
-	// Create all related entities
-	err = suite.DB.Create(observation).Error
-	suite.Require().NoError(err)
-	err = suite.DB.Create(risk).Error
-	suite.Require().NoError(err)
-	err = suite.DB.Create(finding).Error
-	suite.Require().NoError(err)
-	err = suite.DB.Create(poamItem).Error
 	suite.Require().NoError(err)
 
 	// Retrieve complete POAM with all relationships
@@ -540,8 +520,6 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestObservationUpdate() 
 		UUIDModel: relational.UUIDModel{
 			ID: &obsId,
 		},
-		ParentID:    &poamId,
-		ParentType:  "plan_of_action_and_milestones",
 		Collected:   now,
 		Description: "Initial observation description",
 		Methods:     datatypes.NewJSONSlice([]string{"AUTOMATED"}),
@@ -603,8 +581,6 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestRiskUpdate() {
 		UUIDModel: relational.UUIDModel{
 			ID: &riskId,
 		},
-		ParentID:    poamId,
-		ParentType:  "plan_of_action_and_milestones",
 		Title:       "Initial Risk Title",
 		Description: "Initial risk description",
 		Statement:   "Initial risk statement",
@@ -657,30 +633,23 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestFindingUpdate() {
 			Published:    &now,
 			Version:      "1.0.0",
 		},
+		Findings: []relational.Finding{
+			{
+				UUIDModel: relational.UUIDModel{
+					ID: &findingId,
+				},
+				Title:       "Initial Finding Title",
+				Description: "Initial finding description",
+				Target: datatypes.NewJSONType(oscalTypes_1_1_3.FindingTarget{
+					Type:        "statement-id",
+					TargetId:    "ac-2_smt.a",
+					Description: "Initial target description",
+				}),
+			},
+		},
 	}
 
 	err = suite.DB.Create(poam).Error
-	suite.Require().NoError(err)
-
-	// Create initial finding
-	initialTarget := oscalTypes_1_1_3.FindingTarget{
-		Type:        "statement-id",
-		TargetId:    "ac-2_smt.a",
-		Description: "Initial target description",
-	}
-
-	finding := &relational.Finding{
-		UUIDModel: relational.UUIDModel{
-			ID: &findingId,
-		},
-		ParentID:    &poamId,
-		ParentType:  "plan_of_action_and_milestones",
-		Title:       "Initial Finding Title",
-		Description: "Initial finding description",
-		Target:      datatypes.NewJSONType(initialTarget),
-	}
-
-	err = suite.DB.Create(finding).Error
 	suite.Require().NoError(err)
 
 	// Update finding
@@ -690,11 +659,11 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestFindingUpdate() {
 		Description: "Updated target description with more detail",
 	}
 
-	finding.Title = "Updated Finding Title"
-	finding.Description = "Updated finding description with comprehensive detail"
-	finding.Target = datatypes.NewJSONType(updatedTarget)
+	poam.Findings[0].Title = "Updated Finding Title"
+	poam.Findings[0].Description = "Updated finding description with comprehensive detail"
+	poam.Findings[0].Target = datatypes.NewJSONType(updatedTarget)
 
-	err = suite.DB.Save(finding).Error
+	err = suite.DB.Save(poam.Findings[0]).Error
 	suite.Require().NoError(err)
 
 	// Verify update
