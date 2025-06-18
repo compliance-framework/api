@@ -3,13 +3,12 @@ package users
 import (
 	"crypto/rand"
 	"errors"
-	"math/big"
-
 	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"math/big"
 )
 
 func newUserAddCmd() *cobra.Command {
@@ -28,6 +27,8 @@ func newUserAddCmd() *cobra.Command {
 
 	cmd.Flags().StringP("last-name", "l", "", "Last name of the user (required)")
 	cmd.MarkFlagRequired("last-name")
+
+	cmd.Flags().StringP("password", "p", "", "Password of the user")
 
 	return cmd
 }
@@ -62,10 +63,19 @@ func addUser(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	password, err := generatePassword(12) // Generate a random password of length 12
-	if err != nil {
-		sugar.Errorw("Failed to generate password", "error", err)
-		return
+	var password string
+	if ok := cmd.Flags().Changed("password"); ok {
+		password, err = cmd.Flags().GetString("password")
+		if err != nil {
+			sugar.Errorw("Failed to get password", "error", err)
+			return
+		}
+	} else {
+		password, err = generatePassword(12) // Generate a random password of length 12
+		if err != nil {
+			sugar.Errorw("Failed to generate password", "error", err)
+			return
+		}
 	}
 
 	newUser := relational.User{
