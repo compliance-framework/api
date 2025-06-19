@@ -68,7 +68,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		err           error
 	)
 	if !viper.IsSet("jwt_private_key") || !viper.IsSet("jwt_public_key") {
-		logger.Warn("No JWT key files have been provided. Generating new keys. Any original JWTs that weere generated with previous keys will no longer be valid.")
+		logger.Warn("No JWT key files have been provided. Generating new keys. Any previously-created JWTs will no longer be valid.")
 		jwtPrivateKey, jwtPublicKey, err = GenerateKeyPair(2048)
 		if err != nil {
 			logger.Fatalw("Failed to generate RSA key pair", "error", err)
