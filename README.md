@@ -47,7 +47,12 @@ $ go run main.go help # Learn more about all the available commands
 
 ### Accessing Swagger Documentation
 
+> [!IMPORTANT]
+> Make sure you run `make swag` when first cloning the repository (either locally or in CI steps) otherwise the build will fail
+
 The configuration service exposes all of its endpoints using Swagger.
+
+Swagger artefacts (docs.json/docs.yaml) are not stored within the repository as it is automatically generated using the [swag cli tool](https://github.com/swaggo/swag) and stored in the `docs/` directory. A helper function `make swag` can be run anytime to generate the most up to date swagger docs.
 
 You can access the Swagger documentation to test and interact with the API at: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
 
