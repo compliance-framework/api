@@ -303,7 +303,27 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 	if err := h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
+		Preload("BackMatter").
+		Preload("BackMatter.Resources").
 		First(&componentDefinition, "id = ?", id).Error; err != nil {
+		if err == nil {
+			// Load Components and their nested relationships dynamically
+			h.db.Preload("Components.ResponsibleRoles").
+				Preload("Components.ControlImplementations").
+				Preload("Components.ControlImplementations.ImplementedRequirements").
+				Preload("Components.ControlImplementations.ImplementedRequirements.ResponsibleRoles").
+				Preload("Components.ControlImplementations.ImplementedRequirements.Statements").
+				Preload("Components.ControlImplementations.ImplementedRequirements.Statements.ResponsibleRoles").
+				Find(&componentDefinition.Components)
+
+			// Load Capabilities and their nested relationships dynamically
+			h.db.Preload("Capabilities.ControlImplementations").
+				Preload("Capabilities.ControlImplementations.ImplementedRequirements").
+				Preload("Capabilities.ControlImplementations.ImplementedRequirements.ResponsibleRoles").
+				Preload("Capabilities.ControlImplementations.ImplementedRequirements.Statements").
+				Preload("Capabilities.ControlImplementations.ImplementedRequirements.Statements.ResponsibleRoles").
+				Find(&componentDefinition.Capabilities)
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
