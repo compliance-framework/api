@@ -311,9 +311,8 @@ func TestRisk_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			risk := &Risk{}
-			testParentID := uuid.New()
 			assert.NotPanics(t, func() {
-				risk.UnmarshalOscal(tt.data, testParentID, "TestParent")
+				risk.UnmarshalOscal(tt.data)
 			})
 			output := risk.MarshalOscal()
 			outputJson, err := json.Marshal(output)
@@ -771,8 +770,7 @@ func TestObservation_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			obs := &Observation{}
-			testParentID := uuid.New()
-			obs.UnmarshalOscal(tt.data, &testParentID, "TestParent")
+			obs.UnmarshalOscal(tt.data)
 			output := obs.MarshalOscal()
 			outputJson, err := json.Marshal(output)
 			assert.NoError(t, err)
@@ -860,8 +858,7 @@ func TestFinding_MarshalUnmarshalOscal(t *testing.T) {
 			assert.NoError(t, err)
 
 			finding := &Finding{}
-			testParentID := uuid.New()
-			finding.UnmarshalOscal(tt.data, &testParentID, "TestParent")
+			finding.UnmarshalOscal(tt.data)
 			output := finding.MarshalOscal()
 			outputJson, err := json.Marshal(output)
 			assert.NoError(t, err)
@@ -932,6 +929,7 @@ func TestPlanOfActionAndMilestonesLocalDefinitions_MarshalUnmarshalOscal(t *test
 		})
 	}
 }
+
 // TestPoamItem_MarshalUnmarshalOscal tests the marshaling and unmarshaling of PoamItem
 // to and from OSCAL format, ensuring all fields are correctly handled.
 func TestPoamItem_MarshalUnmarshalOscal(t *testing.T) {

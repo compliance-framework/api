@@ -112,6 +112,14 @@ jobs:
         with:
           path: ${{ steps.go.outputs.mod-cache }}
           key: ${{ runner.os }}-mod-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
+      
+      - name: Install Swag
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest
+      
+      - name: Generate Swagger Docs
+        run: |
+          make swag
 
       - name: Run Unit Tests
         run: |
@@ -148,6 +156,14 @@ jobs:
         with:
           path: ${{ steps.go.outputs.mod-cache }}
           key: ${{ runner.os }}-mod-${{ github.sha }}-${{ hashFiles('**/go.sum') }}
+      
+      - name: Install Swag
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest
+      
+      - name: Generate Swagger Docs
+        run: |
+          make swag
 
       - name: Run Unit Tests
         run: |

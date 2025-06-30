@@ -15,8 +15,11 @@ type AssessmentPlan struct {
 
 	Tasks []Task `gorm:"polymorphic:Parent"`
 
-	ReviewedControls   ReviewedControls    `gorm:"polymorphic:Parent"`
-	AssessmentAssets   AssessmentAsset     `gorm:"many2many:assessment_plan_assessment_assets"`
+	ReviewedControlsID uuid.UUID
+	ReviewedControls   ReviewedControls
+
+	AssessmentAssetsID *uuid.UUID
+	AssessmentAssets   *AssessmentAsset
 	AssessmentSubjects []AssessmentSubject `gorm:"many2many:assessment_plan_assessment_subjects"`
 	LocalDefinitions   LocalDefinitions    `gorm:"polymorphic:Parent"`
 
@@ -41,7 +44,7 @@ func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *Ass
 
 	// AssessmentAssets
 	if op.AssessmentAssets != nil {
-		i.AssessmentAssets = *(&AssessmentAsset{}).UnmarshalOscal(*op.AssessmentAssets)
+		i.AssessmentAssets = (&AssessmentAsset{}).UnmarshalOscal(*op.AssessmentAssets)
 	}
 	// AssessmentSubjects
 	if op.AssessmentSubjects != nil {
@@ -163,9 +166,9 @@ type Result struct {
 	AssessmentLog      *AssessmentLog
 
 	// Shared entities now using polymorphic associations
-	Observations []Observation `json:"observations" gorm:"polymorphic:Parent;"`
-	Findings     []Finding     `json:"findings" gorm:"polymorphic:Parent;"`
-	Risks        []Risk        `json:"risks" gorm:"polymorphic:Parent;"`
+	Observations []Observation `gorm:"many2many:result_observations;"`
+	Findings     []Finding     `gorm:"many2many:result_findings;"`
+	Risks        []Risk        `gorm:"many2many:result_risks;"`
 }
 
 func (i *Result) UnmarshalOscal(op oscalTypes_1_1_3.Result) *Result {
@@ -206,21 +209,21 @@ func (i *Result) UnmarshalOscal(op oscalTypes_1_1_3.Result) *Result {
 	if op.Observations != nil {
 		i.Observations = make([]Observation, len(*op.Observations))
 		for idx, obs := range *op.Observations {
-			i.Observations[idx] = *(&Observation{}).UnmarshalOscal(obs, i.ID, "Result")
+			i.Observations[idx] = *(&Observation{}).UnmarshalOscal(obs)
 		}
 	}
 	// Findings
 	if op.Findings != nil {
 		i.Findings = make([]Finding, len(*op.Findings))
 		for idx, finding := range *op.Findings {
-			i.Findings[idx] = *(&Finding{}).UnmarshalOscal(finding, i.ID, "Result")
+			i.Findings[idx] = *(&Finding{}).UnmarshalOscal(finding)
 		}
 	}
 	// Risks
 	if op.Risks != nil {
 		i.Risks = make([]Risk, len(*op.Risks))
 		for idx, risk := range *op.Risks {
-			i.Risks[idx] = *(&Risk{}).UnmarshalOscal(risk, *i.ID, "Result")
+			i.Risks[idx] = *(&Risk{}).UnmarshalOscal(risk)
 		}
 	}
 	return i
@@ -1283,7 +1286,8 @@ type AssociatedActivity struct {
 	TaskID  uuid.UUID // Belongs to a task
 	Remarks *string
 
-	Activity         Activity `gorm:"many2many:associated_activity_activities"` // required
+	ActivityID       uuid.UUID
+	Activity         Activity
 	Props            datatypes.JSONSlice[Prop]
 	Links            datatypes.JSONSlice[Link]
 	ResponsibleRoles []ResponsibleRole   `gorm:"polymorphic:Parent;"`
@@ -1361,8 +1365,9 @@ type Activity struct {
 	Links datatypes.JSONSlice[Link] `json:"links"`
 	Steps []Step
 
-	RelatedControls  *ReviewedControls `gorm:"polymorphic:Parent"`
-	ResponsibleRoles []ResponsibleRole `gorm:"polymorphic:Parent"`
+	RelatedControlsID *uuid.UUID
+	RelatedControls   *ReviewedControls
+	ResponsibleRoles  []ResponsibleRole `gorm:"polymorphic:Parent"`
 }
 
 func (i *Activity) UnmarshalOscal(op oscalTypes_1_1_3.Activity) *Activity {
@@ -1451,7 +1456,9 @@ type Step struct {
 	Links datatypes.JSONSlice[Link] `json:"links"`
 
 	ResponsibleRoles []ResponsibleRole `gorm:"polymorphic:Parent;"`
-	ReviewedControls *ReviewedControls `gorm:"polymorphic:Parent"`
+
+	ReviewedControlsID *uuid.UUID
+	ReviewedControls   *ReviewedControls
 }
 
 func (i *Step) UnmarshalOscal(op oscalTypes_1_1_3.Step) *Step {
@@ -1518,9 +1525,6 @@ type ReviewedControls struct {
 	Links                      datatypes.JSONSlice[Link]
 	ControlSelections          []ControlSelection // required
 	ControlObjectiveSelections []ControlObjectiveSelection
-
-	ParentID   uuid.UUID
-	ParentType string
 }
 
 func (i *ReviewedControls) UnmarshalOscal(op oscalTypes_1_1_3.ReviewedControls) *ReviewedControls {
@@ -1591,8 +1595,8 @@ type ControlSelection struct {
 	Links              datatypes.JSONSlice[Link]
 
 	IncludeAll      *datatypes.JSONType[IncludeAll]
-	IncludeControls []AssessedControlsSelectControlById
-	ExcludeControls []AssessedControlsSelectControlById
+	IncludeControls []AssessedControlsSelectControlById `gorm:"many2many:control_selection_assessed_controls_included"`
+	ExcludeControls []AssessedControlsSelectControlById `gorm:"many2many:control_selection_assessed_controls_excluded"`
 }
 
 func (i *ControlSelection) UnmarshalOscal(op oscalTypes_1_1_3.AssessedControls) *ControlSelection {
@@ -1752,10 +1756,9 @@ func (i *SelectObjectiveById) MarshalOscal() *oscalTypes_1_1_3.SelectObjectiveBy
 
 type AssessedControlsSelectControlById struct {
 	UUIDModel
-	ControlSelectionID uuid.UUID
-	ControlID          string
-	Control            Control
-	Statements         []Statement `gorm:"many2many:assessed_controls_select_control_by_id_statements;"`
+	ControlID  string
+	Control    Control     `gorm:"references:ID"`
+	Statements []Statement `gorm:"many2many:assessed_controls_select_control_by_id_statements;"`
 }
 
 func (s *AssessedControlsSelectControlById) UnmarshalOscal(o oscalTypes_1_1_3.AssessedControlsSelectControlById) *AssessedControlsSelectControlById {

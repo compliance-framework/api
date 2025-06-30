@@ -3,25 +3,37 @@ package users
 import (
 	"crypto/rand"
 	"errors"
-	"math/big"
-
 	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"math/big"
 )
 
-var (
-	userAddCmd = &cobra.Command{
+func newUserAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add a new user",
 		Long:  "This command allows you to add a new user to the system. You will be prompted for the user's email, first name, last name, and password.",
-		Run:   AddUser,
+		Run:   addUser,
 	}
-)
 
-func AddUser(cmd *cobra.Command, args []string) {
+	cmd.Flags().StringP("email", "e", "", "Email of the user (required)")
+	cmd.MarkFlagRequired("email")
+
+	cmd.Flags().StringP("first-name", "f", "", "First name of the user (required)")
+	cmd.MarkFlagRequired("first-name")
+
+	cmd.Flags().StringP("last-name", "l", "", "Last name of the user (required)")
+	cmd.MarkFlagRequired("last-name")
+
+	cmd.Flags().StringP("password", "p", "", "Password of the user")
+
+	return cmd
+}
+
+func addUser(cmd *cobra.Command, args []string) {
 	logger, err := zap.NewProduction()
 	cobra.CheckErr(err)
 	defer logger.Sync() // flushes buffer, if any
@@ -51,10 +63,19 @@ func AddUser(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	password, err := generatePassword(12) // Generate a random password of length 12
-	if err != nil {
-		sugar.Errorw("Failed to generate password", "error", err)
-		return
+	var password string
+	if ok := cmd.Flags().Changed("password"); ok {
+		password, err = cmd.Flags().GetString("password")
+		if err != nil {
+			sugar.Errorw("Failed to get password", "error", err)
+			return
+		}
+	} else {
+		password, err = generatePassword(12) // Generate a random password of length 12
+		if err != nil {
+			sugar.Errorw("Failed to generate password", "error", err)
+			return
+		}
 	}
 
 	newUser := relational.User{

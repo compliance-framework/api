@@ -12,5 +12,5 @@ var (
 )
 
 func init() {
-	RootCmd.AddCommand(importCmd)
+	RootCmd.AddCommand(newImportCMD())
 }

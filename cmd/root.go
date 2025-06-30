@@ -54,6 +54,7 @@ func init() {
 	rootCmd.AddCommand(RunCmd)
 	rootCmd.AddCommand(oscal.RootCmd)
 	rootCmd.AddCommand(users.RootCmd)
+	rootCmd.AddCommand(newMigrateCMD())
 }
 
 func Execute() error {

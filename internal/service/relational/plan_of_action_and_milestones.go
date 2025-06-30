@@ -21,10 +21,11 @@ type PlanOfActionAndMilestones struct {
 	LocalDefinitions datatypes.JSONType[PlanOfActionAndMilestonesLocalDefinitions] `json:"local-definitions"`
 
 	// Complex entities as proper tables with polymorphic relationships
-	PoamItems    []PoamItem    `json:"poam-items" gorm:"foreignKey:PlanOfActionAndMilestonesID"`
-	Observations []Observation `json:"observations" gorm:"polymorphic:Parent;"`
-	Risks        []Risk        `json:"risks" gorm:"polymorphic:Parent;"`
-	Findings     []Finding     `json:"findings" gorm:"polymorphic:Parent;"`
+	PoamItems []PoamItem `gorm:"foreignKey:PlanOfActionAndMilestonesID"`
+
+	Observations []Observation `gorm:"many2many:poam_observations;"`
+	Risks        []Risk        `gorm:"many2many:poam_risks;"`
+	Findings     []Finding     `gorm:"many2many:poam_findings;"`
 }
 
 // UnmarshalOscal converts an OSCAL PlanOfActionAndMilestones into a relational PlanOfActionAndMilestones.
@@ -59,7 +60,7 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 	if opam.Observations != nil {
 		observations = ConvertList(opam.Observations, func(o oscalTypes_1_1_3.Observation) Observation {
 			obs := Observation{}
-			obs.UnmarshalOscal(o, &id, "PlanOfActionAndMilestones")
+			obs.UnmarshalOscal(o)
 			return obs
 		})
 	}
@@ -68,7 +69,7 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 	if opam.Risks != nil {
 		risks = ConvertList(opam.Risks, func(or oscalTypes_1_1_3.Risk) Risk {
 			r := Risk{}
-			r.UnmarshalOscal(or, id, "PlanOfActionAndMilestones")
+			r.UnmarshalOscal(or)
 			return r
 		})
 	}
@@ -77,7 +78,7 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 	if opam.Findings != nil {
 		findings = ConvertList(opam.Findings, func(of oscalTypes_1_1_3.Finding) Finding {
 			f := Finding{}
-			f.UnmarshalOscal(of, &id, "PlanOfActionAndMilestones")
+			f.UnmarshalOscal(of)
 			return f
 		})
 	}
@@ -174,8 +175,6 @@ func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActio
 // It includes uuid, title, description, statement, props, links, status, origins, threat-ids, characterizations, mitigating-factors, deadline, remediations, risk-log, and related-observations.
 type Risk struct {
 	UUIDModel                                                        // required
-	ParentID            uuid.UUID                                    `gorm:"index"`               // Polymorphic parent reference
-	ParentType          string                                       `gorm:"index"`               // Polymorphic type (POAM or AssessmentResult)
 	Title               string                                       `json:"title"`               // required
 	Description         string                                       `json:"description"`         // required
 	Statement           string                                       `json:"statement"`           // required
@@ -193,7 +192,7 @@ type Risk struct {
 }
 
 // UnmarshalOscal converts an OSCAL Risk into a relational Risk.
-func (r *Risk) UnmarshalOscal(or oscalTypes_1_1_3.Risk, parentID uuid.UUID, parentType string) *Risk {
+func (r *Risk) UnmarshalOscal(or oscalTypes_1_1_3.Risk) *Risk {
 	id := uuid.MustParse(or.UUID)
 
 	props := ConvertOscalToProps(or.Props)
@@ -244,8 +243,6 @@ func (r *Risk) UnmarshalOscal(or oscalTypes_1_1_3.Risk, parentID uuid.UUID, pare
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
-		ParentID:            parentID,
-		ParentType:          parentType,
 		Title:               or.Title,
 		Description:         or.Description,
 		Statement:           or.Statement,
@@ -614,8 +611,6 @@ func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1
 // Observation represents an observation in OSCAL.
 type Observation struct {
 	UUIDModel                                              // required
-	ParentID         *uuid.UUID                            `gorm:"index"`                  // Polymorphic parent reference (optional)
-	ParentType       string                                `gorm:"index"`                  // Polymorphic type (POAM or AssessmentResult)
 	Collected        time.Time                             `json:"collected" gorm:"index"` // required, indexed
 	Description      string                                `json:"description"`            // required
 	Methods          datatypes.JSONSlice[string]           `json:"methods"`                // required, stored as JSON array
@@ -630,7 +625,7 @@ type Observation struct {
 	Types            datatypes.JSONSlice[string]           `json:"types"` // stored as JSON array
 }
 
-func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation, parentID *uuid.UUID, parentType string) *Observation {
+func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation) *Observation {
 	id := uuid.MustParse(oo.UUID)
 
 	links := ConvertOscalToLinks(oo.Links)
@@ -663,8 +658,6 @@ func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation, parentID *
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
-		ParentID:         parentID,
-		ParentType:       parentType,
 		Collected:        oo.Collected,
 		Description:      oo.Description,
 		Methods:          datatypes.NewJSONSlice(oo.Methods),
@@ -752,8 +745,6 @@ func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
 // Finding represents a finding in OSCAL.
 type Finding struct {
 	UUIDModel                                                                      // required
-	ParentID                    *uuid.UUID                                         `gorm:"index"`       // Polymorphic parent reference (optional)
-	ParentType                  string                                             `gorm:"index"`       // Polymorphic type (POAM or AssessmentResult)
 	Description                 string                                             `json:"description"` // required
 	Title                       string                                             `json:"title"`       // required
 	Target                      datatypes.JSONType[oscalTypes_1_1_3.FindingTarget] `json:"target"`      // required
@@ -770,7 +761,7 @@ type Finding struct {
 	Remarks                 *string                                 `json:"remarks"`
 }
 
-func (f *Finding) UnmarshalOscal(of oscalTypes_1_1_3.Finding, parentID *uuid.UUID, parentType string) *Finding {
+func (f *Finding) UnmarshalOscal(of oscalTypes_1_1_3.Finding) *Finding {
 	id := uuid.MustParse(of.UUID)
 
 	links := ConvertOscalToLinks(of.Links)
@@ -800,8 +791,6 @@ func (f *Finding) UnmarshalOscal(of oscalTypes_1_1_3.Finding, parentID *uuid.UUI
 		UUIDModel: UUIDModel{
 			ID: &id,
 		},
-		ParentID:                    parentID,
-		ParentType:                  parentType,
 		Description:                 of.Description,
 		Title:                       of.Title,
 		Target:                      target,

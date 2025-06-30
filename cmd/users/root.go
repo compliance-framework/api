@@ -11,12 +11,6 @@ var (
 )
 
 func init() {
-	userAddCmd.Flags().StringP("email", "e", "", "Email of the user (required)")
-	userAddCmd.Flags().StringP("first-name", "f", "", "First name of the user (required)")
-	userAddCmd.Flags().StringP("last-name", "l", "", "Last name of the user (required)")
-	userAddCmd.MarkFlagRequired("email")
-	userAddCmd.MarkFlagRequired("first-name")
-	userAddCmd.MarkFlagRequired("last-name")
-
-	RootCmd.AddCommand(userAddCmd)
+	RootCmd.AddCommand(newUserAddCmd())
+	RootCmd.AddCommand(updateUserCmd())
 }

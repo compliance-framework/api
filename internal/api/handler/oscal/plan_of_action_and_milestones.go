@@ -51,10 +51,10 @@ func (h *PlanOfActionAndMilestonesHandler) verifyPoamExists(ctx echo.Context, po
 
 // Register registers POA&M endpoints to the API group.
 func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
-	api.GET("", h.List) // GET /oscal/plan-of-action-and-milestones
-	api.POST("", h.Create) // POST /oscal/plan-of-action-and-milestones
-	api.GET("/:id", h.Get) // GET /oscal/plan-of-action-and-milestones/:id
-	api.PUT("/:id", h.Update) // PUT /oscal/plan-of-action-and-milestones/:id
+	api.GET("", h.List)          // GET /oscal/plan-of-action-and-milestones
+	api.POST("", h.Create)       // POST /oscal/plan-of-action-and-milestones
+	api.GET("/:id", h.Get)       // GET /oscal/plan-of-action-and-milestones/:id
+	api.PUT("/:id", h.Update)    // PUT /oscal/plan-of-action-and-milestones/:id
 	api.DELETE("/:id", h.Delete) // DELETE /oscal/plan-of-action-and-milestones/:id
 	api.GET("/:id/full", h.Full) // GET /oscal/plan-of-action-and-milestones/:id/full
 	api.GET("/:id/metadata", h.GetMetadata)
@@ -193,7 +193,7 @@ func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 		h.sugar.Errorw("failed to list poams", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	
+
 	oscalPoams := make([]oscalTypes_1_1_3.PlanOfActionAndMilestones, len(poams))
 	for i, poam := range poams {
 		oscalPoams[i] = *poam.MarshalOscal()
@@ -228,7 +228,7 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	
+
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]{Data: *poam.MarshalOscal()})
 }
 
@@ -282,21 +282,15 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Observations").First(&poam, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
 		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	// Query polymorphic observations directly
-	var observations []relational.Observation
-	if err := h.db.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Find(&observations).Error; err != nil {
-		h.sugar.Errorw("failed to get observations", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	oscalObs := make([]oscalTypes_1_1_3.Observation, len(observations))
-	for i, obs := range observations {
+	oscalObs := make([]oscalTypes_1_1_3.Observation, len(poam.Observations))
+	for i, obs := range poam.Observations {
 		oscalObs[i] = *obs.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Observation]{Data: oscalObs})
@@ -322,7 +316,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Risks").First(&poam, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -330,13 +324,8 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	// Query polymorphic risks directly
-	var risks []relational.Risk
-	if err := h.db.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Find(&risks).Error; err != nil {
-		h.sugar.Errorw("failed to get risks", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	oscalRisks := make([]oscalTypes_1_1_3.Risk, len(risks))
-	for i, risk := range risks {
+	oscalRisks := make([]oscalTypes_1_1_3.Risk, len(poam.Risks))
+	for i, risk := range poam.Risks {
 		oscalRisks[i] = *risk.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Risk]{Data: oscalRisks})
@@ -362,21 +351,15 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
-	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Findings").First(&poam, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
 		h.sugar.Warnw("Failed to load POA&M", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	// Query polymorphic findings directly
-	var findings []relational.Finding
-	if err := h.db.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Find(&findings).Error; err != nil {
-		h.sugar.Errorw("failed to get findings", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	oscalFindings := make([]oscalTypes_1_1_3.Finding, len(findings))
-	for i, finding := range findings {
+	oscalFindings := make([]oscalTypes_1_1_3.Finding, len(poam.Findings))
+	for i, finding := range poam.Findings {
 		oscalFindings[i] = *finding.MarshalOscal()
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Finding]{Data: oscalFindings})
@@ -646,9 +629,12 @@ func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) e
 	}
 
 	relObs := &relational.Observation{}
-	relObs.UnmarshalOscal(oscalObs, &id, "plan_of_action_and_milestones")
+	relObs.UnmarshalOscal(oscalObs)
 
-	if err := h.db.Create(relObs).Error; err != nil {
+	poam := relational.PlanOfActionAndMilestones{UUIDModel: relational.UUIDModel{
+		ID: &id,
+	}}
+	if err := h.db.Model(&poam).Association("Observations").Append(relObs); err != nil {
 		h.sugar.Errorf("Failed to create observation: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -696,9 +682,12 @@ func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
 	}
 
 	relRisk := &relational.Risk{}
-	relRisk.UnmarshalOscal(oscalRisk, id, "plan_of_action_and_milestones")
+	relRisk.UnmarshalOscal(oscalRisk)
 
-	if err := h.db.Create(relRisk).Error; err != nil {
+	poam := relational.PlanOfActionAndMilestones{UUIDModel: relational.UUIDModel{
+		ID: &id,
+	}}
+	if err := h.db.Model(&poam).Association("Risks").Append(relRisk); err != nil {
 		h.sugar.Errorf("Failed to create risk: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -746,9 +735,12 @@ func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error
 	}
 
 	relFinding := &relational.Finding{}
-	relFinding.UnmarshalOscal(oscalFinding, &id, "plan_of_action_and_milestones")
+	relFinding.UnmarshalOscal(oscalFinding)
 
-	if err := h.db.Create(relFinding).Error; err != nil {
+	poam := relational.PlanOfActionAndMilestones{UUIDModel: relational.UUIDModel{
+		ID: &id,
+	}}
+	if err := h.db.Model(&poam).Association("Findings").Append(relFinding); err != nil {
 		h.sugar.Errorf("Failed to create finding: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -906,9 +898,14 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 		return err
 	}
 
-	// Check if observation exists and belongs to this POAM
-	var existingObs relational.Observation
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", obsID, poamID, "plan_of_action_and_milestones").First(&existingObs).Error; err != nil {
+	// Check if risk exists and belongs to this POAM
+	var existingObs []relational.Observation
+	err = h.db.Model(&relational.PlanOfActionAndMilestones{
+		UUIDModel: relational.UUIDModel{
+			ID: &poamID,
+		},
+	}).Where("id = ?", obsID).Association("Observations").Find(&existingObs)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -925,8 +922,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 
 	// Update with preserved IDs and relationships
 	relObs := &relational.Observation{}
-	relObs.UnmarshalOscal(oscalObs, &poamID, "plan_of_action_and_milestones")
-	relObs.ID = &obsID // Preserve the existing ID
+	relObs.UnmarshalOscal(oscalObs)
+	relObs.ID = existingObs[0].ID // Preserve the existing ID
 
 	// Save with GORM's Save method
 	if err := h.db.Save(relObs).Error; err != nil {
@@ -974,8 +971,13 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 	}
 
 	// Check if risk exists and belongs to this POAM
-	var existingRisk relational.Risk
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", riskID, poamID, "plan_of_action_and_milestones").First(&existingRisk).Error; err != nil {
+	var existingRisks []relational.Risk
+	err = h.db.Model(&relational.PlanOfActionAndMilestones{
+		UUIDModel: relational.UUIDModel{
+			ID: &poamID,
+		},
+	}).Where("id = ?", riskID).Association("Risks").Find(&existingRisks)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -992,8 +994,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 
 	// Update with preserved IDs and relationships
 	relRisk := &relational.Risk{}
-	relRisk.UnmarshalOscal(oscalRisk, poamID, "plan_of_action_and_milestones")
-	relRisk.ID = &riskID // Preserve the existing ID
+	relRisk.UnmarshalOscal(oscalRisk)
+	relRisk.ID = existingRisks[0].ID // Preserve the existing ID
 
 	// Save with GORM's Save method
 	if err := h.db.Save(relRisk).Error; err != nil {
@@ -1040,9 +1042,14 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 		return err
 	}
 
-	// Check if finding exists and belongs to this POAM
-	var existingFinding relational.Finding
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", findingID, poamID, "plan_of_action_and_milestones").First(&existingFinding).Error; err != nil {
+	// Check if risk exists and belongs to this POAM
+	var existingFindings []relational.Finding
+	err = h.db.Model(&relational.PlanOfActionAndMilestones{
+		UUIDModel: relational.UUIDModel{
+			ID: &poamID,
+		},
+	}).Where("id = ?", findingID).Association("Findings").Find(&existingFindings)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -1059,8 +1066,8 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 
 	// Update with preserved IDs and relationships
 	relFinding := &relational.Finding{}
-	relFinding.UnmarshalOscal(oscalFinding, &poamID, "plan_of_action_and_milestones")
-	relFinding.ID = &findingID // Preserve the existing ID
+	relFinding.UnmarshalOscal(oscalFinding)
+	relFinding.ID = existingFindings[0].ID // Preserve the existing ID
 
 	// Save with GORM's Save method
 	if err := h.db.Save(relFinding).Error; err != nil {
@@ -1138,16 +1145,16 @@ func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) erro
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]{Data: *relPoamItem.MarshalOscal()})
 }
-//
-//	@Summary		Delete a POA&M
-//	@Description	Deletes an existing Plan of Action and Milestones and all its related data.
-//	@Tags			Oscal
-//	@Param			id	path	string	true	"POA&M ID"
-//	@Success		204	"No Content"
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Router			/oscal/plan-of-action-and-milestones/{id} [delete]
+
+// @Summary		Delete a POA&M
+// @Description	Deletes an existing Plan of Action and Milestones and all its related data.
+// @Tags			Oscal
+// @Param			id	path	string	true	"POA&M ID"
+// @Success		204	"No Content"
+// @Failure		400	{object}	api.Error
+// @Failure		404	{object}	api.Error
+// @Failure		500	{object}	api.Error
+// @Router			/oscal/plan-of-action-and-milestones/{id} [delete]
 func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
 	// Parse and validate ID parameter
 	idParam := ctx.Param("id")
@@ -1170,16 +1177,16 @@ func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
 	// Delete all related entities and main record in a transaction
 	err = h.db.Transaction(func(tx *gorm.DB) error {
 		// Delete all related entities first (cascading delete)
-		if err := tx.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Delete(&relational.Observation{}).Error; err != nil {
+		if err := h.db.Model(&existingPoam).Association("Observations").Clear(); err != nil {
 			return fmt.Errorf("failed to delete observations: %v", err)
 		}
 
-		if err := tx.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Delete(&relational.Risk{}).Error; err != nil {
-			return fmt.Errorf("failed to delete risks: %v", err)
+		if err := h.db.Model(&existingPoam).Association("Findings").Clear(); err != nil {
+			return fmt.Errorf("failed to delete findings: %v", err)
 		}
 
-		if err := tx.Where("parent_id = ? AND parent_type = ?", id, "plan_of_action_and_milestones").Delete(&relational.Finding{}).Error; err != nil {
-			return fmt.Errorf("failed to delete findings: %v", err)
+		if err := h.db.Model(&existingPoam).Association("Risks").Clear(); err != nil {
+			return fmt.Errorf("failed to delete risks: %v", err)
 		}
 
 		if err := tx.Where("plan_of_action_and_milestones_id = ?", id).Delete(&relational.PoamItem{}).Error; err != nil {
@@ -1240,17 +1247,15 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteObservation(ctx echo.Context) e
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Delete observation
-	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", obsID, poamID, "plan_of_action_and_milestones").Delete(&relational.Observation{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete observation: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	err = h.db.Model(&poam).Association("Observations").Delete(&relational.Observation{
+		UUIDModel: relational.UUIDModel{
+			ID: &obsID,
+		},
+	})
+	if err != nil {
+		h.sugar.Errorf("Failed to delete finding: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-
-	if result.RowsAffected == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("observation not found")))
-	}
-
 	return ctx.NoContent(http.StatusNoContent)
 }
 
@@ -1292,17 +1297,15 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteRisk(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Delete risk
-	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", riskID, poamID, "plan_of_action_and_milestones").Delete(&relational.Risk{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete risk: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	err = h.db.Model(&poam).Association("Risks").Delete(&relational.Risk{
+		UUIDModel: relational.UUIDModel{
+			ID: &riskID,
+		},
+	})
+	if err != nil {
+		h.sugar.Errorf("Failed to delete finding: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-
-	if result.RowsAffected == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
-	}
-
 	return ctx.NoContent(http.StatusNoContent)
 }
 
@@ -1344,15 +1347,14 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteFinding(ctx echo.Context) error
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Delete finding
-	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", findingID, poamID, "plan_of_action_and_milestones").Delete(&relational.Finding{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete finding: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
-	}
-
-	if result.RowsAffected == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("finding not found")))
+	err = h.db.Model(&poam).Association("Findings").Delete(&relational.Finding{
+		UUIDModel: relational.UUIDModel{
+			ID: &findingID,
+		},
+	})
+	if err != nil {
+		h.sugar.Errorf("Failed to delete finding: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
