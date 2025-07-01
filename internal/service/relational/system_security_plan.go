@@ -907,6 +907,8 @@ type SystemComponent struct {
 	Links            datatypes.JSONSlice[Link]                 `json:"links"`
 
 	SystemImplementationId uuid.UUID
+
+	Evidence []Evidence `gorm:"many2many:evidence_components"`
 }
 
 func (sc *SystemComponent) UnmarshalOscal(osc oscalTypes_1_1_3.SystemComponent) *SystemComponent {
@@ -987,6 +989,8 @@ type InventoryItem struct {
 	ImplementedComponents []ImplementedComponent                `json:"implemented-components"`
 
 	SystemImplementationId uuid.UUID
+
+	Evidence []Evidence `gorm:"many2many:evidence_inventory_items"`
 }
 
 func (ii *InventoryItem) UnmarshalOscal(oii oscalTypes_1_1_3.InventoryItem) *InventoryItem {

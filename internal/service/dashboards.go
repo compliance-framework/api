@@ -2,10 +2,19 @@ package service
 
 import (
 	"context"
+	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
+	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+type Dashboard struct {
+	relational.UUIDModel
+
+	Name   string             `json:"name" yaml:"name" bson:"name"`
+	Filter labelfilter.Filter `bson:"filter" json:"filter" yaml:"filter"`
+}
 
 type DashboardService struct {
 	collection *mongo.Collection
@@ -47,9 +56,9 @@ func (s *DashboardService) List(ctx context.Context) (*[]Dashboard, error) {
 }
 
 func (s *DashboardService) Create(ctx context.Context, dashboard *Dashboard) (*Dashboard, error) {
-	if dashboard.UUID == nil {
+	if dashboard.ID == nil {
 		newId := uuid.New()
-		dashboard.UUID = &newId
+		dashboard.ID = &newId
 	}
 	_, err := s.collection.InsertOne(ctx, dashboard)
 	if err != nil {

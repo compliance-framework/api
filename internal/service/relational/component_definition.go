@@ -118,7 +118,8 @@ type DefinedComponent struct {
 	Links     datatypes.JSONSlice[Link]     `json:"links"`
 	Protocols datatypes.JSONSlice[Protocol] `json:"protocols"`
 
-	ComponentDefinitionID uuid.UUID
+	ComponentDefinitionID *uuid.UUID
+	ComponentDefinition   *ComponentDefinition
 
 	// oscalTypes113.DefinedComponent
 }
@@ -233,6 +234,7 @@ type ControlImplementationSet struct {
 	Links datatypes.JSONSlice[Link] `json:"links"`
 
 	DefinedComponentID uuid.UUID
+	DefinedComponent   DefinedComponent
 }
 
 // UnmarshalOscal converts an OSCAL ControlImplementationSet into a relational ControlImplementationSet.
@@ -509,6 +511,7 @@ type Capability struct {
 	ControlImplementations []ControlImplementationSet                  `json:"control-implementations" gorm:"many2many:capability_control_implementation_sets"`
 
 	ComponentDefinitionId uuid.UUID
+	ComponentDefinition   ComponentDefinition
 }
 
 // UnmarshalOscal converts an OSCAL Capability into a relational Capability.

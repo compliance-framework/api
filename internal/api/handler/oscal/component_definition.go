@@ -653,7 +653,7 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 	for _, component := range components {
 		relationalComponent := relational.DefinedComponent{}
 		relationalComponent.UnmarshalOscal(component)
-		relationalComponent.ComponentDefinitionID = id
+		relationalComponent.ComponentDefinitionID = &id
 		newComponents = append(newComponents, relationalComponent)
 	}
 
@@ -739,7 +739,7 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 	for _, oscalComponent := range oscalComponents {
 		relationalComponent := relational.DefinedComponent{}
 		relationalComponent.UnmarshalOscal(oscalComponent)
-		relationalComponent.ComponentDefinitionID = id
+		relationalComponent.ComponentDefinitionID = &id
 
 		// Check if the component exists first
 		var existingComponent relational.DefinedComponent
@@ -1008,7 +1008,7 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 
 	// Update only the fields that are provided in the request
 	definedComponent.UnmarshalOscal(oscalDefinedComponent)
-	definedComponent.ComponentDefinitionID = id // Ensure proper association
+	definedComponent.ComponentDefinitionID = &id // Ensure proper association
 
 	// Convert struct to map for updates to properly handle zero values
 	updateFields := map[string]any{

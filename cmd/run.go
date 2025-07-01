@@ -11,7 +11,6 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/spf13/cobra"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 )
 
@@ -35,12 +34,6 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	config := config.NewConfig(sugar)
 
-	mongoDatabase, err := service.ConnectMongo(ctx, options.Client().ApplyURI(config.MongoURI), "cf")
-	if err != nil {
-		sugar.Fatal(err)
-	}
-	defer mongoDatabase.Client().Disconnect(ctx)
-
 	db, err := service.ConnectSQLDb(config, sugar)
 	if err != nil {
 		sugar.Fatal("Failed to connect to SQL database", "err", err)
@@ -53,7 +46,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	server := api.NewServer(ctx, sugar, config)
 
-	handler.RegisterHandlers(server, mongoDatabase, sugar)
+	handler.RegisterHandlers(server, sugar, db, config)
 	oscal.RegisterHandlers(server, sugar, db, config)
 	auth.RegisterHandlers(server, sugar, db, config)
 

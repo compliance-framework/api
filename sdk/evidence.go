@@ -5,18 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compliance-framework/configuration-service/sdk/types"
+	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"net/http"
 )
 
-type findingsClient struct {
+type evidenceClient struct {
 	httpClient *http.Client
 	config     *Config
 }
 
-func (r *findingsClient) Create(ctx context.Context, findings []types.Finding) error {
-	reqBody, _ := json.Marshal(findings)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/findings/", r.config.BaseURL), bytes.NewReader(reqBody))
+func (r *evidenceClient) Create(ctx context.Context, evidence handler.EvidenceCreateRequest) error {
+	reqBody, _ := json.Marshal(evidence)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/evidence", r.config.BaseURL), bytes.NewReader(reqBody))
 	if err != nil {
 		return err
 	}

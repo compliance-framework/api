@@ -174,7 +174,6 @@ func (t *TelephoneNumber) MarshalOscal() *oscaltypes113.TelephoneNumber {
 	return tn
 }
 
-
 type ResponsiblePartyParties struct {
 	ResponsiblePartyID *uuid.UUID `gorm:"primaryKey"`
 	PartyID            *uuid.UUID `gorm:"primaryKey"`
@@ -323,4 +322,9 @@ func (p *Protocol) UnmarshalOscal(op oscaltypes113.Protocol) *Protocol {
 func (p *Protocol) MarshalOscal() *oscaltypes113.Protocol {
 	proto := oscaltypes113.Protocol(*p)
 	return &proto
+}
+
+type Labels struct {
+	Name  string `gorm:"primaryKey" json:"name"`
+	Value string `gorm:"primaryKey" json:"value"`
 }

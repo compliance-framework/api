@@ -100,6 +100,12 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.AssessmentLog{},
 		&relational.AssessmentLogEntry{},
 		&relational.User{},
+
+		&Heartbeat{},
+		&relational.Evidence{},
+		&relational.Labels{},
+		&relational.SelectSubjectById{},
+		&relational.Step{},
 	)
 	return err
 }
@@ -231,6 +237,15 @@ func MigrateDown(db *gorm.DB) error {
 		"poam_risks",
 
 		&relational.User{},
+
+		&Heartbeat{},
+		&relational.Evidence{},
+		"evidence_activities",
+		"evidence_components",
+		"evidence_inventory_items",
+		"evidence_labels",
+		"evidence_subjects",
+		&relational.Labels{},
 	)
 	return err
 }

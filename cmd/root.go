@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/compliance-framework/configuration-service/cmd/oscal"
+	"github.com/compliance-framework/configuration-service/cmd/seed"
 	"github.com/compliance-framework/configuration-service/cmd/users"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -55,6 +56,7 @@ func init() {
 	rootCmd.AddCommand(RunCmd)
 	rootCmd.AddCommand(oscal.RootCmd)
 	rootCmd.AddCommand(users.RootCmd)
+	rootCmd.AddCommand(seed.RootCmd)
 	rootCmd.AddCommand(newMigrateCMD())
 }
 

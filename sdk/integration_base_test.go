@@ -4,40 +4,34 @@ package sdk_test
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"github.com/compliance-framework/configuration-service/internal/api"
+	"github.com/compliance-framework/configuration-service/internal/api/handler"
+	"github.com/compliance-framework/configuration-service/internal/authn"
+	"github.com/compliance-framework/configuration-service/internal/config"
+	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/configuration-service/internal/tests"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/sdk"
-	"github.com/docker/go-connections/nat"
 	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	postgresContainers "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"go.uber.org/zap"
-)
-
-var (
-	mongoPort     = "27017"
-	mongoDatabase = "testdb"
-	mongoUser     = "root"
-	mongoPassword = "pass"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type IntegrationBaseTestSuite struct {
 	suite.Suite
 
-	MongoContainer testcontainers.Container
-	MongoClient    *mongo.Client
-	MongoDatabase  *mongo.Database
+	Migrator    *tests.TestMigrator
+	DB          *gorm.DB
+	dbcontainer *postgresContainers.PostgresContainer // We generate a unique name for each run, so we can run tests concurrently.
+	Config      *config.Config
 
 	Server *api.Server
 }
@@ -50,24 +44,60 @@ func (suite *IntegrationBaseTestSuite) GetSDKTestClient() *sdk.Client {
 }
 
 func (suite *IntegrationBaseTestSuite) SetupSuite() {
-	var err error
 	ctx := context.Background()
 
-	// Set up a MongoDB container so we can run tests against a real database
-	suite.MongoContainer, suite.MongoClient, suite.MongoDatabase, err = setupIntegrationMongo(ctx)
+	var err error
+	cfg := &config.Config{}
+	privKey, pubKey, err := config.GenerateKeyPair(2048)
+	suite.NoError(err, "failed to generate RSA key pair")
+
+	cfg.JWTPrivateKey = privKey
+	cfg.JWTPublicKey = pubKey
+	suite.Config = cfg
+
+	postgresContainer, err := postgresContainers.Run(ctx,
+		"postgres:17.5",
+		postgresContainers.WithDatabase("ccf"),
+		postgresContainers.WithUsername("postgres"),
+		postgresContainers.WithPassword("postgres"),
+		postgresContainers.BasicWaitStrategies(),
+	)
 	if err != nil {
-		fmt.Println("Failed")
-		suite.T().Fatal(err, "Failed to setup Mongo")
+		panic(err)
 	}
 
-	cfg := &config.Config{
-		APIAllowedOrigins: []string{"*"},
+	// explicitly set sslmode=disable because the container is not configured to use TLS
+	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable", "application_name=ccf")
+	if err != nil {
+		panic(err)
 	}
+	suite.dbcontainer = postgresContainer
+
+	db, err := gorm.Open(postgres.Open(connStr), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	migrator := tests.NewTestMigrator(db)
+
+	suite.DB = db
+	suite.Migrator = migrator
+
+	err = suite.Migrator.Up()
+	suite.NoError(err, "failed to migrate")
+
+	err = suite.Migrator.CreateUser()
+	suite.NoError(err, "failed to create test user")
+
+	suite.Config.APIAllowedOrigins = []string{"*"}
 
 	// Next setup a full running echo server, so we can run tests against it.
 	logger, _ := zap.NewDevelopment()
 	server := api.NewServer(context.Background(), logger.Sugar(), cfg)
-	handler.RegisterHandlers(server, suite.MongoDatabase, logger.Sugar())
+	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
 	suite.Server = server
 
 	errChan := make(chan error)
@@ -78,78 +108,23 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 		}
 	}()
 	err = waitForServerStart(suite.Server.E(), errChan, false)
-
-	assert.NoError(suite.T(), err)
 }
 
 func (suite *IntegrationBaseTestSuite) TearDownSuite() {
-	_ = suite.MongoContainer.Terminate(context.Background())
-
-	log.Println("Stopping Echo Server")
-	if err := suite.Server.E().Shutdown(context.Background()); err != nil {
-		suite.T().Error(err)
+	err := testcontainers.TerminateContainer(suite.dbcontainer)
+	if err != nil {
+		suite.T().Fatal(err)
 	}
 }
 
-func setupIntegrationMongo(ctx context.Context) (testcontainers.Container, *mongo.Client, *mongo.Database, error) {
-	container, err := createMongoContainer(ctx)
-	if err != nil {
-		return nil, nil, nil, err
+func (suite *IntegrationBaseTestSuite) GetAuthToken() (*string, error) {
+	dummyUser := relational.User{
+		Email:     "dummy@example.com",
+		FirstName: "Dummy",
+		LastName:  "User",
 	}
 
-	port, err := nat.NewPort("tcp", mongoPort)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	containerPort, err := container.MappedPort(ctx, port)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	uri := fmt.Sprintf("mongodb://%s:%s@localhost:%s", mongoUser, mongoPassword, containerPort.Port())
-
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	database := client.Database(mongoDatabase)
-
-	return container, client, database, nil
-}
-
-func createMongoContainer(ctx context.Context) (testcontainers.Container, error) {
-	var env = map[string]string{
-		"MONGO_INITDB_ROOT_USERNAME": mongoUser,
-		"MONGO_INITDB_ROOT_PASSWORD": mongoPassword,
-		"MONGO_INITDB_DATABASE":      mongoDatabase,
-	}
-	var port = mongoPort + "/tcp"
-
-	req := testcontainers.GenericContainerRequest{
-		ProviderType: testcontainers.ProviderPodman,
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "mongo",
-			ExposedPorts: []string{port},
-			Env:          env,
-		},
-		Started: true,
-	}
-	container, err := testcontainers.GenericContainer(ctx, req)
-	if err != nil {
-		return container, fmt.Errorf("failed to start container: %v", err)
-	}
-
-	p, err := container.MappedPort(ctx, "27017")
-	if err != nil {
-		return container, fmt.Errorf("failed to get container external port: %v", err)
-	}
-
-	log.Println("mongo container ready and running at port: ", p.Port())
-
-	return container, nil
+	return authn.GenerateJWTToken(&dummyUser, suite.Config.JWTPrivateKey)
 }
 
 func waitForServerStart(e *echo.Echo, errChan <-chan error, isTLS bool) error {

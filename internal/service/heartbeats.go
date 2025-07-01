@@ -2,11 +2,19 @@ package service
 
 import (
 	"context"
+	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"time"
 )
+
+type Heartbeat struct {
+	relational.UUIDModel
+
+	UUID      uuid.UUID `gorm:"index"`
+	CreatedAt time.Time `gorm:"index"`
+}
 
 type HeartbeatService struct {
 	collection *mongo.Collection
@@ -16,29 +24,6 @@ func NewHeartbeatService(db *mongo.Database) *HeartbeatService {
 	return &HeartbeatService{
 		collection: db.Collection("heartbeats"),
 	}
-}
-
-type Heartbeat struct {
-	Id      *uuid.UUID `bson:"_id,omitempty" json:"_id"`
-	Uuid    uuid.UUID  `bson:"uuid" json:"uuid"`
-	Created *time.Time `bson:"created" json:"created,omitempty"`
-}
-
-// Create inserts a new component. It assigns a new UUID if the ID is nil.
-func (s *HeartbeatService) Create(ctx context.Context, heartbeat *Heartbeat) (*Heartbeat, error) {
-	if heartbeat.Created == nil {
-		created := time.Now()
-		heartbeat.Created = &created
-	}
-	if heartbeat.Id == nil {
-		id := uuid.New()
-		heartbeat.Id = &id
-	}
-	_, err := s.collection.InsertOne(ctx, heartbeat)
-	if err != nil {
-		return nil, err
-	}
-	return heartbeat, nil
 }
 
 func (s *HeartbeatService) getIntervalledHeartbeatPipeline(ctx context.Context, interval time.Duration) []bson.D {
