@@ -51,12 +51,13 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatal("Failed to migrate database", "err", err)
 	}
 
-	server := api.NewServer(ctx, sugar)
+	server := api.NewServer(ctx, sugar, config)
 
 	handler.RegisterHandlers(server, mongoDatabase, sugar)
 	oscal.RegisterHandlers(server, sugar, db, config)
 	auth.RegisterHandlers(server, sugar, db, config)
 
+	sugar.Infow("Allowed Origins", "origins", config.APIAllowedOrigins)
 	server.PrintRoutes()
 
 	checkErr(server.Start(config.AppPort), sugar)

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/rsa"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -17,14 +18,19 @@ func JWTMiddleware(publicKey *rsa.PublicKey) echo.MiddlewareFunc {
 				// Allow preflight requests without authentication
 				return next(c)
 			}
+			var tokenString string
 
-			authHeader := c.Request().Header.Get("Authorization")
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "missing or malformed authorization header")
+			authTokenCookie, err := c.Cookie("ccf_auth_token")
+			if err == nil {
+				// Valid cookie found
+				tokenString = authTokenCookie.Value
+			} else {
+				tokenString, err = getTokenFromHeader(c.Request().Header.Get("Authorization"))
+				if err != nil {
+					return echo.NewHTTPError(http.StatusUnauthorized, err)
+				}
 			}
 
-			tokenString := parts[1]
 			claims, err := authn.VerifyJWTToken(tokenString, publicKey)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
@@ -35,4 +41,12 @@ func JWTMiddleware(publicKey *rsa.PublicKey) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+func getTokenFromHeader(authHeader string) (string, error) {
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return "", errors.New("missing or malformed authorization header")
+	}
+	return parts[1], nil
 }

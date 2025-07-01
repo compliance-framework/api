@@ -40,7 +40,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) SetupSuite() {
 	// Setup logger and server once for all tests
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
-	suite.server = api.NewServer(context.Background(), suite.logger)
+	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 	fmt.Println("Server initialized")
 }
@@ -676,7 +676,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMSingle() {
 
 func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMFull() {
 	poamUUID := suite.createBasicPOAM()
-	
+
 	// Add some related entities
 	obsUUID := uuid.New().String()
 	riskUUID := uuid.New().String()
@@ -741,24 +741,24 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPOAMFull() {
 	var fullResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestones]
 	err := json.Unmarshal(fullRec.Body.Bytes(), &fullResponse)
 	suite.Require().NoError(err)
-	
+
 	// Verify main POA&M data
 	suite.Equal(poamUUID, fullResponse.Data.UUID)
 	suite.Equal("Test POA&M", fullResponse.Data.Metadata.Title)
-	
+
 	// Verify all relationships are loaded
 	suite.Require().NotNil(fullResponse.Data.Observations)
 	suite.Equal(1, len(*fullResponse.Data.Observations))
 	suite.Equal(obsUUID, (*fullResponse.Data.Observations)[0].UUID)
-	
+
 	suite.Require().NotNil(fullResponse.Data.Risks)
 	suite.Equal(1, len(*fullResponse.Data.Risks))
 	suite.Equal(riskUUID, (*fullResponse.Data.Risks)[0].UUID)
-	
+
 	suite.Require().NotNil(fullResponse.Data.Findings)
 	suite.Equal(1, len(*fullResponse.Data.Findings))
 	suite.Equal(findingUUID, (*fullResponse.Data.Findings)[0].UUID)
-	
+
 	suite.Require().NotNil(fullResponse.Data.PoamItems)
 	suite.Equal(1, len(fullResponse.Data.PoamItems))
 	suite.Equal(itemUUID, fullResponse.Data.PoamItems[0].UUID)
@@ -779,7 +779,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetObservations()
 		Collected:   now,
 		Title:       "First Observation",
 	}
-	
+
 	createObs2 := oscaltypes.Observation{
 		UUID:        obs2UUID,
 		Description: "Second test observation",
@@ -832,7 +832,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetRisks() {
 		Status:      "open",
 		Deadline:    &now,
 	}
-	
+
 	createRisk2 := oscaltypes.Risk{
 		UUID:        risk2UUID,
 		Title:       "Second Test Risk",
@@ -886,7 +886,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetFindings() {
 			TargetId: "ac-2_smt.a",
 		},
 	}
-	
+
 	createFinding2 := oscaltypes.Finding{
 		UUID:        finding2UUID,
 		Title:       "Second Test Finding",
@@ -943,7 +943,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPoamItems() {
 			},
 		},
 	}
-	
+
 	createItem2 := oscaltypes.PoamItem{
 		UUID:        item2UUID,
 		Title:       "Second Test POAM Item",
@@ -980,10 +980,10 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetPoamItems() {
 	for _, item := range getResponse.Data {
 		foundItems[item.UUID] = item
 	}
-	
+
 	suite.Equal("First Test POAM Item", foundItems[item1UUID].Title)
 	suite.Equal("Second Test POAM Item", foundItems[item2UUID].Title)
-	
+
 	// Verify properties
 	suite.Require().NotNil(foundItems[item1UUID].Props)
 	suite.Equal("high", (*foundItems[item1UUID].Props)[0].Value)
@@ -1020,7 +1020,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetSpecificFields
 func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetErrors() {
 	// Test 404 for non-existent POA&M
 	nonExistentUUID := uuid.New().String()
-	
+
 	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s", nonExistentUUID), nil)
 	suite.server.E().ServeHTTP(getRec, getReq)
 	suite.Equal(http.StatusNotFound, getRec.Code)
@@ -1032,7 +1032,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestGetErrors() {
 
 	// Test 400 for invalid UUID format
 	invalidUUID := "invalid-uuid-format"
-	
+
 	badRec, badReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s", invalidUUID), nil)
 	suite.server.E().ServeHTTP(badRec, badReq)
 	suite.Equal(http.StatusBadRequest, badRec.Code)
@@ -1110,9 +1110,9 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 			Version:      "1.0.0",
 			Parties: &[]oscaltypes.Party{
 				{
-					UUID: uuid.New().String(),
-					Type: "organization",
-					Name: "Security Team",
+					UUID:           uuid.New().String(),
+					Type:           "organization",
+					Name:           "Security Team",
 					EmailAddresses: &[]string{"security@example.com"},
 				},
 			},
@@ -1314,13 +1314,13 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 	// Verify all relationships loaded
 	suite.Require().NotNil(fullResponse.Data.Observations)
 	suite.Equal(3, len(*fullResponse.Data.Observations))
-	
+
 	suite.Require().NotNil(fullResponse.Data.Risks)
 	suite.Equal(2, len(*fullResponse.Data.Risks))
-	
+
 	suite.Require().NotNil(fullResponse.Data.Findings)
 	suite.Equal(2, len(*fullResponse.Data.Findings))
-	
+
 	suite.Require().NotNil(fullResponse.Data.PoamItems)
 	suite.Equal(3, len(fullResponse.Data.PoamItems))
 
@@ -1344,7 +1344,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 
 	suite.Equal("Updated Production POA&M", verifyResponse.Data.Metadata.Title)
 	suite.Equal("2.0.0", verifyResponse.Data.Metadata.Version)
-	
+
 	// Verify all relationships still exist
 	suite.Require().NotNil(verifyResponse.Data.Observations)
 	suite.Equal(3, len(*verifyResponse.Data.Observations))
@@ -1355,7 +1355,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestComplexPOAMLifecy
 func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestConcurrentPOAMOperations() {
 	// Test concurrent access to database
 	poamUUIDs := make([]string, 5)
-	
+
 	// Create multiple POA&Ms concurrently
 	for i := 0; i < 5; i++ {
 		poamUUIDs[i] = uuid.New().String()
@@ -1433,7 +1433,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseConstrain
 
 	// Test unique constraint violation (duplicate UUID)
 	poamUUID := uuid.New().String()
-	
+
 	createPoam := oscaltypes.PlanOfActionAndMilestones{
 		UUID: poamUUID,
 		Metadata: oscaltypes.Metadata{
@@ -1457,14 +1457,14 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseConstrain
 	// Try to create duplicate POA&M with same UUID
 	duplicatePoam := createPoam
 	duplicatePoam.Metadata.Title = "Duplicate POA&M"
-	
+
 	rec2, req2 := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", duplicatePoam)
 	suite.server.E().ServeHTTP(rec2, req2)
 	suite.Equal(http.StatusInternalServerError, rec2.Code) // Should fail due to unique constraint
 
 	// Test foreign key constraints - try to create observation for non-existent POA&M
 	nonExistentUUID := uuid.New().String()
-	
+
 	obs := oscaltypes.Observation{
 		UUID:        uuid.New().String(),
 		Description: "Test observation for non-existent POA&M",
@@ -1551,7 +1551,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseTransacti
 	var fullResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestones]
 	err := json.Unmarshal(fullRec.Body.Bytes(), &fullResponse)
 	suite.Require().NoError(err)
-	
+
 	suite.Equal(1, len(*fullResponse.Data.Observations))
 	suite.Equal(1, len(*fullResponse.Data.Risks))
 	suite.Equal(1, len(*fullResponse.Data.Findings))
@@ -1631,9 +1631,9 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLargeDatasetPerfo
 	fullRec, fullReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/full", poamUUID), nil)
 	suite.server.E().ServeHTTP(fullRec, fullReq)
 	elapsed := time.Since(start)
-	
+
 	suite.Equal(http.StatusOK, fullRec.Code)
-	
+
 	// Performance assertion - should complete within reasonable time
 	suite.Less(elapsed, 5*time.Second, "Full POA&M retrieval took too long: %v", elapsed)
 
@@ -1650,7 +1650,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLargeDatasetPerfo
 	obsListRec, obsListReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/observations", poamUUID), nil)
 	suite.server.E().ServeHTTP(obsListRec, obsListReq)
 	elapsed = time.Since(start)
-	
+
 	suite.Equal(http.StatusOK, obsListRec.Code)
 	suite.Less(elapsed, 2*time.Second, "Observations list retrieval took too long: %v", elapsed)
 

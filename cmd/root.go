@@ -34,6 +34,7 @@ func configEnvKeys() {
 	viper.BindEnv("jwt_secret")
 	viper.BindEnv("jwt_private_key")
 	viper.BindEnv("jwt_public_key")
+	viper.BindEnv("api_allowed_origins")
 }
 
 func init() {

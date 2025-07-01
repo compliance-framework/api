@@ -42,7 +42,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
@@ -138,7 +138,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
@@ -234,7 +234,7 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
@@ -327,7 +327,7 @@ func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure
@@ -387,7 +387,7 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 	suite.Require().NoError(err)
 	token, err := suite.GetAuthToken()
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create two catalogs with the same group ID structure

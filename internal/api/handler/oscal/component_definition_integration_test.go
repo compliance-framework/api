@@ -40,7 +40,7 @@ func (suite *ComponentDefinitionApiIntegrationSuite) SetupSuite() {
 	// Setup logger and server once for all tests
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
-	suite.server = api.NewServer(context.Background(), suite.logger)
+	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 	fmt.Println("Server initialized")
 }

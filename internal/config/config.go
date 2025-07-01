@@ -27,6 +27,7 @@ type Config struct {
 	JWTSecret          string
 	JWTPrivateKey      *rsa.PrivateKey
 	JWTPublicKey       *rsa.PublicKey
+	APIAllowedOrigins  []string
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -92,6 +93,16 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		appPort = ":" + appPort
 	}
 
+	allowedOrigins := []string{"http*://localhost:*"}
+	if viper.IsSet("api_allowed_origins") {
+		origins := viper.GetStringSlice("api_allowed_origins")
+		if len(origins) > 0 {
+			allowedOrigins = origins
+		} else {
+			logger.Warn("api_allowed_origins is set but empty. Setting to the default", "origins", allowedOrigins)
+		}
+	}
+
 	return &Config{
 		MongoURI:           viper.GetString("mongo_uri"),
 		AppPort:            appPort,
@@ -101,6 +112,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		JWTSecret:          stripQuotes(viper.GetString("jwt_secret")),
 		JWTPrivateKey:      jwtPrivateKey,
 		JWTPublicKey:       jwtPublicKey,
+		APIAllowedOrigins:  allowedOrigins,
 	}
 
 }
