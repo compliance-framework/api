@@ -10,24 +10,13 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - mongodb
       - postgres
     volumes:
       - .:/app
     environment:
-      - MONGO_URI=mongodb://mongodb:27017
       - APP_PORT=8080
       - CCF_DB_DRIVER=postgres
       - CCF_DB_CONNECTION=host=postgres user=postgres password=postgres dbname=ccf port=5432 sslmode=disable
-    networks:
-      - continuous-compliance
-
-  mongodb:
-    image: mongo:latest
-    volumes:
-      - mongo:/data/db
-    ports:
-      - "27017:27017"
     networks:
       - continuous-compliance
 
@@ -48,5 +37,4 @@ networks:
   continuous-compliance:
 
 volumes:
-  mongo:
   postgres:

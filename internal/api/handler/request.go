@@ -4,6 +4,7 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/labstack/echo/v4"
+	"gorm.io/datatypes"
 )
 
 // createPlanRequest defines the request payload for method Create
@@ -18,7 +19,7 @@ func (r *createDashboardRequest) bind(ctx echo.Context, p *service.Dashboard) er
 		return err
 	}
 	p.Name = r.Name
-	p.Filter = r.Filter
+	p.Filter = datatypes.NewJSONType(r.Filter)
 	return nil
 }
 

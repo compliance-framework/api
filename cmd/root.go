@@ -27,7 +27,6 @@ func configSetDefaults() {
 
 func configEnvKeys() {
 	viper.SetEnvPrefix("ccf")
-	viper.BindEnv("mongo_uri", "MONGO_URI")
 	viper.BindEnv("app_port", "APP_PORT")
 	viper.BindEnv("db_driver")
 	viper.BindEnv("db_connection")

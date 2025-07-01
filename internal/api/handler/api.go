@@ -3,8 +3,6 @@ package handler
 import (
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/config"
-	//"github.com/compliance-framework/configuration-service/internal/service"
-	//"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

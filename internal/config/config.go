@@ -19,7 +19,6 @@ var (
 )
 
 type Config struct {
-	MongoURI           string
 	AppPort            string
 	DBDriver           string
 	DBConnectionString string
@@ -31,11 +30,6 @@ type Config struct {
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
-	// for non-default but required variables, make sure the user is aware
-	if !viper.IsSet("mongo_uri") {
-		logger.Fatal("MONGO_URI is not set. Please set it in the environment or .env file.")
-	}
-
 	if !viper.IsSet("db_driver") {
 		logger.Fatal(
 			"CCF_DB_DRIVER is not set. Please set it in the environment or .env file. Expected values: ",
@@ -104,7 +98,6 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	}
 
 	return &Config{
-		MongoURI:           viper.GetString("mongo_uri"),
 		AppPort:            appPort,
 		DBDriver:           dbDriver,
 		DBConnectionString: stripQuotes(viper.GetString("db_connection")),
