@@ -40,7 +40,7 @@ func (h *AuthHandler) Register(api *echo.Group) {
 //
 //	@Summary		Login user
 //	@Description	Login user and returns a JWT token and sets a cookie with the token
-//	@Tags			auth
+//	@Tags			Auth
 //	@Accept			json
 //	@Produce		json
 //	@Param			loginRequest	body		auth.AuthHandler.LoginUser.loginRequest	true	"Login Data"
@@ -110,7 +110,7 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 //
 //	@Summary		Get OAuth2 token
 //	@Description	Get OAuth2 token using username and password
-//	@Tags			auth
+//	@Tags			Auth
 //	@Accept			x-www-form-urlencoded
 //	@Produce		json
 //	@Param			username	formData	string	true	"Username (email)"
@@ -205,7 +205,7 @@ func (h *AuthHandler) GetPublicKeyPEM(ctx echo.Context) error {
 //
 //	@Summary		Get JWK
 //	@Description	Get JSON Web Key (JWK) representation of the JWT public key
-//	@Tags			auth
+//	@Tags			Auth
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	authn.JWK

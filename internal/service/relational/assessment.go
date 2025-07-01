@@ -1214,9 +1214,13 @@ func (i *AssessmentSubject) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentSubject
 
 func (i *AssessmentSubject) MarshalOscal() *oscalTypes_1_1_3.AssessmentSubject {
 	ret := &oscalTypes_1_1_3.AssessmentSubject{
-		Description: *i.Description,
-		Remarks:     *i.Remarks,
-		Type:        i.Type,
+		Type: i.Type,
+	}
+	if i.Description != nil {
+		ret.Description = *i.Description
+	}
+	if i.Remarks != nil {
+		ret.Remarks = *i.Remarks
 	}
 	if len(i.Props) > 0 {
 		ret.Props = ConvertPropsToOscal(i.Props)
@@ -1415,10 +1419,12 @@ func (i *Activity) MarshalOscal() *oscalTypes_1_1_3.Activity {
 	ret := &oscalTypes_1_1_3.Activity{
 		UUID:        i.ID.String(),
 		Description: i.Description,
-		Remarks:     *i.Remarks,
 	}
 	if i.Title != nil {
 		ret.Title = *i.Title
+	}
+	if i.Remarks != nil {
+		ret.Remarks = *i.Remarks
 	}
 	if len(i.Props) > 0 {
 		ret.Props = ConvertPropsToOscal(i.Props)
@@ -1452,17 +1458,17 @@ type Step struct {
 	UUIDModel
 	ActivityID uuid.UUID
 
-	Title       *string
-	Description string // required
-	Remarks     *string
+	Title       *string `json:"title,omitempty"`
+	Description string  `json:"description,omitempty"` // required
+	Remarks     *string `json:"remarks,omitempty"`
 
-	Props datatypes.JSONSlice[Prop] `json:"props"`
-	Links datatypes.JSONSlice[Link] `json:"links"`
+	Props datatypes.JSONSlice[Prop] `json:"props,omitempty"`
+	Links datatypes.JSONSlice[Link] `json:"links,omitempty"`
 
-	ResponsibleRoles []ResponsibleRole `gorm:"polymorphic:Parent;"`
+	ResponsibleRoles []ResponsibleRole `gorm:"polymorphic:Parent;" json:"responsible-roles,omitempty"`
 
 	ReviewedControlsID *uuid.UUID
-	ReviewedControls   *ReviewedControls
+	ReviewedControls   *ReviewedControls `json:"reviewed-controls,omitempty"`
 }
 
 func (i *Step) UnmarshalOscal(op oscalTypes_1_1_3.Step) *Step {
@@ -1498,9 +1504,13 @@ func (i *Step) UnmarshalOscal(op oscalTypes_1_1_3.Step) *Step {
 func (i *Step) MarshalOscal() *oscalTypes_1_1_3.Step {
 	ret := &oscalTypes_1_1_3.Step{
 		UUID:        i.ID.String(),
-		Title:       *i.Title,
 		Description: i.Description,
-		Remarks:     *i.Remarks,
+	}
+	if i.Remarks != nil {
+		ret.Remarks = *i.Remarks
+	}
+	if i.Title != nil {
+		ret.Title = *i.Title
 	}
 	if len(i.Props) > 0 {
 		ret.Props = ConvertPropsToOscal(i.Props)

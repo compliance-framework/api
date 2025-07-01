@@ -56,7 +56,7 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 //
 //	@Summary		List System Security Plans
 //	@Description	Retrieves all System Security Plans.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemSecurityPlan]
 //	@Failure		400	{object}	api.Error
@@ -92,7 +92,7 @@ func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
 //
 //	@Summary		Get a System Security Plan
 //	@Description	Retrieves a single System Security Plan by its unique ID.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
@@ -134,7 +134,7 @@ func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
 //
 //	@Summary		Create a System Security Plan
 //	@Description	Creates a System Security Plan from input.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
 //	@Failure		400	{object}	api.Error
@@ -174,7 +174,7 @@ func (h *SystemSecurityPlanHandler) Create(ctx echo.Context) error {
 //
 //	@Summary		Get System Characteristics
 //	@Description	Retrieves the System Characteristics for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemCharacteristics]
@@ -210,7 +210,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristics(ctx echo.Context) error {
 //
 //	@Summary		Get Network Architecture
 //	@Description	Retrieves the Network Architecture for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.NetworkArchitecture]
@@ -249,7 +249,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx ec
 //
 //	@Summary		Update a Network Architecture Diagram
 //	@Description	Updates a specific Diagram under the Network Architecture of a System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"System Security Plan ID"
@@ -323,7 +323,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiag
 //
 //	@Summary		Get Data Flow
 //	@Description	Retrieves the Data Flow for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.DataFlow]
@@ -362,7 +362,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context)
 //
 //	@Summary		Update a Data Flow Diagram
 //	@Description	Updates a specific Diagram under the Data Flow of a System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"System Security Plan ID"
@@ -436,7 +436,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx ech
 //
 //	@Summary		Get Authorization Boundary
 //	@Description	Retrieves the Authorization Boundary for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AuthorizationBoundary]
@@ -475,7 +475,7 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx 
 //
 //	@Summary		Update an Authorization Boundary Diagram
 //	@Description	Updates a specific Diagram under the Authorization Boundary of a System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"System Security Plan ID"
@@ -553,7 +553,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDi
 //
 //	@Summary		Update System Characteristics
 //	@Description	Updates the System Characteristics for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id				path		string									true	"System Security Plan ID"
@@ -607,7 +607,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 //
 //	@Summary		Get System Implementation
 //	@Description	Retrieves the System Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]
@@ -643,7 +643,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementation(ctx echo.Context) er
 //
 //	@Summary		List System Implementation Users
 //	@Description	Retrieves users in the System Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemUser]
@@ -681,7 +681,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationUsers(ctx echo.Contex
 //
 //	@Summary		List System Implementation Components
 //	@Description	Retrieves components in the System Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]
@@ -718,7 +718,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.C
 //
 //	@Summary		List System Implementation Inventory Items
 //	@Description	Retrieves inventory items in the System Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.InventoryItem]
@@ -756,7 +756,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationInventoryItems(ctx ec
 //
 //	@Summary		List System Implementation Leveraged Authorizations
 //	@Description	Retrieves leveraged authorizations in the System Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.LeveragedAuthorization]
@@ -793,7 +793,7 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationLeveragedAuthorizatio
 //
 //	@Summary		Get Control Implementation
 //	@Description	Retrieves the Control Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"System Security Plan ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]

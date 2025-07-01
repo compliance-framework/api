@@ -20,7 +20,7 @@ import (
 
 // PlanOfActionAndMilestonesHandler handles OSCAL Plan of Action and Milestones (POA&M) endpoints.
 //
-//	@Tags	Oscal
+//	@Tags	Plan Of Action and Milestones
 //
 // All types are defined in oscalTypes_1_1_3 (see types.go)
 type PlanOfActionAndMilestonesHandler struct {
@@ -181,7 +181,7 @@ func (h *PlanOfActionAndMilestonesHandler) validatePoamItemInput(item *oscalType
 //
 //	@Summary		List POA&Ms
 //	@Description	Retrieves all Plan of Action and Milestones.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
 //	@Failure		400	{object}	api.Error
@@ -205,7 +205,7 @@ func (h *PlanOfActionAndMilestonesHandler) List(ctx echo.Context) error {
 //
 //	@Summary		Get a POA&M
 //	@Description	Retrieves a single Plan of Action and Milestones by its unique ID.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
@@ -236,7 +236,7 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 //
 //	@Summary		Get a complete POA&M
 //	@Description	Retrieves a complete POA&M by its ID, including all metadata and related objects.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestones]
@@ -266,7 +266,7 @@ func (h *PlanOfActionAndMilestonesHandler) Full(ctx echo.Context) error {
 //
 //	@Summary		Get observations for a POA&M
 //	@Description	Retrieves all observations for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Observation]
@@ -300,7 +300,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetObservations(ctx echo.Context) err
 //
 //	@Summary		Get risks for a POA&M
 //	@Description	Retrieves all risks for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Risk]
@@ -335,7 +335,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetRisks(ctx echo.Context) error {
 //
 //	@Summary		Get findings for a POA&M
 //	@Description	Retrieves all findings for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Finding]
@@ -369,7 +369,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetFindings(ctx echo.Context) error {
 //
 //	@Summary		Get POA&M items
 //	@Description	Retrieves all POA&M items for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.PoamItem]
@@ -403,7 +403,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetPoamItems(ctx echo.Context) error 
 //
 //	@Summary		Get POA&M metadata
 //	@Description	Retrieves metadata for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]
@@ -430,7 +430,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetMetadata(ctx echo.Context) error {
 //
 //	@Summary		Get POA&M import-ssp
 //	@Description	Retrieves import-ssp for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ImportSsp]
@@ -461,7 +461,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error 
 //
 //	@Summary		Get POA&M system-id
 //	@Description	Retrieves system-id for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemId]
@@ -492,7 +492,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
 //
 //	@Summary		Get POA&M local definitions
 //	@Description	Retrieves local definitions for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
@@ -523,7 +523,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 //
 //	@Summary		Get POA&M back-matter
 //	@Description	Retrieves back-matter for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Produce		json
 //	@Param			id	path		string	true	"POA&M ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
@@ -553,7 +553,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error
 //
 //	@Summary		Create a new POA&M
 //	@Description	Creates a new Plan of Action and Milestones.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			poam	body		oscalTypes_1_1_3.PlanOfActionAndMilestones	true	"POA&M data"
@@ -593,7 +593,7 @@ func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
 //
 //	@Summary		Create a new observation for a POA&M
 //	@Description	Creates a new observation for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string							true	"POA&M ID"
@@ -646,7 +646,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) e
 //
 //	@Summary		Create a new risk for a POA&M
 //	@Description	Creates a new risk for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"POA&M ID"
@@ -699,7 +699,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
 //
 //	@Summary		Create a new finding for a POA&M
 //	@Description	Creates a new finding for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"POA&M ID"
@@ -752,7 +752,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error
 //
 //	@Summary		Create a new POAM item for a POA&M
 //	@Description	Creates a new POAM item for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"POA&M ID"
@@ -802,7 +802,7 @@ func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) erro
 //
 //	@Summary		Update a POA&M
 //	@Description	Updates an existing Plan of Action and Milestones.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string										true	"POA&M ID"
@@ -866,7 +866,7 @@ func (h *PlanOfActionAndMilestonesHandler) Update(ctx echo.Context) error {
 //
 //	@Summary		Update an observation for a POA&M
 //	@Description	Updates an existing observation for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string							true	"POA&M ID"
@@ -938,7 +938,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 //
 //	@Summary		Update a risk for a POA&M
 //	@Description	Updates an existing risk for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"POA&M ID"
@@ -1010,7 +1010,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 //
 //	@Summary		Update a finding for a POA&M
 //	@Description	Updates an existing finding for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"POA&M ID"
@@ -1082,7 +1082,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 //
 //	@Summary		Update a POAM item for a POA&M
 //	@Description	Updates an existing POAM item for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"POA&M ID"
@@ -1146,15 +1146,17 @@ func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) erro
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PoamItem]{Data: *relPoamItem.MarshalOscal()})
 }
 
-// @Summary		Delete a POA&M
-// @Description	Deletes an existing Plan of Action and Milestones and all its related data.
-// @Tags			Oscal
-// @Param			id	path	string	true	"POA&M ID"
-// @Success		204	"No Content"
-// @Failure		400	{object}	api.Error
-// @Failure		404	{object}	api.Error
-// @Failure		500	{object}	api.Error
-// @Router			/oscal/plan-of-action-and-milestones/{id} [delete]
+// Delete
+//
+//	@Summary		Delete a POA&M
+//	@Description	Deletes an existing Plan of Action and Milestones and all its related data.
+//	@Tags			Plan Of Action and Milestones
+//	@Param			id	path	string	true	"POA&M ID"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id} [delete]
 func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
 	// Parse and validate ID parameter
 	idParam := ctx.Param("id")
@@ -1213,7 +1215,7 @@ func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
 //
 //	@Summary		Delete an observation from a POA&M
 //	@Description	Deletes an existing observation for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Param			id		path	string	true	"POA&M ID"
 //	@Param			obsId	path	string	true	"Observation ID"
 //	@Success		204		"No Content"
@@ -1263,7 +1265,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteObservation(ctx echo.Context) e
 //
 //	@Summary		Delete a risk from a POA&M
 //	@Description	Deletes an existing risk for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Param			id		path	string	true	"POA&M ID"
 //	@Param			riskId	path	string	true	"Risk ID"
 //	@Success		204		"No Content"
@@ -1313,7 +1315,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteRisk(ctx echo.Context) error {
 //
 //	@Summary		Delete a finding from a POA&M
 //	@Description	Deletes an existing finding for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Param			id			path	string	true	"POA&M ID"
 //	@Param			findingId	path	string	true	"Finding ID"
 //	@Success		204			"No Content"
@@ -1364,7 +1366,7 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteFinding(ctx echo.Context) error
 //
 //	@Summary		Delete a POAM item from a POA&M
 //	@Description	Deletes an existing POAM item for a given POA&M.
-//	@Tags			Oscal
+//	@Tags			Plan Of Action and Milestones
 //	@Param			id		path	string	true	"POA&M ID"
 //	@Param			itemId	path	string	true	"POAM Item ID"
 //	@Success		204		"No Content"

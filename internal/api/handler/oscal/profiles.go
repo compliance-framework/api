@@ -45,7 +45,7 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //
 //	@Summary		List Profiles
 //	@Description	Retrieves all OSCAL profiles
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscal.ProfileHandler.List.response]
 //	@Failure		400	{object}	api.Error
@@ -84,7 +84,7 @@ func (h *ProfileHandler) List(ctx echo.Context) error {
 //
 //	@Summary		Get Profile
 //	@Description	Get an OSCAL profile with the uuid provided
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscal.ProfileHandler.Get.response]
@@ -132,7 +132,7 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 //
 //	@Summary		List Imports
 //	@Description	List imports for a specific profile
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Import]
@@ -173,7 +173,7 @@ func (h *ProfileHandler) ListImports(ctx echo.Context) error {
 //
 //	@Summary		Get Backmatter
 //	@Description	Get the BackMatter for a specific profile
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
@@ -209,7 +209,7 @@ func (h *ProfileHandler) GetBackmatter(ctx echo.Context) error {
 //
 //	@Summary		Resolves a Profile as a stored catalog
 //	@Description	Resolves a Profiled identified by the "profile ID" param and stores a new catalog in the database
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		201	{object}	handler.GenericDataResponse[oscal.ProfileHandler.Resolve.response]
@@ -293,7 +293,7 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 //
 //	@Summary		Create a new OSCAL Profile
 //	@Description	Creates a new OSCAL Profile.
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Accept			json
 //	@Produce		json
 //	@Param			profile	body		oscalTypes_1_1_3.Profile	true	"Profile object"
@@ -328,7 +328,7 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 //
 //	@Summary		Get full Profile
 //	@Description	Retrieves the full OSCAL Profile, including all nested content.
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Produce		json
 //	@Param			id	path		string	true	"Profile ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Profile]
@@ -362,7 +362,7 @@ func (h *ProfileHandler) GetFull(ctx echo.Context) error {
 //
 //	@Summary		Get modify section
 //	@Description	Retrieves the modify section for a specific profile.
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Modify]
@@ -401,7 +401,7 @@ func (h *ProfileHandler) GetModify(ctx echo.Context) error {
 //
 //	@Summary		Get merge section
 //	@Description	Retrieves the merge section for a specific profile.
-//	@Tags			Oscal, Profiles
+//	@Tags			Profile
 //	@Param			id	path	string	true	"Profile ID"
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Merge]

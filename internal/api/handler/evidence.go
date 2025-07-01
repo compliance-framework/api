@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"github.com/compliance-framework/configuration-service/internal"
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
@@ -30,6 +31,8 @@ func NewEvidenceHandler(sugar *zap.SugaredLogger, db *gorm.DB) *EvidenceHandler 
 
 func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
+	api.GET("/:id", h.Get)
+	api.GET("/history/:id", h.History)
 	api.POST("/search", h.Search)
 }
 
@@ -345,6 +348,18 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusCreated)
 }
 
+// Search godoc
+//
+//	@Summary		Search Evidence
+//	@Description	Searches Evidence records by label filters.
+//	@Tags			Evidence
+//	@Accept			json
+//	@Produce		json
+//	@Param			filter	body		labelfilter.Filter	true	"Label filter"
+//	@Success		200		{object}	GenericDataListResponse[relational.Evidence]
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/evidence/search [post]
 func (h *EvidenceHandler) Search(ctx echo.Context) error {
 	var err error
 	filter := &labelfilter.Filter{}
@@ -366,4 +381,144 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[relational.Evidence]{results})
+}
+
+type OscalLikeEvidence struct {
+	relational.Evidence
+	Props          []oscalTypes_1_1_3.Property          `json:"props"`
+	Links          []oscalTypes_1_1_3.Link              `json:"links"`
+	Origins        []oscalTypes_1_1_3.Origin            `json:"origins,omitempty"`
+	Activities     []oscalTypes_1_1_3.Activity          `json:"activities,omitempty"`
+	InventoryItems []oscalTypes_1_1_3.InventoryItem     `json:"inventory-items,omitempty"`
+	Components     []oscalTypes_1_1_3.SystemComponent   `json:"components,omitempty"`
+	Subjects       []oscalTypes_1_1_3.AssessmentSubject `json:"subjects,omitempty"`
+	Status         oscalTypes_1_1_3.ObjectiveStatus     `json:"status"`
+}
+
+func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
+	o.ID = evidence.ID
+	o.UUID = evidence.UUID
+	o.Title = evidence.Title
+	o.Description = evidence.Description
+	o.Remarks = evidence.Remarks
+	o.Start = evidence.Start
+	o.End = evidence.End
+	o.Expires = evidence.Expires
+	o.Labels = evidence.Labels
+	o.Props = *relational.ConvertPropsToOscal(evidence.Props)
+	o.Links = *relational.ConvertLinksToOscal(evidence.Links)
+	o.Subjects = relational.ConvertList(&evidence.Subjects, func(in relational.AssessmentSubject) oscalTypes_1_1_3.AssessmentSubject {
+		return *in.MarshalOscal()
+	})
+	o.Components = relational.ConvertList(&evidence.Components, func(in relational.SystemComponent) oscalTypes_1_1_3.SystemComponent {
+		return *in.MarshalOscal()
+	})
+	o.Activities = relational.ConvertList(&evidence.Activities, func(in relational.Activity) oscalTypes_1_1_3.Activity {
+		return *in.MarshalOscal()
+	})
+	o.InventoryItems = relational.ConvertList(&evidence.InventoryItems, func(in relational.InventoryItem) oscalTypes_1_1_3.InventoryItem {
+		return in.MarshalOscal()
+	})
+	o.Origins = func() []oscalTypes_1_1_3.Origin {
+		out := make([]oscalTypes_1_1_3.Origin, 0)
+		for _, v := range evidence.Origins {
+			out = append(out, oscalTypes_1_1_3.Origin(v))
+		}
+		return out
+	}()
+	o.Status = evidence.Status.Data()
+	return nil
+}
+
+// Get godoc
+//
+//	@Summary		Get Evidence by ID
+//	@Description	Retrieves a single Evidence record by its unique ID, including associated activities, inventory items, components, subjects, and labels.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Evidence ID"
+//	@Success		200	{object}	GenericDataResponse[OscalLikeEvidence]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/{id} [get]
+func (h *EvidenceHandler) Get(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var evidence relational.Evidence
+	if err := h.db.
+		Preload("Labels").
+		Preload("Activities").
+		Preload("Activities.Steps").
+		Preload("InventoryItems").
+		Preload("Components").
+		Preload("Subjects").
+		First(&evidence, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load evidence", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	output := &OscalLikeEvidence{}
+	err = output.FromEvidence(&evidence)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataResponse[*OscalLikeEvidence]{Data: output})
+}
+
+// History godoc
+//
+//	@Summary		Get Evidence history by UUID
+//	@Description	Retrieves a the history for a Evidence record by its UUID, including associated activities, inventory items, components, subjects, and labels.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Evidence ID"
+//	@Success		200	{object}	GenericDataListResponse[OscalLikeEvidence]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/history/{id} [get]
+func (h *EvidenceHandler) History(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var evidences []relational.Evidence
+	if err := h.db.
+		Preload("Labels").
+		Preload("Activities").
+		Preload("Activities.Steps").
+		Preload("InventoryItems").
+		Preload("Components").
+		Preload("Subjects").
+		Find(&evidences, "uuid = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load evidence", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	output := []*OscalLikeEvidence{}
+
+	for _, e := range evidences {
+		out := &OscalLikeEvidence{}
+		err = out.FromEvidence(&e)
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		output = append(output, out)
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[*OscalLikeEvidence]{Data: output})
 }

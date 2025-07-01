@@ -70,7 +70,7 @@ func (h *ComponentDefinitionHandler) Register(api *echo.Group) {
 //
 //	@Summary		List component definitions
 //	@Description	Retrieves all component definitions.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataListResponse[oscal.List.responseComponentDefinition]
 //	@Failure		400	{object}	api.Error
@@ -105,7 +105,7 @@ func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
 //
 //	@Summary		Get a component definition
 //	@Description	Retrieves a single component definition by its unique ID.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseComponentDefinition]
@@ -153,7 +153,7 @@ func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
 //
 //	@Summary		Create a component definition
 //	@Description	Creates a new component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			componentDefinition	body		oscalTypes_1_1_3.ComponentDefinition	true	"Component Definition"
@@ -186,7 +186,7 @@ func (h *ComponentDefinitionHandler) Create(ctx echo.Context) error {
 //
 //	@Summary		Update a component definition
 //	@Description	Updates an existing component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id					path		string									true	"Component Definition ID"
@@ -281,7 +281,7 @@ func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
 //
 //	@Summary		Get a complete Component Definition
 //	@Description	Retrieves a complete Component Definition by its ID, including all metadata and revisions.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]
@@ -338,7 +338,7 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 //
 //	@Summary		Get import component definitions for a defined component
 //	@Description	Retrieves all import component definitions for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id					path		string	true	"Component Definition ID"
 //	@Param			defined-component	path		string	true	"Defined Component ID"
@@ -377,7 +377,7 @@ func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx echo.Cont
 //
 //	@Summary		Create import component definitions for a component definition
 //	@Description	Creates new import component definitions for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id								path		string											true	"Component Definition ID"
 //	@Param			import-component-definitions	body		[]oscalTypes_1_1_3.ImportComponentDefinition	true	"Import Component Definitions"
@@ -464,7 +464,7 @@ func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.C
 //
 //	@Summary		Update import component definitions for a component definition
 //	@Description	Updates the import component definitions for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id								path		string											true	"Component Definition ID"
 //	@Param			import-component-definitions	body		[]oscalTypes_1_1_3.ImportComponentDefinition	true	"Import Component Definitions"
@@ -550,7 +550,7 @@ func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.C
 //
 //	@Summary		Get components for a component definition
 //	@Description	Retrieves all components for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.DefinedComponent]
@@ -590,7 +590,7 @@ func (h *ComponentDefinitionHandler) GetComponents(ctx echo.Context) error {
 //
 //	@Summary		Create components for a component definition
 //	@Description	Creates new components for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string								true	"Component Definition ID"
@@ -693,7 +693,7 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 //
 //	@Summary		Update components for a component definition
 //	@Description	Updates the components for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string								true	"Component Definition ID"
@@ -818,7 +818,7 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 //
 //	@Summary		Get a defined component for a component definition
 //	@Description	Retrieves a defined component for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id					path		string	true	"Component Definition ID"
 //	@Param			defined-component	path		string	true	"Defined Component ID"
@@ -867,7 +867,7 @@ func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx echo.Context) error
 //
 //	@Summary		Create a defined component for a component definition
 //	@Description	Creates a new defined component for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id					path		string								true	"Component Definition ID"
@@ -953,7 +953,7 @@ func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) er
 //
 //	@Summary		Update a defined component for a component definition
 //	@Description	Updates a defined component for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id					path		string								true	"Component Definition ID"
@@ -1066,7 +1066,7 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 //
 //	@Summary		Get control implementations for a defined component
 //	@Description	Retrieves all control implementations for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id					path		string	true	"Component Definition ID"
 //	@Param			defined-component	path		string	true	"Defined Component ID"
@@ -1151,7 +1151,7 @@ func (h *ComponentDefinitionHandler) GetControlImplementations(ctx echo.Context)
 //
 //	@Summary		Create control implementations for a defined component
 //	@Description	Creates new control implementations for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id						path		string										true	"Component Definition ID"
@@ -1234,7 +1234,7 @@ func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Conte
 //
 //	@Summary		Get implemented requirements for a defined component
 //	@Description	Retrieves all implemented requirements for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id					path		string	true	"Component Definition ID"
 //	@Param			defined-component	path		string	true	"Defined Component ID"
@@ -1288,7 +1288,7 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 // //
 // //	@Summary		Create implemented requirements for a control implementation
 // //	@Description	Creates new implemented requirements for a given control implementation.
-// //	@Tags			Oscal
+// //	@Tags			Component Definitions
 // //	@Accept			json
 // //	@Produce		json
 // //	@Param			id							path		string															true	"Component Definition ID"
@@ -1373,7 +1373,7 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 //
 //	@Summary		Get statements for a defined component
 //	@Description	Retrieves all statements for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id					path		string	true	"Component Definition ID"
 //	@Param			defined-component	path		string	true	"Defined Component ID"
@@ -1430,7 +1430,7 @@ func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 // //
 // //	@Summary		Create statements for a control implementation
 // //	@Description	Creates new statements for a given control implementation.
-// //	@Tags			Oscal
+// //	@Tags			Component Definitions
 // //	@Accept			json
 // //	@Produce		json
 // //	@Param			id						path		string												true	"Component Definition ID"
@@ -1538,7 +1538,7 @@ func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
 //
 //	@Summary		Get capabilities for a component definition
 //	@Description	Retrieves all capabilities for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Capability]
@@ -1578,7 +1578,7 @@ func (h *ComponentDefinitionHandler) GetCapabilities(ctx echo.Context) error {
 //
 //	@Summary		Create capabilities for a component definition
 //	@Description	Creates new capabilities for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id				path		string							true	"Component Definition ID"
@@ -1685,7 +1685,7 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 //
 //	@Summary		Get incorporates components for a component definition
 //	@Description	Retrieves all incorporates components for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.IncorporatesComponent]
@@ -1742,7 +1742,7 @@ func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx echo.Context)
 //
 //	@Summary		Create incorporates components for a component definition
 //	@Description	Creates new incorporates components for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id						path		string										true	"Component Definition ID"
@@ -1815,7 +1815,7 @@ func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Conte
 //
 //	@Summary		Get back-matter for a Component Definition
 //	@Description	Retrieves the back-matter for a given Component Definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
@@ -1857,7 +1857,7 @@ func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
 //
 //	@Summary		Create back-matter for a component definition
 //	@Description	Creates new back-matter for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"Component Definition ID"
@@ -1954,7 +1954,7 @@ func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 //
 //	@Summary		Update control implementations for a defined component
 //	@Description	Updates control implementations for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id						path		string										true	"Component Definition ID"
@@ -2055,7 +2055,7 @@ func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Conte
 //
 //	@Summary		Update a single control implementation for a defined component
 //	@Description	Updates a specific control implementation for a given defined component.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id						path		string										true	"Component Definition ID"
@@ -2164,7 +2164,7 @@ func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.
 //
 //	@Summary		Update a capability for a component definition
 //	@Description	Updates a single capability for a given component definition.
-//	@Tags			Oscal
+//	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"Component Definition ID"
