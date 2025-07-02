@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,19 +15,22 @@ import (
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
+	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 type AssessmentPlanHandler struct {
-	sugar *zap.SugaredLogger
-	db    *gorm.DB
+	sugar         *zap.SugaredLogger
+	db            *gorm.DB
+	paginationCfg *service.PaginationConfig
 }
 
 func NewAssessmentPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *AssessmentPlanHandler {
 	return &AssessmentPlanHandler{
-		sugar: sugar,
-		db:    db,
+		sugar:         sugar,
+		db:            db,
+		paginationCfg: service.NewPaginationConfig(),
 	}
 }
 
@@ -139,32 +141,6 @@ func (h *AssessmentPlanHandler) addSelectivePreloads(query *gorm.DB, include str
 	return query
 }
 
-// parsePaginationParams parses and validates pagination parameters
-func (h *AssessmentPlanHandler) parsePaginationParams(ctx echo.Context) (page, limit int, err error) {
-	page = 1
-	limit = 50
-
-	if pageParam := ctx.QueryParam("page"); pageParam != "" {
-		if p, parseErr := strconv.Atoi(pageParam); parseErr == nil && p > 0 {
-			page = p
-		} else if parseErr != nil {
-			return 0, 0, fmt.Errorf("invalid page parameter: %s", pageParam)
-		}
-	}
-
-	if limitParam := ctx.QueryParam("limit"); limitParam != "" {
-		if l, parseErr := strconv.Atoi(limitParam); parseErr == nil && l > 0 && l <= 100 {
-			limit = l
-		} else if parseErr != nil {
-			return 0, 0, fmt.Errorf("invalid limit parameter: %s", limitParam)
-		} else if l > 100 {
-			return 0, 0, fmt.Errorf("limit cannot exceed 100")
-		}
-	}
-
-	return page, limit, nil
-}
-
 // List godoc
 //
 //	@Summary		List Assessment Plans
@@ -182,8 +158,8 @@ func (h *AssessmentPlanHandler) parsePaginationParams(ctx echo.Context) (page, l
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [get]
 func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
-	// Parse pagination parameters
-	page, limit, err := h.parsePaginationParams(ctx)
+	// Parse pagination parameters using the pagination service
+	paginationParams, err := h.paginationCfg.ParseParams(ctx)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -191,8 +167,6 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 	// Parse expansion parameters
 	expand := ctx.QueryParam("expand")
 	include := ctx.QueryParam("include")
-
-	offset := (page - 1) * limit
 
 	var plans []relational.AssessmentPlan
 	var total int64
@@ -208,8 +182,8 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 
 	// Get paginated results
 	if err := query.
-		Offset(offset).
-		Limit(limit).
+		Offset(paginationParams.Offset).
+		Limit(paginationParams.Limit).
 		Find(&plans).Error; err != nil {
 		h.sugar.Error(err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -220,19 +194,8 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 		oscalPlans[i] = *plan.MarshalOscal()
 	}
 
-	response := struct {
-		Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-		Total      int64                             `json:"total"`
-		Page       int                               `json:"page"`
-		Limit      int                               `json:"limit"`
-		TotalPages int                               `json:"totalPages"`
-	}{
-		Data:       oscalPlans,
-		Total:      total,
-		Page:       page,
-		Limit:      limit,
-		TotalPages: int((total + int64(limit) - 1) / int64(limit)),
-	}
+	// Create paginated response using the service
+	response := service.NewListResponse(oscalPlans, total, paginationParams.Page, paginationParams.Limit)
 
 	return ctx.JSON(http.StatusOK, response)
 }
