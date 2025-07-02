@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -499,4 +500,98 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		suite.Len(response.Data, 1)
 		suite.Equal(response.Data[0].Title, "AWS-1")
 	})
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	stream := uuid.New()
+
+	now := time.Now()
+	evidence := []relational.Evidence{
+		{
+			UUID:   stream,
+			Title:  "E1",
+			Start:  now.Add(-2 * time.Minute),
+			End:    now.Add(-1 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+		},
+		{
+			UUID:   stream,
+			Title:  "E2",
+			Start:  now.Add(-12 * time.Minute),
+			End:    now.Add(-10 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		},
+		{
+			UUID:   stream,
+			Title:  "E3",
+			Start:  now.Add(-22 * time.Minute),
+			End:    now.Add(-20 * time.Minute),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+		},
+		{
+			UUID:   stream,
+			Title:  "E4",
+			Start:  now.Add(-6 * time.Hour),
+			End:    now.Add(-5 * time.Hour),
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		},
+	}
+	suite.NoError(suite.DB.Create(&evidence).Error)
+
+	logger, _ := zap.NewDevelopment()
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(struct {
+		Filter labelfilter.Filter
+	}{})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence/status-over-time", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusOK, rec.Code)
+
+	response := struct {
+		Data []struct {
+			Interval time.Time
+			Statuses []struct {
+				Count  int64
+				Status string
+			}
+		} `json:"data"`
+	}{}
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err)
+
+	suite.Len(response.Data, 7)
+
+	// verify counts for each interval
+	toMap := func(in []struct {
+		Count  int64
+		Status string
+	}) map[string]int64 {
+		m := make(map[string]int64)
+		for _, s := range in {
+			m[s.Status] = s.Count
+		}
+		return m
+	}
+
+	counts := toMap(response.Data[0].Statuses)
+	suite.Equal(int64(1), counts["satisfied"])
+	suite.Equal(int64(0), counts["not-satisfied"])
+
+	counts = toMap(response.Data[1].Statuses)
+	suite.Equal(int64(0), counts["satisfied"])
+	suite.Equal(int64(1), counts["not-satisfied"])
+
+	counts = toMap(response.Data[2].Statuses)
+	suite.Equal(int64(1), counts["satisfied"])
+	suite.Equal(int64(0), counts["not-satisfied"])
+
+	counts = toMap(response.Data[3].Statuses)
+	suite.Equal(int64(0), counts["satisfied"])
+	suite.Equal(int64(1), counts["not-satisfied"])
 }
