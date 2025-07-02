@@ -51,24 +51,27 @@ type Evidence struct {
 	Status datatypes.JSONType[oscalTypes_1_1_3.ObjectiveStatus] `json:"status"`
 }
 
-func SearchEvidenceByFilter(db *gorm.DB, filter labelfilter.Filter) (*gorm.DB, error) {
-	//sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-	latest := db.
+func GetLatestEvidenceStreamsQuery(db *gorm.DB) *gorm.DB {
+	query := db.
 		Model(&Evidence{}).
 		Select("DISTINCT ON (uuid) *").
 		Order("uuid").
 		Order("evidences.end desc")
+	return query
+}
 
+func GetEvidenceSearchByFilterQuery(latestQuery *gorm.DB, db *gorm.DB, filter labelfilter.Filter) (*gorm.DB, error) {
+	//sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
 	if filter.Scope != nil {
 		subQuery, err := getScopeClause(db, *filter.Scope)
 		if err != nil {
 			return nil, err
 		}
 		return db.
-			Table("(?) as l", latest).
+			Table("(?) as l", latestQuery).
 			Where(subQuery), nil
 	}
-	return db.Table("(?) as l", latest), nil
+	return db.Table("(?) as l", latestQuery), nil
 }
 
 func getScopeClause(db *gorm.DB, scope labelfilter.Scope) (*gorm.DB, error) {

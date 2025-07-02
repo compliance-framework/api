@@ -79,7 +79,6 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatOverTime() {
 
 	// Seed some heartbeats
 	for range 3 {
-		fmt.Println("#################")
 		id := uuid.New()
 		for i := range 10 {
 			suite.DB.Model(&service.Heartbeat{}).Create(&service.Heartbeat{

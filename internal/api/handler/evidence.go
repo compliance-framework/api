@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"github.com/compliance-framework/configuration-service/internal"
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
@@ -34,6 +35,8 @@ func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.GET("/:id", h.Get)
 	api.GET("/history/:id", h.History)
 	api.POST("/search", h.Search)
+	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID)
+	api.POST("/status-over-time", h.StatusOverTime)
 }
 
 type EvidenceActivityStep struct {
@@ -372,7 +375,7 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 
 	results := []relational.Evidence{}
 	query := h.db.Session(&gorm.Session{})
-	query, err = relational.SearchEvidenceByFilter(h.db, *filter)
+	query, err = relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(h.db), h.db, *filter)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -501,6 +504,7 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 		Preload("InventoryItems").
 		Preload("Components").
 		Preload("Subjects").
+		Order("evidences.end DESC").
 		Find(&evidences, "uuid = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
@@ -521,4 +525,160 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[*OscalLikeEvidence]{Data: output})
+}
+
+// StatusOverTime godoc
+//
+//	@Summary		Evidence status metrics
+//	@Description	Retrieves counts of evidence statuses at various intervals.
+//	@Tags			Evidence
+//	@Accept			json
+//	@Produce		json
+//	@Param			filter	body		labelfilter.Filter	true	"Label filter"
+//	@Success		200		{object}	handler.GenericDataListResponse[handler.StatusOverTime.StatusInterval]
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/evidence/status-over-time [post]
+func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
+	var err error
+	filter := &labelfilter.Filter{}
+	req := filteredSearchRequest{}
+
+	if err = req.bind(ctx, filter); err != nil {
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+	}
+
+	type StatusCount struct {
+		Count  int64  `json:"count"`
+		Status string `json:"status"`
+	}
+
+	type StatusInterval struct {
+		Interval time.Time     `json:"interval"`
+		Statuses []StatusCount `json:"statuses"`
+	}
+
+	intervals := []time.Duration{0, 10 * time.Minute, 20 * time.Minute, 30 * time.Minute, 1 * time.Hour, 2 * time.Hour, 4 * time.Hour}
+	type result struct {
+		idx      int
+		interval time.Time
+		data     []StatusCount
+		err      error
+	}
+
+	ch := make(chan result, len(intervals))
+	now := time.Now()
+	for i, d := range intervals {
+		go func(i int, d time.Duration) {
+			latestQuery := h.db.Session(&gorm.Session{})
+			latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
+			if d > 0 {
+				latestQuery = latestQuery.Where("evidences.end < ?", now.Add(-d).UTC())
+			}
+			q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, *filter)
+			if err != nil {
+				ch <- result{idx: i, err: err}
+				return
+			}
+			rows := []StatusCount{}
+			if err := q.Model(&relational.Evidence{}).
+				Select("count(*) as count, status->>'state' as status").
+				Group("status->>'state'").
+				Scan(&rows).Error; err != nil {
+				ch <- result{idx: i, err: err}
+				return
+			}
+			ch <- result{idx: i, interval: now.Add(-d), data: rows}
+		}(i, d)
+	}
+
+	results := make([]StatusInterval, len(intervals))
+	for range intervals {
+		r := <-ch
+		if r.err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(r.err))
+		}
+		results[r.idx] = StatusInterval{Interval: r.interval, Statuses: r.data}
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusInterval]{Data: results})
+}
+
+// StatusOverTimeByUUID godoc
+//
+//	@Summary		Evidence status metrics
+//	@Description	Retrieves counts of evidence statuses at various intervals.
+//	@Tags			Evidence
+//	@Accept			json
+//	@Produce		json
+//	@Param			filter	body		labelfilter.Filter	true	"Label filter"
+//	@Success		200		{object}	handler.GenericDataListResponse[handler.StatusOverTime.StatusInterval]
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/evidence/status-over-time/{id} [post]
+func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	fmt.Println(id)
+
+	type StatusCount struct {
+		Count  int64  `json:"count"`
+		Status string `json:"status"`
+	}
+
+	type StatusInterval struct {
+		Interval time.Time     `json:"interval"`
+		Statuses []StatusCount `json:"statuses"`
+	}
+
+	intervals := []time.Duration{0, 10 * time.Minute, 20 * time.Minute, 30 * time.Minute, 1 * time.Hour, 2 * time.Hour, 4 * time.Hour}
+	type result struct {
+		idx      int
+		interval time.Time
+		data     []StatusCount
+		err      error
+	}
+
+	ch := make(chan result, len(intervals))
+	now := time.Now()
+	for i, d := range intervals {
+		go func(i int, d time.Duration) {
+			latestQuery := h.db.Session(&gorm.Session{})
+			latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
+			latestQuery = latestQuery.Where("uuid = ?", id.String())
+			if d > 0 {
+				latestQuery = latestQuery.Where("evidences.end < ?", now.Add(-d).UTC())
+			}
+			q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, labelfilter.Filter{})
+			if err != nil {
+				ch <- result{idx: i, err: err}
+				return
+			}
+			rows := []StatusCount{}
+			if err := q.Model(&relational.Evidence{}).
+				Select("count(*) as count, status->>'state' as status").
+				Group("status->>'state'").
+				Scan(&rows).Error; err != nil {
+				ch <- result{idx: i, err: err}
+				return
+			}
+			ch <- result{idx: i, interval: now.Add(-d), data: rows}
+		}(i, d)
+	}
+
+	results := make([]StatusInterval, len(intervals))
+	for range intervals {
+		r := <-ch
+		if r.err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(r.err))
+		}
+		results[r.idx] = StatusInterval{Interval: r.interval, Statuses: r.data}
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusInterval]{Data: results})
 }
