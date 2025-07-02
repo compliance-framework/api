@@ -147,7 +147,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSP() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	ssp := suite.createBasicSSP()
@@ -175,7 +175,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSPValidationError
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	testCases := []struct {
@@ -240,7 +240,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSP() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -273,7 +273,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSPNotFound() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	nonExistentUUID := uuid.New().String()
@@ -292,7 +292,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestListSSPs() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create multiple SSPs
