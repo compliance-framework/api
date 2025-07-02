@@ -1001,12 +1001,12 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 //	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string									true	"SSP ID"
-//	@Param			ssp		body		oscalTypes_1_1_3.SystemSecurityPlan	true	"SSP data"
-//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Param			id	path		string								true	"SSP ID"
+//	@Param			ssp	body		oscalTypes_1_1_3.SystemSecurityPlan	true	"SSP data"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Router			/oscal/system-security-plans/{id} [put]
 func (h *SystemSecurityPlanHandler) Update(ctx echo.Context) error {
 	idParam := ctx.Param("id")
@@ -1214,8 +1214,8 @@ func (h *SystemSecurityPlanHandler) GetImportProfile(ctx echo.Context) error {
 //	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
-//	@Param			id				path		string								true	"SSP ID"
-//	@Param			import-profile	body		oscalTypes_1_1_3.ImportProfile		true	"Import Profile data"
+//	@Param			id				path		string							true	"SSP ID"
+//	@Param			import-profile	body		oscalTypes_1_1_3.ImportProfile	true	"Import Profile data"
 //	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ImportProfile]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error
@@ -2317,7 +2317,7 @@ func (h *SystemSecurityPlanHandler) GetBackMatterResources(ctx echo.Context) err
 //	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string					true	"SSP ID"
+//	@Param			id			path		string						true	"SSP ID"
 //	@Param			resource	body		oscalTypes_1_1_3.Resource	true	"Resource data"
 //	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Resource]
 //	@Failure		400			{object}	api.Error
@@ -2367,8 +2367,8 @@ func (h *SystemSecurityPlanHandler) CreateBackMatterResource(ctx echo.Context) e
 //	@Tags			Oscal
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string					true	"SSP ID"
-//	@Param			resourceId	path		string					true	"Resource ID"
+//	@Param			id			path		string						true	"SSP ID"
+//	@Param			resourceId	path		string						true	"Resource ID"
 //	@Param			resource	body		oscalTypes_1_1_3.Resource	true	"Resource data"
 //	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Resource]
 //	@Failure		400			{object}	api.Error
