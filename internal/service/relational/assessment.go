@@ -70,12 +70,16 @@ func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *Ass
 
 func (i *AssessmentPlan) MarshalOscal() *oscalTypes_1_1_3.AssessmentPlan {
 	ret := oscalTypes_1_1_3.AssessmentPlan{
-		UUID:               i.ID.String(),
-		ImportSsp:          oscalTypes_1_1_3.ImportSsp(i.ImportSSP.Data()),
-		Metadata:           *i.Metadata.MarshalOscal(),
-		ReviewedControls:   *i.ReviewedControls.MarshalOscal(),
-		LocalDefinitions:   i.LocalDefinitions.MarshalOscal(),
-		TermsAndConditions: i.TermsAndConditions.MarshalOscal(),
+		UUID:             i.ID.String(),
+		ImportSsp:        oscalTypes_1_1_3.ImportSsp(i.ImportSSP.Data()),
+		Metadata:         *i.Metadata.MarshalOscal(),
+		ReviewedControls: *i.ReviewedControls.MarshalOscal(),
+		LocalDefinitions: i.LocalDefinitions.MarshalOscal(),
+	}
+
+	// TermsAndConditions - check for proper initialization before marshaling
+	if i.TermsAndConditions.ID != nil {
+		ret.TermsAndConditions = i.TermsAndConditions.MarshalOscal()
 	}
 
 	// AssessmentAssets - check for nil before marshaling

@@ -121,7 +121,8 @@ func (h *AssessmentPlanHandler) addSelectivePreloads(query *gorm.DB, include str
 				Preload("Tasks.Dependencies").
 				Preload("Tasks.Tasks")
 		case "activities":
-			query = query.Preload("Tasks.AssociatedActivities").
+			query = query.Preload("Tasks").
+				Preload("Tasks.AssociatedActivities").
 				Preload("Tasks.AssociatedActivities.Steps")
 		case "assets", "assessment-assets":
 			query = query.Preload("AssessmentAssets")
