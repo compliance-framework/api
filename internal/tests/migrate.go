@@ -88,6 +88,8 @@ func (t *TestMigrator) Up() error {
 		&relational.Diagram{},
 
 		&relational.AssessmentPlan{},
+		&relational.TermsAndConditions{},
+		&relational.AssessmentPart{},
 		&relational.LocalDefinitions{},
 		&relational.LocalObjective{},
 		&relational.Task{},
@@ -194,8 +196,9 @@ func (t *TestMigrator) Down() error {
 		"action_responsible_parties",
 		"capability_control_implementation_sets",
 		"defined_components_control_implementation_sets",
-
 		&relational.AssessmentPlan{},
+		&relational.TermsAndConditions{},
+		&relational.AssessmentPart{},
 		&relational.LocalDefinitions{},
 		&relational.LocalObjective{},
 		&relational.Task{},
