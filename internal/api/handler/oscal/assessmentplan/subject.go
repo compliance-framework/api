@@ -122,13 +122,13 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 //	@Tags			Assessment Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string								true	"Assessment Plan ID"
+//	@Param			id			path		string								true	"Assessment Plan ID"
 //	@Param			subjectId	path		string								true	"Assessment Subject ID"
-//	@Param			subject	body		oscalTypes_1_1_3.AssessmentSubject	true	"Assessment Subject object"
-//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentSubject]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Param			subject		body		oscalTypes_1_1_3.AssessmentSubject	true	"Assessment Subject object"
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentSubject]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects/{subjectId} [put]
 func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error {
@@ -180,12 +180,12 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 //	@Summary		Delete Assessment Plan Subject
 //	@Description	Deletes an assessment subject from an Assessment Plan.
 //	@Tags			Assessment Plans
-//	@Param			id		path	string	true	"Assessment Plan ID"
+//	@Param			id			path	string	true	"Assessment Plan ID"
 //	@Param			subjectId	path	string	true	"Assessment Subject ID"
-//	@Success		204		"No Content"
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Success		204			"No Content"
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects/{subjectId} [delete]
 func (h *AssessmentPlanHandler) DeleteAssessmentSubject(ctx echo.Context) error {

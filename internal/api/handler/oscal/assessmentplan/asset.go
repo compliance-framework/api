@@ -69,7 +69,7 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string							true	"Assessment Plan ID"
+//	@Param			id		path		string								true	"Assessment Plan ID"
 //	@Param			asset	body		oscalTypes_1_1_3.AssessmentAssets	true	"Assessment Asset object"
 //	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentAssets]
 //	@Failure		400		{object}	api.Error
@@ -122,8 +122,8 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string							true	"Assessment Plan ID"
-//	@Param			assetId	path		string							true	"Assessment Asset ID"
+//	@Param			id		path		string								true	"Assessment Plan ID"
+//	@Param			assetId	path		string								true	"Assessment Asset ID"
 //	@Param			asset	body		oscalTypes_1_1_3.AssessmentAssets	true	"Assessment Asset object"
 //	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentAssets]
 //	@Failure		400		{object}	api.Error
