@@ -1,6 +1,6 @@
 //go:build integration
 
-package assessmentplan
+package oscal
 
 import (
 	"bytes"

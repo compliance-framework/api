@@ -1,4 +1,4 @@
-package assessmentplan
+package oscal
 
 import (
 	"errors"

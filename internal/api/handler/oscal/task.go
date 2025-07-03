@@ -1,4 +1,4 @@
-package assessmentplan
+package oscal
 
 import (
 	"fmt"
@@ -12,6 +12,10 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
+
+// TODO[onakin]: Tasks can also be parented by other domain models - even other Tasks
+// So we should have a proper Service or UseCases layer where we handle these relations
+// Keeping AssessmentPlan specific Task endpoints here for now
 
 // validateTaskInput validates task input
 func (h *AssessmentPlanHandler) validateTaskInput(task *oscalTypes_1_1_3.Task) error {
