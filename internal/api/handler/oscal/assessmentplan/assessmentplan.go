@@ -578,6 +578,9 @@ func (h *AssessmentPlanHandler) Register(api *echo.Group) {
 	api.PUT("/:id/tasks/:taskId", h.UpdateTask)
 	api.DELETE("/:id/tasks/:taskId", h.DeleteTask)
 
+	// Task Activities sub-resource management
+	api.POST("/:id/tasks/:taskId/activities", h.CreateActivityForTask)
+
 	// Activities sub-resource management
 	api.GET("/:id/activities", h.GetActivities)
 	api.POST("/:id/activities", h.CreateActivity)

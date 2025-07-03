@@ -1,11 +1,13 @@
 package assessmentplan
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
@@ -230,6 +232,104 @@ func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: relationalActivity.MarshalOscal()})
+}
+
+// CreateActivityForTask godoc
+//
+//	@Summary		Create Activity for Existing Task
+//	@Description	Creates a new activity and associates it with an existing task in an Assessment Plan.
+//	@Tags			Assessment Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string						true	"Assessment Plan ID"
+//	@Param			taskId		path		string						true	"Task ID"
+//	@Param			activity	body		oscalTypes_1_1_3.Activity	true	"Activity object"
+//	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Activity]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks/{taskId}/activities [post]
+func (h *AssessmentPlanHandler) CreateActivityForTask(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	taskIdParam := ctx.Param("taskId")
+	taskId, err := uuid.Parse(taskIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid task id", "taskId", taskIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify plan exists
+	if err := h.verifyAssessmentPlanExists(ctx, id); err != nil {
+		return err
+	}
+
+	// Verify task exists and belongs to the assessment plan
+	var task relational.Task
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", taskId, id, "AssessmentPlan").First(&task).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			h.sugar.Warnw("Task not found in assessment plan", "taskId", taskId, "planId", id)
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("task with id %s not found in assessment plan %s", taskId, id)))
+		}
+		h.sugar.Errorf("Failed to retrieve task: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var activity oscalTypes_1_1_3.Activity
+	if err := ctx.Bind(&activity); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validateActivityInput(&activity); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Convert to relational model
+	relationalActivity := &relational.Activity{}
+	relationalActivity.UnmarshalOscal(activity)
+
+	// Start a transaction to ensure consistency
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Save the activity to database
+	if err := tx.Create(relationalActivity).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Create the associated activity relationship
+	associatedActivity := &relational.AssociatedActivity{
+		TaskID:     taskId,
+		ActivityID: *relationalActivity.ID,
+		Activity:   *relationalActivity,
+	}
+
+	if err := tx.Create(associatedActivity).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create associated activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		h.sugar.Errorf("Failed to commit activity creation transaction: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: relationalActivity.MarshalOscal()})
 }
 
 // DeleteActivity godoc

@@ -193,6 +193,124 @@ func (suite *ActivityApiIntegrationSuite) TestDeleteActivity() {
 	suite.Len(response.Data, 0)
 }
 
+func (suite *ActivityApiIntegrationSuite) TestCreateActivityForTask() {
+	// Create test assessment plan first
+	planID := suite.createTestAssessmentPlan()
+
+	// Create a task first
+	taskData := &oscalTypes_1_1_3.Task{
+		UUID:        uuid.New().String(),
+		Type:        "action",
+		Title:       "Test Task for Activities",
+		Description: "A test task to hold multiple activities",
+	}
+
+	taskRec, taskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks", planID), taskData)
+	suite.server.E().ServeHTTP(taskRec, taskReq)
+	suite.Require().Equal(http.StatusCreated, taskRec.Code)
+
+	var taskResponse handler.GenericDataResponse[*oscalTypes_1_1_3.Task]
+	err := json.Unmarshal(taskRec.Body.Bytes(), &taskResponse)
+	suite.Require().NoError(err)
+	taskID := taskResponse.Data.UUID
+
+	// Create first activity for the task
+	testActivity1 := suite.createTestActivityData()
+	testActivity1.Title = "First Activity"
+
+	rec1, req1 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks/%s/activities", planID, taskID), testActivity1)
+	suite.server.E().ServeHTTP(rec1, req1)
+	suite.Equal(http.StatusCreated, rec1.Code)
+
+	// Verify first activity response
+	var response1 handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]
+	err = json.Unmarshal(rec1.Body.Bytes(), &response1)
+	suite.Require().NoError(err)
+	suite.Equal(testActivity1.UUID, response1.Data.UUID)
+	suite.Equal(testActivity1.Title, response1.Data.Title)
+
+	// Create second activity for the same task
+	testActivity2 := suite.createTestActivityData()
+	testActivity2.Title = "Second Activity"
+
+	rec2, req2 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks/%s/activities", planID, taskID), testActivity2)
+	suite.server.E().ServeHTTP(rec2, req2)
+	suite.Equal(http.StatusCreated, rec2.Code)
+
+	// Verify second activity response
+	var response2 handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]
+	err = json.Unmarshal(rec2.Body.Bytes(), &response2)
+	suite.Require().NoError(err)
+	suite.Equal(testActivity2.UUID, response2.Data.UUID)
+	suite.Equal(testActivity2.Title, response2.Data.Title)
+
+	// Verify both activities are now associated with the assessment plan
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s/activities", planID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusOK, getRec.Code)
+
+	var getResponse handler.GenericDataResponse[[]*oscalTypes_1_1_3.Activity]
+	err = json.Unmarshal(getRec.Body.Bytes(), &getResponse)
+	suite.Require().NoError(err)
+	suite.Require().Len(getResponse.Data, 2)
+
+	// Verify both activities are present
+	activityUUIDs := make(map[string]bool)
+	for _, activity := range getResponse.Data {
+		activityUUIDs[activity.UUID] = true
+	}
+	suite.True(activityUUIDs[testActivity1.UUID])
+	suite.True(activityUUIDs[testActivity2.UUID])
+}
+
+func (suite *ActivityApiIntegrationSuite) TestCreateActivityForTaskErrors() {
+	// Create test assessment plan first
+	planID := suite.createTestAssessmentPlan()
+	testActivity := suite.createTestActivityData()
+
+	// Test with non-existent task ID
+	nonExistentTaskID := uuid.New().String()
+	rec, req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks/%s/activities", planID, nonExistentTaskID), testActivity)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNotFound, rec.Code)
+
+	// Test with invalid task ID format
+	invalidTaskID := "invalid-uuid"
+	rec2, req2 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks/%s/activities", planID, invalidTaskID), testActivity)
+	suite.server.E().ServeHTTP(rec2, req2)
+	suite.Equal(http.StatusBadRequest, rec2.Code)
+
+	// Test with non-existent assessment plan ID
+	nonExistentPlanID := uuid.New().String()
+	taskID := uuid.New().String()
+	rec3, req3 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks/%s/activities", nonExistentPlanID, taskID), testActivity)
+	suite.server.E().ServeHTTP(rec3, req3)
+	suite.Equal(http.StatusNotFound, rec3.Code)
+
+	// Create a task in a different assessment plan to test cross-plan access
+	anotherPlanID := suite.createTestAssessmentPlan()
+	taskData := &oscalTypes_1_1_3.Task{
+		UUID:        uuid.New().String(),
+		Type:        "action",
+		Title:       "Test Task in Another Plan",
+		Description: "A test task in another assessment plan",
+	}
+
+	taskRec, taskReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks", anotherPlanID), taskData)
+	suite.server.E().ServeHTTP(taskRec, taskReq)
+	suite.Require().Equal(http.StatusCreated, taskRec.Code)
+
+	var taskResponse handler.GenericDataResponse[*oscalTypes_1_1_3.Task]
+	err := json.Unmarshal(taskRec.Body.Bytes(), &taskResponse)
+	suite.Require().NoError(err)
+	crossPlanTaskID := taskResponse.Data.UUID
+
+	// Test trying to add activity to task from different assessment plan
+	rec4, req4 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/tasks/%s/activities", planID, crossPlanTaskID), testActivity)
+	suite.server.E().ServeHTTP(rec4, req4)
+	suite.Equal(http.StatusNotFound, rec4.Code)
+}
+
 func (suite *ActivityApiIntegrationSuite) TestActivityValidationErrors() {
 	// Create test assessment plan first
 	planID := suite.createTestAssessmentPlan()
