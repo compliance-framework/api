@@ -10,11 +10,11 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	oscal "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 // validateActivityInput validates activity input
-func (h *AssessmentPlanHandler) validateActivityInput(activity *oscal.Activity) error {
+func (h *AssessmentPlanHandler) validateActivityInput(activity *oscalTypes_1_1_3.Activity) error {
 	if activity.UUID == "" {
 		return fmt.Errorf("UUID is required")
 	}
@@ -34,12 +34,12 @@ func (h *AssessmentPlanHandler) validateActivityInput(activity *oscal.Activity) 
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[[]oscal.Activity]
+//	@Success		200	{object}	handler.GenericDataResponse[[]oscalTypes_1_1_3.Activity]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/activities [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities [get]
 func (h *AssessmentPlanHandler) GetActivities(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -63,12 +63,12 @@ func (h *AssessmentPlanHandler) GetActivities(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	oscalActivities := make([]*oscal.Activity, len(activities))
+	oscalActivities := make([]*oscalTypes_1_1_3.Activity, len(activities))
 	for i, activity := range activities {
 		oscalActivities[i] = activity.MarshalOscal()
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscal.Activity]{Data: oscalActivities})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscalTypes_1_1_3.Activity]{Data: oscalActivities})
 }
 
 // CreateActivity godoc
@@ -79,13 +79,13 @@ func (h *AssessmentPlanHandler) GetActivities(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"Assessment Plan ID"
-//	@Param			activity	body		oscal.Activity	true	"Activity object"
-//	@Success		201			{object}	handler.GenericDataResponse[oscal.Activity]
+//	@Param			activity	body		oscalTypes_1_1_3.Activity	true	"Activity object"
+//	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Activity]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/activities [post]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities [post]
 func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -99,7 +99,7 @@ func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 		return err
 	}
 
-	var activity oscal.Activity
+	var activity oscalTypes_1_1_3.Activity
 	if err := ctx.Bind(&activity); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -119,7 +119,7 @@ func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscal.Activity]{Data: relationalActivity.MarshalOscal()})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: relationalActivity.MarshalOscal()})
 }
 
 // UpdateActivity godoc
@@ -131,13 +131,13 @@ func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id			path		string						true	"Assessment Plan ID"
 //	@Param			activityId	path		string						true	"Activity ID"
-//	@Param			activity	body		oscal.Activity	true	"Activity object"
-//	@Success		200			{object}	handler.GenericDataResponse[oscal.Activity]
+//	@Param			activity	body		oscalTypes_1_1_3.Activity	true	"Activity object"
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Activity]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/activities/{activityId} [put]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities/{activityId} [put]
 func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -158,7 +158,7 @@ func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 		return err
 	}
 
-	var activity oscal.Activity
+	var activity oscalTypes_1_1_3.Activity
 	if err := ctx.Bind(&activity); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -179,7 +179,7 @@ func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.Activity]{Data: relationalActivity.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: relationalActivity.MarshalOscal()})
 }
 
 // DeleteActivity godoc
@@ -194,7 +194,7 @@ func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/activities/{activityId} [delete]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities/{activityId} [delete]
 func (h *AssessmentPlanHandler) DeleteActivity(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

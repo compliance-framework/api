@@ -10,11 +10,11 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	oscal "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 // validateAssessmentAssetInput validates assessment asset input
-func (h *AssessmentPlanHandler) validateAssessmentAssetInput(asset *oscal.AssessmentAssets) error {
+func (h *AssessmentPlanHandler) validateAssessmentAssetInput(asset *oscalTypes_1_1_3.AssessmentAssets) error {
 	// Basic validation - at least one assessment platform should be provided
 	if len(asset.AssessmentPlatforms) == 0 {
 		return fmt.Errorf("at least one assessment platform is required")
@@ -29,12 +29,12 @@ func (h *AssessmentPlanHandler) validateAssessmentAssetInput(asset *oscal.Assess
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[[]oscal.AssessmentAssets]
+//	@Success		200	{object}	handler.GenericDataResponse[[]oscalTypes_1_1_3.AssessmentAssets]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-assets [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets [get]
 func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -54,12 +54,12 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	oscalAssets := make([]*oscal.AssessmentAssets, len(assets))
+	oscalAssets := make([]*oscalTypes_1_1_3.AssessmentAssets, len(assets))
 	for i, asset := range assets {
 		oscalAssets[i] = asset.MarshalOscal()
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscal.AssessmentAssets]{Data: oscalAssets})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscalTypes_1_1_3.AssessmentAssets]{Data: oscalAssets})
 }
 
 // CreateAssessmentAsset godoc
@@ -70,13 +70,13 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string							true	"Assessment Plan ID"
-//	@Param			asset	body		oscal.AssessmentAssets	true	"Assessment Asset object"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.AssessmentAssets]
+//	@Param			asset	body		oscalTypes_1_1_3.AssessmentAssets	true	"Assessment Asset object"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentAssets]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-assets [post]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets [post]
 func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -90,7 +90,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 		return err
 	}
 
-	var asset oscal.AssessmentAssets
+	var asset oscalTypes_1_1_3.AssessmentAssets
 	if err := ctx.Bind(&asset); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -112,7 +112,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscal.AssessmentAssets]{Data: relationalAsset.MarshalOscal()})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentAssets]{Data: relationalAsset.MarshalOscal()})
 }
 
 // UpdateAssessmentAsset godoc
@@ -124,13 +124,13 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id		path		string							true	"Assessment Plan ID"
 //	@Param			assetId	path		string							true	"Assessment Asset ID"
-//	@Param			asset	body		oscal.AssessmentAssets	true	"Assessment Asset object"
-//	@Success		200		{object}	handler.GenericDataResponse[oscal.AssessmentAssets]
+//	@Param			asset	body		oscalTypes_1_1_3.AssessmentAssets	true	"Assessment Asset object"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentAssets]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-assets/{assetId} [put]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets/{assetId} [put]
 func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -151,7 +151,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 		return err
 	}
 
-	var asset oscal.AssessmentAssets
+	var asset oscalTypes_1_1_3.AssessmentAssets
 	if err := ctx.Bind(&asset); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -174,7 +174,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.AssessmentAssets]{Data: relationalAsset.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentAssets]{Data: relationalAsset.MarshalOscal()})
 }
 
 // DeleteAssessmentAsset godoc
@@ -189,7 +189,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-assets/{assetId} [delete]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets/{assetId} [delete]
 func (h *AssessmentPlanHandler) DeleteAssessmentAsset(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

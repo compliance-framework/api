@@ -17,7 +17,7 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	oscal "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 type AssessmentPlanHandler struct {
@@ -48,7 +48,7 @@ func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx echo.Context, pla
 }
 
 // validateAssessmentPlanInput validates assessment plan input following OSCAL requirements
-func (h *AssessmentPlanHandler) validateAssessmentPlanInput(plan *oscal.AssessmentPlan) error {
+func (h *AssessmentPlanHandler) validateAssessmentPlanInput(plan *oscalTypes_1_1_3.AssessmentPlan) error {
 	var errors []string
 
 	if plan.UUID == "" {
@@ -156,7 +156,7 @@ func (h *AssessmentPlanHandler) addSelectivePreloads(query *gorm.DB, include str
 //	@Failure		401		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans [get]
 func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 	// Parse pagination parameters using the pagination service
 	paginationParams, err := h.paginationCfg.ParseParams(ctx)
@@ -189,7 +189,7 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	oscalPlans := make([]oscal.AssessmentPlan, len(plans))
+	oscalPlans := make([]oscalTypes_1_1_3.AssessmentPlan, len(plans))
 	for i, plan := range plans {
 		oscalPlans[i] = *plan.MarshalOscal()
 	}
@@ -209,15 +209,15 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 //	@Param			id		path		string	true	"Assessment Plan ID"
 //	@Param			expand	query		string	false	"Expansion level: 'all', 'full'"
 //	@Param			include	query		string	false	"Specific fields to include: 'tasks,activities,assets,subjects,local-definitions,terms-conditions,back-matter'"
-//	@Success		200		{object}	handler.GenericDataResponse[oscal.AssessmentPlan]
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlan]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id} [get]
-//	@Example		GET /oscal/assessment-plans/123?expand=all
-//	@Example		GET /oscal/assessment-plans/123?include=tasks,assets
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id} [get]
+//	@Example		GET /oscalTypes_1_1_3/assessment-plans/123?expand=all
+//	@Example		GET /oscalTypes_1_1_3/assessment-plans/123?include=tasks,assets
 func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -242,7 +242,7 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.AssessmentPlan]{Data: plan.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]{Data: plan.MarshalOscal()})
 }
 
 // Create godoc
@@ -252,15 +252,15 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			plan	body		oscal.AssessmentPlan									true	"Assessment Plan object with required fields: UUID, metadata (title, version), import-ssp"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.AssessmentPlan]	"Successfully created assessment plan"
+//	@Param			plan	body		oscalTypes_1_1_3.AssessmentPlan									true	"Assessment Plan object with required fields: UUID, metadata (title, version), import-ssp"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlan]	"Successfully created assessment plan"
 //	@Failure		400		{object}	api.Error														"Bad request - validation errors or malformed input"
 //	@Failure		401		{object}	api.Error														"Unauthorized - invalid or missing JWT token"
 //	@Failure		500		{object}	api.Error														"Internal server error"
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans [post]
+//	@Router			/oscalTypes_1_1_3/assessment-plans [post]
 func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
-	var plan oscal.AssessmentPlan
+	var plan oscalTypes_1_1_3.AssessmentPlan
 	if err := ctx.Bind(&plan); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -285,7 +285,7 @@ func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscal.AssessmentPlan]{Data: relationalPlan.MarshalOscal()})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]{Data: relationalPlan.MarshalOscal()})
 }
 
 // Update godoc
@@ -296,13 +296,13 @@ func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string							true	"Assessment Plan ID"
-//	@Param			plan	body		oscal.AssessmentPlan	true	"Assessment Plan object"
-//	@Success		200		{object}	handler.GenericDataResponse[oscal.AssessmentPlan]
+//	@Param			plan	body		oscalTypes_1_1_3.AssessmentPlan	true	"Assessment Plan object"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlan]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id} [put]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id} [put]
 func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -316,7 +316,7 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 		return err
 	}
 
-	var plan oscal.AssessmentPlan
+	var plan oscalTypes_1_1_3.AssessmentPlan
 	if err := ctx.Bind(&plan); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -341,7 +341,7 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.AssessmentPlan]{Data: relationalPlan.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]{Data: relationalPlan.MarshalOscal()})
 }
 
 // Delete godoc
@@ -355,7 +355,7 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id} [delete]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id} [delete]
 func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -385,12 +385,12 @@ func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.Metadata]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/metadata [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/metadata [get]
 func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -408,7 +408,7 @@ func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.Metadata]{Data: plan.Metadata.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Metadata]{Data: plan.Metadata.MarshalOscal()})
 }
 
 // GetImportSsp godoc
@@ -418,12 +418,12 @@ func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.ImportSsp]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ImportSsp]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/import-ssp [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/import-ssp [get]
 func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -441,8 +441,8 @@ func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	importSsp := oscal.ImportSsp(plan.ImportSSP.Data())
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.ImportSsp]{Data: &importSsp})
+	importSsp := oscalTypes_1_1_3.ImportSsp(plan.ImportSSP.Data())
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.ImportSsp]{Data: &importSsp})
 }
 
 // GetLocalDefinitions godoc
@@ -452,12 +452,12 @@ func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.LocalDefinitions]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.LocalDefinitions]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/local-definitions [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/local-definitions [get]
 func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -479,7 +479,7 @@ func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("local definitions not found")))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.LocalDefinitions]{Data: plan.LocalDefinitions.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.LocalDefinitions]{Data: plan.LocalDefinitions.MarshalOscal()})
 }
 
 // GetTermsAndConditions godoc
@@ -489,12 +489,12 @@ func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.AssessmentPlanTermsAndConditions]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlanTermsAndConditions]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/terms-and-conditions [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/terms-and-conditions [get]
 func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -516,7 +516,7 @@ func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("terms and conditions not found")))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.AssessmentPlanTermsAndConditions]{Data: plan.TermsAndConditions.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlanTermsAndConditions]{Data: plan.TermsAndConditions.MarshalOscal()})
 }
 
 // GetBackMatter godoc
@@ -526,12 +526,12 @@ func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.BackMatter]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/back-matter [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/back-matter [get]
 func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -553,17 +553,17 @@ func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("back matter not found")))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.BackMatter]{Data: plan.BackMatter.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.BackMatter]{Data: plan.BackMatter.MarshalOscal()})
 }
 
 // Register registers Assessment Plan endpoints to the API group.
 func (h *AssessmentPlanHandler) Register(api *echo.Group) {
 	// Core CRUD operations with query parameter expansion
-	api.GET("", h.List)          // GET /oscal/assessment-plans?expand=all&include=tasks,assets
-	api.POST("", h.Create)       // POST /oscal/assessment-plans
-	api.GET("/:id", h.Get)       // GET /oscal/assessment-plans/:id?expand=all&include=tasks
-	api.PUT("/:id", h.Update)    // PUT /oscal/assessment-plans/:id
-	api.DELETE("/:id", h.Delete) // DELETE /oscal/assessment-plans/:id
+	api.GET("", h.List)          // GET /oscalTypes_1_1_3/assessment-plans?expand=all&include=tasks,assets
+	api.POST("", h.Create)       // POST /oscalTypes_1_1_3/assessment-plans
+	api.GET("/:id", h.Get)       // GET /oscalTypes_1_1_3/assessment-plans/:id?expand=all&include=tasks
+	api.PUT("/:id", h.Update)    // PUT /oscalTypes_1_1_3/assessment-plans/:id
+	api.DELETE("/:id", h.Delete) // DELETE /oscalTypes_1_1_3/assessment-plans/:id
 
 	// Sub-resource management endpoints - Phase 2
 	api.GET("/:id/metadata", h.GetMetadata)

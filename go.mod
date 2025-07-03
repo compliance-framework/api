@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.2
 
 require (
-	github.com/defenseunicorns/go-oscal v0.6.2
+	github.com/defenseunicorns/go-oscalTypes_1_1_3 v0.6.2
 	github.com/go-playground/validator/v10 v10.24.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0

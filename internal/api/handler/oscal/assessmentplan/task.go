@@ -10,11 +10,11 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	oscal "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 // validateTaskInput validates task input
-func (h *AssessmentPlanHandler) validateTaskInput(task *oscal.Task) error {
+func (h *AssessmentPlanHandler) validateTaskInput(task *oscalTypes_1_1_3.Task) error {
 	if task.UUID == "" {
 		return fmt.Errorf("UUID is required")
 	}
@@ -37,12 +37,12 @@ func (h *AssessmentPlanHandler) validateTaskInput(task *oscal.Task) error {
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[[]oscal.Task]
+//	@Success		200	{object}	handler.GenericDataResponse[[]oscalTypes_1_1_3.Task]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/tasks [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks [get]
 func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -62,12 +62,12 @@ func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	oscalTasks := make([]*oscal.Task, len(tasks))
+	oscalTasks := make([]*oscalTypes_1_1_3.Task, len(tasks))
 	for i, task := range tasks {
 		oscalTasks[i] = task.MarshalOscal()
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscal.Task]{Data: oscalTasks})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscalTypes_1_1_3.Task]{Data: oscalTasks})
 }
 
 // CreateTask godoc
@@ -78,13 +78,13 @@ func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"Assessment Plan ID"
-//	@Param			task	body		oscal.Task	true	"Task object"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.Task]
+//	@Param			task	body		oscalTypes_1_1_3.Task	true	"Task object"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Task]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/tasks [post]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks [post]
 func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -98,7 +98,7 @@ func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 		return err
 	}
 
-	var task oscal.Task
+	var task oscalTypes_1_1_3.Task
 	if err := ctx.Bind(&task); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -120,7 +120,7 @@ func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscal.Task]{Data: relationalTask.MarshalOscal()})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.Task]{Data: relationalTask.MarshalOscal()})
 }
 
 // UpdateTask godoc
@@ -132,13 +132,13 @@ func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id		path		string					true	"Assessment Plan ID"
 //	@Param			taskId	path		string					true	"Task ID"
-//	@Param			task	body		oscal.Task	true	"Task object"
-//	@Success		200		{object}	handler.GenericDataResponse[oscal.Task]
+//	@Param			task	body		oscalTypes_1_1_3.Task	true	"Task object"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Task]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/tasks/{taskId} [put]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks/{taskId} [put]
 func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -159,7 +159,7 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 		return err
 	}
 
-	var task oscal.Task
+	var task oscalTypes_1_1_3.Task
 	if err := ctx.Bind(&task); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -182,7 +182,7 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.Task]{Data: relationalTask.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Task]{Data: relationalTask.MarshalOscal()})
 }
 
 // DeleteTask godoc
@@ -197,7 +197,7 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/tasks/{taskId} [delete]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks/{taskId} [delete]
 func (h *AssessmentPlanHandler) DeleteTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

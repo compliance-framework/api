@@ -10,11 +10,11 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	oscal "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 // validateAssessmentSubjectInput validates assessment subject input
-func (h *AssessmentPlanHandler) validateAssessmentSubjectInput(subject *oscal.AssessmentSubject) error {
+func (h *AssessmentPlanHandler) validateAssessmentSubjectInput(subject *oscalTypes_1_1_3.AssessmentSubject) error {
 	if subject.Type == "" {
 		return fmt.Errorf("type is required")
 	}
@@ -28,12 +28,12 @@ func (h *AssessmentPlanHandler) validateAssessmentSubjectInput(subject *oscal.As
 //	@Tags			Assessment Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"Assessment Plan ID"
-//	@Success		200	{object}	handler.GenericDataResponse[[]oscal.AssessmentSubject]
+//	@Success		200	{object}	handler.GenericDataResponse[[]oscalTypes_1_1_3.AssessmentSubject]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-subjects [get]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects [get]
 func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -56,12 +56,12 @@ func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	oscalSubjects := make([]*oscal.AssessmentSubject, len(subjects))
+	oscalSubjects := make([]*oscalTypes_1_1_3.AssessmentSubject, len(subjects))
 	for i, subject := range subjects {
 		oscalSubjects[i] = subject.MarshalOscal()
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscal.AssessmentSubject]{Data: oscalSubjects})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[[]*oscalTypes_1_1_3.AssessmentSubject]{Data: oscalSubjects})
 }
 
 // CreateAssessmentSubject godoc
@@ -72,13 +72,13 @@ func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string								true	"Assessment Plan ID"
-//	@Param			subject	body		oscal.AssessmentSubject	true	"Assessment Subject object"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.AssessmentSubject]
+//	@Param			subject	body		oscalTypes_1_1_3.AssessmentSubject	true	"Assessment Subject object"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentSubject]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-subjects [post]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects [post]
 func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -92,7 +92,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 		return err
 	}
 
-	var subject oscal.AssessmentSubject
+	var subject oscalTypes_1_1_3.AssessmentSubject
 	if err := ctx.Bind(&subject); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -112,7 +112,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscal.AssessmentSubject]{Data: relationalSubject.MarshalOscal()})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentSubject]{Data: relationalSubject.MarshalOscal()})
 }
 
 // UpdateAssessmentSubject godoc
@@ -124,13 +124,13 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 //	@Produce		json
 //	@Param			id		path		string								true	"Assessment Plan ID"
 //	@Param			subjectId	path		string								true	"Assessment Subject ID"
-//	@Param			subject	body		oscal.AssessmentSubject	true	"Assessment Subject object"
-//	@Success		200		{object}	handler.GenericDataResponse[oscal.AssessmentSubject]
+//	@Param			subject	body		oscalTypes_1_1_3.AssessmentSubject	true	"Assessment Subject object"
+//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentSubject]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-subjects/{subjectId} [put]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects/{subjectId} [put]
 func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -151,7 +151,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 		return err
 	}
 
-	var subject oscal.AssessmentSubject
+	var subject oscalTypes_1_1_3.AssessmentSubject
 	if err := ctx.Bind(&subject); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -172,7 +172,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscal.AssessmentSubject]{Data: relationalSubject.MarshalOscal()})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentSubject]{Data: relationalSubject.MarshalOscal()})
 }
 
 // DeleteAssessmentSubject godoc
@@ -187,7 +187,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/assessment-plans/{id}/assessment-subjects/{subjectId} [delete]
+//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects/{subjectId} [delete]
 func (h *AssessmentPlanHandler) DeleteAssessmentSubject(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
