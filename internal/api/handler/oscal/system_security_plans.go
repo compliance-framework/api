@@ -159,6 +159,7 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.GET("/:id/control-implementation/implemented-requirements", h.GetImplementedRequirements)
 	api.POST("/:id/control-implementation/implemented-requirements", h.CreateImplementedRequirement)
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId", h.UpdateImplementedRequirement)
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId", h.UpdateImplementedRequirementStatement)
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId", h.DeleteImplementedRequirement)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.PUT("/:id/back-matter", h.UpdateBackMatter)
@@ -1307,6 +1308,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementation(ctx echo.Context)
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]{Data: *si.MarshalOscal()})
 }
+
 // CreateSystemImplementationUser godoc
 //
 //	@Summary		Create a new system user
@@ -1920,8 +1922,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthoriza
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
-}// UpdateControlImplementation godoc
-//
+} // UpdateControlImplementation godoc
 //	@Summary		Update Control Implementation
 //	@Description	Updates the Control Implementation for a given System Security Plan.
 //	@Tags			Oscal
@@ -2476,4 +2477,89 @@ func (h *SystemSecurityPlanHandler) DeleteBackMatterResource(ctx echo.Context) e
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// UpdateImplementedRequirementStatement godoc
+//
+//	@Summary		Update a statement within an implemented requirement
+//	@Description	Updates an existing statement within an implemented requirement for a given SSP.
+//	@Tags			Oscal
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string						true	"SSP ID"
+//	@Param			reqId		path		string						true	"Requirement ID"
+//	@Param			stmtId		path		string						true	"Statement ID"
+//	@Param			statement	body		oscalTypes_1_1_3.Statement	true	"Statement data"
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Statement]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId} [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	reqIdParam := ctx.Param("reqId")
+	reqID, err := uuid.Parse(reqIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid requirement id", "reqId", reqIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	stmtIdParam := ctx.Param("stmtId")
+	stmtID, err := uuid.Parse(stmtIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid statement id", "stmtId", stmtIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if err := h.verifySSPExists(ctx, sspID); err != nil {
+		return err
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
+		h.sugar.Errorw("failed to get ssp", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	var existingReq relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).First(&existingReq).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorf("Failed to find implemented requirement: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var existingStmt relational.Statement
+	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, reqID).First(&existingStmt).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorf("Failed to find statement: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var oscalStmt oscalTypes_1_1_3.Statement
+	if err := ctx.Bind(&oscalStmt); err != nil {
+		h.sugar.Warnw("Invalid update statement request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relStmt := &relational.Statement{}
+	relStmt.UnmarshalOscal(oscalStmt)
+	relStmt.ImplementedRequirementId = reqID
+	relStmt.ID = &stmtID
+
+	if err := h.db.Save(relStmt).Error; err != nil {
+		h.sugar.Errorf("Failed to update statement: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Statement]{Data: *relStmt.MarshalOscal()})
 }

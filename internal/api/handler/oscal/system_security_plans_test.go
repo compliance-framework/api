@@ -345,6 +345,180 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestListSSPs() {
 	suite.True(foundSSP2, "Second SSP not found in list")
 }
 
+// Test updating a statement within an implemented requirement
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatement() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first (without statements)
+	ssp := suite.createBasicSSP()
+	// Remove statements from the SSP to create it cleanly
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Create an implemented requirement with statements
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:        uuid.New().String(),
+				StatementId: "ac-1_stmt.a",
+				Remarks:     "Initial statement implementation",
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	err = json.Unmarshal(resp.Body.Bytes(), &createResponse)
+	suite.NoError(err)
+
+	// Extract the requirement and statement IDs
+	requirement := createResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+	statement := (*requirement.Statements)[0]
+
+	// Update the statement
+	updatedStatement := oscalTypes_1_1_3.Statement{
+		UUID:        statement.UUID,
+		StatementId: statement.StatementId,
+		Remarks:     "Updated statement implementation with new remarks",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "updated-prop",
+				Value: "updated-value",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://updated-link.com",
+				MediaType: "application/json",
+				Text:      "Updated Link",
+			},
+		},
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+			{
+				RoleId:  "updated-role",
+				Remarks: "Updated role remarks",
+			},
+		},
+	}
+
+	// Update the statement
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s",
+		ssp.UUID, requirement.UUID, statement.UUID), updatedStatement)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateResponse handler.GenericDataResponse[oscalTypes_1_1_3.Statement]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateResponse)
+	suite.NoError(err)
+
+	// Verify the updated statement
+	suite.Equal(statement.UUID, updateResponse.Data.UUID)
+	suite.Equal(statement.StatementId, updateResponse.Data.StatementId)
+	suite.Equal("Updated statement implementation with new remarks", updateResponse.Data.Remarks)
+	suite.Require().NotNil(updateResponse.Data.Props)
+	suite.Len(*updateResponse.Data.Props, 1)
+	suite.Equal("updated-prop", (*updateResponse.Data.Props)[0].Name)
+	suite.Equal("updated-value", (*updateResponse.Data.Props)[0].Value)
+	suite.Require().NotNil(updateResponse.Data.Links)
+	suite.Len(*updateResponse.Data.Links, 1)
+	suite.Equal("https://updated-link.com", (*updateResponse.Data.Links)[0].Href)
+	suite.Require().NotNil(updateResponse.Data.ResponsibleRoles)
+	suite.Len(*updateResponse.Data.ResponsibleRoles, 1)
+	suite.Equal("updated-role", (*updateResponse.Data.ResponsibleRoles)[0].RoleId)
+}
+
+// Test updating a statement with invalid IDs
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementInvalidIDs() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first
+	ssp := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	testCases := []struct {
+		name           string
+		sspID          string
+		reqID          string
+		stmtID         string
+		expectedStatus int
+	}{
+		{
+			name:           "invalid SSP ID",
+			sspID:          "invalid-uuid",
+			reqID:          uuid.New().String(),
+			stmtID:         uuid.New().String(),
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "invalid requirement ID",
+			sspID:          ssp.UUID,
+			reqID:          "invalid-uuid",
+			stmtID:         uuid.New().String(),
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "invalid statement ID",
+			sspID:          ssp.UUID,
+			reqID:          uuid.New().String(),
+			stmtID:         "invalid-uuid",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "non-existent SSP",
+			sspID:          uuid.New().String(),
+			reqID:          uuid.New().String(),
+			stmtID:         uuid.New().String(),
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			updatedStatement := oscalTypes_1_1_3.Statement{
+				UUID:        uuid.New().String(),
+				StatementId: "test-statement",
+				Remarks:     "Test statement",
+			}
+
+			req := suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s",
+				tc.sspID, tc.reqID, tc.stmtID), updatedStatement)
+			resp := httptest.NewRecorder()
+			server.E().ServeHTTP(resp, req)
+
+			suite.Equal(tc.expectedStatus, resp.Code)
+		})
+	}
+}
+
 func TestSystemSecurityPlanApiIntegrationSuite(t *testing.T) {
 	suite.Run(t, new(SystemSecurityPlanApiIntegrationSuite))
 }
