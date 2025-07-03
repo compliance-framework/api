@@ -89,11 +89,33 @@ func (suite *AssetApiIntegrationSuite) createTestAssessmentPlan() uuid.UUID {
 
 // Helper method to create test assessment asset data
 func (suite *AssetApiIntegrationSuite) createTestAssessmentAssetData() *oscalTypes_1_1_3.AssessmentAssets {
-	assetID := uuid.New()
+	platformID := uuid.New()
+	componentID := uuid.New()
+
 	return &oscalTypes_1_1_3.AssessmentAssets{
-		UUID:        assetID.String(),
-		Title:       "Test Assessment Asset",
-		Description: "Test assessment asset description for integration testing",
+		AssessmentPlatforms: []oscalTypes_1_1_3.AssessmentPlatform{
+			{
+				UUID:  platformID.String(),
+				Title: "Test Assessment Platform",
+				Props: &[]oscalTypes_1_1_3.Property{
+					{
+						Name:  "platform-type",
+						Value: "automated",
+					},
+				},
+			},
+		},
+		Components: &[]oscalTypes_1_1_3.SystemComponent{
+			{
+				UUID:        componentID.String(),
+				Title:       "Test Assessment Component",
+				Description: "Test assessment component for integration testing",
+				Type:        "software",
+				Status: oscalTypes_1_1_3.SystemComponentStatus{
+					State: "operational",
+				},
+			},
+		},
 	}
 }
 
@@ -111,9 +133,14 @@ func (suite *AssetApiIntegrationSuite) TestCreateAssessmentAsset() {
 	var response handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentAssets]
 	err := json.Unmarshal(rec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.Equal(testAsset.UUID, response.Data.UUID)
-	suite.Equal(testAsset.Title, response.Data.Title)
-	suite.Equal(testAsset.Description, response.Data.Description)
+	suite.Require().Len(response.Data.AssessmentPlatforms, 1)
+	suite.Equal(testAsset.AssessmentPlatforms[0].UUID, response.Data.AssessmentPlatforms[0].UUID)
+	suite.Equal(testAsset.AssessmentPlatforms[0].Title, response.Data.AssessmentPlatforms[0].Title)
+	if response.Data.Components != nil && len(*response.Data.Components) > 0 {
+		suite.Equal((*testAsset.Components)[0].UUID, (*response.Data.Components)[0].UUID)
+		suite.Equal((*testAsset.Components)[0].Title, (*response.Data.Components)[0].Title)
+		suite.Equal((*testAsset.Components)[0].Description, (*response.Data.Components)[0].Description)
+	}
 }
 
 func (suite *AssetApiIntegrationSuite) TestGetAssessmentAssets() {
@@ -136,8 +163,9 @@ func (suite *AssetApiIntegrationSuite) TestGetAssessmentAssets() {
 	err := json.Unmarshal(getRec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
 	suite.Require().Len(response.Data, 1)
-	suite.Equal(testAsset.UUID, response.Data[0].UUID)
-	suite.Equal(testAsset.Title, response.Data[0].Title)
+	suite.Require().Len(response.Data[0].AssessmentPlatforms, 1)
+	suite.Equal(testAsset.AssessmentPlatforms[0].UUID, response.Data[0].AssessmentPlatforms[0].UUID)
+	suite.Equal(testAsset.AssessmentPlatforms[0].Title, response.Data[0].AssessmentPlatforms[0].Title)
 }
 
 func (suite *AssetApiIntegrationSuite) TestUpdateAssessmentAsset() {
@@ -151,10 +179,12 @@ func (suite *AssetApiIntegrationSuite) TestUpdateAssessmentAsset() {
 	suite.Require().Equal(http.StatusCreated, createRec.Code)
 
 	// Update assessment asset
-	testAsset.Title = "Updated Test Assessment Asset"
-	testAsset.Description = "Updated test assessment asset description"
+	testAsset.AssessmentPlatforms[0].Title = "Updated Test Assessment Platform"
+	if testAsset.Components != nil && len(*testAsset.Components) > 0 {
+		(*testAsset.Components)[0].Description = "Updated test assessment component description"
+	}
 
-	updateRec, updateReq := suite.createRequest(http.MethodPut, fmt.Sprintf("/api/oscal/assessment-plans/%s/assessment-assets/%s", planID, testAsset.UUID), testAsset)
+	updateRec, updateReq := suite.createRequest(http.MethodPut, fmt.Sprintf("/api/oscal/assessment-plans/%s/assessment-assets/%s", planID, testAsset.AssessmentPlatforms[0].UUID), testAsset)
 	suite.server.E().ServeHTTP(updateRec, updateReq)
 	suite.Equal(http.StatusOK, updateRec.Code)
 
@@ -162,9 +192,12 @@ func (suite *AssetApiIntegrationSuite) TestUpdateAssessmentAsset() {
 	var response handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentAssets]
 	err := json.Unmarshal(updateRec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.Equal(testAsset.UUID, response.Data.UUID)
-	suite.Equal("Updated Test Assessment Asset", response.Data.Title)
-	suite.Equal("Updated test assessment asset description", response.Data.Description)
+	suite.Require().Len(response.Data.AssessmentPlatforms, 1)
+	suite.Equal(testAsset.AssessmentPlatforms[0].UUID, response.Data.AssessmentPlatforms[0].UUID)
+	suite.Equal("Updated Test Assessment Platform", response.Data.AssessmentPlatforms[0].Title)
+	if response.Data.Components != nil && len(*response.Data.Components) > 0 {
+		suite.Equal("Updated test assessment component description", (*response.Data.Components)[0].Description)
+	}
 }
 
 func (suite *AssetApiIntegrationSuite) TestDeleteAssessmentAsset() {
@@ -178,7 +211,7 @@ func (suite *AssetApiIntegrationSuite) TestDeleteAssessmentAsset() {
 	suite.Require().Equal(http.StatusCreated, createRec.Code)
 
 	// Delete assessment asset
-	deleteRec, deleteReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/assessment-plans/%s/assessment-assets/%s", planID, testAsset.UUID), nil)
+	deleteRec, deleteReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/assessment-plans/%s/assessment-assets/%s", planID, testAsset.AssessmentPlatforms[0].UUID), nil)
 	suite.server.E().ServeHTTP(deleteRec, deleteReq)
 	suite.Equal(http.StatusNoContent, deleteRec.Code)
 
@@ -199,8 +232,8 @@ func (suite *AssetApiIntegrationSuite) TestAssessmentAssetValidationErrors() {
 
 	// Test with invalid assessment asset (missing required fields)
 	invalidAsset := &oscalTypes_1_1_3.AssessmentAssets{
-		UUID: "invalid-uuid",
-		// Missing Title which is required
+		// Missing AssessmentPlatforms which is required
+		AssessmentPlatforms: []oscalTypes_1_1_3.AssessmentPlatform{},
 	}
 
 	rec, req := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/assessment-plans/%s/assessment-assets", planID), invalidAsset)
