@@ -2,6 +2,7 @@ package oscal
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/api"
+	assessmentplan "github.com/compliance-framework/configuration-service/internal/api/handler/oscal/assessmentplan"
 	"github.com/compliance-framework/configuration-service/internal/api/middleware"
 	"github.com/compliance-framework/configuration-service/internal/config"
 	"go.uber.org/zap"
@@ -33,6 +34,6 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	poamHandler := NewPlanOfActionAndMilestonesHandler(logger, db)
 	poamHandler.Register(oscalGroup.Group("/plan-of-action-and-milestones"))
 
-	assessmentPlanHandler := NewAssessmentPlanHandler(logger, db)
+	assessmentPlanHandler := assessmentplan.NewAssessmentPlanHandler(logger, db)
 	assessmentPlanHandler.Register(oscalGroup.Group("/assessment-plans"))
 }

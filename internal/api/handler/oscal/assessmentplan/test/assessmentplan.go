@@ -1,6 +1,6 @@
 //go:build integration
 
-package oscal
+package test
 
 import (
 	"bytes"
