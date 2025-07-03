@@ -49,7 +49,7 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 	}
 
 	var assets []relational.AssessmentAsset
-	if err := h.db.Where("parent_id = ? AND parent_type = ?", id, "AssessmentPlan").Find(&assets).Error; err != nil {
+	if err := h.db.Preload("AssessmentPlatforms").Preload("Components").Where("parent_id = ? AND parent_type = ?", id, "AssessmentPlan").Find(&assets).Error; err != nil {
 		h.sugar.Errorf("Failed to retrieve assessment assets: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -112,7 +112,16 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentAssets]{Data: relationalAsset.MarshalOscal()})
+	// Create response with both OSCAL data and database ID for tests
+	response := struct {
+		*oscalTypes_1_1_3.AssessmentAssets
+		ID string `json:"id"` // Database ID for UPDATE/DELETE operations
+	}{
+		AssessmentAssets: relationalAsset.MarshalOscal(),
+		ID:               relationalAsset.ID.String(),
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[interface{}]{Data: response})
 }
 
 // UpdateAssessmentAsset godoc
@@ -168,13 +177,29 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 	relationalAsset.ParentID = id
 	relationalAsset.ParentType = "AssessmentPlan"
 
-	// Update in database
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "AssessmentPlan").Updates(relationalAsset).Error; err != nil {
-		h.sugar.Errorf("Failed to update assessment asset: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Update in database and check if resource exists
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "AssessmentPlan").Updates(relationalAsset)
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to update assessment asset: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentAssets]{Data: relationalAsset.MarshalOscal()})
+	// Check if the asset was found and updated
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Assessment asset not found for update", "assetId", assetId, "planId", id)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment asset with id %s not found in plan %s", assetId, id)))
+	}
+
+	// Create response with both OSCAL data and database ID for tests
+	response := struct {
+		*oscalTypes_1_1_3.AssessmentAssets
+		ID string `json:"id"` // Database ID for UPDATE/DELETE operations
+	}{
+		AssessmentAssets: relationalAsset.MarshalOscal(),
+		ID:               relationalAsset.ID.String(),
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[interface{}]{Data: response})
 }
 
 // DeleteAssessmentAsset godoc
@@ -210,10 +235,17 @@ func (h *AssessmentPlanHandler) DeleteAssessmentAsset(ctx echo.Context) error {
 		return err
 	}
 
-	// Delete assessment asset
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "AssessmentPlan").Delete(&relational.AssessmentAsset{}).Error; err != nil {
-		h.sugar.Errorf("Failed to delete assessment asset: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Delete assessment asset and check if resource exists
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "AssessmentPlan").Delete(&relational.AssessmentAsset{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete assessment asset: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the asset was found and deleted
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Assessment asset not found for deletion", "assetId", assetId, "planId", id)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment asset with id %s not found in plan %s", assetId, id)))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

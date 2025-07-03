@@ -113,9 +113,52 @@ func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 	relationalActivity := &relational.Activity{}
 	relationalActivity.UnmarshalOscal(activity)
 
-	// Save to database
-	if err := h.db.Create(relationalActivity).Error; err != nil {
+	// Start a transaction to ensure consistency
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Save the activity to database
+	if err := tx.Create(relationalActivity).Error; err != nil {
+		tx.Rollback()
 		h.sugar.Errorf("Failed to create activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Create a task to link this activity to the assessment plan
+	task := &relational.Task{
+		Type:        "action", // Default type for activity tasks
+		Title:       fmt.Sprintf("Task for Activity: %s", activity.UUID),
+		Description: &activity.Description,
+		ParentID:    &id,
+		ParentType:  "AssessmentPlan",
+	}
+
+	if err := tx.Create(task).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create task for activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Create the associated activity relationship
+	associatedActivity := &relational.AssociatedActivity{
+		TaskID:     *task.ID,
+		ActivityID: *relationalActivity.ID,
+		Activity:   *relationalActivity,
+	}
+
+	if err := tx.Create(associatedActivity).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create associated activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		h.sugar.Errorf("Failed to commit activity creation transaction: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -173,10 +216,17 @@ func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 	relationalActivity.UnmarshalOscal(activity)
 	relationalActivity.ID = &activityId
 
-	// Update in database
-	if err := h.db.Where("id = ?", activityId).Updates(relationalActivity).Error; err != nil {
-		h.sugar.Errorf("Failed to update activity: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Update in database and check if resource exists
+	result := h.db.Where("id = ?", activityId).Updates(relationalActivity)
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to update activity: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the activity was found and updated
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Activity not found for update", "activityId", activityId)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("activity with id %s not found", activityId)))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: relationalActivity.MarshalOscal()})
@@ -215,10 +265,17 @@ func (h *AssessmentPlanHandler) DeleteActivity(ctx echo.Context) error {
 		return err
 	}
 
-	// Delete activity
-	if err := h.db.Where("id = ?", activityId).Delete(&relational.Activity{}).Error; err != nil {
-		h.sugar.Errorf("Failed to delete activity: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Delete activity and check if resource exists
+	result := h.db.Where("id = ?", activityId).Delete(&relational.Activity{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete activity: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the activity was found and deleted
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Activity not found for deletion", "activityId", activityId)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("activity with id %s not found", activityId)))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

@@ -176,10 +176,17 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 	relationalTask.ParentID = &id
 	relationalTask.ParentType = "AssessmentPlan"
 
-	// Update in database
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", taskId, id, "AssessmentPlan").Updates(relationalTask).Error; err != nil {
-		h.sugar.Errorf("Failed to update task: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Update in database and check if resource exists
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", taskId, id, "AssessmentPlan").Updates(relationalTask)
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to update task: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the task was found and updated
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Task not found for update", "taskId", taskId, "planId", id)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("task with id %s not found in plan %s", taskId, id)))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Task]{Data: relationalTask.MarshalOscal()})
@@ -218,10 +225,17 @@ func (h *AssessmentPlanHandler) DeleteTask(ctx echo.Context) error {
 		return err
 	}
 
-	// Delete task
-	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", taskId, id, "AssessmentPlan").Delete(&relational.Task{}).Error; err != nil {
-		h.sugar.Errorf("Failed to delete task: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Delete task and check if resource exists
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", taskId, id, "AssessmentPlan").Delete(&relational.Task{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete task: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the task was found and deleted
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Task not found for deletion", "taskId", taskId, "planId", id)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("task with id %s not found in plan %s", taskId, id)))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

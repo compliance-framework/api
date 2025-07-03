@@ -106,9 +106,46 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 	relationalSubject := &relational.AssessmentSubject{}
 	relationalSubject.UnmarshalOscal(subject)
 
-	// Save to database
-	if err := h.db.Create(relationalSubject).Error; err != nil {
+	// Start a transaction to ensure consistency
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Save the assessment subject to database
+	if err := tx.Create(relationalSubject).Error; err != nil {
+		tx.Rollback()
 		h.sugar.Errorf("Failed to create assessment subject: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Create a task to link this subject to the assessment plan
+	task := &relational.Task{
+		Type:        "action", // Default type for subject tasks
+		Title:       fmt.Sprintf("Task for Subject: %s", subject.Type),
+		Description: &subject.Description,
+		ParentID:    &id,
+		ParentType:  "AssessmentPlan",
+	}
+
+	if err := tx.Create(task).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create task for subject: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Create the many-to-many relationship between task and subject
+	if err := tx.Model(task).Association("Subjects").Append(relationalSubject); err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to associate subject with task: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		h.sugar.Errorf("Failed to commit subject creation transaction: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -166,10 +203,17 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 	relationalSubject.UnmarshalOscal(subject)
 	relationalSubject.ID = &subjectId
 
-	// Update in database
-	if err := h.db.Where("id = ?", subjectId).Updates(relationalSubject).Error; err != nil {
-		h.sugar.Errorf("Failed to update assessment subject: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Update in database and check if resource exists
+	result := h.db.Where("id = ?", subjectId).Updates(relationalSubject)
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to update assessment subject: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the subject was found and updated
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Assessment subject not found for update", "subjectId", subjectId)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment subject with id %s not found", subjectId)))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentSubject]{Data: relationalSubject.MarshalOscal()})
@@ -208,10 +252,17 @@ func (h *AssessmentPlanHandler) DeleteAssessmentSubject(ctx echo.Context) error 
 		return err
 	}
 
-	// Delete assessment subject
-	if err := h.db.Where("id = ?", subjectId).Delete(&relational.AssessmentSubject{}).Error; err != nil {
-		h.sugar.Errorf("Failed to delete assessment subject: %v", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	// Delete assessment subject and check if resource exists
+	result := h.db.Where("id = ?", subjectId).Delete(&relational.AssessmentSubject{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete assessment subject: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	// Check if the subject was found and deleted
+	if result.RowsAffected == 0 {
+		h.sugar.Warnw("Assessment subject not found for deletion", "subjectId", subjectId)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment subject with id %s not found", subjectId)))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

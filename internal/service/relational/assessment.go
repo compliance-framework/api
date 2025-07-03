@@ -1,10 +1,11 @@
 package relational
 
 import (
+	"time"
+
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
-	"time"
 )
 
 type AssessmentPlan struct {
@@ -1066,6 +1067,14 @@ func (i *AssessmentAsset) MarshalOscal() *oscalTypes_1_1_3.AssessmentAssets {
 		}
 		ret.AssessmentPlatforms = aps
 	}
+	// Include Components if they exist
+	if len(i.Components) > 0 {
+		components := make([]oscalTypes_1_1_3.SystemComponent, len(i.Components))
+		for idx := range i.Components {
+			components[idx] = *i.Components[idx].MarshalOscal()
+		}
+		ret.Components = &components
+	}
 	return ret
 }
 
@@ -1081,7 +1090,11 @@ type AssessmentPlatform struct {
 }
 
 func (i *AssessmentPlatform) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlatform) *AssessmentPlatform {
+	id := uuid.MustParse(op.UUID)
 	*i = AssessmentPlatform{
+		UUIDModel: UUIDModel{
+			ID: &id,
+		},
 		Title:   &op.Title,
 		Remarks: &op.Remarks,
 	}
@@ -1103,6 +1116,7 @@ func (i *AssessmentPlatform) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlatfo
 
 func (i *AssessmentPlatform) MarshalOscal() *oscalTypes_1_1_3.AssessmentPlatform {
 	ret := &oscalTypes_1_1_3.AssessmentPlatform{
+		UUID:    i.ID.String(),
 		Title:   *i.Title,
 		Remarks: *i.Remarks,
 	}

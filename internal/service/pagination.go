@@ -35,21 +35,30 @@ func (cfg *PaginationConfig) ParseParams(ctx echo.Context) (*PaginationParams, e
 
 	// Parse page parameter
 	if pageParam := ctx.QueryParam("page"); pageParam != "" {
-		if p, parseErr := strconv.Atoi(pageParam); parseErr == nil && p > 0 {
+		if p, parseErr := strconv.Atoi(pageParam); parseErr == nil {
+			if p <= 0 {
+				return nil, fmt.Errorf("page must be greater than 0")
+			}
 			page = p
-		} else if parseErr != nil {
+		} else {
 			return nil, fmt.Errorf("invalid page parameter: %s", pageParam)
 		}
 	}
 
 	// Parse limit parameter
 	if limitParam := ctx.QueryParam("limit"); limitParam != "" {
-		if l, parseErr := strconv.Atoi(limitParam); parseErr == nil && l > 0 && l <= cfg.MaxLimit {
-			limit = l
-		} else if parseErr != nil {
+		if l, parseErr := strconv.Atoi(limitParam); parseErr == nil {
+			if l <= 0 {
+				return nil, fmt.Errorf("limit must be greater than 0")
+			}
+			// Cap limit at maximum but don't return error - just use max value
+			if l > cfg.MaxLimit {
+				limit = cfg.MaxLimit
+			} else {
+				limit = l
+			}
+		} else {
 			return nil, fmt.Errorf("invalid limit parameter: %s", limitParam)
-		} else if l > cfg.MaxLimit {
-			return nil, fmt.Errorf("limit cannot exceed %d", cfg.MaxLimit)
 		}
 	}
 
