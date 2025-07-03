@@ -16,6 +16,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -1248,7 +1249,10 @@ func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error 
 
 	relImportProfile := &relational.ImportProfile{}
 	relImportProfile.UnmarshalOscal(oscalImportProfile)
-	// TODO: Fix ImportProfile assignment - needs proper JSONType handling
+
+	// Update the ImportProfile field in the SSP
+	ssp.ImportProfile = datatypes.NewJSONType[relational.ImportProfile](*relImportProfile)
+
 	if err := h.db.Save(&ssp).Error; err != nil {
 		h.sugar.Errorf("Failed to update import-profile: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -1923,18 +1927,18 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthoriza
 
 	return ctx.NoContent(http.StatusNoContent)
 } // UpdateControlImplementation godoc
-//	@Summary		Update Control Implementation
-//	@Description	Updates the Control Implementation for a given System Security Plan.
-//	@Tags			Oscal
-//	@Accept			json
-//	@Produce		json
-//	@Param			id						path		string									true	"System Security Plan ID"
-//	@Param			control-implementation	body		oscalTypes_1_1_3.ControlImplementation	true	"Updated Control Implementation object"
-//	@Success		200						{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]
-//	@Failure		400						{object}	api.Error
-//	@Failure		404						{object}	api.Error
-//	@Failure		500						{object}	api.Error
-//	@Router			/oscal/system-security-plans/{id}/control-implementation [put]
+// @Summary		Update Control Implementation
+// @Description	Updates the Control Implementation for a given System Security Plan.
+// @Tags			Oscal
+// @Accept			json
+// @Produce		json
+// @Param			id						path		string									true	"System Security Plan ID"
+// @Param			control-implementation	body		oscalTypes_1_1_3.ControlImplementation	true	"Updated Control Implementation object"
+// @Success		200						{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]
+// @Failure		400						{object}	api.Error
+// @Failure		404						{object}	api.Error
+// @Failure		500						{object}	api.Error
+// @Router			/oscal/system-security-plans/{id}/control-implementation [put]
 func (h *SystemSecurityPlanHandler) UpdateControlImplementation(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
