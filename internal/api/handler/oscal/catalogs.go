@@ -59,7 +59,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 // @Description	Retrieves all catalogs.
 // @Tags			Catalog
 // @Produce		json
-// @Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.List.responseCatalog]
+// @Success		200	{object}	handler.GenericDataListResponse[oscal.List.responseCatalog]
 // @Failure		400	{object}	api.Error
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password

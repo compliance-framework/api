@@ -148,20 +148,11 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanList() {
 	suite.server.E().ServeHTTP(listRec, listReq)
 	suite.Equal(http.StatusOK, listRec.Code)
 
-	// Verify response structure
-	var response struct {
-		Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-		Total      int64                             `json:"total"`
-		Page       int                               `json:"page"`
-		Limit      int                               `json:"limit"`
-		TotalPages int                               `json:"totalPages"`
-	}
+	// Verify response structure - now expects simple array
+	var response []oscalTypes_1_1_3.AssessmentPlan
 	err := json.Unmarshal(listRec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.Equal(int64(3), response.Total)
-	suite.Len(response.Data, 3)
-	suite.Equal(1, response.Page)
-	suite.Equal(50, response.Limit)
+	suite.Len(response, 3)
 }
 
 func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanUpdate() {
@@ -474,131 +465,6 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanSubResourceEnd
 	})
 }
 
-// TestAssessmentPlanListPagination tests pagination functionality for the List endpoint
-func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListPagination() {
-	// Create multiple test plans for pagination testing
-	totalPlans := 15
-	for i := 0; i < totalPlans; i++ {
-		planID := uuid.New()
-		testPlan := &oscalTypes_1_1_3.AssessmentPlan{
-			UUID: planID.String(),
-			Metadata: oscalTypes_1_1_3.Metadata{
-				Title:   fmt.Sprintf("Pagination Test Plan %d", i+1),
-				Version: "1.0.0",
-			},
-			ImportSsp: oscalTypes_1_1_3.ImportSsp{
-				Href: "test-ssp-reference",
-			},
-		}
-
-		createRec, createReq := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
-		suite.server.E().ServeHTTP(createRec, createReq)
-		suite.Equal(http.StatusCreated, createRec.Code)
-	}
-
-	suite.Run("DefaultPagination", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Equal(int64(totalPlans), response.Total)
-		suite.Equal(1, response.Page)
-		suite.Equal(50, response.Limit) // Default limit
-		suite.Equal(1, response.TotalPages)
-		suite.Len(response.Data, totalPlans)
-	})
-
-	suite.Run("CustomPageAndLimit", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?page=2&limit=5", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Equal(int64(totalPlans), response.Total)
-		suite.Equal(2, response.Page)
-		suite.Equal(5, response.Limit)
-		suite.Equal(3, response.TotalPages) // 15 items / 5 per page = 3 pages
-		suite.Len(response.Data, 5)
-	})
-
-	suite.Run("MaximumLimitEnforcement", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?limit=150", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Equal(100, response.Limit) // Should be capped at 100
-	})
-
-	suite.Run("InvalidPaginationParameters", func() {
-		// Test negative page
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?page=-1", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusBadRequest, rec.Code)
-
-		// Test zero page
-		rec, req = suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?page=0", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusBadRequest, rec.Code)
-
-		// Test negative limit
-		rec, req = suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?limit=-1", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusBadRequest, rec.Code)
-
-		// Test zero limit
-		rec, req = suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?limit=0", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusBadRequest, rec.Code)
-	})
-
-	suite.Run("LastPage", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?page=3&limit=5", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Equal(int64(totalPlans), response.Total)
-		suite.Equal(3, response.Page)
-		suite.Equal(5, response.Limit)
-		suite.Equal(3, response.TotalPages)
-		suite.Len(response.Data, 5) // Last page should have 5 items (15 % 5 = 0)
-	})
-}
-
 // TestAssessmentPlanListQueryParameters tests expand and include parameters for the List endpoint
 func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParameters() {
 	// Create a test plan
@@ -623,17 +489,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
-		suite.Len(response.Data, int(response.Total))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("ExpandFull", func() {
@@ -641,16 +500,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeTasks", func() {
@@ -658,16 +511,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeActivities", func() {
@@ -675,16 +522,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeAssets", func() {
@@ -692,16 +533,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeSubjects", func() {
@@ -709,16 +544,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeLocalDefinitions", func() {
@@ -726,16 +555,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeTermsAndConditions", func() {
@@ -743,16 +566,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeBackMatter", func() {
@@ -760,16 +577,10 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
 	suite.Run("IncludeMultiple", func() {
@@ -777,53 +588,20 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParam
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 
-	suite.Run("CombinedPaginationAndExpansion", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?page=1&limit=10&expand=all", nil)
+	suite.Run("CombinedExpansionAndInclude", func() {
+		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?expand=all&include=tasks,activities", nil)
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusOK, rec.Code)
 
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
+		var response []oscalTypes_1_1_3.AssessmentPlan
 		err := json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
-		suite.Equal(1, response.Page)
-		suite.Equal(10, response.Limit)
-		suite.Greater(response.Total, int64(0))
-	})
-
-	suite.Run("CombinedPaginationAndInclude", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?page=1&limit=5&include=tasks,activities", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response struct {
-			Data       []oscalTypes_1_1_3.AssessmentPlan `json:"data"`
-			Total      int64                             `json:"total"`
-			Page       int                               `json:"page"`
-			Limit      int                               `json:"limit"`
-			TotalPages int                               `json:"totalPages"`
-		}
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Equal(1, response.Page)
-		suite.Equal(5, response.Limit)
-		suite.Greater(response.Total, int64(0))
+		suite.Greater(len(response), 0)
 	})
 }

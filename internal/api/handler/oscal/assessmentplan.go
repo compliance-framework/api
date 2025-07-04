@@ -15,22 +15,19 @@ import (
 
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
 type AssessmentPlanHandler struct {
-	sugar         *zap.SugaredLogger
-	db            *gorm.DB
-	paginationCfg *service.PaginationConfig
+	sugar *zap.SugaredLogger
+	db    *gorm.DB
 }
 
 func NewAssessmentPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *AssessmentPlanHandler {
 	return &AssessmentPlanHandler{
-		sugar:         sugar,
-		db:            db,
-		paginationCfg: service.NewPaginationConfig(),
+		sugar: sugar,
+		db:    db,
 	}
 }
 
@@ -188,60 +185,41 @@ func (h *AssessmentPlanHandler) addSelectivePreloads(query *gorm.DB, include str
 // List godoc
 //
 //	@Summary		List Assessment Plans
-//	@Description	Retrieves all Assessment Plans with optional pagination and expansion.
+//	@Description	Retrieves all Assessment Plans with optional expansion and filtering.
 //	@Tags			Assessment Plans
 //	@Produce		json
-//	@Param			page	query		int		false	"Page number (default: 1)"
-//	@Param			limit	query		int		false	"Items per page (default: 50, max: 100)"
 //	@Param			expand	query		string	false	"Expansion level: 'all', 'full'"
 //	@Param			include	query		string	false	"Specific fields to include: 'tasks,assets,subjects'"
-//	@Success		200		{object}	object
+//	@Success		200		{array}		oscalTypes_1_1_3.AssessmentPlan
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [get]
 func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
-	// Parse pagination parameters using the pagination service
-	paginationParams, err := h.paginationCfg.ParseParams(ctx)
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	// Parse expansion parameters
 	expand := ctx.QueryParam("expand")
 	include := ctx.QueryParam("include")
 
 	var plans []relational.AssessmentPlan
-	var total int64
-
-	// Get total count
-	if err := h.db.Model(&relational.AssessmentPlan{}).Count(&total).Error; err != nil {
-		h.sugar.Error(err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
 
 	// Build query with expansion
 	query := h.buildQueryWithExpansion(h.db, expand, include)
 
-	// Get paginated results
-	if err := query.
-		Offset(paginationParams.Offset).
-		Limit(paginationParams.Limit).
-		Find(&plans).Error; err != nil {
+	// Get all results
+	if err := query.Find(&plans).Error; err != nil {
 		h.sugar.Error(err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	// Convert to OSCAL format
 	oscalPlans := make([]oscalTypes_1_1_3.AssessmentPlan, len(plans))
 	for i, plan := range plans {
 		oscalPlans[i] = *plan.MarshalOscal()
 	}
 
-	// Create paginated response using the service
-	response := service.NewListResponse(oscalPlans, total, paginationParams.Page, paginationParams.Limit)
-
-	return ctx.JSON(http.StatusOK, response)
+	// Return simple array response
+	return ctx.JSON(http.StatusOK, oscalPlans)
 }
 
 // Get godoc
