@@ -41,7 +41,7 @@ func (h *AssessmentPlanHandler) validateActivityInput(activity *oscalTypes_1_1_3
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities [get]
+//	@Router			/oscal/assessment-plans/{id}/activities [get]
 func (h *AssessmentPlanHandler) GetActivities(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

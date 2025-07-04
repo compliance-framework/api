@@ -34,7 +34,7 @@ func (h *AssessmentPlanHandler) validateAssessmentAssetInput(asset *oscalTypes_1
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets [get]
+//	@Router			/oscal/assessment-plans/{id}/assessment-assets [get]
 func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

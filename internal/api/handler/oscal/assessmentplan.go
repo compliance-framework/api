@@ -34,6 +34,50 @@ func NewAssessmentPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Assessment
 	}
 }
 
+// Register registers Assessment Plan endpoints to the API group.
+func (h *AssessmentPlanHandler) Register(api *echo.Group) {
+	// Core CRUD operations with query parameter expansion
+	api.GET("", h.List)          // GET /oscal/assessment-plans?expand=all&include=tasks,assets
+	api.POST("", h.Create)       // POST /oscal/assessment-plans
+	api.GET("/:id", h.Get)       // GET /oscal/assessment-plans/:id?expand=all&include=tasks
+	api.PUT("/:id", h.Update)    // PUT /oscal/assessment-plans/:id
+	api.DELETE("/:id", h.Delete) // DELETE /oscal/assessment-plans/:id
+
+	// Sub-resource management endpoints - Phase 2
+	api.GET("/:id/metadata", h.GetMetadata)
+	api.GET("/:id/import-ssp", h.GetImportSsp)
+	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
+	api.GET("/:id/terms-and-conditions", h.GetTermsAndConditions)
+	api.GET("/:id/back-matter", h.GetBackMatter)
+
+	// Tasks sub-resource management
+	api.GET("/:id/tasks", h.GetTasks)
+	api.POST("/:id/tasks", h.CreateTask)
+	api.PUT("/:id/tasks/:taskId", h.UpdateTask)
+	api.DELETE("/:id/tasks/:taskId", h.DeleteTask)
+
+	// Task Activities sub-resource management
+	api.POST("/:id/tasks/:taskId/activities", h.CreateActivityForTask)
+
+	// Activities sub-resource management
+	api.GET("/:id/activities", h.GetActivities)
+	api.POST("/:id/activities", h.CreateActivity)
+	api.PUT("/:id/activities/:activityId", h.UpdateActivity)
+	api.DELETE("/:id/activities/:activityId", h.DeleteActivity)
+
+	// Assessment Subjects sub-resource management
+	api.GET("/:id/assessment-subjects", h.GetAssessmentSubjects)
+	api.POST("/:id/assessment-subjects", h.CreateAssessmentSubject)
+	api.PUT("/:id/assessment-subjects/:subjectId", h.UpdateAssessmentSubject)
+	api.DELETE("/:id/assessment-subjects/:subjectId", h.DeleteAssessmentSubject)
+
+	// Assessment Assets sub-resource management
+	api.GET("/:id/assessment-assets", h.GetAssessmentAssets)
+	api.POST("/:id/assessment-assets", h.CreateAssessmentAsset)
+	api.PUT("/:id/assessment-assets/:assetId", h.UpdateAssessmentAsset)
+	api.DELETE("/:id/assessment-assets/:assetId", h.DeleteAssessmentAsset)
+}
+
 // verifyAssessmentPlanExists checks if an assessment plan exists in the database
 func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx echo.Context, planID uuid.UUID) error {
 	var count int64
@@ -156,7 +200,7 @@ func (h *AssessmentPlanHandler) addSelectivePreloads(query *gorm.DB, include str
 //	@Failure		401		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans [get]
+//	@Router			/oscal/assessment-plans [get]
 func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 	// Parse pagination parameters using the pagination service
 	paginationParams, err := h.paginationCfg.ParseParams(ctx)
@@ -215,9 +259,9 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id} [get]
-//	@Example		GET /oscalTypes_1_1_3/assessment-plans/123?expand=all
-//	@Example		GET /oscalTypes_1_1_3/assessment-plans/123?include=tasks,assets
+//	@Router			/oscal/assessment-plans/{id} [get]
+//	@Example		GET /oscal/assessment-plans/123?expand=all
+//	@Example		GET /oscal/assessment-plans/123?include=tasks,assets
 func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -258,7 +302,7 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 //	@Failure		401		{object}	api.Error														"Unauthorized - invalid or missing JWT token"
 //	@Failure		500		{object}	api.Error														"Internal server error"
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans [post]
+//	@Router			/oscal/assessment-plans [post]
 func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 	var plan oscalTypes_1_1_3.AssessmentPlan
 	if err := ctx.Bind(&plan); err != nil {
@@ -554,48 +598,4 @@ func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.BackMatter]{Data: plan.BackMatter.MarshalOscal()})
-}
-
-// Register registers Assessment Plan endpoints to the API group.
-func (h *AssessmentPlanHandler) Register(api *echo.Group) {
-	// Core CRUD operations with query parameter expansion
-	api.GET("", h.List)          // GET /oscalTypes_1_1_3/assessment-plans?expand=all&include=tasks,assets
-	api.POST("", h.Create)       // POST /oscalTypes_1_1_3/assessment-plans
-	api.GET("/:id", h.Get)       // GET /oscalTypes_1_1_3/assessment-plans/:id?expand=all&include=tasks
-	api.PUT("/:id", h.Update)    // PUT /oscalTypes_1_1_3/assessment-plans/:id
-	api.DELETE("/:id", h.Delete) // DELETE /oscalTypes_1_1_3/assessment-plans/:id
-
-	// Sub-resource management endpoints - Phase 2
-	api.GET("/:id/metadata", h.GetMetadata)
-	api.GET("/:id/import-ssp", h.GetImportSsp)
-	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
-	api.GET("/:id/terms-and-conditions", h.GetTermsAndConditions)
-	api.GET("/:id/back-matter", h.GetBackMatter)
-
-	// Tasks sub-resource management
-	api.GET("/:id/tasks", h.GetTasks)
-	api.POST("/:id/tasks", h.CreateTask)
-	api.PUT("/:id/tasks/:taskId", h.UpdateTask)
-	api.DELETE("/:id/tasks/:taskId", h.DeleteTask)
-
-	// Task Activities sub-resource management
-	api.POST("/:id/tasks/:taskId/activities", h.CreateActivityForTask)
-
-	// Activities sub-resource management
-	api.GET("/:id/activities", h.GetActivities)
-	api.POST("/:id/activities", h.CreateActivity)
-	api.PUT("/:id/activities/:activityId", h.UpdateActivity)
-	api.DELETE("/:id/activities/:activityId", h.DeleteActivity)
-
-	// Assessment Subjects sub-resource management
-	api.GET("/:id/assessment-subjects", h.GetAssessmentSubjects)
-	api.POST("/:id/assessment-subjects", h.CreateAssessmentSubject)
-	api.PUT("/:id/assessment-subjects/:subjectId", h.UpdateAssessmentSubject)
-	api.DELETE("/:id/assessment-subjects/:subjectId", h.DeleteAssessmentSubject)
-
-	// Assessment Assets sub-resource management
-	api.GET("/:id/assessment-assets", h.GetAssessmentAssets)
-	api.POST("/:id/assessment-assets", h.CreateAssessmentAsset)
-	api.PUT("/:id/assessment-assets/:assetId", h.UpdateAssessmentAsset)
-	api.DELETE("/:id/assessment-assets/:assetId", h.DeleteAssessmentAsset)
 }
