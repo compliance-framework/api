@@ -148,11 +148,11 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanList() {
 	suite.server.E().ServeHTTP(listRec, listReq)
 	suite.Equal(http.StatusOK, listRec.Code)
 
-	// Verify response structure - now expects simple array
-	var response []oscalTypes_1_1_3.AssessmentPlan
+	// Verify response structure
+	var response handler.GenericDataListResponse[oscalTypes_1_1_3.AssessmentPlan]
 	err := json.Unmarshal(listRec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.Len(response, 3)
+	suite.Len(response.Data, 3)
 }
 
 func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanUpdate() {
@@ -217,13 +217,13 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanDelete() {
 	suite.Equal(http.StatusNotFound, getRec.Code)
 }
 
-func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanGetWithExpansion() {
+func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanGetFull() {
 	// Create test plan first
 	planID := uuid.New()
 	testPlan := &oscalTypes_1_1_3.AssessmentPlan{
 		UUID: planID.String(),
 		Metadata: oscalTypes_1_1_3.Metadata{
-			Title:   "Test Plan with Expansion",
+			Title:   "Test Plan with Full Data",
 			Version: "1.0.0",
 		},
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
@@ -236,8 +236,8 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanGetWithExpansi
 	suite.server.E().ServeHTTP(createRec, createReq)
 	suite.Equal(http.StatusCreated, createRec.Code)
 
-	// Test Get with expansion
-	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s?expand=all", planID), nil)
+	// Test Get with full endpoint
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s/full", planID), nil)
 	suite.server.E().ServeHTTP(getRec, getReq)
 	suite.Equal(http.StatusOK, getRec.Code)
 
@@ -462,146 +462,5 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanSubResourceEnd
 		rec, req := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s/back-matter", nonExistentID), nil)
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusNotFound, rec.Code)
-	})
-}
-
-// TestAssessmentPlanListQueryParameters tests expand and include parameters for the List endpoint
-func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanListQueryParameters() {
-	// Create a test plan
-	planID := uuid.New()
-	testPlan := &oscalTypes_1_1_3.AssessmentPlan{
-		UUID: planID.String(),
-		Metadata: oscalTypes_1_1_3.Metadata{
-			Title:   "Query Parameters Test Plan",
-			Version: "1.0.0",
-		},
-		ImportSsp: oscalTypes_1_1_3.ImportSsp{
-			Href: "test-ssp-reference",
-		},
-	}
-
-	createRec, createReq := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
-	suite.server.E().ServeHTTP(createRec, createReq)
-	suite.Equal(http.StatusCreated, createRec.Code)
-
-	suite.Run("ExpandAll", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?expand=all", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("ExpandFull", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?expand=full", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeTasks", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=tasks", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeActivities", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=activities", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeAssets", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=assets", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeSubjects", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=subjects", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeLocalDefinitions", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=local-definitions", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeTermsAndConditions", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=terms-and-conditions", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeBackMatter", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=back-matter", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("IncludeMultiple", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?include=tasks,assets,subjects", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
-	})
-
-	suite.Run("CombinedExpansionAndInclude", func() {
-		rec, req := suite.createRequest(http.MethodGet, "/api/oscal/assessment-plans?expand=all&include=tasks,activities", nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusOK, rec.Code)
-
-		var response []oscalTypes_1_1_3.AssessmentPlan
-		err := json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err)
-		suite.Greater(len(response), 0)
 	})
 }

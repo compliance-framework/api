@@ -33,14 +33,14 @@ func NewAssessmentPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Assessment
 
 // Register registers Assessment Plan endpoints to the API group.
 func (h *AssessmentPlanHandler) Register(api *echo.Group) {
-	// Core CRUD operations with query parameter expansion
-	api.GET("", h.List)          // GET /oscal/assessment-plans?expand=all&include=tasks,assets
+	// Core CRUD operations
+	api.GET("", h.List)          // GET /oscal/assessment-plans
 	api.POST("", h.Create)       // POST /oscal/assessment-plans
-	api.GET("/:id", h.Get)       // GET /oscal/assessment-plans/:id?expand=all&include=tasks
+	api.GET("/:id", h.Get)       // GET /oscal/assessment-plans/:id
 	api.PUT("/:id", h.Update)    // PUT /oscal/assessment-plans/:id
+	api.GET("/:id/full", h.Full) // GET /oscal/assessment-plans/:id/full
 	api.DELETE("/:id", h.Delete) // DELETE /oscal/assessment-plans/:id
 
-	// Sub-resource management endpoints - Phase 2
 	api.GET("/:id/metadata", h.GetMetadata)
 	api.GET("/:id/import-ssp", h.GetImportSsp)
 	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
@@ -117,129 +117,47 @@ func (h *AssessmentPlanHandler) validateAssessmentPlanInput(plan *oscalTypes_1_1
 	return nil
 }
 
-// buildQueryWithExpansion builds a GORM query with appropriate preloads based on expansion parameters
-func (h *AssessmentPlanHandler) buildQueryWithExpansion(baseQuery *gorm.DB, expand, include string) *gorm.DB {
-	// Always include basic metadata
-	query := baseQuery.
-		Preload("Metadata").
-		Preload("Metadata.Revisions")
-
-	// Handle full expansion
-	if expand == "all" || expand == "full" {
-		return h.addAllPreloads(query)
-	}
-
-	// Handle selective inclusion
-	if include != "" {
-		return h.addSelectivePreloads(query, include)
-	}
-
-	return query
-}
-
-// addAllPreloads adds all available preloads for complete resource expansion
-func (h *AssessmentPlanHandler) addAllPreloads(query *gorm.DB) *gorm.DB {
-	return query.
-		Preload("Tasks").
-		Preload("Tasks.Dependencies").
-		Preload("Tasks.Tasks"). // Sub-tasks
-		Preload("Tasks.AssociatedActivities").
-		Preload("Tasks.AssociatedActivities.Steps").
-		Preload("Tasks.Subjects").
-		Preload("Tasks.ResponsibleRole").
-		Preload("AssessmentAssets").
-		Preload("AssessmentSubjects").
-		Preload("LocalDefinitions").
-		Preload("TermsAndConditions").
-		Preload("BackMatter")
-}
-
-// addSelectivePreloads adds specific preloads based on the include parameter
-func (h *AssessmentPlanHandler) addSelectivePreloads(query *gorm.DB, include string) *gorm.DB {
-	includes := strings.Split(include, ",")
-	for _, inc := range includes {
-		switch strings.TrimSpace(inc) {
-		case "tasks":
-			query = query.Preload("Tasks").
-				Preload("Tasks.Dependencies").
-				Preload("Tasks.Tasks")
-		case "activities":
-			query = query.Preload("Tasks").
-				Preload("Tasks.AssociatedActivities").
-				Preload("Tasks.AssociatedActivities.Steps")
-		case "assets", "assessment-assets":
-			query = query.Preload("AssessmentAssets")
-		case "subjects", "assessment-subjects":
-			query = query.Preload("AssessmentSubjects")
-		case "local-definitions":
-			query = query.Preload("LocalDefinitions")
-		case "terms-conditions", "terms-and-conditions":
-			query = query.Preload("TermsAndConditions")
-		case "back-matter":
-			query = query.Preload("BackMatter")
-		}
-	}
-	return query
-}
-
 // List godoc
 //
 //	@Summary		List Assessment Plans
-//	@Description	Retrieves all Assessment Plans with optional expansion and filtering.
+//	@Description	Retrieves all Assessment Plans.
 //	@Tags			Assessment Plans
 //	@Produce		json
-//	@Param			expand	query		string	false	"Expansion level: 'all', 'full'"
-//	@Param			include	query		string	false	"Specific fields to include: 'tasks,assets,subjects'"
-//	@Success		200		{array}		oscalTypes_1_1_3.AssessmentPlan
-//	@Failure		400		{object}	api.Error
-//	@Failure		401		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.AssessmentPlan]
+//	@Failure		400	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [get]
 func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
-	// Parse expansion parameters
-	expand := ctx.QueryParam("expand")
-	include := ctx.QueryParam("include")
-
 	var plans []relational.AssessmentPlan
-
-	// Build query with expansion
-	query := h.buildQueryWithExpansion(h.db, expand, include)
-
-	// Get all results
-	if err := query.Find(&plans).Error; err != nil {
-		h.sugar.Error(err)
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		Find(&plans).Error; err != nil {
+		h.sugar.Warnw("Failed to load assessment plans", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Convert to OSCAL format
-	oscalPlans := make([]oscalTypes_1_1_3.AssessmentPlan, len(plans))
-	for i, plan := range plans {
-		oscalPlans[i] = *plan.MarshalOscal()
+	oscalPlans := []oscalTypes_1_1_3.AssessmentPlan{}
+	for _, plan := range plans {
+		oscalPlans = append(oscalPlans, *plan.MarshalOscal())
 	}
 
-	// Return simple array response
-	return ctx.JSON(http.StatusOK, oscalPlans)
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.AssessmentPlan]{Data: oscalPlans})
 }
 
 // Get godoc
 //
 //	@Summary		Get an Assessment Plan
-//	@Description	Retrieves a single Assessment Plan by its unique ID with optional expansion.
+//	@Description	Retrieves a single Assessment Plan by its unique ID.
 //	@Tags			Assessment Plans
 //	@Produce		json
-//	@Param			id		path		string	true	"Assessment Plan ID"
-//	@Param			expand	query		string	false	"Expansion level: 'all', 'full'"
-//	@Param			include	query		string	false	"Specific fields to include: 'tasks,activities,assets,subjects,local-definitions,terms-conditions,back-matter'"
-//	@Success		200		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlan]
-//	@Failure		400		{object}	api.Error
-//	@Failure		401		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Param			id	path		string	true	"Assessment Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlan]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [get]
-//	@Example		GET /oscal/assessment-plans/123?expand=all
-//	@Example		GET /oscal/assessment-plans/123?include=tasks,assets
 func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -248,15 +166,11 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Parse expansion parameters
-	expand := ctx.QueryParam("expand")
-	include := ctx.QueryParam("include")
-
-	// Build query with appropriate preloads
-	query := h.buildQueryWithExpansion(h.db, expand, include)
-
 	var plan relational.AssessmentPlan
-	if err := query.First(&plan, "id = ?", id).Error; err != nil {
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		First(&plan, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -576,4 +490,52 @@ func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.BackMatter]{Data: plan.BackMatter.MarshalOscal()})
+}
+
+// Full godoc
+//
+//	@Summary		Get a full Assessment Plan
+//	@Description	Retrieves a single Assessment Plan by its unique ID with all related data preloaded.
+//	@Tags			Assessment Plans
+//	@Produce		json
+//	@Param			id	path		string	true	"Assessment Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.AssessmentPlan]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/assessment-plans/{id}/full [get]
+func (h *AssessmentPlanHandler) Full(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var plan relational.AssessmentPlan
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		Preload("Tasks").
+		Preload("Tasks.Dependencies").
+		Preload("Tasks.Tasks").
+		Preload("Tasks.AssociatedActivities").
+		Preload("Tasks.AssociatedActivities.Steps").
+		Preload("Tasks.Subjects").
+		Preload("Tasks.ResponsibleRole").
+		Preload("AssessmentAssets").
+		Preload("AssessmentSubjects").
+		Preload("LocalDefinitions").
+		Preload("TermsAndConditions").
+		Preload("BackMatter").
+		First(&plan, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load assessment plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]{Data: plan.MarshalOscal()})
 }
