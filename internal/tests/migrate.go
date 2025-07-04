@@ -136,6 +136,7 @@ func (t *TestMigrator) Up() error {
 		&relational.Evidence{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
+		&service.Dashboard{},
 		&relational.Step{},
 	)
 }
@@ -276,6 +277,7 @@ func (t *TestMigrator) Down() error {
 		"evidence_labels",
 		"evidence_subjects",
 		&relational.Labels{},
+		&service.Dashboard{},
 	)
 }
 
