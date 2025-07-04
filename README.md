@@ -39,8 +39,8 @@ $ go run main.go users add # Create a new user in the CCF API which can be used 
 
 $ go run main.go migrate up # Create the database schema, or upgrade it to the current version
 
-$ go run main.go oscaltypes import -f testdata/full_ar.json # Import a single OSCAL document
-$ go run main.go oscaltypes import -f testdata/ # Import a directory with OSCAL documents
+$ go run main.go oscal import -f testdata/full_ar.json # Import a single OSCAL document
+$ go run main.go oscal import -f testdata/ # Import a directory with OSCAL documents
 
 $ go run main.go help # Learn more about all the available commands
 ```
