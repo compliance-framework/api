@@ -105,7 +105,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Evidence{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
-		&Dashboard{},
+		&relational.Dashboard{},
 		&relational.Step{},
 	)
 	return err
@@ -247,7 +247,7 @@ func MigrateDown(db *gorm.DB) error {
 		"evidence_labels",
 		"evidence_subjects",
 		&relational.Labels{},
-		&Dashboard{},
+		&relational.Dashboard{},
 	)
 	return err
 }

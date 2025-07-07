@@ -60,18 +60,22 @@ func GetLatestEvidenceStreamsQuery(db *gorm.DB) *gorm.DB {
 	return query
 }
 
-func GetEvidenceSearchByFilterQuery(latestQuery *gorm.DB, db *gorm.DB, filter labelfilter.Filter) (*gorm.DB, error) {
+func GetEvidenceSearchByFilterQuery(latestQuery *gorm.DB, db *gorm.DB, filters ...labelfilter.Filter) (*gorm.DB, error) {
 	//sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-	if filter.Scope != nil {
-		subQuery, err := getScopeClause(db, *filter.Scope)
-		if err != nil {
-			return nil, err
+	finalWhere := db.Session(&gorm.Session{})
+	finalWhere = finalWhere.Table("(?) as l", latestQuery)
+
+	for _, filter := range filters {
+		if filter.Scope != nil {
+			subQuery, err := getScopeClause(db, *filter.Scope)
+			if err != nil {
+				return nil, err
+			}
+			finalWhere = finalWhere.Or(subQuery)
 		}
-		return db.
-			Table("(?) as l", latestQuery).
-			Where(subQuery), nil
 	}
-	return db.Table("(?) as l", latestQuery), nil
+
+	return finalWhere, nil
 }
 
 func getScopeClause(db *gorm.DB, scope labelfilter.Scope) (*gorm.DB, error) {

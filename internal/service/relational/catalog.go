@@ -219,7 +219,8 @@ type Control struct {
 	ParentID   *string
 	ParentType *string
 
-	Controls []Control `json:"controls" gorm:"polymorphic:Parent;"`
+	Controls   []Control   `json:"controls" gorm:"polymorphic:Parent;"`
+	Dashboards []Dashboard `gorm:"many2many:dashboard_controls;"`
 }
 
 func (c *Control) UnmarshalOscal(data oscalTypes_1_1_3.Control, catalogId uuid.UUID) *Control {
