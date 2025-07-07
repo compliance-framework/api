@@ -2,19 +2,19 @@ package handler
 
 import (
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
-	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"gorm.io/datatypes"
 )
 
 // createPlanRequest defines the request payload for method Create
-// TODO: Using minimal data for now, we might need to expand it later
 type createDashboardRequest struct {
-	Name   string             `json:"name" yaml:"name" validate:"required"`
-	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
+	Name     string             `json:"name" yaml:"name" validate:"required"`
+	Filter   labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
+	Controls *[]string          `json:"controls" yaml:"controls"`
 }
 
-func (r *createDashboardRequest) bind(ctx echo.Context, p *service.Dashboard) error {
+func (r *createDashboardRequest) bind(ctx echo.Context, p *relational.Dashboard) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}
