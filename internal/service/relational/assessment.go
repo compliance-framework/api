@@ -1,10 +1,11 @@
 package relational
 
 import (
+	"time"
+
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
-	"time"
 )
 
 type AssessmentPlan struct {
@@ -27,7 +28,11 @@ type AssessmentPlan struct {
 }
 
 func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *AssessmentPlan {
+	id := uuid.MustParse(op.UUID)
 	*i = AssessmentPlan{
+		UUIDModel: UUIDModel{
+			ID: &id,
+		},
 		ImportSSP: datatypes.NewJSONType(ImportSsp(op.ImportSsp)),
 		Metadata:  *(&Metadata{}).UnmarshalOscal(op.Metadata),
 	}
@@ -66,12 +71,21 @@ func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *Ass
 
 func (i *AssessmentPlan) MarshalOscal() *oscalTypes_1_1_3.AssessmentPlan {
 	ret := oscalTypes_1_1_3.AssessmentPlan{
-		ImportSsp:          oscalTypes_1_1_3.ImportSsp(i.ImportSSP.Data()),
-		Metadata:           *i.Metadata.MarshalOscal(),
-		ReviewedControls:   *i.ReviewedControls.MarshalOscal(),
-		AssessmentAssets:   i.AssessmentAssets.MarshalOscal(),
-		LocalDefinitions:   i.LocalDefinitions.MarshalOscal(),
-		TermsAndConditions: i.TermsAndConditions.MarshalOscal(),
+		UUID:             i.ID.String(),
+		ImportSsp:        oscalTypes_1_1_3.ImportSsp(i.ImportSSP.Data()),
+		Metadata:         *i.Metadata.MarshalOscal(),
+		ReviewedControls: *i.ReviewedControls.MarshalOscal(),
+		LocalDefinitions: i.LocalDefinitions.MarshalOscal(),
+	}
+
+	// TermsAndConditions - check for proper initialization before marshaling
+	if i.TermsAndConditions.ID != nil {
+		ret.TermsAndConditions = i.TermsAndConditions.MarshalOscal()
+	}
+
+	// AssessmentAssets - check for nil before marshaling
+	if i.AssessmentAssets != nil {
+		ret.AssessmentAssets = i.AssessmentAssets.MarshalOscal()
 	}
 
 	// Tasks
@@ -735,8 +749,11 @@ func (i *LocalDefinitions) UnmarshalOscal(op oscalTypes_1_1_3.LocalDefinitions) 
 }
 
 func (i *LocalDefinitions) MarshalOscal() *oscalTypes_1_1_3.LocalDefinitions {
-	ret := &oscalTypes_1_1_3.LocalDefinitions{
-		Remarks: *i.Remarks,
+	ret := &oscalTypes_1_1_3.LocalDefinitions{}
+
+	// Remarks - check for nil before dereferencing
+	if i.Remarks != nil {
+		ret.Remarks = *i.Remarks
 	}
 	if len(i.Components) > 0 {
 		comps := make([]oscalTypes_1_1_3.SystemComponent, len(i.Components))
@@ -1050,6 +1067,14 @@ func (i *AssessmentAsset) MarshalOscal() *oscalTypes_1_1_3.AssessmentAssets {
 		}
 		ret.AssessmentPlatforms = aps
 	}
+	// Include Components if they exist
+	if len(i.Components) > 0 {
+		components := make([]oscalTypes_1_1_3.SystemComponent, len(i.Components))
+		for idx := range i.Components {
+			components[idx] = *i.Components[idx].MarshalOscal()
+		}
+		ret.Components = &components
+	}
 	return ret
 }
 
@@ -1065,7 +1090,11 @@ type AssessmentPlatform struct {
 }
 
 func (i *AssessmentPlatform) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlatform) *AssessmentPlatform {
+	id := uuid.MustParse(op.UUID)
 	*i = AssessmentPlatform{
+		UUIDModel: UUIDModel{
+			ID: &id,
+		},
 		Title:   &op.Title,
 		Remarks: &op.Remarks,
 	}
@@ -1087,6 +1116,7 @@ func (i *AssessmentPlatform) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlatfo
 
 func (i *AssessmentPlatform) MarshalOscal() *oscalTypes_1_1_3.AssessmentPlatform {
 	ret := &oscalTypes_1_1_3.AssessmentPlatform{
+		UUID:    i.ID.String(),
 		Title:   *i.Title,
 		Remarks: *i.Remarks,
 	}
