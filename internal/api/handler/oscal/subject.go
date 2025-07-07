@@ -33,7 +33,7 @@ func (h *AssessmentPlanHandler) validateAssessmentSubjectInput(subject *oscalTyp
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects [get]
+//	@Router			/oscal/assessment-plans/{id}/assessment-subjects [get]
 func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -78,7 +78,7 @@ func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects [post]
+//	@Router			/oscal/assessment-plans/{id}/assessment-subjects [post]
 func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -167,7 +167,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects/{subjectId} [put]
+//	@Router			/oscal/assessment-plans/{id}/assessment-subjects/{subjectId} [put]
 func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -231,7 +231,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentSubject(ctx echo.Context) error 
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-subjects/{subjectId} [delete]
+//	@Router			/oscal/assessment-plans/{id}/assessment-subjects/{subjectId} [delete]
 func (h *AssessmentPlanHandler) DeleteAssessmentSubject(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

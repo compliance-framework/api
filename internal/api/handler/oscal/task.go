@@ -46,7 +46,7 @@ func (h *AssessmentPlanHandler) validateTaskInput(task *oscalTypes_1_1_3.Task) e
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks [get]
+//	@Router			/oscal/assessment-plans/{id}/tasks [get]
 func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -88,7 +88,7 @@ func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks [post]
+//	@Router			/oscal/assessment-plans/{id}/tasks [post]
 func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -142,7 +142,7 @@ func (h *AssessmentPlanHandler) CreateTask(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks/{taskId} [put]
+//	@Router			/oscal/assessment-plans/{id}/tasks/{taskId} [put]
 func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -208,7 +208,7 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks/{taskId} [delete]
+//	@Router			/oscal/assessment-plans/{id}/tasks/{taskId} [delete]
 func (h *AssessmentPlanHandler) DeleteTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

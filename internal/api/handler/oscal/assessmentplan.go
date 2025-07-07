@@ -238,7 +238,7 @@ func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id} [put]
+//	@Router			/oscal/assessment-plans/{id} [put]
 func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -291,7 +291,7 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id} [delete]
+//	@Router			/oscal/assessment-plans/{id} [delete]
 func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -326,7 +326,7 @@ func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/metadata [get]
+//	@Router			/oscal/assessment-plans/{id}/metadata [get]
 func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -359,7 +359,7 @@ func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/import-ssp [get]
+//	@Router			/oscal/assessment-plans/{id}/import-ssp [get]
 func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -393,7 +393,7 @@ func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/local-definitions [get]
+//	@Router			/oscal/assessment-plans/{id}/local-definitions [get]
 func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -430,7 +430,7 @@ func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/terms-and-conditions [get]
+//	@Router			/oscal/assessment-plans/{id}/terms-and-conditions [get]
 func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -467,7 +467,7 @@ func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/back-matter [get]
+//	@Router			/oscal/assessment-plans/{id}/back-matter [get]
 func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

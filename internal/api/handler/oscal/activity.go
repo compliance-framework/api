@@ -87,7 +87,7 @@ func (h *AssessmentPlanHandler) GetActivities(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities [post]
+//	@Router			/oscal/assessment-plans/{id}/activities [post]
 func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -182,7 +182,7 @@ func (h *AssessmentPlanHandler) CreateActivity(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities/{activityId} [put]
+//	@Router			/oscal/assessment-plans/{id}/activities/{activityId} [put]
 func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -249,7 +249,7 @@ func (h *AssessmentPlanHandler) UpdateActivity(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/tasks/{taskId}/activities [post]
+//	@Router			/oscal/assessment-plans/{id}/tasks/{taskId}/activities [post]
 func (h *AssessmentPlanHandler) CreateActivityForTask(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -344,7 +344,7 @@ func (h *AssessmentPlanHandler) CreateActivityForTask(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/activities/{activityId} [delete]
+//	@Router			/oscal/assessment-plans/{id}/activities/{activityId} [delete]
 func (h *AssessmentPlanHandler) DeleteActivity(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)

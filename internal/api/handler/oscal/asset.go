@@ -76,7 +76,7 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets [post]
+//	@Router			/oscal/assessment-plans/{id}/assessment-assets [post]
 func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -139,7 +139,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets/{assetId} [put]
+//	@Router			/oscal/assessment-plans/{id}/assessment-assets/{assetId} [put]
 func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -214,7 +214,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscalTypes_1_1_3/assessment-plans/{id}/assessment-assets/{assetId} [delete]
+//	@Router			/oscal/assessment-plans/{id}/assessment-assets/{assetId} [delete]
 func (h *AssessmentPlanHandler) DeleteAssessmentAsset(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
