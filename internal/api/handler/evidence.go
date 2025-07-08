@@ -35,8 +35,10 @@ func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.GET("/:id", h.Get)
 	api.GET("/history/:id", h.History)
 	api.POST("/search", h.Search)
+	api.GET("/for-control/:id", h.ForControl)
 	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID)
 	api.POST("/status-over-time", h.StatusOverTime)
+	api.GET("/compliance-by-control/:id", h.ComplianceByControl)
 }
 
 type EvidenceActivityStep struct {
@@ -527,6 +529,84 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[*OscalLikeEvidence]{Data: output})
 }
 
+// ForControl godoc
+//
+//	@Summary		List Evidence for a Control
+//	@Description	Retrieves Evidence records associated with a specific Control ID, including related activities, inventory items, components, subjects, and labels.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Control ID"
+//	@Success		200	{object}	handler.ForControl.EvidenceDataListResponse
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/for-control/{id} [get]
+func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
+	type responseMetadata struct {
+		Control *oscalTypes_1_1_3.Control `json:"control"`
+	}
+	type EvidenceDataListResponse struct {
+		Metadata responseMetadata `json:"metadata"`
+		// Items from the list response
+		Data []OscalLikeEvidence `json:"data" yaml:"data"`
+	}
+
+	id := ctx.Param("id")
+	control := &relational.Control{}
+	if err := h.db.Preload("Filters").First(control, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	response := EvidenceDataListResponse{
+		Metadata: responseMetadata{
+			Control: control.MarshalOscal(),
+		},
+	}
+
+	filters := []labelfilter.Filter{}
+	for _, filter := range control.Filters {
+		filters = append(filters, filter.Filter.Data())
+	}
+
+	type StatusCount struct {
+		Count  int64  `json:"count"`
+		Status string `json:"status"`
+	}
+
+	if len(filters) == 0 {
+		// If there are no filters assigned for the control, we should return nothing explicitly, otherwise we return everything implicitly
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
+	}
+
+	latestQuery := h.db.Session(&gorm.Session{})
+	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
+	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filters...)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	evidence := []relational.Evidence{}
+	if err := q.Model(&relational.Evidence{}).
+		Scan(&evidence).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	response.Data = []OscalLikeEvidence{}
+	for _, e := range evidence {
+		out := &OscalLikeEvidence{}
+		err = out.FromEvidence(&e)
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		response.Data = append(response.Data, *out)
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
+
 // StatusOverTime godoc
 //
 //	@Summary		Evidence status metrics
@@ -681,4 +761,57 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusInterval]{Data: results})
+}
+
+// ComplianceByControl godoc
+//
+//	@Summary		Get compliance counts by control
+//	@Description	Retrieves the count of evidence statuses for filters associated with a specific Control ID.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Control ID"
+//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/compliance-by-control/{id} [get]
+func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
+	id := ctx.Param("id")
+	control := &relational.Control{}
+	if err := h.db.Preload("Filters").First(control, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	filters := []labelfilter.Filter{}
+	for _, filter := range control.Filters {
+		filters = append(filters, filter.Filter.Data())
+	}
+
+	type StatusCount struct {
+		Count  int64  `json:"count"`
+		Status string `json:"status"`
+	}
+
+	if len(filters) == 0 {
+		// If there are no filters assigned for the control, we should return nothing explicitly, otherwise we return everything implicitly
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
+	}
+
+	latestQuery := h.db.Session(&gorm.Session{})
+	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
+	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filters...)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	rows := []StatusCount{}
+	if err := q.Model(&relational.Evidence{}).
+		Select("count(*) as count, status->>'state' as status").
+		Group("status->>'state'").
+		Scan(&rows).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: rows})
 }

@@ -228,260 +228,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/dashboards": {
-            "get": {
-                "description": "Retrieves all dashboards.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Dashboards"
-                ],
-                "summary": "List dashboards",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_DashboardWithControlsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Creates a new dashboard.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Dashboards"
-                ],
-                "summary": "Create a new dashboard",
-                "parameters": [
-                    {
-                        "description": "Dashboard to add",
-                        "name": "dashboard",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createDashboardRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Dashboard"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/dashboards/compliance-by-control/{id}": {
-            "get": {
-                "description": "Retrieves the count of evidence statuses for dashboards associated with a specific Control ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Dashboards"
-                ],
-                "summary": "Get compliance counts by control",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Control ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/dashboards/{id}": {
-            "get": {
-                "description": "Retrieves a single dashboard by its unique ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Dashboards"
-                ],
-                "summary": "Get a dashboard",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Dashboard ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_DashboardWithControlsResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Updates an existing dashboard.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Dashboards"
-                ],
-                "summary": "Update a dashboard",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Dashboard ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Dashboard to update",
-                        "name": "dashboard",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createDashboardRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Dashboard"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Deletes a dashboard.",
-                "tags": [
-                    "Dashboards"
-                ],
-                "summary": "Delete a dashboard",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Dashboard ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
         "/evidence": {
             "post": {
                 "security": [
@@ -517,6 +263,88 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/evidence/compliance-by-control/{id}": {
+            "get": {
+                "description": "Retrieves the count of evidence statuses for filters associated with a specific Control ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get compliance counts by control",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/evidence/for-control/{id}": {
+            "get": {
+                "description": "Retrieves Evidence records associated with a specific Control ID, including related activities, inventory items, components, subjects, and labels.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "List Evidence for a Control",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ForControl.EvidenceDataListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -740,6 +568,225 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/filters": {
+            "get": {
+                "description": "Retrieves all filters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "List filters",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new filter.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Create a new filter",
+                "parameters": [
+                    {
+                        "description": "Filter to add",
+                        "name": "filter",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createFilterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Filter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/filters/{id}": {
+            "get": {
+                "description": "Retrieves a single filter by its unique ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Get a filter",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithControlsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates an existing filter.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Update a filter",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Filter to update",
+                        "name": "filter",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createFilterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Filter"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a filter.",
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Delete a filter",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -10175,26 +10222,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.DashboardWithControlsResponse": {
-            "type": "object",
-            "properties": {
-                "controls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Control"
-                    }
-                },
-                "filter": {
-                    "$ref": "#/definitions/datatypes.JSONType-labelfilter_Filter"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.EvidenceActivity": {
             "type": "object",
             "properties": {
@@ -10466,6 +10493,49 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.FilterWithControlsResponse": {
+            "type": "object",
+            "properties": {
+                "controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                    }
+                },
+                "filter": {
+                    "$ref": "#/definitions/datatypes.JSONType-labelfilter_Filter"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.ForControl.EvidenceDataListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.OscalLikeEvidence"
+                    }
+                },
+                "metadata": {
+                    "$ref": "#/definitions/handler.ForControl.responseMetadata"
+                }
+            }
+        },
+        "handler.ForControl.responseMetadata": {
+            "type": "object",
+            "properties": {
+                "control": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Control"
+                }
+            }
+        },
         "handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount": {
             "type": "object",
             "properties": {
@@ -10478,14 +10548,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_DashboardWithControlsResponse": {
+        "handler.GenericDataListResponse-handler_FilterWithControlsResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.DashboardWithControlsResponse"
+                        "$ref": "#/definitions/handler.FilterWithControlsResponse"
                     }
                 }
             }
@@ -10935,14 +11005,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_DashboardWithControlsResponse": {
+        "handler.GenericDataResponse-handler_FilterWithControlsResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.DashboardWithControlsResponse"
+                            "$ref": "#/definitions/handler.FilterWithControlsResponse"
                         }
                     ]
                 }
@@ -11585,14 +11655,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-relational_Dashboard": {
+        "handler.GenericDataResponse-relational_Filter": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/relational.Dashboard"
+                            "$ref": "#/definitions/relational.Filter"
                         }
                     ]
                 }
@@ -11732,7 +11802,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.createDashboardRequest": {
+        "handler.createFilterRequest": {
             "type": "object",
             "required": [
                 "filter",
@@ -16290,10 +16360,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Control"
                     }
                 },
-                "dashboards": {
+                "filters": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/relational.Dashboard"
+                        "$ref": "#/definitions/relational.Filter"
                     }
                 },
                 "id": {
@@ -16550,26 +16620,6 @@ const docTemplate = `{
                 }
             }
         },
-        "relational.Dashboard": {
-            "type": "object",
-            "properties": {
-                "controls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/relational.Control"
-                    }
-                },
-                "filter": {
-                    "$ref": "#/definitions/datatypes.JSONType-labelfilter_Filter"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "relational.DefinedComponent": {
             "type": "object",
             "properties": {
@@ -16782,6 +16832,26 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.ControlImplementationResponsibility"
                     }
+                }
+            }
+        },
+        "relational.Filter": {
+            "type": "object",
+            "properties": {
+                "controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Control"
+                    }
+                },
+                "filter": {
+                    "$ref": "#/definitions/datatypes.JSONType-labelfilter_Filter"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

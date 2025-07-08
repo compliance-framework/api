@@ -19,21 +19,21 @@ import (
 	"testing"
 )
 
-func TestDashboardApi(t *testing.T) {
-	suite.Run(t, new(DashboardApiIntegrationSuite))
+func TestFilterApi(t *testing.T) {
+	suite.Run(t, new(FilterApiIntegrationSuite))
 }
 
-type DashboardApiIntegrationSuite struct {
+type FilterApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 }
 
-func (suite *DashboardApiIntegrationSuite) TestCreate() {
+func (suite *FilterApiIntegrationSuite) TestCreate() {
 	suite.Run("Simple", func() {
 		err := suite.Migrator.Refresh()
 		suite.Require().NoError(err)
 
-		createReq := createDashboardRequest{
-			Name: "Simple Dashboard",
+		createReq := createFilterRequest{
+			Name: "Simple Filter",
 			Filter: labelfilter.Filter{
 				Scope: &labelfilter.Scope{
 					Condition: &labelfilter.Condition{
@@ -50,7 +50,7 @@ func (suite *DashboardApiIntegrationSuite) TestCreate() {
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/dashboards", bytes.NewReader(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
@@ -72,8 +72,8 @@ func (suite *DashboardApiIntegrationSuite) TestCreate() {
 			},
 		})
 
-		createReq := createDashboardRequest{
-			Name: "Simple Dashboard",
+		createReq := createFilterRequest{
+			Name: "Simple Filter",
 			Filter: labelfilter.Filter{
 				Scope: &labelfilter.Scope{
 					Condition: &labelfilter.Condition{
@@ -93,7 +93,7 @@ func (suite *DashboardApiIntegrationSuite) TestCreate() {
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)
-		req := httptest.NewRequest(http.MethodPost, "/api/dashboards", bytes.NewReader(reqBody))
+		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)

@@ -8,8 +8,8 @@ import (
 )
 
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) {
-	dashboardHandler := NewDashboardHandler(logger, db)
-	dashboardHandler.Register(server.API().Group("/dashboards"))
+	filterHandler := NewFilterHandler(logger, db)
+	filterHandler.Register(server.API().Group("/filters"))
 
 	heartbeatHandler := NewHeartbeatHandler(logger, db)
 	heartbeatHandler.Register(server.API().Group("/agent/heartbeat"))

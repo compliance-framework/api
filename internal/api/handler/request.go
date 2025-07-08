@@ -8,13 +8,13 @@ import (
 )
 
 // createPlanRequest defines the request payload for method Create
-type createDashboardRequest struct {
+type createFilterRequest struct {
 	Name     string             `json:"name" yaml:"name" validate:"required"`
 	Filter   labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
 	Controls *[]string          `json:"controls" yaml:"controls"`
 }
 
-func (r *createDashboardRequest) bind(ctx echo.Context, p *relational.Dashboard) error {
+func (r *createFilterRequest) bind(ctx echo.Context, p *relational.Filter) error {
 	if err := ctx.Bind(r); err != nil {
 		return err
 	}

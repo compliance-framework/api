@@ -50,19 +50,6 @@ definitions:
       status:
         type: string
     type: object
-  handler.DashboardWithControlsResponse:
-    properties:
-      controls:
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Control'
-        type: array
-      filter:
-        $ref: '#/definitions/datatypes.JSONType-labelfilter_Filter'
-      id:
-        type: string
-      name:
-        type: string
-    type: object
   handler.EvidenceActivity:
     properties:
       description:
@@ -282,6 +269,34 @@ definitions:
           Component
         type: string
     type: object
+  handler.FilterWithControlsResponse:
+    properties:
+      controls:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Control'
+        type: array
+      filter:
+        $ref: '#/definitions/datatypes.JSONType-labelfilter_Filter'
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  handler.ForControl.EvidenceDataListResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.OscalLikeEvidence'
+        type: array
+      metadata:
+        $ref: '#/definitions/handler.ForControl.responseMetadata'
+    type: object
+  handler.ForControl.responseMetadata:
+    properties:
+      control:
+        $ref: '#/definitions/oscalTypes_1_1_3.Control'
+    type: object
   handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount:
     properties:
       data:
@@ -290,12 +305,12 @@ definitions:
           $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_DashboardWithControlsResponse:
+  handler.GenericDataListResponse-handler_FilterWithControlsResponse:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.DashboardWithControlsResponse'
+          $ref: '#/definitions/handler.FilterWithControlsResponse'
         type: array
     type: object
   handler.GenericDataListResponse-handler_OscalLikeEvidence:
@@ -593,11 +608,11 @@ definitions:
         - $ref: '#/definitions/auth.AuthHandler'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_DashboardWithControlsResponse:
+  handler.GenericDataResponse-handler_FilterWithControlsResponse:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.DashboardWithControlsResponse'
+        - $ref: '#/definitions/handler.FilterWithControlsResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_OscalLikeEvidence:
@@ -943,11 +958,11 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Task'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-relational_Dashboard:
+  handler.GenericDataResponse-relational_Filter:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/relational.Dashboard'
+        - $ref: '#/definitions/relational.Filter'
         description: Items from the list response
     type: object
   handler.HeartbeatCreateRequest:
@@ -1043,7 +1058,7 @@ definitions:
           $ref: '#/definitions/handler.StatusOverTime.StatusCount'
         type: array
     type: object
-  handler.createDashboardRequest:
+  handler.createFilterRequest:
     properties:
       controls:
         items:
@@ -4038,9 +4053,9 @@ definitions:
         items:
           $ref: '#/definitions/relational.Control'
         type: array
-      dashboards:
+      filters:
         items:
-          $ref: '#/definitions/relational.Dashboard'
+          $ref: '#/definitions/relational.Filter'
         type: array
       id:
         description: required
@@ -4212,19 +4227,6 @@ definitions:
         description: required
         type: string
     type: object
-  relational.Dashboard:
-    properties:
-      controls:
-        items:
-          $ref: '#/definitions/relational.Control'
-        type: array
-      filter:
-        $ref: '#/definitions/datatypes.JSONType-labelfilter_Filter'
-      id:
-        type: string
-      name:
-        type: string
-    type: object
   relational.DefinedComponent:
     properties:
       componentDefinition:
@@ -4373,6 +4375,19 @@ definitions:
         items:
           $ref: '#/definitions/relational.ControlImplementationResponsibility'
         type: array
+    type: object
+  relational.Filter:
+    properties:
+      controls:
+        items:
+          $ref: '#/definitions/relational.Control'
+        type: array
+      filter:
+        $ref: '#/definitions/datatypes.JSONType-labelfilter_Filter'
+      id:
+        type: string
+      name:
+        type: string
     type: object
   relational.Hash:
     properties:
@@ -5343,175 +5358,6 @@ paths:
       summary: Get OAuth2 token
       tags:
       - Auth
-  /dashboards:
-    get:
-      description: Retrieves all dashboards.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_DashboardWithControlsResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: List dashboards
-      tags:
-      - Dashboards
-    post:
-      consumes:
-      - application/json
-      description: Creates a new dashboard.
-      parameters:
-      - description: Dashboard to add
-        in: body
-        name: dashboard
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createDashboardRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-relational_Dashboard'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Create a new dashboard
-      tags:
-      - Dashboards
-  /dashboards/{id}:
-    delete:
-      description: Deletes a dashboard.
-      parameters:
-      - description: Dashboard ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Delete a dashboard
-      tags:
-      - Dashboards
-    get:
-      description: Retrieves a single dashboard by its unique ID.
-      parameters:
-      - description: Dashboard ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_DashboardWithControlsResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Get a dashboard
-      tags:
-      - Dashboards
-    put:
-      consumes:
-      - application/json
-      description: Updates an existing dashboard.
-      parameters:
-      - description: Dashboard ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Dashboard to update
-        in: body
-        name: dashboard
-        required: true
-        schema:
-          $ref: '#/definitions/handler.createDashboardRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-relational_Dashboard'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Update a dashboard
-      tags:
-      - Dashboards
-  /dashboards/compliance-by-control/{id}:
-    get:
-      description: Retrieves the count of evidence statuses for dashboards associated
-        with a specific Control ID.
-      parameters:
-      - description: Control ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      summary: Get compliance counts by control
-      tags:
-      - Dashboards
   /evidence:
     post:
       consumes:
@@ -5573,6 +5419,62 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get Evidence by ID
+      tags:
+      - Evidence
+  /evidence/compliance-by-control/{id}:
+    get:
+      description: Retrieves the count of evidence statuses for filters associated
+        with a specific Control ID.
+      parameters:
+      - description: Control ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get compliance counts by control
+      tags:
+      - Evidence
+  /evidence/for-control/{id}:
+    get:
+      description: Retrieves Evidence records associated with a specific Control ID,
+        including related activities, inventory items, components, subjects, and labels.
+      parameters:
+      - description: Control ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ForControl.EvidenceDataListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List Evidence for a Control
       tags:
       - Evidence
   /evidence/history/{id}:
@@ -5697,6 +5599,151 @@ paths:
       summary: Evidence status metrics
       tags:
       - Evidence
+  /filters:
+    get:
+      description: Retrieves all filters.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List filters
+      tags:
+      - Filters
+    post:
+      consumes:
+      - application/json
+      description: Creates a new filter.
+      parameters:
+      - description: Filter to add
+        in: body
+        name: filter
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createFilterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_Filter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new filter
+      tags:
+      - Filters
+  /filters/{id}:
+    delete:
+      description: Deletes a filter.
+      parameters:
+      - description: Filter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a filter
+      tags:
+      - Filters
+    get:
+      description: Retrieves a single filter by its unique ID.
+      parameters:
+      - description: Filter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithControlsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get a filter
+      tags:
+      - Filters
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing filter.
+      parameters:
+      - description: Filter ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Filter to update
+        in: body
+        name: filter
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createFilterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_Filter'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a filter
+      tags:
+      - Filters
   /oscal/assessment-plans:
     get:
       description: Retrieves all Assessment Plans.
