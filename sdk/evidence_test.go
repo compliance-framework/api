@@ -6,8 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/compliance-framework/configuration-service/internal"
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/compliance-framework/configuration-service/sdk/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 	"testing"
@@ -27,7 +26,7 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 		client := suite.GetSDKTestClient()
 		fmt.Println(client)
 		// Create two catalogs with the same group ID structure
-		evidence := handler.EvidenceCreateRequest{
+		evidence := types.Evidence{
 			UUID:    uuid.New(),
 			Title:   "Some piece of evidence",
 			Start:   time.Now().Add(-time.Hour),
@@ -38,11 +37,11 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 				"service":  "EC2",
 				"instance": "i-12345",
 			},
-			Activities: []handler.EvidenceActivity{
+			Activities: []types.Activity{
 				{
 					UUID:  uuid.New(),
 					Title: "Collect evidence",
-					Steps: []handler.EvidenceActivityStep{
+					Steps: []types.Step{
 						{
 							UUID:  uuid.New(),
 							Title: "Run CLI to collect configuration",
@@ -56,7 +55,7 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 				{
 					UUID:  uuid.New(),
 					Title: "Evaluate compliance to policies",
-					Steps: []handler.EvidenceActivityStep{
+					Steps: []types.Step{
 						{
 							UUID:  uuid.New(),
 							Title: "Pass JSON configuration into policy engine",
@@ -68,16 +67,14 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 					},
 				},
 			},
-			InventoryItems: []handler.EvidenceInventoryItem{
+			InventoryItems: []types.InventoryItem{
 				{
 					Identifier: "web-server/ec2/i-12345",
 					Type:       "web-server",
 					Title:      "EC2 Instance - i-12345",
 					Props:      nil,
 					Links:      nil,
-					ImplementedComponents: []struct {
-						Identifier string
-					}{
+					ImplementedComponents: []types.ComponentIdentifier{
 						{
 							Identifier: "components/common/ssh",
 						},
@@ -87,19 +84,19 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 					},
 				},
 			},
-			Components: []handler.EvidenceComponent{
+			Components: []types.Component{
 				{
 					Identifier:  "components/common/ssh",
 					Type:        "software",
 					Title:       "Secure Shell (SSH)",
 					Description: "SSH is used to manage remote access to virtual and hardware servers.",
 					Purpose:     "",
-					Protocols: []oscalTypes_1_1_3.Protocol{
+					Protocols: []types.Protocol{
 						{
-							UUID:  "3480C9EC-BC6B-4851-B248-BA78D83ECECE",
+							UUID:  uuid.MustParse("3480C9EC-BC6B-4851-B248-BA78D83ECECE"),
 							Title: "SSH",
 							Name:  "SSH",
-							PortRanges: &[]oscalTypes_1_1_3.PortRange{
+							PortRanges: &[]types.PortRange{
 								{
 									End:       22,
 									Start:     22,
@@ -122,7 +119,7 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 					Description: "Amazon Elastic Compute Cloud (EC2) is a web service that lets you quickly provision resizable virtual servers in AWS’s global cloud, paying only for the compute you use. It offers a choice of instance types, networking and storage options, and automation features that allow everything from burst-scale web apps to enterprise workloads to run securely and on demand.",
 				},
 			},
-			Subjects: []handler.EvidenceSubject{
+			Subjects: []types.Subject{
 				{
 					Identifier: "web-server/ec2/i-12345",
 					Type:       "inventory-item",
@@ -136,7 +133,7 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 					Type:       "component",
 				},
 			},
-			Status: oscalTypes_1_1_3.ObjectiveStatus{
+			Status: types.ObjectiveStatus{
 				Reason:  "fail", // "pass" | "fail" | "other"
 				Remarks: "Policy evaluation failed as password authentication is enabled. SSH password authentication should be disabled.",
 				State:   "not-satisfied", // "satisfied" | "not-satisfied"

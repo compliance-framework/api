@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
+	"github.com/compliance-framework/configuration-service/sdk/types"
 	"net/http"
 )
 
@@ -14,21 +14,23 @@ type evidenceClient struct {
 	config     *Config
 }
 
-func (r *evidenceClient) Create(ctx context.Context, evidence handler.EvidenceCreateRequest) error {
-	reqBody, _ := json.Marshal(evidence)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/evidence", r.config.BaseURL), bytes.NewReader(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	response, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
+func (r *evidenceClient) Create(ctx context.Context, evidence ...types.Evidence) error {
+	for _, evid := range evidence {
+		reqBody, _ := json.Marshal(evid)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/evidence", r.config.BaseURL), bytes.NewReader(reqBody))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		response, err := r.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
 
-	if response.StatusCode != http.StatusCreated {
-		return fmt.Errorf("unexpected api response status code: %d", response.StatusCode)
+		if response.StatusCode != http.StatusCreated {
+			return fmt.Errorf("unexpected api response status code: %d", response.StatusCode)
+		}
 	}
 
 	return nil
