@@ -2,10 +2,11 @@ package relational
 
 import (
 	"encoding/json"
-	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestImport_MarshalOscal(t *testing.T) {
@@ -239,4 +240,82 @@ func TestProfile_MarshalOscal(t *testing.T) {
 	outputJSON, err := json.Marshal(output)
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(inputJson), string(outputJSON))
+}
+
+func TestProfileImportHrefResolve(t *testing.T) {
+	tests := []struct {
+		name     string
+		href     string
+		expected *HrefMetadata
+	}{
+		{
+			name: "absolute URL with scheme and host",
+			href: "https://example.com/resource",
+			expected: &HrefMetadata{
+				Path:         "https://example.com/resource",
+				AbsolutePath: true,
+				RelativePath: false,
+				Fragment:     false,
+			},
+		},
+		{
+			name: "relative URL",
+			href: "path/to/resource",
+			expected: &HrefMetadata{
+				Path:         "path/to/resource",
+				AbsolutePath: false,
+				RelativePath: true,
+				Fragment:     false,
+			},
+		},
+		{
+			name: "URI fragment",
+			href: "#fragment",
+			expected: &HrefMetadata{
+				Path:         "fragment",
+				AbsolutePath: false,
+				RelativePath: false,
+				Fragment:     true,
+			},
+		},
+		{
+			name: "Filepath URI",
+			href: "file:///path/to/resource",
+			expected: &HrefMetadata{
+				Path:         "file:///path/to/resource",
+				AbsolutePath: true,
+				RelativePath: false,
+				Fragment:     false,
+			},
+		},
+		{
+			name: "Shorthand filepath URI",
+			href: "/path/to/resource",
+			expected: &HrefMetadata{
+				Path:         "/path/to/resource",
+				AbsolutePath: true,
+				RelativePath: false,
+				Fragment:     false,
+			},
+		},
+		{
+			name: "Relative file path in the same directory",
+			href: "resource.txt",
+			expected: &HrefMetadata{
+				Path:         "resource.txt",
+				AbsolutePath: false,
+				RelativePath: true,
+				Fragment:     false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp := Import{Href: tt.href}
+			result, err := imp.ResolveHref()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

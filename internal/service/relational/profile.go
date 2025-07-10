@@ -1,6 +1,9 @@
 package relational
 
 import (
+	"errors"
+	"net/url"
+
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -147,6 +150,54 @@ func (i *Import) MarshalOscal() oscalTypes_1_1_3.Import {
 	}
 
 	return ret
+}
+
+type HrefMetadata struct {
+	Path         string
+	AbsolutePath bool
+	RelativePath bool
+	Fragment     bool
+}
+
+// ResolveHref attempts to resolve the Href of the Import and checks whether its an absolute path, relative path or a URI fragment.
+// If it is a URI fragment, it will return a flag to indicate to the caller that it should resolve the fragment to a back-matter resource.
+func (i *Import) ResolveHref() (*HrefMetadata, error) {
+	if i.Href == "" {
+		return nil, errors.New("href is an empty string")
+	}
+
+	parsedUrl, err := url.Parse(i.Href)
+	if err != nil {
+		return nil, err
+	}
+
+	if parsedUrl.Fragment != "" {
+		// If the URL has a fragment, it is a URI fragment
+		return &HrefMetadata{
+			Path:         parsedUrl.Fragment,
+			AbsolutePath: false,
+			RelativePath: false,
+			Fragment:     true,
+		}, nil
+	}
+
+	if (parsedUrl.Host != "" || parsedUrl.Scheme != "") || (parsedUrl.Path != "" && parsedUrl.Path[0] == '/') {
+		// If the URL has a host or scheme, or the path starts with a '/', it is an absolute path
+		return &HrefMetadata{
+			Path:         i.Href,
+			AbsolutePath: true,
+			RelativePath: false,
+			Fragment:     false,
+		}, nil
+	}
+
+	// If the URL has no host, scheme, or fragment, it is a relative path
+	return &HrefMetadata{
+		Path:         parsedUrl.Path,
+		AbsolutePath: false,
+		RelativePath: true,
+		Fragment:     false,
+	}, nil
 }
 
 type Matching oscalTypes_1_1_3.Matching

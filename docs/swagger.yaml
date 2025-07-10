@@ -776,6 +776,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.ImplementedRequirement'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_Import:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.Import'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_ImportProfile:
     properties:
       data:
@@ -10151,6 +10158,186 @@ paths:
       summary: List Imports
       tags:
       - Profile
+  /oscal/profiles/{id}/imports/{href}:
+    delete:
+      description: Deletes an import from a profile by its href
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import Href
+        in: path
+        name: href
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Import deleted successfully
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete Import from Profile
+      tags:
+      - Profile
+    get:
+      description: Retrieves a specific import from a profile by its backmatter href
+      parameters:
+      - description: Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import Href
+        in: path
+        name: href
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Import'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get Import from Profile by Backmatter Href
+      tags:
+      - Profile
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing import in a profile by its href
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import Href
+        in: path
+        name: href
+        required: true
+        type: string
+      - description: Import data to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Import'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Import'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update Import in Profile
+      tags:
+      - Profile
+  /oscal/profiles/{id}/imports/add:
+    post:
+      consumes:
+      - application/json
+      description: Adds an import to a profile by its UUID and type (catalog/profile).
+        Only catalogs are currently supported currently
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Request data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.ProfileHandler'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Import'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add Import to Profile
+      tags:
+      - Profile
   /oscal/profiles/{id}/merge:
     get:
       description: Retrieves the merge section for a specific profile.
@@ -10186,6 +10373,50 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get merge section
+      tags:
+      - Profile
+    put:
+      consumes:
+      - application/json
+      description: Updates the merge information for a specific profile
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Merge data to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Merge'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Merge'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update Merge
       tags:
       - Profile
   /oscal/profiles/{id}/modify:

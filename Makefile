@@ -20,6 +20,8 @@ help-all: ## Display all help items, ie including plumbing targets.
 IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.26.1
+# Default Test Path for a single integration test. Defaults to root
+TEST_PATH ?= ./...
 
 BLUE         := $(shell printf "\033[34m")
 YELLOW       := $(shell printf "\033[33m")
@@ -63,6 +65,21 @@ test: swag  ## Run tests
 .PHONY:   test-integration
 test-integration: swag  ## Run tests
 	@if ! go test ./... -coverprofile cover.out -v --tags integration; then \
+		$(WARN) "Tests failed"; \
+		exit 1; \
+	fi ; \
+	$(OK) Tests passed
+
+
+.PHONY: test-integration-single
+test-integration-single: ## Run a single integration test. Requires TEST_PATH and TEST_NAME to be set.
+ifndef TEST_NAME
+	@$(ERR) "TEST_NAME is not set. Please set it to the name of the test function."
+	@exit 1
+endif
+	@$(INFO) "Running integration test: $(TEST_NAME) in path: $(TEST_PATH)"
+
+	@if ! go test $(TEST_PATH) -coverprofile cover.out -v --tags integration --run $(TEST_NAME); then \
 		$(WARN) "Tests failed"; \
 		exit 1; \
 	fi ; \

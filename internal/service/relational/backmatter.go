@@ -99,18 +99,19 @@ func (b *BackMatterResource) MarshalOscal() *oscaltypes113.Resource {
 	res := &oscaltypes113.Resource{
 		UUID: b.UUIDModel.ID.String(),
 	}
-	
+
 	if b.Title != nil {
 		res.Title = *b.Title
 	}
-	
+
 	if b.Description != nil {
 		res.Description = *b.Description
 	}
-	
+
 	if b.Remarks != nil {
 		res.Remarks = *b.Remarks
 	}
+
 	if len(b.Props) > 0 {
 		props := *ConvertPropsToOscal(b.Props)
 		res.Props = &props
