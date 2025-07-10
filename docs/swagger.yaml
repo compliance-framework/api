@@ -8875,6 +8875,150 @@ paths:
       summary: Get POA&M back-matter
       tags:
       - Plan Of Action and Milestones
+  /oscal/plan-of-action-and-milestones/{id}/back-matter/resources:
+    get:
+      description: Retrieves all back-matter resources for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Resource'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get back-matter resources for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+    post:
+      consumes:
+      - application/json
+      description: Creates a new back-matter resource for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resource data
+        in: body
+        name: resource
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Resource'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Resource'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a new back-matter resource for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+  /oscal/plan-of-action-and-milestones/{id}/back-matter/resources/{resourceId}:
+    delete:
+      description: Deletes an existing back-matter resource for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resource ID
+        in: path
+        name: resourceId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a back-matter resource from a POA&M
+      tags:
+      - Plan Of Action and Milestones
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing back-matter resource for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resource ID
+        in: path
+        name: resourceId
+        required: true
+        type: string
+      - description: Resource data
+        in: body
+        name: resource
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Resource'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Resource'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a back-matter resource for a POA&M
+      tags:
+      - Plan Of Action and Milestones
   /oscal/plan-of-action-and-milestones/{id}/findings:
     get:
       description: Retrieves all findings for a given POA&M.
@@ -9082,6 +9226,82 @@ paths:
       summary: Get POA&M import-ssp
       tags:
       - Plan Of Action and Milestones
+    post:
+      consumes:
+      - application/json
+      description: Creates import-ssp for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import SSP data
+        in: body
+        name: importSsp
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImportSsp'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ImportSsp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create import-ssp for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+    put:
+      consumes:
+      - application/json
+      description: Updates import-ssp for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Import SSP data
+        in: body
+        name: importSsp
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImportSsp'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ImportSsp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update import-ssp for a POA&M
+      tags:
+      - Plan Of Action and Milestones
   /oscal/plan-of-action-and-milestones/{id}/local-definitions:
     get:
       description: Retrieves local definitions for a given POA&M.
@@ -9142,6 +9362,44 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M metadata
+      tags:
+      - Plan Of Action and Milestones
+    put:
+      consumes:
+      - application/json
+      description: Updates metadata for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Metadata data
+        in: body
+        name: metadata
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Metadata'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update POA&M metadata
       tags:
       - Plan Of Action and Milestones
   /oscal/plan-of-action-and-milestones/{id}/observations:
@@ -9605,6 +9863,82 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get POA&M system-id
+      tags:
+      - Plan Of Action and Milestones
+    post:
+      consumes:
+      - application/json
+      description: Creates system-id for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: System ID data
+        in: body
+        name: systemId
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemId'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemId'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create system-id for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+    put:
+      consumes:
+      - application/json
+      description: Updates system-id for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: System ID data
+        in: body
+        name: systemId
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemId'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemId'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update system-id for a POA&M
       tags:
       - Plan Of Action and Milestones
   /oscal/profiles:

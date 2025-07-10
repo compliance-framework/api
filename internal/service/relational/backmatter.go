@@ -27,13 +27,12 @@ func (b *BackMatter) UnmarshalOscal(resource oscaltypes113.BackMatter) *BackMatt
 // MarshalOscal converts the BackMatter back to an OSCAL BackMatter
 func (b *BackMatter) MarshalOscal() *oscaltypes113.BackMatter {
 	bm := &oscaltypes113.BackMatter{}
-	if len(b.Resources) > 0 {
-		resources := make([]oscaltypes113.Resource, len(b.Resources))
-		for i, r := range b.Resources {
-			resources[i] = *r.MarshalOscal()
-		}
-		bm.Resources = &resources
+	// Always set resources to an empty array, even if no resources exist
+	resources := make([]oscaltypes113.Resource, len(b.Resources))
+	for i, r := range b.Resources {
+		resources[i] = *r.MarshalOscal()
 	}
+	bm.Resources = &resources
 	return bm
 }
 
@@ -98,10 +97,19 @@ func (c *BackMatterResource) UnmarshalOscal(resource oscaltypes113.Resource) *Ba
 // MarshalOscal converts the BackMatterResource back to an OSCAL Resource
 func (b *BackMatterResource) MarshalOscal() *oscaltypes113.Resource {
 	res := &oscaltypes113.Resource{
-		UUID:        b.UUIDModel.ID.String(),
-		Title:       *b.Title,
-		Description: *b.Description,
-		Remarks:     *b.Remarks,
+		UUID: b.UUIDModel.ID.String(),
+	}
+	
+	if b.Title != nil {
+		res.Title = *b.Title
+	}
+	
+	if b.Description != nil {
+		res.Description = *b.Description
+	}
+	
+	if b.Remarks != nil {
+		res.Remarks = *b.Remarks
 	}
 	if len(b.Props) > 0 {
 		props := *ConvertPropsToOscal(b.Props)

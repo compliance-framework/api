@@ -8,7 +8,7 @@ import (
 	"gorm.io/datatypes"
 )
 
-// PlanOfActionAndMilestones represents a plan of action and milestones in OSCAL.
+// PlanOfActionAndMilestones represents a plan of action and milestones in OSCAL
 // It includes metadata, import-ssp, system-id, local-definitions, observations, risks, findings, poam-items, and back-matter.
 type PlanOfActionAndMilestones struct {
 	UUIDModel

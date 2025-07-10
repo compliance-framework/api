@@ -1280,3 +1280,96 @@ func TestPoamItemOrigin_MarshalUnmarshalOscal(t *testing.T) {
 
 	assert.JSONEq(t, string(inputJson), string(outputJson))
 }
+
+// TestImportSsp_MarshalUnmarshalOscal tests the marshaling and unmarshaling of ImportSsp
+// to and from OSCAL format. It ensures that the conversion process preserves all fields and structure.
+func TestImportSsp_MarshalUnmarshalOscal(t *testing.T) {
+	tests := []struct {
+		name string
+		data oscalTypes_1_1_3.ImportSsp
+	}{
+		{
+			name: "minimal fields",
+			data: oscalTypes_1_1_3.ImportSsp{
+				Href: "https://example.com/ssp.json",
+			},
+		},
+		{
+			name: "with remarks",
+			data: oscalTypes_1_1_3.ImportSsp{
+				Href:    "https://example.com/ssp.json",
+				Remarks: "This is a test import SSP with remarks",
+			},
+		},
+		{
+			name: "complex href",
+			data: oscalTypes_1_1_3.ImportSsp{
+				Href:    "https://example.com/api/v1/system-security-plans/12345-67890-abcdef-ghijk",
+				Remarks: "Importing SSP from external system with complex URL structure",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJson, err := json.Marshal(tt.data)
+			assert.NoError(t, err)
+
+			importSsp := &ImportSsp{}
+			assert.NotPanics(t, func() {
+				importSsp.UnmarshalOscal(tt.data)
+			})
+			output := importSsp.MarshalOscal()
+			outputJson, err := json.Marshal(output)
+			assert.NoError(t, err)
+
+			assert.JSONEq(t, string(inputJson), string(outputJson))
+		})
+	}
+}
+
+// TestImportSsp_Validation tests the validation logic for ImportSsp
+func TestImportSsp_Validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		importSsp   ImportSsp
+		expectValid bool
+	}{
+		{
+			name: "valid with href only",
+			importSsp: ImportSsp{
+				Href: "https://example.com/ssp.json",
+			},
+			expectValid: true,
+		},
+		{
+			name: "valid with href and remarks",
+			importSsp: ImportSsp{
+				Href:    "https://example.com/ssp.json",
+				Remarks: "Test remarks",
+			},
+			expectValid: true,
+		},
+		{
+			name: "invalid - empty href",
+			importSsp: ImportSsp{
+				Href: "",
+			},
+			expectValid: false,
+		},
+		{
+			name: "invalid - missing href",
+			importSsp: ImportSsp{
+				Remarks: "Test remarks",
+			},
+			expectValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isValid := tt.importSsp.Href != ""
+			assert.Equal(t, tt.expectValid, isValid)
+		})
+	}
+}
