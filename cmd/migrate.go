@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"github.com/compliance-framework/configuration-service/internal/config"
 	"github.com/compliance-framework/configuration-service/internal/service"
 	"github.com/spf13/cobra"
@@ -50,8 +51,8 @@ func migrateUp(cmd *cobra.Command, args []string) {
 	defer zapLogger.Sync() // flushes buffer, if any
 
 	cfg := config.NewConfig(sugar)
-
-	db, err := service.ConnectSQLDb(cfg, sugar)
+	ctx := context.Background()
+	db, err := service.ConnectSQLDb(ctx, cfg, sugar)
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -71,8 +72,8 @@ func migrateDown(cmd *cobra.Command, args []string) {
 	defer zapLogger.Sync() // flushes buffer, if any
 
 	cfg := config.NewConfig(sugar)
-
-	db, err := service.ConnectSQLDb(cfg, sugar)
+	ctx := context.Background()
+	db, err := service.ConnectSQLDb(ctx, cfg, sugar)
 	if err != nil {
 		panic("failed to connect database")
 	}

@@ -34,7 +34,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	config := config.NewConfig(sugar)
 
-	db, err := service.ConnectSQLDb(config, sugar)
+	db, err := service.ConnectSQLDb(ctx, config, sugar)
 	if err != nil {
 		sugar.Fatal("Failed to connect to SQL database", "err", err)
 	}

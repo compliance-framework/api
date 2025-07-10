@@ -1,6 +1,7 @@
 package seed
 
 import (
+	"context"
 	"fmt"
 	"github.com/compliance-framework/configuration-service/internal"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
@@ -59,7 +60,7 @@ func generateEvidence(cmd *cobra.Command, args []string) {
 	defer zapLogger.Sync() // flushes buffer, if any
 
 	cmdConfig := config.NewConfig(sugar)
-	db, err := service.ConnectSQLDb(cmdConfig, sugar)
+	db, err := service.ConnectSQLDb(context.Background(), cmdConfig, sugar)
 	if err != nil {
 		panic("failed to connect database")
 	}

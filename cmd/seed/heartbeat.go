@@ -1,6 +1,7 @@
 package seed
 
 import (
+	"context"
 	"github.com/google/uuid"
 	"github.com/schollz/progressbar/v3"
 	"log"
@@ -53,7 +54,7 @@ func generateHeartbeats(cmd *cobra.Command, args []string) {
 	defer zapLogger.Sync() // flushes buffer, if any
 
 	cmdConfig := config.NewConfig(sugar)
-	db, err := service.ConnectSQLDb(cmdConfig, sugar)
+	db, err := service.ConnectSQLDb(context.Background(), cmdConfig, sugar)
 	if err != nil {
 		panic("failed to connect database")
 	}

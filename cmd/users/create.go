@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"github.com/compliance-framework/configuration-service/internal/config"
@@ -34,13 +35,14 @@ func newUserAddCmd() *cobra.Command {
 }
 
 func addUser(cmd *cobra.Command, args []string) {
+	ctx := context.Background()
 	logger, err := zap.NewProduction()
 	cobra.CheckErr(err)
 	defer logger.Sync() // flushes buffer, if any
 	sugar := logger.Sugar()
 
 	config := config.NewConfig(sugar)
-	db, err := service.ConnectSQLDb(config, sugar)
+	db, err := service.ConnectSQLDb(ctx, config, sugar)
 
 	if err != nil {
 		sugar.Errorw("Failed to connect to database", "error", err)

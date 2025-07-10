@@ -1,6 +1,7 @@
 package oscal
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -45,7 +46,7 @@ func importOscal(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	db, err := service.ConnectSQLDb(config, sugar)
+	db, err := service.ConnectSQLDb(context.Background(), config, sugar)
 	if err != nil {
 		panic("failed to connect database")
 	}
