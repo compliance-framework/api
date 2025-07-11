@@ -453,7 +453,7 @@ const docTemplate = `{
         },
         "/evidence/status-over-time": {
             "post": {
-                "description": "Retrieves counts of evidence statuses at various intervals.",
+                "description": "Retrieves counts of evidence statuses at various time intervals based on a label filter.",
                 "consumes": [
                     "application/json"
                 ],
@@ -463,7 +463,7 @@ const docTemplate = `{
                 "tags": [
                     "Evidence"
                 ],
-                "summary": "Evidence status metrics",
+                "summary": "Evidence status metrics over intervals",
                 "parameters": [
                     {
                         "description": "Label filter",
@@ -473,13 +473,25 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/labelfilter.Filter"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of duration intervals (e.g., '10m,1h,24h')",
+                        "name": "intervals",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_StatusOverTime_StatusInterval"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_StatusInterval"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "422": {
@@ -498,34 +510,41 @@ const docTemplate = `{
             }
         },
         "/evidence/status-over-time/{id}": {
-            "post": {
-                "description": "Retrieves counts of evidence statuses at various intervals.",
-                "consumes": [
-                    "application/json"
-                ],
+            "get": {
+                "description": "Retrieves counts of evidence statuses at various time intervals for a specific evidence stream identified by UUID.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Evidence"
                 ],
-                "summary": "Evidence status metrics",
+                "summary": "Evidence status metrics over intervals by UUID",
                 "parameters": [
                     {
-                        "description": "Label filter",
-                        "name": "filter",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/labelfilter.Filter"
-                        }
+                        "type": "string",
+                        "description": "Evidence UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of duration intervals (e.g., '10m,1h,24h')",
+                        "name": "intervals",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_StatusOverTime_StatusInterval"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_StatusInterval"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "422": {
@@ -11429,14 +11448,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_StatusOverTime_StatusInterval": {
+        "handler.GenericDataListResponse-handler_StatusInterval": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.StatusOverTime.StatusInterval"
+                        "$ref": "#/definitions/handler.StatusInterval"
                     }
                 }
             }
@@ -12635,7 +12654,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.StatusOverTime.StatusCount": {
+        "handler.StatusCount": {
             "type": "object",
             "properties": {
                 "count": {
@@ -12646,7 +12665,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.StatusOverTime.StatusInterval": {
+        "handler.StatusInterval": {
             "type": "object",
             "properties": {
                 "interval": {
@@ -12655,7 +12674,7 @@ const docTemplate = `{
                 "statuses": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.StatusOverTime.StatusCount"
+                        "$ref": "#/definitions/handler.StatusCount"
                     }
                 }
             }

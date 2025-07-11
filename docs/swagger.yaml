@@ -329,12 +329,12 @@ definitions:
           $ref: '#/definitions/handler.OverTime.HeartbeatInterval'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_StatusOverTime_StatusInterval:
+  handler.GenericDataListResponse-handler_StatusInterval:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.StatusOverTime.StatusInterval'
+          $ref: '#/definitions/handler.StatusInterval'
         type: array
     type: object
   handler.GenericDataListResponse-oscal_List_responseCatalog:
@@ -1049,20 +1049,20 @@ definitions:
       total:
         type: integer
     type: object
-  handler.StatusOverTime.StatusCount:
+  handler.StatusCount:
     properties:
       count:
         type: integer
       status:
         type: string
     type: object
-  handler.StatusOverTime.StatusInterval:
+  handler.StatusInterval:
     properties:
       interval:
         type: string
       statuses:
         items:
-          $ref: '#/definitions/handler.StatusOverTime.StatusCount'
+          $ref: '#/definitions/handler.StatusCount'
         type: array
     type: object
   handler.createFilterRequest:
@@ -5550,7 +5550,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Retrieves counts of evidence statuses at various intervals.
+      description: Retrieves counts of evidence statuses at various time intervals
+        based on a label filter.
       parameters:
       - description: Label filter
         in: body
@@ -5558,13 +5559,21 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/labelfilter.Filter'
+      - description: Comma-separated list of duration intervals (e.g., '10m,1h,24h')
+        in: query
+        name: intervals
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_StatusOverTime_StatusInterval'
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_StatusInterval'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "422":
           description: Unprocessable Entity
           schema:
@@ -5573,28 +5582,34 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Evidence status metrics
+      summary: Evidence status metrics over intervals
       tags:
       - Evidence
   /evidence/status-over-time/{id}:
-    post:
-      consumes:
-      - application/json
-      description: Retrieves counts of evidence statuses at various intervals.
+    get:
+      description: Retrieves counts of evidence statuses at various time intervals
+        for a specific evidence stream identified by UUID.
       parameters:
-      - description: Label filter
-        in: body
-        name: filter
+      - description: Evidence UUID
+        in: path
+        name: id
         required: true
-        schema:
-          $ref: '#/definitions/labelfilter.Filter'
+        type: string
+      - description: Comma-separated list of duration intervals (e.g., '10m,1h,24h')
+        in: query
+        name: intervals
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_StatusOverTime_StatusInterval'
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_StatusInterval'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "422":
           description: Unprocessable Entity
           schema:
@@ -5603,7 +5618,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      summary: Evidence status metrics
+      summary: Evidence status metrics over intervals by UUID
       tags:
       - Evidence
   /filters:

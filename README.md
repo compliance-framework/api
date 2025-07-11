@@ -90,12 +90,8 @@ When using Podman instead of Docker, some changes are necessary for testcontaine
 
 ```shell
 # This is a workaround currently, and is currently being worked on by the testcontainers folks.
-# Ensure Podman is running rootfully
-podman machine stop; podman machine set --rootful; podman machine start;
-export DOCKER_HOST=unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 export TESTCONTAINERS_RYUK_DISABLED=true;
-export TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED=true;
 ```
 
 ## License

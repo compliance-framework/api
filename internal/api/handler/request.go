@@ -5,7 +5,26 @@ import (
 	"github.com/compliance-framework/configuration-service/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"gorm.io/datatypes"
+	"strings"
+	"time"
 )
+
+func ParseIntervalListQueryParam(intervalQuery string, def []time.Duration) ([]time.Duration, error) {
+	if intervalQuery == "" {
+		return def, nil
+	}
+
+	var intervals []time.Duration
+	userIntervals := strings.Split(intervalQuery, ",")
+	for _, interval := range userIntervals {
+		dur, err := time.ParseDuration(interval)
+		if err != nil {
+			return nil, err
+		}
+		intervals = append(intervals, dur)
+	}
+	return intervals, nil
+}
 
 // createPlanRequest defines the request payload for method Create
 type createFilterRequest struct {

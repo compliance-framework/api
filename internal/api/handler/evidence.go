@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"github.com/compliance-framework/configuration-service/internal"
 	"github.com/compliance-framework/configuration-service/internal/api"
 	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
@@ -607,17 +606,29 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
+type StatusCount struct {
+	Count  int64  `json:"count"`
+	Status string `json:"status"`
+}
+
+type StatusInterval struct {
+	Interval time.Time     `json:"interval"`
+	Statuses []StatusCount `json:"statuses"`
+}
+
 // StatusOverTime godoc
 //
-//	@Summary		Evidence status metrics
-//	@Description	Retrieves counts of evidence statuses at various intervals.
+//	@Summary		Evidence status metrics over intervals
+//	@Description	Retrieves counts of evidence statuses at various time intervals based on a label filter.
 //	@Tags			Evidence
 //	@Accept			json
 //	@Produce		json
-//	@Param			filter	body		labelfilter.Filter	true	"Label filter"
-//	@Success		200		{object}	handler.GenericDataListResponse[handler.StatusOverTime.StatusInterval]
-//	@Failure		422		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Param			filter		body		labelfilter.Filter	true	"Label filter"
+//	@Param			intervals	query		string				false	"Comma-separated list of duration intervals (e.g., '10m,1h,24h')"
+//	@Success		200			{object}	handler.GenericDataListResponse[StatusInterval]
+//	@Failure		400			{object}	api.Error
+//	@Failure		422			{object}	api.Error
+//	@Failure		500			{object}	api.Error
 //	@Router			/evidence/status-over-time [post]
 func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 	var err error
@@ -628,17 +639,15 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
+	intervals, err := ParseIntervalListQueryParam(
+		ctx.QueryParam("intervals"),
+		[]time.Duration{0, 10 * time.Minute, 20 * time.Minute, 30 * time.Minute, 1 * time.Hour, 2 * time.Hour, 4 * time.Hour},
+	)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence interval query", "query", ctx.QueryParam("intervals"), "error", err)
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	type StatusInterval struct {
-		Interval time.Time     `json:"interval"`
-		Statuses []StatusCount `json:"statuses"`
-	}
-
-	intervals := []time.Duration{0, 10 * time.Minute, 20 * time.Minute, 30 * time.Minute, 1 * time.Hour, 2 * time.Hour, 4 * time.Hour}
 	type result struct {
 		idx      int
 		interval time.Time
@@ -686,16 +695,17 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 
 // StatusOverTimeByUUID godoc
 //
-//	@Summary		Evidence status metrics
-//	@Description	Retrieves counts of evidence statuses at various intervals.
+//	@Summary		Evidence status metrics over intervals by UUID
+//	@Description	Retrieves counts of evidence statuses at various time intervals for a specific evidence stream identified by UUID.
 //	@Tags			Evidence
-//	@Accept			json
 //	@Produce		json
-//	@Param			filter	body		labelfilter.Filter	true	"Label filter"
-//	@Success		200		{object}	handler.GenericDataListResponse[handler.StatusOverTime.StatusInterval]
-//	@Failure		422		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Router			/evidence/status-over-time/{id} [post]
+//	@Param			id			path		string	true	"Evidence UUID"
+//	@Param			intervals	query		string	false	"Comma-separated list of duration intervals (e.g., '10m,1h,24h')"
+//	@Success		200			{object}	handler.GenericDataListResponse[StatusInterval]
+//	@Failure		400			{object}	api.Error
+//	@Failure		422			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/evidence/status-over-time/{id} [get]
 func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -704,19 +714,15 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	fmt.Println(id)
-
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
+	intervals, err := ParseIntervalListQueryParam(
+		ctx.QueryParam("intervals"),
+		[]time.Duration{0, 10 * time.Minute, 20 * time.Minute, 30 * time.Minute, 1 * time.Hour, 2 * time.Hour, 4 * time.Hour},
+	)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence interval query", "query", ctx.QueryParam("intervals"), "error", err)
+		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	type StatusInterval struct {
-		Interval time.Time     `json:"interval"`
-		Statuses []StatusCount `json:"statuses"`
-	}
-
-	intervals := []time.Duration{0, 10 * time.Minute, 20 * time.Minute, 30 * time.Minute, 1 * time.Hour, 2 * time.Hour, 4 * time.Hour}
 	type result struct {
 		idx      int
 		interval time.Time
