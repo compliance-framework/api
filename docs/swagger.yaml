@@ -10648,7 +10648,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a System Security Plan
       tags:
-      - Oscal
+      - System Security Plans
     get:
       description: Retrieves a single System Security Plan by its unique ID.
       parameters:
@@ -10722,7 +10722,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a System Security Plan
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/back-matter:
     get:
       description: Retrieves back-matter for a given SSP.
@@ -10753,7 +10753,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get SSP back-matter
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -10791,7 +10791,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update SSP back-matter
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/back-matter/resources:
     get:
       description: Retrieves all back-matter resources for a given SSP.
@@ -10822,7 +10822,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get back-matter resources for a SSP
       tags:
-      - Oscal
+      - System Security Plans
     post:
       consumes:
       - application/json
@@ -10860,7 +10860,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new back-matter resource for a SSP
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/back-matter/resources/{resourceId}:
     delete:
       description: Deletes an existing back-matter resource for a given SSP.
@@ -10892,7 +10892,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a back-matter resource from a SSP
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -10935,7 +10935,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a back-matter resource for a SSP
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation:
     get:
       description: Retrieves the Control Implementation for a given System Security
@@ -11012,7 +11012,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update Control Implementation
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements:
     get:
       description: Retrieves all implemented requirements for a given SSP.
@@ -11043,7 +11043,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get implemented requirements for a SSP
       tags:
-      - Oscal
+      - System Security Plans
     post:
       consumes:
       - application/json
@@ -11081,7 +11081,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new implemented requirement for a SSP
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}:
     delete:
       description: Deletes an existing implemented requirement for a given SSP.
@@ -11113,7 +11113,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete an implemented requirement from a SSP
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -11156,7 +11156,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update an implemented requirement for a SSP
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements:
     post:
       consumes:
@@ -11201,7 +11201,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new statement within an implemented requirement
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}:
     put:
       consumes:
@@ -11251,7 +11251,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a statement within an implemented requirement
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/import-profile:
     get:
       description: Retrieves import-profile for a given SSP.
@@ -11282,7 +11282,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get SSP import-profile
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -11320,7 +11320,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update SSP import-profile
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/metadata:
     get:
       description: Retrieves metadata for a given SSP.
@@ -11351,7 +11351,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Get SSP metadata
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -11389,7 +11389,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update SSP metadata
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-characteristics:
     get:
       description: Retrieves the System Characteristics for a given System Security
@@ -11820,7 +11820,7 @@ paths:
       - OAuth2Password: []
       summary: Update System Implementation
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/components:
     get:
       description: Retrieves components in the System Implementation for a given System
@@ -11896,7 +11896,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new system component
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/components/{componentId}:
     delete:
       description: Deletes an existing system component for a given SSP.
@@ -11928,7 +11928,49 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a system component
       tags:
-      - Oscal
+      - System Security Plans
+    get:
+      description: Retrieves component in the System Implementation for a given System
+        Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Component ID
+        in: path
+        name: componentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get System Implementation Component
+      tags:
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -11971,7 +12013,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a system component
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/inventory-items:
     get:
       description: Retrieves inventory items in the System Implementation for a given
@@ -12047,7 +12089,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new inventory item
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/inventory-items/{itemId}:
     delete:
       description: Deletes an existing inventory item for a given SSP.
@@ -12079,7 +12121,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete an inventory item
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -12122,7 +12164,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update an inventory item
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations:
     get:
       description: Retrieves leveraged authorizations in the System Implementation
@@ -12198,7 +12240,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new leveraged authorization
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations/{authId}:
     delete:
       description: Deletes an existing leveraged authorization for a given SSP.
@@ -12230,7 +12272,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a leveraged authorization
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -12273,7 +12315,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a leveraged authorization
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/users:
     get:
       description: Retrieves users in the System Implementation for a given System
@@ -12349,7 +12391,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new system user
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation/users/{userId}:
     delete:
       description: Deletes an existing system user for a given SSP.
@@ -12381,7 +12423,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Delete a system user
       tags:
-      - Oscal
+      - System Security Plans
     put:
       consumes:
       - application/json
@@ -12424,7 +12466,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Update a system user
       tags:
-      - Oscal
+      - System Security Plans
 produces:
 - application/json
 securityDefinitions:

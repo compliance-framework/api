@@ -144,6 +144,7 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.PUT("/:id/system-implementation/users/:userId", h.UpdateSystemImplementationUser)
 	api.DELETE("/:id/system-implementation/users/:userId", h.DeleteSystemImplementationUser)
 	api.GET("/:id/system-implementation/components", h.GetSystemImplementationComponents)
+	api.GET("/:id/system-implementation/components/:componentId", h.GetSystemImplementationComponent)
 	api.POST("/:id/system-implementation/components", h.CreateSystemImplementationComponent)
 	api.PUT("/:id/system-implementation/components/:componentId", h.UpdateSystemImplementationComponent)
 	api.DELETE("/:id/system-implementation/components/:componentId", h.DeleteSystemImplementationComponent)
@@ -833,6 +834,50 @@ func (h *SystemSecurityPlanHandler) GetSystemImplementationComponents(ctx echo.C
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]{Data: ssp.MarshalOscal().SystemImplementation.Components})
 }
 
+// GetSystemImplementationComponent godoc
+//
+//	@Summary		Get System Implementation Component
+//	@Description	Retrieves component in the System Implementation for a given System Security Plan.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id			path		string	true	"System Security Plan ID"
+//	@Param			componentId	path		string	true	"Component ID"
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
+//	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-implementation/components/{componentId} [get]
+func (h *SystemSecurityPlanHandler) GetSystemImplementationComponent(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	componentId := ctx.Param("componentId")
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemImplementation").
+		Preload("SystemImplementation.Components", "id = ?", componentId).
+		First(&ssp, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if len(ssp.SystemImplementation.Components) == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]{Data: ssp.MarshalOscal().SystemImplementation.Components[0]})
+}
+
 // GetSystemImplementationInventoryItems godoc
 //
 //	@Summary		List System Implementation Inventory Items
@@ -1001,7 +1046,7 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 //
 //	@Summary		Update a System Security Plan
 //	@Description	Updates an existing System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id	path		string								true	"SSP ID"
@@ -1058,7 +1103,7 @@ func (h *SystemSecurityPlanHandler) Update(ctx echo.Context) error {
 //
 //	@Summary		Delete a System Security Plan
 //	@Description	Deletes an existing System Security Plan and all its related data.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id	path	string	true	"SSP ID"
 //	@Success		204	"No Content"
 //	@Failure		400	{object}	api.Error
@@ -1094,7 +1139,7 @@ func (h *SystemSecurityPlanHandler) Delete(ctx echo.Context) error {
 //
 //	@Summary		Get SSP metadata
 //	@Description	Retrieves metadata for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"SSP ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]
@@ -1123,7 +1168,7 @@ func (h *SystemSecurityPlanHandler) GetMetadata(ctx echo.Context) error {
 //
 //	@Summary		Update SSP metadata
 //	@Description	Updates metadata for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"
@@ -1180,7 +1225,7 @@ func (h *SystemSecurityPlanHandler) UpdateMetadata(ctx echo.Context) error {
 //
 //	@Summary		Get SSP import-profile
 //	@Description	Retrieves import-profile for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"SSP ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ImportProfile]
@@ -1214,7 +1259,7 @@ func (h *SystemSecurityPlanHandler) GetImportProfile(ctx echo.Context) error {
 //
 //	@Summary		Update SSP import-profile
 //	@Description	Updates import-profile for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id				path		string							true	"SSP ID"
@@ -1266,7 +1311,7 @@ func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error 
 //
 //	@Summary		Update System Implementation
 //	@Description	Updates the System Implementation for a given System Security Plan.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id						path		string									true	"System Security Plan ID"
@@ -1318,7 +1363,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementation(ctx echo.Context)
 //
 //	@Summary		Create a new system user
 //	@Description	Creates a new system user for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"SSP ID"
@@ -1367,7 +1412,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationUser(ctx echo.Cont
 //
 //	@Summary		Update a system user
 //	@Description	Updates an existing system user for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string						true	"SSP ID"
@@ -1429,7 +1474,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationUser(ctx echo.Cont
 //
 //	@Summary		Delete a system user
 //	@Description	Deletes an existing system user for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id		path	string	true	"SSP ID"
 //	@Param			userId	path	string	true	"User ID"
 //	@Success		204		"No Content"
@@ -1473,7 +1518,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx echo.Cont
 //
 //	@Summary		Create a new system component
 //	@Description	Creates a new system component for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string								true	"SSP ID"
@@ -1522,7 +1567,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 //
 //	@Summary		Update a system component
 //	@Description	Updates an existing system component for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string								true	"SSP ID"
@@ -1584,7 +1629,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo
 //
 //	@Summary		Delete a system component
 //	@Description	Deletes an existing system component for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id			path	string	true	"SSP ID"
 //	@Param			componentId	path	string	true	"Component ID"
 //	@Success		204			"No Content"
@@ -1628,7 +1673,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationComponent(ctx echo
 //
 //	@Summary		Create a new inventory item
 //	@Description	Creates a new inventory item for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string							true	"SSP ID"
@@ -1677,7 +1722,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationInventoryItem(ctx 
 //
 //	@Summary		Update an inventory item
 //	@Description	Updates an existing inventory item for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string							true	"SSP ID"
@@ -1739,7 +1784,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationInventoryItem(ctx 
 //
 //	@Summary		Delete an inventory item
 //	@Description	Deletes an existing inventory item for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id		path	string	true	"SSP ID"
 //	@Param			itemId	path	string	true	"Item ID"
 //	@Success		204		"No Content"
@@ -1783,7 +1828,7 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationInventoryItem(ctx 
 //
 //	@Summary		Create a new leveraged authorization
 //	@Description	Creates a new leveraged authorization for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string									true	"SSP ID"
@@ -1827,7 +1872,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationLeveragedAuthoriza
 //
 //	@Summary		Update a leveraged authorization
 //	@Description	Updates an existing leveraged authorization for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string									true	"SSP ID"
@@ -1889,7 +1934,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationLeveragedAuthoriza
 //
 //	@Summary		Delete a leveraged authorization
 //	@Description	Deletes an existing leveraged authorization for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id		path	string	true	"SSP ID"
 //	@Param			authId	path	string	true	"Authorization ID"
 //	@Success		204		"No Content"
@@ -1930,18 +1975,18 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationLeveragedAuthoriza
 }
 
 // UpdateControlImplementation godoc
-// @Summary		Update Control Implementation
-// @Description	Updates the Control Implementation for a given System Security Plan.
-// @Tags			Oscal
-// @Accept			json
-// @Produce		json
-// @Param			id						path		string									true	"System Security Plan ID"
-// @Param			control-implementation	body		oscalTypes_1_1_3.ControlImplementation	true	"Updated Control Implementation object"
-// @Success		200						{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]
-// @Failure		400						{object}	api.Error
-// @Failure		404						{object}	api.Error
-// @Failure		500						{object}	api.Error
-// @Router			/oscal/system-security-plans/{id}/control-implementation [put]
+//	@Summary		Update Control Implementation
+//	@Description	Updates the Control Implementation for a given System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id						path		string									true	"System Security Plan ID"
+//	@Param			control-implementation	body		oscalTypes_1_1_3.ControlImplementation	true	"Updated Control Implementation object"
+//	@Success		200						{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]
+//	@Failure		400						{object}	api.Error
+//	@Failure		404						{object}	api.Error
+//	@Failure		500						{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/control-implementation [put]
 func (h *SystemSecurityPlanHandler) UpdateControlImplementation(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
@@ -1982,7 +2027,7 @@ func (h *SystemSecurityPlanHandler) UpdateControlImplementation(ctx echo.Context
 //
 //	@Summary		Get implemented requirements for a SSP
 //	@Description	Retrieves all implemented requirements for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"SSP ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ImplementedRequirement]
@@ -2025,7 +2070,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 //
 //	@Summary		Create a new implemented requirement for a SSP
 //	@Description	Creates a new implemented requirement for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string									true	"SSP ID"
@@ -2080,7 +2125,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirement(ctx echo.Contex
 //
 //	@Summary		Update an implemented requirement for a SSP
 //	@Description	Updates an existing implemented requirement for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string									true	"SSP ID"
@@ -2148,7 +2193,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Contex
 //
 //	@Summary		Delete an implemented requirement from a SSP
 //	@Description	Deletes an existing implemented requirement for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id		path	string	true	"SSP ID"
 //	@Param			reqId	path	string	true	"Requirement ID"
 //	@Success		204		"No Content"
@@ -2198,7 +2243,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Contex
 //
 //	@Summary		Get SSP back-matter
 //	@Description	Retrieves back-matter for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"SSP ID"
 //	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.BackMatter]
@@ -2231,7 +2276,7 @@ func (h *SystemSecurityPlanHandler) GetBackMatter(ctx echo.Context) error {
 //
 //	@Summary		Update SSP back-matter
 //	@Description	Updates back-matter for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"
@@ -2285,7 +2330,7 @@ func (h *SystemSecurityPlanHandler) UpdateBackMatter(ctx echo.Context) error {
 //
 //	@Summary		Get back-matter resources for a SSP
 //	@Description	Retrieves all back-matter resources for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Produce		json
 //	@Param			id	path		string	true	"SSP ID"
 //	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Resource]
@@ -2322,7 +2367,7 @@ func (h *SystemSecurityPlanHandler) GetBackMatterResources(ctx echo.Context) err
 //
 //	@Summary		Create a new back-matter resource for a SSP
 //	@Description	Creates a new back-matter resource for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"
@@ -2372,7 +2417,7 @@ func (h *SystemSecurityPlanHandler) CreateBackMatterResource(ctx echo.Context) e
 //
 //	@Summary		Update a back-matter resource for a SSP
 //	@Description	Updates an existing back-matter resource for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"
@@ -2440,7 +2485,7 @@ func (h *SystemSecurityPlanHandler) UpdateBackMatterResource(ctx echo.Context) e
 //
 //	@Summary		Delete a back-matter resource from a SSP
 //	@Description	Deletes an existing back-matter resource for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Param			id			path	string	true	"SSP ID"
 //	@Param			resourceId	path	string	true	"Resource ID"
 //	@Success		204			"No Content"
@@ -2490,7 +2535,7 @@ func (h *SystemSecurityPlanHandler) DeleteBackMatterResource(ctx echo.Context) e
 //
 //	@Summary		Update a statement within an implemented requirement
 //	@Description	Updates an existing statement within an implemented requirement for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"
@@ -2575,7 +2620,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx ec
 //
 //	@Summary		Create a new statement within an implemented requirement
 //	@Description	Creates a new statement within an implemented requirement for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"

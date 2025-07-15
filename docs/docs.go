@@ -8360,7 +8360,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update a System Security Plan",
                 "parameters": [
@@ -8411,7 +8411,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing System Security Plan and all its related data.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete a System Security Plan",
                 "parameters": [
@@ -8455,7 +8455,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Get SSP back-matter",
                 "parameters": [
@@ -8503,7 +8503,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update SSP back-matter",
                 "parameters": [
@@ -8559,7 +8559,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Get back-matter resources for a SSP",
                 "parameters": [
@@ -8607,7 +8607,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new back-matter resource for a SSP",
                 "parameters": [
@@ -8666,7 +8666,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update a back-matter resource for a SSP",
                 "parameters": [
@@ -8724,7 +8724,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing back-matter resource for a given SSP.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete a back-matter resource from a SSP",
                 "parameters": [
@@ -8834,7 +8834,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update Control Implementation",
                 "parameters": [
@@ -8890,7 +8890,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Get implemented requirements for a SSP",
                 "parameters": [
@@ -8938,7 +8938,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new implemented requirement for a SSP",
                 "parameters": [
@@ -8997,7 +8997,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update an implemented requirement for a SSP",
                 "parameters": [
@@ -9055,7 +9055,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing implemented requirement for a given SSP.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete an implemented requirement from a SSP",
                 "parameters": [
@@ -9109,7 +9109,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new statement within an implemented requirement",
                 "parameters": [
@@ -9175,7 +9175,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update a statement within an implemented requirement",
                 "parameters": [
@@ -9245,7 +9245,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Get SSP import-profile",
                 "parameters": [
@@ -9293,7 +9293,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update SSP import-profile",
                 "parameters": [
@@ -9349,7 +9349,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Get SSP metadata",
                 "parameters": [
@@ -9397,7 +9397,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update SSP metadata",
                 "parameters": [
@@ -10048,7 +10048,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update System Implementation",
                 "parameters": [
@@ -10169,7 +10169,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new system component",
                 "parameters": [
@@ -10219,6 +10219,69 @@ const docTemplate = `{
             }
         },
         "/oscal/system-security-plans/{id}/system-implementation/components/{componentId}": {
+            "get": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Retrieves component in the System Implementation for a given System Security Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Get System Implementation Component",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Component ID",
+                        "name": "componentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_SystemComponent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
             "put": {
                 "description": "Updates an existing system component for a given SSP.",
                 "consumes": [
@@ -10228,7 +10291,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update a system component",
                 "parameters": [
@@ -10286,7 +10349,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing system component for a given SSP.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete a system component",
                 "parameters": [
@@ -10396,7 +10459,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new inventory item",
                 "parameters": [
@@ -10455,7 +10518,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update an inventory item",
                 "parameters": [
@@ -10513,7 +10576,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing inventory item for a given SSP.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete an inventory item",
                 "parameters": [
@@ -10623,7 +10686,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new leveraged authorization",
                 "parameters": [
@@ -10682,7 +10745,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update a leveraged authorization",
                 "parameters": [
@@ -10740,7 +10803,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing leveraged authorization for a given SSP.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete a leveraged authorization",
                 "parameters": [
@@ -10850,7 +10913,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new system user",
                 "parameters": [
@@ -10909,7 +10972,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Update a system user",
                 "parameters": [
@@ -10967,7 +11030,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Deletes an existing system user for a given SSP.",
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Delete a system user",
                 "parameters": [
