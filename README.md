@@ -1,8 +1,8 @@
-# Configuration Service
+# API
 
 ## Overview
 
-The Configuration service is a core component of The Continuous Compliance Framework. It manages all the data and 
+The API is a core component of the Continuous Compliance Framework. It manages all the data and
 aggregation for compliance, and agent-collected data.
 
 The data structures in the service are heavily based on OSCAL (Open Security Controls Assessment Language), with the
@@ -20,16 +20,16 @@ goal of full support.
 This will also start the required auxiliary services.
 
 ```shell
-make up  
+make up
 # OR podman-compose up -d
-# OR docker compose up -d 
+# OR docker compose up -d
 
 curl http://localhost:8080
 ```
 
 ### The command line
 
-The Configuration Service ships with a built in CLI, which can be used to run administrative tasks within. 
+The API ships with a built in CLI, which can be used to run administrative tasks within.
 
 Some examples include:
 ```shell
@@ -50,7 +50,7 @@ $ go run main.go help # Learn more about all the available commands
 > [!IMPORTANT]
 > Make sure you run `make swag` when first cloning the repository (either locally or in CI steps) otherwise the build will fail
 
-The configuration service exposes all of its endpoints using Swagger.
+The API exposes all of its endpoints using Swagger.
 
 Swagger artefacts (docs.json/docs.yaml) are not stored within the repository as it is automatically generated using the [swag cli tool](https://github.com/swaggo/swag) and stored in the `docs/` directory. A helper function `make swag` can be run anytime to generate the most up to date swagger docs.
 
@@ -58,7 +58,7 @@ You can access the Swagger documentation to test and interact with the API at: [
 
 ## Configuration
 
-You can configure configuration-service using environment variables or a `.env` file.
+You can configure the API using environment variables or a `.env` file.
 
 Available variables are shown in [`.env.example`](./.env.example)
 
@@ -69,14 +69,14 @@ cp .env.example .env
 
 ## Contributing
 
-We welcome contributions to configuration-service!
+We welcome contributions to the API!
 
 ## Testing
 
 ### Integration Tests
 
-The Configuration Service contains integration tests, which will run tests against a real database, ensuring the service
-works as expected. 
+The API contains integration tests, which will run tests against a real database, ensuring the service
+works as expected.
 
 The tests are marked with special build markers to avoid running them during normal development.
 

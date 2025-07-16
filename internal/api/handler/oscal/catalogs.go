@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/compliance-framework/configuration-service/internal/api"
+	"github.com/compliance-framework/api/internal/api"
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/service/relational"
 )
 
 type CatalogHandler struct {

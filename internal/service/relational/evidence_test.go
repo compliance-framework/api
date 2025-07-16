@@ -2,8 +2,8 @@ package relational
 
 //
 //import (
-//	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
-//	"github.com/compliance-framework/configuration-service/internal/logging"
+//	"github.com/compliance-framework/api/internal/converters/labelfilter"
+//	"github.com/compliance-framework/api/internal/logging"
 //	"github.com/stretchr/testify/assert"
 //	"go.uber.org/zap"
 //	"gorm.io/driver/postgres"

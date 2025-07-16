@@ -1,7 +1,7 @@
 package sdk_test
 
 import (
-	"github.com/compliance-framework/configuration-service/sdk"
+	"github.com/compliance-framework/api/sdk"
 	"reflect"
 	"testing"
 )

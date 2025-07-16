@@ -4,7 +4,7 @@ import (
 	"crypto/rsa"
 	"time"
 
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/golang-jwt/jwt/v5"
 )
 

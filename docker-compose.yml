@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  configuration-service:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
       target: local
-    image: configuration-service:local
+    image: api:local
     ports:
       - "8080:8080"
     depends_on:

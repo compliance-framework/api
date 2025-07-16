@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"time"
 )

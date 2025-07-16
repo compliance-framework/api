@@ -32,16 +32,16 @@ COPY . ./
 RUN make swag
 
 # Build it
-RUN GOOS=linux go build -o /configuration-service
+RUN GOOS=linux go build -o /api
 
 FROM golang:1.23 AS production
 WORKDIR /
 
-COPY --from=builder /configuration-service /configuration-service
+COPY --from=builder /api /api
 # Open port 8080 to traffic
 EXPOSE 8080
 
 # Specify the command to run on container start.
-CMD ["/configuration-service", "run"]
+CMD ["/api", "run"]
 
 FROM production

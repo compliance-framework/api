@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/compliance-framework/configuration-service/cmd/oscal"
-	"github.com/compliance-framework/configuration-service/cmd/seed"
-	"github.com/compliance-framework/configuration-service/cmd/users"
+	"github.com/compliance-framework/api/cmd/oscal"
+	"github.com/compliance-framework/api/cmd/seed"
+	"github.com/compliance-framework/api/cmd/users"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,8 +15,8 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "conf-service",
-		Short: "Compliance Framework Configuration Service",
+		Use:   "api",
+		Short: "Compliance Framework API",
 	}
 )
 

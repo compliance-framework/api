@@ -17,6 +17,6 @@ __debug_*
 local.go
 resolver.go
 
-configuration-service
+api
 
 *.pem

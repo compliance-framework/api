@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/domain"
+	"github.com/compliance-framework/api/internal/domain"
 )
 
 type PlanResponse struct {

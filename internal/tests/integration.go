@@ -4,9 +4,9 @@ package tests
 
 import (
 	"context"
-	"github.com/compliance-framework/configuration-service/internal/authn"
-	"github.com/compliance-framework/configuration-service/internal/config"
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	postgresContainers "github.com/testcontainers/testcontainers-go/modules/postgres"

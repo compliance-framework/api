@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/service"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"

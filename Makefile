@@ -120,7 +120,7 @@ check-diff: reviewable # Ensure branch is clean.
 
 .PHONY: build
 build: ## Build the service in Docker Compose
-	@docker compose -f docker-compose.yml build configuration-service
+	@docker compose -f docker-compose.yml build api
 
 .PHONY: dev
 up: ## Run the service in Docker Compose
@@ -142,4 +142,4 @@ generate-keys:
 	@$(OK) keys generated
 
 tag:   ## Build and tag a production-based image of the service
-	@docker build -t ghcr.io/compliance-framework/configuration-service:latest_local .
+	@docker build -t ghcr.io/compliance-framework/api:latest_local .

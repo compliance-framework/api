@@ -5,8 +5,8 @@ package sdk_test
 import (
 	"context"
 	"fmt"
-	"github.com/compliance-framework/configuration-service/internal"
-	"github.com/compliance-framework/configuration-service/sdk/types"
+	"github.com/compliance-framework/api/internal"
+	"github.com/compliance-framework/api/sdk/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 	"testing"

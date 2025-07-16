@@ -3,7 +3,7 @@ package oscal
 import (
 	"context"
 	"encoding/json"
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"gorm.io/gorm"
 	"io"
@@ -11,8 +11,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/compliance-framework/configuration-service/internal/config"
-	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/service"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

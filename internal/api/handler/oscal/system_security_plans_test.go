@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/tests"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 

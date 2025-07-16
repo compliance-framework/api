@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/configuration-service/internal/config"
-	"github.com/compliance-framework/configuration-service/internal/logging"
+	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/logging"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

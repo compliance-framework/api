@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compliance-framework/configuration-service/sdk/types"
+	"github.com/compliance-framework/api/sdk/types"
 	"net/http"
 )
 

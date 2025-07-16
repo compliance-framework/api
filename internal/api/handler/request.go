@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"gorm.io/datatypes"
 	"strings"

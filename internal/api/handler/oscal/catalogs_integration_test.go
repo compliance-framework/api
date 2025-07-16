@@ -11,9 +11,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/tests"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"

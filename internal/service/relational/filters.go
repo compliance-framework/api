@@ -1,7 +1,7 @@
 package relational
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/converters/labelfilter"
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"gorm.io/datatypes"
 )
 

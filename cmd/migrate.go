@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
-	"github.com/compliance-framework/configuration-service/internal/config"
-	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/service"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"log"

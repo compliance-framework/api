@@ -12,8 +12,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/tests"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 )

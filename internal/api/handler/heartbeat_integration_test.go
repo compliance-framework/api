@@ -7,8 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/service"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compliance-framework/configuration-service/internal/tests"
+	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )

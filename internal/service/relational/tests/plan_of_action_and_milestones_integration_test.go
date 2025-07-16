@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
-	"github.com/compliance-framework/configuration-service/internal/tests"
+	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"

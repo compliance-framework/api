@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compliance-framework/configuration-service/internal/authn"
+	"github.com/compliance-framework/api/internal/authn"
 	"github.com/labstack/echo/v4"
 )
 

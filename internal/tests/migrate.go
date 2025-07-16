@@ -3,8 +3,8 @@
 package tests
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/service"
-	"github.com/compliance-framework/configuration-service/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"gorm.io/gorm"
 )
 

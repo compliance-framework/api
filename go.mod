@@ -1,4 +1,4 @@
-module github.com/compliance-framework/configuration-service
+module github.com/compliance-framework/api
 
 go 1.23.0
 

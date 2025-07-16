@@ -4,12 +4,12 @@ import (
 	"context"
 	"log"
 
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/api/handler"
-	"github.com/compliance-framework/configuration-service/internal/api/handler/auth"
-	"github.com/compliance-framework/configuration-service/internal/api/handler/oscal"
-	"github.com/compliance-framework/configuration-service/internal/config"
-	"github.com/compliance-framework/configuration-service/internal/service"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/api/handler/auth"
+	"github.com/compliance-framework/api/internal/api/handler/oscal"
+	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/service"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -17,7 +17,7 @@ import (
 var (
 	RunCmd = &cobra.Command{
 		Use:   "run",
-		Short: "Run the configuration service API",
+		Short: "Run the compliance framework API",
 		Run:   RunServer,
 	}
 )

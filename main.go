@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/compliance-framework/configuration-service/cmd"
+	"github.com/compliance-framework/api/cmd"
 )
 
 // Swagger documentation

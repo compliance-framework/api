@@ -1,9 +1,9 @@
 package oscal
 
 import (
-	"github.com/compliance-framework/configuration-service/internal/api"
-	"github.com/compliance-framework/configuration-service/internal/api/middleware"
-	"github.com/compliance-framework/configuration-service/internal/config"
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/config"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

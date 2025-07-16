@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
-	"github.com/compliance-framework/configuration-service/internal/api/binders"
-	mw "github.com/compliance-framework/configuration-service/internal/api/middleware"
-	"github.com/compliance-framework/configuration-service/internal/config"
+	"github.com/compliance-framework/api/internal/api/binders"
+	mw "github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/config"
 
-	_ "github.com/compliance-framework/configuration-service/docs"
+	_ "github.com/compliance-framework/api/docs"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
