@@ -49,7 +49,7 @@
     "local-definitions": {
       "activities": [
         {
-          "uuid": "52277182-1ba3-4cb6-8d96-b1b97aaf9d6b",
+          "uuid": "0d243b23-a889-478f-9716-6d4870e56209",
           "title": "Examine System Elements for Least Privilege Design and Implementation",
           "description": "The activity and it steps will be performed by the assessor and facilitated by owner, ISSO, and product team for the IFA GoodRead system with necessary information and access about least privilege design and implementation of the system's elements: the application, web framework, server, and cloud account infrastructure.",
           "props": [

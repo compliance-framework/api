@@ -49,7 +49,7 @@ func (h *AssessmentPlanHandler) GetAssessmentAssets(ctx echo.Context) error {
 	}
 
 	var assets []relational.AssessmentAsset
-	if err := h.db.Preload("AssessmentPlatforms").Preload("Components").Where("parent_id = ? AND parent_type = ?", id, "AssessmentPlan").Find(&assets).Error; err != nil {
+	if err := h.db.Preload("AssessmentPlatforms").Preload("Components").Where("parent_id = ? AND parent_type = ?", id, "assessment_plans").Find(&assets).Error; err != nil {
 		h.sugar.Errorf("Failed to retrieve assessment assets: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -104,7 +104,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 	relationalAsset := &relational.AssessmentAsset{}
 	relationalAsset.UnmarshalOscal(asset)
 	relationalAsset.ParentID = id
-	relationalAsset.ParentType = "AssessmentPlan"
+	relationalAsset.ParentType = "assessment_plans"
 
 	// Save to database
 	if err := h.db.Create(relationalAsset).Error; err != nil {
@@ -175,10 +175,10 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 	relationalAsset.UnmarshalOscal(asset)
 	relationalAsset.ID = &assetId
 	relationalAsset.ParentID = id
-	relationalAsset.ParentType = "AssessmentPlan"
+	relationalAsset.ParentType = "assessment_plans"
 
 	// Update in database and check if resource exists
-	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "AssessmentPlan").Updates(relationalAsset)
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "assessment_plans").Updates(relationalAsset)
 	if result.Error != nil {
 		h.sugar.Errorf("Failed to update assessment asset: %v", result.Error)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
@@ -236,7 +236,7 @@ func (h *AssessmentPlanHandler) DeleteAssessmentAsset(ctx echo.Context) error {
 	}
 
 	// Delete assessment asset and check if resource exists
-	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "AssessmentPlan").Delete(&relational.AssessmentAsset{})
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", assetId, id, "assessment_plans").Delete(&relational.AssessmentAsset{})
 	if result.Error != nil {
 		h.sugar.Errorf("Failed to delete assessment asset: %v", result.Error)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))

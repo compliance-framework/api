@@ -1,6 +1,7 @@
 package relational
 
 import (
+	"fmt"
 	"time"
 
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -1366,6 +1367,7 @@ func (i *AssociatedActivity) UnmarshalOscal(op oscalTypes_1_1_3.AssociatedActivi
 }
 
 func (i *AssociatedActivity) MarshalOscal() *oscalTypes_1_1_3.AssociatedActivity {
+	fmt.Println(i.Activity)
 	ret := &oscalTypes_1_1_3.AssociatedActivity{
 		ActivityUuid: i.Activity.ID.String(),
 		Remarks:      *i.Remarks,

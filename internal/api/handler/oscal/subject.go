@@ -48,9 +48,8 @@ func (h *AssessmentPlanHandler) GetAssessmentSubjects(ctx echo.Context) error {
 	}
 
 	var subjects []relational.AssessmentSubject
-	if err := h.db.Joins("JOIN task_subjects ON assessment_subjects.id = task_subjects.assessment_subject_id").
-		Joins("JOIN tasks ON task_subjects.task_id = tasks.id").
-		Where("tasks.parent_id = ? AND tasks.parent_type = ?", id, "AssessmentPlan").
+	if err := h.db.Joins("JOIN assessment_plan_assessment_subjects ON assessment_subjects.id = assessment_plan_assessment_subjects.assessment_subject_id").
+		Where("assessment_plan_assessment_subjects.assessment_plan_id = ?", id).
 		Find(&subjects).Error; err != nil {
 		h.sugar.Errorf("Failed to retrieve assessment subjects: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -127,7 +126,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 		Title:       fmt.Sprintf("Task for Subject: %s", subject.Type),
 		Description: &subject.Description,
 		ParentID:    &id,
-		ParentType:  "AssessmentPlan",
+		ParentType:  "assessment_plans",
 	}
 
 	if err := tx.Create(task).Error; err != nil {
@@ -140,6 +139,21 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 	if err := tx.Model(task).Association("Subjects").Append(relationalSubject); err != nil {
 		tx.Rollback()
 		h.sugar.Errorf("Failed to associate subject with task: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Create the direct relationship between assessment plan and subject
+	var plan relational.AssessmentPlan
+	if err := tx.First(&plan, "id = ?", id).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to find assessment plan: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Add the subject to the assessment plan's direct relationship
+	if err := tx.Model(&plan).Association("AssessmentSubjects").Append(relationalSubject); err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to associate subject with assessment plan: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 

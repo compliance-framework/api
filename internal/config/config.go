@@ -87,11 +87,21 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		appPort = ":" + appPort
 	}
 
-	allowedOrigins := []string{"http*://localhost:*"}
+	allowedOrigins := []string{"http://localhost:3000"} // Default fallback
 	if viper.IsSet("api_allowed_origins") {
-		origins := viper.GetStringSlice("api_allowed_origins")
-		if len(origins) > 0 {
-			allowedOrigins = origins
+		originsStr := viper.GetString("api_allowed_origins")
+		if originsStr != "" {
+			// Split by comma and trim whitespace
+			origins := make([]string, 0)
+			for _, origin := range strings.Split(originsStr, ",") {
+				trimmed := strings.TrimSpace(origin)
+				if trimmed != "" {
+					origins = append(origins, trimmed)
+				}
+			}
+			if len(origins) > 0 {
+				allowedOrigins = origins
+			}
 		} else {
 			logger.Warn("api_allowed_origins is set but empty. Setting to the default", "origins", allowedOrigins)
 		}

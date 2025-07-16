@@ -369,6 +369,14 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.AssessmentPlan'
         type: array
     type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_AssociatedActivity:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssociatedActivity'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Capability:
     properties:
       data:
@@ -567,14 +575,6 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/relational.Evidence'
-        type: array
-    type: object
-  handler.GenericDataResponse-array_oscalTypes_1_1_3_Activity:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
         type: array
     type: object
   handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets:
@@ -5766,6 +5766,145 @@ paths:
       summary: Update a filter
       tags:
       - Filters
+  /oscal/activities:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new activity for us in other resources.
+      parameters:
+      - description: Activity object
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create an Activity
+      tags:
+      - Activities
+  /oscal/activities/{id}:
+    delete:
+      description: Deletes an activity
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete Activity
+      tags:
+      - Activities
+    get:
+      consumes:
+      - application/json
+      description: Retrieves an Activity by its unique ID.
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Retrieve an Activity
+      tags:
+      - Activities
+    put:
+      consumes:
+      - application/json
+      description: Updates properties of an existing Activity by its ID.
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Activity object
+        in: body
+        name: activity
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update an Activity
+      tags:
+      - Activities
   /oscal/assessment-plans:
     get:
       description: Retrieves all Assessment Plans.
@@ -5920,158 +6059,6 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update an Assessment Plan
-      tags:
-      - Assessment Plans
-  /oscal/assessment-plans/{id}/activities:
-    get:
-      description: Retrieves all activities for an Assessment Plan.
-      parameters:
-      - description: Assessment Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-array_oscalTypes_1_1_3_Activity'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get Assessment Plan Activities
-      tags:
-      - Assessment Plans
-    post:
-      consumes:
-      - application/json
-      description: Creates a new activity for an Assessment Plan.
-      parameters:
-      - description: Assessment Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Activity object
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create Assessment Plan Activity
-      tags:
-      - Assessment Plans
-  /oscal/assessment-plans/{id}/activities/{activityId}:
-    delete:
-      description: Deletes an activity from an Assessment Plan.
-      parameters:
-      - description: Assessment Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Activity ID
-        in: path
-        name: activityId
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Delete Assessment Plan Activity
-      tags:
-      - Assessment Plans
-    put:
-      consumes:
-      - application/json
-      description: Updates an existing activity for an Assessment Plan.
-      parameters:
-      - description: Assessment Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Activity ID
-        in: path
-        name: activityId
-        required: true
-        type: string
-      - description: Activity object
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Update Assessment Plan Activity
       tags:
       - Assessment Plans
   /oscal/assessment-plans/{id}/assessment-assets:
@@ -6696,12 +6683,10 @@ paths:
       summary: Update Assessment Plan Task
       tags:
       - Assessment Plans
-  /oscal/assessment-plans/{id}/tasks/{taskId}/activities:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new activity and associates it with an existing task
-        in an Assessment Plan.
+  /oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities:
+    get:
+      description: Retrieves all Activities associated with a specific Task in an
+        Assessment Plan.
       parameters:
       - description: Assessment Plan ID
         in: path
@@ -6713,19 +6698,13 @@ paths:
         name: taskId
         required: true
         type: string
-      - description: Activity object
-        in: body
-        name: activity
-        required: true
-        schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity'
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_AssociatedActivity'
         "400":
           description: Bad Request
           schema:
@@ -6740,7 +6719,88 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Create Activity for Existing Task
+      summary: List Associated Activities for a Task
+      tags:
+      - Assessment Plans
+  /oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities/{activityId}:
+    delete:
+      description: Removes an association of an Activity from a Task within an Assessment
+        Plan.
+      parameters:
+      - description: Assessment Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Task ID
+        in: path
+        name: taskId
+        required: true
+        type: string
+      - description: Activity ID
+        in: path
+        name: activityId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Disassociate an Activity from a Task
+      tags:
+      - Assessment Plans
+    post:
+      description: Associates an existing Activity to a Task within an Assessment
+        Plan.
+      parameters:
+      - description: Assessment Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Task ID
+        in: path
+        name: taskId
+        required: true
+        type: string
+      - description: Activity ID
+        in: path
+        name: activityId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Associate an Activity with a Task
       tags:
       - Assessment Plans
   /oscal/assessment-plans/{id}/terms-and-conditions:

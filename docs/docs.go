@@ -828,6 +828,224 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/activities": {
+            "post": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Creates a new activity for us in other resources.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Activities"
+                ],
+                "summary": "Create an Activity",
+                "parameters": [
+                    {
+                        "description": "Activity object",
+                        "name": "activity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/activities/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Retrieves an Activity by its unique ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Activities"
+                ],
+                "summary": "Retrieve an Activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Updates properties of an existing Activity by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Activities"
+                ],
+                "summary": "Update an Activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Activity object",
+                        "name": "activity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Deletes an activity",
+                "tags": [
+                    "Activities"
+                ],
+                "summary": "Delete Activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/assessment-plans": {
             "get": {
                 "security": [
@@ -1043,242 +1261,6 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Assessment Plan ID",
                         "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/activities": {
-            "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
-                "description": "Retrieves all activities for an Assessment Plan.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Get Assessment Plan Activities",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Assessment Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-array_oscalTypes_1_1_3_Activity"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
-                "description": "Creates a new activity for an Assessment Plan.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Create Assessment Plan Activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Assessment Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Activity object",
-                        "name": "activity",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/activities/{activityId}": {
-            "put": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
-                "description": "Updates an existing activity for an Assessment Plan.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Update Assessment Plan Activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Assessment Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "activityId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Activity object",
-                        "name": "activity",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
-                "description": "Deletes an activity from an Assessment Plan.",
-                "tags": [
-                    "Assessment Plans"
-                ],
-                "summary": "Delete Assessment Plan Activity",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Assessment Plan ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Activity ID",
-                        "name": "activityId",
                         "in": "path",
                         "required": true
                     }
@@ -2276,24 +2258,80 @@ const docTemplate = `{
                 }
             }
         },
-        "/oscal/assessment-plans/{id}/tasks/{taskId}/activities": {
-            "post": {
+        "/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities": {
+            "get": {
                 "security": [
                     {
                         "OAuth2Password": []
                     }
                 ],
-                "description": "Creates a new activity and associates it with an existing task in an Assessment Plan.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Retrieves all Activities associated with a specific Task in an Assessment Plan.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Assessment Plans"
                 ],
-                "summary": "Create Activity for Existing Task",
+                "summary": "List Associated Activities for a Task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Assessment Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID",
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_AssociatedActivity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities/{activityId}": {
+            "post": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Associates an existing Activity to a Task within an Assessment Plan.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Assessment Plans"
+                ],
+                "summary": "Associate an Activity with a Task",
                 "parameters": [
                     {
                         "type": "string",
@@ -2310,21 +2348,74 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Activity object",
-                        "name": "activity",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
-                        }
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "activityId",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Activity"
+                            "$ref": "#/definitions/api.Error"
                         }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Removes an association of an Activity from a Task within an Assessment Plan.",
+                "tags": [
+                    "Assessment Plans"
+                ],
+                "summary": "Disassociate an Activity from a Task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Assessment Plan ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Task ID",
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Activity ID",
+                        "name": "activityId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -11535,6 +11626,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_AssociatedActivity": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssociatedActivity"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Capability": {
             "type": "object",
             "properties": {
@@ -11867,18 +11970,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Evidence"
-                    }
-                }
-            }
-        },
-        "handler.GenericDataResponse-array_oscalTypes_1_1_3_Activity": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
                     }
                 }
             }

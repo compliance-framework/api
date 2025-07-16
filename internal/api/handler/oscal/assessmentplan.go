@@ -50,17 +50,13 @@ func (h *AssessmentPlanHandler) Register(api *echo.Group) {
 	// Tasks sub-resource management
 	api.GET("/:id/tasks", h.GetTasks)
 	api.POST("/:id/tasks", h.CreateTask)
+
 	api.PUT("/:id/tasks/:taskId", h.UpdateTask)
 	api.DELETE("/:id/tasks/:taskId", h.DeleteTask)
 
-	// Task Activities sub-resource management
-	api.POST("/:id/tasks/:taskId/activities", h.CreateActivityForTask)
-
-	// Activities sub-resource management
-	api.GET("/:id/activities", h.GetActivities)
-	api.POST("/:id/activities", h.CreateActivity)
-	api.PUT("/:id/activities/:activityId", h.UpdateActivity)
-	api.DELETE("/:id/activities/:activityId", h.DeleteActivity)
+	api.GET("/:id/tasks/:taskId/associated-activities", h.GetTaskActivities)
+	api.POST("/:id/tasks/:taskId/associated-activities/:activityId", h.AssociateTaskActivity)
+	api.DELETE("/:id/tasks/:taskId/associated-activities/:activityId", h.DisassociateTaskActivity)
 
 	// Assessment Subjects sub-resource management
 	api.GET("/:id/assessment-subjects", h.GetAssessmentSubjects)
@@ -73,6 +69,20 @@ func (h *AssessmentPlanHandler) Register(api *echo.Group) {
 	api.POST("/:id/assessment-assets", h.CreateAssessmentAsset)
 	api.PUT("/:id/assessment-assets/:assetId", h.UpdateAssessmentAsset)
 	api.DELETE("/:id/assessment-assets/:assetId", h.DeleteAssessmentAsset)
+}
+
+// validateActivityInput validates activity input
+func (h *AssessmentPlanHandler) validateActivityInput(activity *oscalTypes_1_1_3.Activity) error {
+	if activity.UUID == "" {
+		return fmt.Errorf("UUID is required")
+	}
+	if _, err := uuid.Parse(activity.UUID); err != nil {
+		return fmt.Errorf("invalid UUID format: %v", err)
+	}
+	if activity.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	return nil
 }
 
 // verifyAssessmentPlanExists checks if an assessment plan exists in the database
