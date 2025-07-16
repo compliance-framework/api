@@ -3,13 +3,14 @@ package oscal
 import (
 	"context"
 	"encoding/json"
-	"github.com/compliance-framework/api/internal/service/relational"
-	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
-	"gorm.io/gorm"
 	"io"
 	"log"
 	"os"
 	"path"
+
+	"github.com/compliance-framework/api/internal/service/relational"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
@@ -118,7 +119,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.Catalog != nil {
 		def := &relational.Catalog{}
 		def.UnmarshalOscal(*input.Catalog)
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			sugar.Error(out.Error)
 		}
@@ -129,7 +130,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.ComponentDefinition != nil {
 		def := &relational.ComponentDefinition{}
 		def.UnmarshalOscal(*input.ComponentDefinition)
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			sugar.Error(out.Error)
 		}
@@ -140,7 +141,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.SystemSecurityPlan != nil {
 		def := &relational.SystemSecurityPlan{}
 		def.UnmarshalOscal(*input.SystemSecurityPlan)
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			sugar.Error(out.Error)
 		}
@@ -151,7 +152,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.AssessmentPlan != nil {
 		def := &relational.AssessmentPlan{}
 		def.UnmarshalOscal(*input.AssessmentPlan)
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			panic(out.Error)
 		}
@@ -162,7 +163,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.AssessmentResult != nil {
 		def := &relational.AssessmentResult{}
 		def.UnmarshalOscal(*input.AssessmentResult)
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			panic(out.Error)
 		}
@@ -173,7 +174,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 	if input.Profile != nil {
 		def := &relational.Profile{}
 		def.UnmarshalOscal(*input.Profile)
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			panic(out.Error)
 		}
@@ -190,7 +191,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			len(def.Risks), len(def.Observations), len(def.Findings))
 
 		// Create with polymorphic entities
-		out := db.Create(def)
+		out := db.FirstOrCreate(def)
 		if out.Error != nil {
 			sugar.Errorf("Error creating POAM: %v", out.Error)
 			return err
