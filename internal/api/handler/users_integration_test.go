@@ -344,5 +344,41 @@ func (suite *UserApiIntegrationSuite) TestChangeLoggedInUserPassword() {
 		suite.Equal(400, rec.Code, "Expected Bad Request response for ChangeLoggedInUserPassword with invalid old password")
 		suite.Contains(rec.Body.String(), "old password does not match", "Expected error message for invalid old password in ChangeLoggedInUserPassword response")
 	})
+}
 
+func (suite *UserApiIntegrationSuite) TestChangePassword() {
+	var existingUser relational.User
+	err := suite.DB.First(&existingUser).Error
+	suite.Require().NoError(err, "Failed to retrieve existing user for ChangePassword test")
+	userId := existingUser.UUIDModel.ID.String()
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	type changePasswordRequest struct {
+		NewPassword string `json:"newPassword"`
+	}
+
+	suite.Run("ChangePasswordSuccess", func() {
+		payload := changePasswordRequest{
+			NewPassword: "NewPa55w0rd",
+		}
+		payloadJSON, err := json.Marshal(payload)
+		suite.Require().NoError(err, "Failed to marshal change password request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/users/"+userId+"/change-password", bytes.NewReader(payloadJSON))
+		req.Header.Set("Authorization", "Bearer "+*token)
+		req.Header.Set("Content-Type", "application/json")
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(204, rec.Code, "Expected No Content response for ChangePassword")
+		suite.Empty(rec.Body.String(), "Expected empty response body for ChangePassword")
+
+		var updatedUser relational.User
+		err = suite.DB.Where("id = ?", userId).First(&updatedUser).Error
+		suite.Require().NoError(err, "Failed to retrieve updated user after password change")
+
+		suite.True(updatedUser.CheckPassword("NewPa55w0rd"), "Expected password to be updated successfully")
+	})
 }

@@ -243,6 +243,39 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 }
 
 func (h *UserHandler) ChangePassword(ctx echo.Context) error {
-	// This method will be implemented later to change a user's password.
-	return ctx.JSON(501, "Not Implemented")
+	userID := ctx.Param("id")
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		h.sugar.Errorw("Invalid user ID", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	var user relational.User
+	if err := h.db.First(&user, userUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get user for update", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	type changePasswordRequest struct {
+		NewPassword string `json:"newPassword" validate:"required"`
+	}
+	var req changePasswordRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind change password request", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	if err := user.SetPassword(req.NewPassword); err != nil {
+		h.sugar.Errorw("Failed to set new password", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+	if err := h.db.Save(&user).Error; err != nil {
+		h.sugar.Errorw("Failed to update user password", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.NoContent(204)
 }
