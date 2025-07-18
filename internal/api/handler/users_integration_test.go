@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http/httptest"
@@ -97,4 +98,65 @@ func (suite *UserApiIntegrationSuite) TestGetMe() {
 	suite.Require().Equal(response.Data.Email, "dummy@example.com", "Expected email to match dummy user in GetMe response")
 	suite.Require().Equal(response.Data.FirstName, "Dummy", "Expected first name to match dummy user in GetMe response")
 	suite.Require().Equal(response.Data.LastName, "User", "Expected last name to match dummy user in GetMe response")
+}
+
+func (suite *UserApiIntegrationSuite) TestCreateUser() {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	type createUserRequest struct {
+		Email     string `json:"email"`
+		Password  string `json:"password"`
+		FirstName string `json:"firstName"`
+		LastName  string `json:"lastName"`
+	}
+
+	suite.Run("CreateUser", func() {
+		newUser := createUserRequest{
+			Email:     "newuser@example.com",
+			Password:  "password123",
+			FirstName: "New",
+			LastName:  "User",
+		}
+
+		newUserJSON, err := json.Marshal(newUser)
+		suite.Require().NoError(err, "Failed to marshal new user request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/users", bytes.NewReader(newUserJSON))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(201, rec.Code, "Expected Created response for CreateUser")
+		suite.NotEmpty(rec.Body.String(), "Expected non-empty response body for CreateUser")
+
+		var response GenericDataResponse[relational.User]
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		suite.Require().NoError(err, "Expected valid JSON response for CreateUser")
+		suite.Require().Equal(response.Data.Email, newUser.Email, "Expected email to match new user in CreateUser response")
+		suite.Require().Equal(response.Data.FirstName, newUser.FirstName, "Expected first name to match new user in CreateUser response")
+		suite.Require().Equal(response.Data.LastName, newUser.LastName, "Expected last name to match new user in CreateUser response")
+	})
+
+	suite.Run("CreateUserWithExistingEmail", func() {
+		existingUser := createUserRequest{
+			Email:     "dummy@example.com",
+			Password:  "password123",
+			FirstName: "Existing",
+			LastName:  "User",
+		}
+
+		existingUserJSON, err := json.Marshal(existingUser)
+		suite.Require().NoError(err, "Failed to marshal existing user request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/users", bytes.NewReader(existingUserJSON))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(409, rec.Code, "Expected Conflict response for CreateUser with existing email")
+		suite.Contains(rec.Body.String(), "email already exists", "Expected error message for existing email in CreateUser response")
+	})
 }

@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"errors"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -57,7 +60,7 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 
 	var user relational.User
 	if err := h.db.First(&user, userUUID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(404, api.NewError(err))
 		}
 		h.sugar.Errorw("Failed to get user", "error", err)
@@ -76,7 +79,7 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 	email := userClaims.Subject
 	var user relational.User
 	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(404, api.NewError(err))
 		}
 		h.sugar.Errorw("Failed to get user by email", "error", err)
@@ -89,8 +92,40 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 }
 
 func (h *UserHandler) CreateUser(ctx echo.Context) error {
-	// This method will be implemented later to create a new user.
-	return ctx.JSON(501, "Not Implemented")
+	type createUserRequest struct {
+		Email     string `json:"email" validate:"required,email"`
+		Password  string `json:"password" validate:"required"`
+		FirstName string `json:"firstName" validate:"required"`
+		LastName  string `json:"lastName" validate:"required"`
+	}
+
+	var req createUserRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind create user request", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	user := &relational.User{
+		Email:     req.Email,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+	}
+	if err := user.SetPassword(req.Password); err != nil {
+		h.sugar.Errorw("Failed to set user password", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	if err := h.db.Create(user).Error; err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" { // Unique violation, gorm error Translation for 23505/ErrDuplicatedKey doesn't work consistently
+			return ctx.JSON(409, api.NewError(errors.New("email already exists")))
+		}
+		h.sugar.Errorw("Failed to create user", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.JSON(201, GenericDataResponse[relational.User]{
+		Data: *user,
+	})
 }
 
 func (h *UserHandler) UpdateUser(ctx echo.Context) error {
