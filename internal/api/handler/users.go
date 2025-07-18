@@ -36,6 +36,17 @@ func (h *UserHandler) Register(api *echo.Group) {
 	api.GET("/me", h.GetMe)
 }
 
+// ListUsers godoc
+//
+//	@Summary		List all users
+//	@Description	Lists all users in the system
+//	@Tags			Users
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[relational.User]
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users [get]
 func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	var users []relational.User
 
@@ -49,6 +60,20 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	})
 }
 
+// GetUser godoc
+//
+//	@Summary		Get user by ID
+//	@Description	Get user details by user ID
+//	@Tags			Users
+//	@Produce		json
+//	@Param			id	path		string	true	"User ID"
+//	@Success		200	{object}	handler.GenericDataResponse[relational.User]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/{id} [get]
 func (h *UserHandler) GetUser(ctx echo.Context) error {
 	userID := ctx.Param("id")
 
@@ -73,6 +98,18 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 
 }
 
+// GetMe godoc
+//
+//	@Summary		Get logged-in user details
+//	@Description	Retrieves the details of the currently logged-in user
+//	@Tags			Users
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataResponse[relational.User]
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/me [get]
 func (h *UserHandler) GetMe(ctx echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
@@ -91,6 +128,21 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 	})
 }
 
+// CreateUser godoc
+//
+//	@Summary		Create a new user
+//	@Description	Creates a new user in the system
+//	@Tags			Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			user	body		handler.UserHandler.CreateUser.createUserRequest	true	"User details"
+//	@Success		201		{object}	handler.GenericDataResponse[relational.User]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		409		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users [post]
 func (h *UserHandler) CreateUser(ctx echo.Context) error {
 	type createUserRequest struct {
 		Email     string `json:"email" validate:"required,email"`
@@ -128,6 +180,22 @@ func (h *UserHandler) CreateUser(ctx echo.Context) error {
 	})
 }
 
+// UpdateUser godoc
+//
+//	@Summary		Update user details
+//	@Description	Updates the details of an existing user
+//	@Tags			Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string												true	"User ID"
+//	@Param			user	body		handler.UserHandler.UpdateUser.updateUserRequest	true	"User details"
+//	@Success		200		{object}	handler.GenericDataResponse[relational.User]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/{id} [put]
 func (h *UserHandler) UpdateUser(ctx echo.Context) error {
 	type updateUserRequest struct {
 		FirstName    *string `json:"firstName"`
@@ -183,6 +251,19 @@ func (h *UserHandler) UpdateUser(ctx echo.Context) error {
 	})
 }
 
+// DeleteUser godoc
+//
+//	@Summary		Delete a user
+//	@Description	Deletes a user from the system
+//	@Tags			Users
+//	@Param			id	path		string	true	"User ID"
+//	@Success		204	{object}	nil
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/{id} [delete]
 func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 	userID := ctx.Param("id")
 	userUUID, err := uuid.Parse(userID)
@@ -202,6 +283,20 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 	return ctx.NoContent(204)
 }
 
+// ChangeLoggedInUserPassword godoc
+//
+//	@Summary		Change password for logged-in user
+//	@Description	Changes the password for the currently logged-in user
+//	@Tags			Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			changePasswordRequest	body		handler.UserHandler.ChangeLoggedInUserPassword.changePasswordRequest	true	"Change Password Request"
+//	@Success		204						{object}	nil
+//	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
+//	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/me/change-password [post]
 func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
@@ -242,6 +337,22 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 	return ctx.NoContent(204)
 }
 
+// ChangePassword godoc
+//
+//	@Summary		Change password for a specific user
+//	@Description	Changes the password for a user by ID
+//	@Tags			Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id						path		string														true	"User ID"
+//	@Param			changePasswordRequest	body		handler.UserHandler.ChangePassword.changePasswordRequest	true	"Change Password Request"
+//	@Success		204						{object}	nil
+//	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
+//	@Failure		404						{object}	api.Error
+//	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/{id}/change-password [post]
 func (h *UserHandler) ChangePassword(ctx echo.Context) error {
 	userID := ctx.Param("id")
 	userUUID, err := uuid.Parse(userID)
