@@ -184,8 +184,22 @@ func (h *UserHandler) UpdateUser(ctx echo.Context) error {
 }
 
 func (h *UserHandler) DeleteUser(ctx echo.Context) error {
-	// This method will be implemented later to delete a user.
-	return ctx.JSON(501, "Not Implemented")
+	userID := ctx.Param("id")
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		h.sugar.Errorw("Invalid user ID", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	if err := h.db.Delete(&relational.User{}, userUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to delete user", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.NoContent(204)
 }
 
 func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {

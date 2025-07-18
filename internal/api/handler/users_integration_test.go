@@ -265,3 +265,27 @@ func (suite *UserApiIntegrationSuite) ModifyUser() {
 		suite.Require().Equal(response.Data.FailedLogins, existingUser.FailedLogins, "Expected failed logins to remain unchanged in ModifyUser response")
 	})
 }
+
+func (suite *UserApiIntegrationSuite) TestDeleteUser() {
+	var existingUser relational.User
+	err := suite.DB.First(&existingUser).Error
+	suite.Require().NoError(err, "Failed to retrieve existing user for DeleteUser test")
+
+	userId := existingUser.UUIDModel.ID.String()
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/api/users/"+userId, nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(204, rec.Code, "Expected No Content response for DeleteUser")
+	suite.Empty(rec.Body.String(), "Expected empty response body for DeleteUser")
+
+	// Verify user is deleted
+	var deletedUser relational.User
+	err = suite.DB.First(&deletedUser, existingUser.UUIDModel.ID).Error
+	suite.Error(err, "Expected error when retrieving deleted user")
+}
