@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -70,8 +71,21 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 }
 
 func (h *UserHandler) GetMe(ctx echo.Context) error {
-	// This method will be implemented later to get the current user's information.
-	return ctx.JSON(501, "Not Implemented")
+	userClaims := ctx.Get("user").(*authn.UserClaims)
+
+	email := userClaims.Subject
+	var user relational.User
+	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get user by email", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.JSON(200, GenericDataResponse[relational.User]{
+		Data: user,
+	})
 }
 
 func (h *UserHandler) CreateUser(ctx echo.Context) error {

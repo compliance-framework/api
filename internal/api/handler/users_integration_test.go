@@ -78,3 +78,23 @@ func (suite *UserApiIntegrationSuite) TestGetUser() {
 	suite.Require().NoError(err, "Expected valid JSON response for GetUser")
 	suite.Require().Equal(existingUser, response.Data, "Expected matching user ID in response for GetUser")
 }
+
+func (suite *UserApiIntegrationSuite) TestGetMe() {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/users/me", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for GetMe")
+	suite.NotEmpty(rec.Body.String(), "Expected non-empty response body for GetMe")
+
+	var response GenericDataResponse[relational.User]
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for GetMe")
+	suite.Require().Equal(response.Data.Email, "dummy@example.com", "Expected email to match dummy user in GetMe response")
+	suite.Require().Equal(response.Data.FirstName, "Dummy", "Expected first name to match dummy user in GetMe response")
+	suite.Require().Equal(response.Data.LastName, "User", "Expected last name to match dummy user in GetMe response")
+}
