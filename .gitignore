@@ -18,5 +18,6 @@ local.go
 resolver.go
 
 api
+!internal/api
 
 *.pem
