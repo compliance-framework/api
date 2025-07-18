@@ -55,3 +55,26 @@ func (suite *UserApiIntegrationSuite) TestUserList() {
 	suite.Require().NoError(err, "Expected valid JSON response for ListUsers")
 	suite.Require().Equal(len(response.Data), 1, "Expected exactly one user in response for ListUsers")
 }
+
+func (suite *UserApiIntegrationSuite) TestGetUser() {
+	var existingUser relational.User
+	err := suite.DB.First(&existingUser).Error
+	suite.Require().NoError(err, "Failed to retrieve existing user for GetUser test")
+	existingUser.PasswordHash = "" // Clear password hash for response validation
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/users/"+existingUser.UUIDModel.ID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for GetUser")
+	suite.NotEmpty(rec.Body.String(), "Expected non-empty response body for GetUser")
+
+	var response GenericDataResponse[relational.User]
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for GetUser")
+	suite.Require().Equal(existingUser, response.Data, "Expected matching user ID in response for GetUser")
+}

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -31,12 +33,11 @@ func (h *UserHandler) Register(api *echo.Group) {
 }
 
 func (h *UserHandler) ListUsers(ctx echo.Context) error {
-	// This method will be implemented later to list users.
 	var users []relational.User
 
 	if err := h.db.Find(&users).Error; err != nil {
 		h.sugar.Errorw("Failed to list users", "error", err)
-		return ctx.JSON(500, "Internal Server Error")
+		return ctx.JSON(500, api.NewError(err))
 	}
 
 	return ctx.JSON(200, GenericDataListResponse[relational.User]{
@@ -45,8 +46,27 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 }
 
 func (h *UserHandler) GetUser(ctx echo.Context) error {
-	// This method will be implemented later to get a specific user.
-	return ctx.JSON(501, "Not Implemented")
+	userID := ctx.Param("id")
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		h.sugar.Errorw("Invalid user ID", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	var user relational.User
+	if err := h.db.First(&user, userUUID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get user", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.JSON(200, GenericDataResponse[relational.User]{
+		Data: user,
+	})
+
 }
 
 func (h *UserHandler) GetMe(ctx echo.Context) error {
