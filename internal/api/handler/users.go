@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -31,7 +32,16 @@ func (h *UserHandler) Register(api *echo.Group) {
 
 func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	// This method will be implemented later to list users.
-	return ctx.JSON(501, "Not Implemented")
+	var users []relational.User
+
+	if err := h.db.Find(&users).Error; err != nil {
+		h.sugar.Errorw("Failed to list users", "error", err)
+		return ctx.JSON(500, "Internal Server Error")
+	}
+
+	return ctx.JSON(200, GenericDataListResponse[relational.User]{
+		Data: users,
+	})
 }
 
 func (h *UserHandler) GetUser(ctx echo.Context) error {

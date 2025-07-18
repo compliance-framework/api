@@ -15,7 +15,7 @@ type User struct {
 	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"` // Soft delete
 
 	Email        string `json:"email" gorm:"uniqueIndex;not null"`
-	PasswordHash string `gorm:"not null"`
+	PasswordHash string `gorm:"not null" json:"-"`
 
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
@@ -25,7 +25,7 @@ type User struct {
 	IsLocked     bool       `json:"isLocked" gorm:"default:false"`
 	FailedLogins int        `json:"failedLogins" gorm:"default:0"`
 
-	ResetToken       *string
+	ResetToken       *string `json:"-"`
 	ResetTokenExpiry *time.Time
 }
 
