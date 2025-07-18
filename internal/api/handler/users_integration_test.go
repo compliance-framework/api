@@ -289,3 +289,60 @@ func (suite *UserApiIntegrationSuite) TestDeleteUser() {
 	err = suite.DB.First(&deletedUser, existingUser.UUIDModel.ID).Error
 	suite.Error(err, "Expected error when retrieving deleted user")
 }
+
+func (suite *UserApiIntegrationSuite) TestChangeLoggedInUserPassword() {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	type changePasswordRequest struct {
+		OldPassword string `json:"oldPassword"`
+		NewPassword string `json:"newPassword"`
+	}
+
+	suite.Run("ChangePasswordSuccess", func() {
+		suite.Migrator.Refresh()
+		payload := changePasswordRequest{
+			OldPassword: "Pa55w0rd",
+			NewPassword: "NewPa55w0rd",
+		}
+
+		payloadJSON, err := json.Marshal(payload)
+		suite.Require().NoError(err, "Failed to marshal change password request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/users/me/change-password", bytes.NewReader(payloadJSON))
+		req.Header.Set("Authorization", "Bearer "+*token)
+		req.Header.Set("Content-Type", "application/json")
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(204, rec.Code, "Expected No Content response for ChangeLoggedInUserPassword")
+		suite.Empty(rec.Body.String(), "Expected empty response body for ChangeLoggedInUserPassword")
+
+		var updatedUser relational.User
+		err = suite.DB.Where("email = ?", "dummy@example.com").First(&updatedUser).Error
+		suite.Require().NoError(err, "Failed to retrieve updated user after password change")
+
+		suite.True(updatedUser.CheckPassword("NewPa55w0rd"), "Expected password to be updated successfully")
+	})
+
+	suite.Run("ChangePasswordInvalidOldPassword", func() {
+		suite.Migrator.Refresh()
+		payload := changePasswordRequest{
+			OldPassword: "WrongPa55w0rd",
+			NewPassword: "NewPa55w0rd",
+		}
+
+		payloadJSON, err := json.Marshal(payload)
+		suite.Require().NoError(err, "Failed to marshal change password request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/users/me/change-password", bytes.NewReader(payloadJSON))
+		req.Header.Set("Authorization", "Bearer "+*token)
+		req.Header.Set("Content-Type", "application/json")
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(400, rec.Code, "Expected Bad Request response for ChangeLoggedInUserPassword with invalid old password")
+		suite.Contains(rec.Body.String(), "old password does not match", "Expected error message for invalid old password in ChangeLoggedInUserPassword response")
+	})
+
+}
