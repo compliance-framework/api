@@ -23351,9 +23351,6 @@ const docTemplate = `{
                 "lastName": {
                     "type": "string"
                 },
-                "resetTokenExpiry": {
-                    "type": "string"
-                },
                 "updatedAt": {
                     "type": "string"
                 }
