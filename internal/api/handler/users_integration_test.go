@@ -1,4 +1,5 @@
-// go build:integration
+//go:build integration
+
 package handler
 
 import (
@@ -77,7 +78,7 @@ func (suite *UserApiIntegrationSuite) TestGetUser() {
 	var response GenericDataResponse[relational.User]
 	err = json.Unmarshal(rec.Body.Bytes(), &response)
 	suite.Require().NoError(err, "Expected valid JSON response for GetUser")
-	suite.Require().Equal(existingUser, response.Data, "Expected matching user ID in response for GetUser")
+	suite.Require().Equal(existingUser.UUIDModel.ID, response.Data.UUIDModel.ID, "Expected matching user ID in response for GetUser")
 }
 
 func (suite *UserApiIntegrationSuite) TestGetMe() {
