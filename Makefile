@@ -114,7 +114,6 @@ reviewable: swag # Ensure a PR is ready for review.
 
 .PHONY: check-diff
 check-diff: reviewable # Ensure branch is clean.
-	@$(INFO) checking that branch is clean
 	@test -z "$$(git status --porcelain)" || (echo "$$(git status --porcelain)" && $(FAIL))
 	@$(OK) branch is clean
 
@@ -135,7 +134,7 @@ swag: ## swag setup and lint
 	@swag fmt
 
 .PHONY: generate-keys
-generate-keys: 
+generate-keys:
 	@$(INFO) "Generating keys for the service"
 	@openssl genrsa -out private_key.pem 2048
 	@openssl rsa -in private_key.pem -pubout -out public_key.pem

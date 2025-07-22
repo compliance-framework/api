@@ -206,7 +206,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		return err
 	}
 
-	output := &map[string]interface{}{}
+	output := &map[string]any{}
 	decoder := json.NewDecoder(f)
 	err = decoder.Decode(output)
 	if err != nil {

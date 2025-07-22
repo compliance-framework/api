@@ -32,7 +32,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) SetupSuite() {
 }
 
 // Helper function to create authenticated requests
-func (suite *SystemSecurityPlanApiIntegrationSuite) createRequest(method, path string, body interface{}) *http.Request {
+func (suite *SystemSecurityPlanApiIntegrationSuite) createRequest(method, path string, body any) *http.Request {
 	var bodyReader *bytes.Buffer
 	if body != nil {
 		bodyBytes, _ := json.Marshal(body)

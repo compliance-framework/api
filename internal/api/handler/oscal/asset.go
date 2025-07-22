@@ -121,7 +121,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 		ID:               relationalAsset.ID.String(),
 	}
 
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[interface{}]{Data: response})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[any]{Data: response})
 }
 
 // UpdateAssessmentAsset godoc
@@ -199,7 +199,7 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 		ID:               relationalAsset.ID.String(),
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[interface{}]{Data: response})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[any]{Data: response})
 }
 
 // DeleteAssessmentAsset godoc

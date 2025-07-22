@@ -203,7 +203,7 @@ func (h *AssessmentPlanHandler) UpdateTask(ctx echo.Context) error {
 	}
 
 	// Update other task fields (excluding dependencies which were handled above)
-	updateData := map[string]interface{}{
+	updateData := map[string]any{
 		"type":        relationalTask.Type,
 		"title":       relationalTask.Title,
 		"description": relationalTask.Description,

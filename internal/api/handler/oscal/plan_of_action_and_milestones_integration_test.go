@@ -1477,15 +1477,15 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestDatabaseConstrain
 	suite.Equal(http.StatusNotFound, obsRec.Code) // Should fail - parent doesn't exist
 
 	// Test data validation - invalid UUID format
-	invalidData := map[string]interface{}{
+	invalidData := map[string]any{
 		"uuid": "invalid-uuid-format",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"title":         "Invalid POA&M",
 			"last-modified": now.Format(time.RFC3339),
 			"oscal-version": "1.0.4",
 			"version":       "1.0.0",
 		},
-		"system-id": map[string]interface{}{
+		"system-id": map[string]any{
 			"id":              "INVALID-UUID",
 			"identifier-type": "https://test.gov",
 		},
