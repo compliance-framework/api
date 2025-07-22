@@ -8344,6 +8344,9 @@ const docTemplate = `{
                     }
                 ],
                 "description": "Creates a System Security Plan from input.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8351,6 +8354,17 @@ const docTemplate = `{
                     "System Security Plans"
                 ],
                 "summary": "Create a System Security Plan",
+                "parameters": [
+                    {
+                        "description": "SSP data",
+                        "name": "ssp",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemSecurityPlan"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -9200,7 +9214,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "System Security Plans"
+                    "Oscal"
                 ],
                 "summary": "Create a new statement within an implemented requirement",
                 "parameters": [
@@ -19070,7 +19084,7 @@ const docTemplate = `{
                 "remarks": {
                     "type": "string"
                 },
-                "responsable-roles": {
+                "responsible-roles": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.ResponsibleRole"

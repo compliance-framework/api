@@ -195,7 +195,14 @@ type ResponsibleParty struct {
 }
 
 func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *ResponsibleParty {
+	// Ensure we have an ID before processing parties
+	if r.UUIDModel.ID == nil {
+		newID := uuid.New()
+		r.UUIDModel.ID = &newID
+	}
+
 	*r = ResponsibleParty{
+		UUIDModel: r.UUIDModel, // Preserve the generated ID
 		Props: ConvertList(or.Props, func(property oscaltypes113.Property) Prop {
 			prop := Prop{}
 			prop.UnmarshalOscal(property)
@@ -209,7 +216,15 @@ func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *Re
 		Remarks: or.Remarks,
 		RoleID:  or.RoleId,
 		Parties: ConvertList(&or.PartyUuids, func(olink string) ResponsiblePartyParties {
-			id := uuid.MustParse(olink)
+			// Skip empty or invalid UUIDs to prevent panics
+			if olink == "" {
+				return ResponsiblePartyParties{}
+			}
+			id, err := uuid.Parse(olink)
+			if err != nil {
+				// Skip invalid UUIDs
+				return ResponsiblePartyParties{}
+			}
 			return ResponsiblePartyParties{
 				ResponsiblePartyID: r.UUIDModel.ID,
 				PartyID:            &id,
@@ -221,24 +236,38 @@ func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *Re
 }
 
 func (r *ResponsibleParty) MarshalOscal() *oscaltypes113.ResponsibleParty {
+	if r == nil {
+		return nil
+	}
+
 	rp := &oscaltypes113.ResponsibleParty{
 		Remarks: r.Remarks,
 		RoleId:  r.RoleID,
 	}
 	if len(r.Props) > 0 {
-		props := *ConvertPropsToOscal(r.Props)
-		rp.Props = &props
+		propsPtr := ConvertPropsToOscal(r.Props)
+		if propsPtr != nil {
+			props := *propsPtr
+			rp.Props = &props
+		}
 	}
 	if len(r.Links) > 0 {
-		links := *ConvertLinksToOscal(r.Links)
-		rp.Links = &links
+		linksPtr := ConvertLinksToOscal(r.Links)
+		if linksPtr != nil {
+			links := *linksPtr
+			rp.Links = &links
+		}
 	}
 	if len(r.Parties) > 0 {
-		uuids := make([]string, len(r.Parties))
-		for i, p := range r.Parties {
-			uuids[i] = p.PartyID.String()
+		uuids := make([]string, 0, len(r.Parties))
+		for _, p := range r.Parties {
+			if p.PartyID != nil {
+				uuids = append(uuids, p.PartyID.String())
+			}
 		}
-		rp.PartyUuids = uuids
+		if len(uuids) > 0 {
+			rp.PartyUuids = uuids
+		}
 	}
 	return rp
 }
@@ -277,7 +306,15 @@ func (rr *ResponsibleRole) UnmarshalOscal(or oscaltypes113.ResponsibleRole) *Res
 		Links:   ConvertOscalToLinks(or.Links),
 		Remarks: or.Remarks,
 		Parties: ConvertList(or.PartyUuids, func(olink string) Party {
-			id := uuid.MustParse(olink)
+			// Skip empty or invalid UUIDs to prevent panics
+			if olink == "" {
+				return Party{}
+			}
+			id, err := uuid.Parse(olink)
+			if err != nil {
+				// Skip invalid UUIDs
+				return Party{}
+			}
 			return Party{
 				UUIDModel: UUIDModel{
 					ID: &id,

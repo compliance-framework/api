@@ -5189,7 +5189,7 @@ definitions:
         type: string
       remarks:
         type: string
-      responsable-roles:
+      responsible-roles:
         items:
           $ref: '#/definitions/relational.ResponsibleRole'
         type: array
@@ -10653,7 +10653,16 @@ paths:
       tags:
       - System Security Plans
     post:
+      consumes:
+      - application/json
       description: Creates a System Security Plan from input.
+      parameters:
+      - description: SSP data
+        in: body
+        name: ssp
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemSecurityPlan'
       produces:
       - application/json
       responses:
@@ -11261,7 +11270,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new statement within an implemented requirement
       tags:
-      - System Security Plans
+      - Oscal
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}:
     put:
       consumes:

@@ -26,8 +26,8 @@ jobs:
       - name: Find the Go Cache
         id: go
         run: |
-          echo "::set-output name=build-cache::$(go env GOCACHE)"
-          echo "::set-output name=mod-cache::$(go env GOMODCACHE)"
+          echo "build-cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Cache the Go Build Cache
         uses: actions/cache@v3
@@ -75,7 +75,7 @@ jobs:
 
       - name: Install Swag
         run: |
-          go install github.com/swaggo/swag/cmd/swag@latest
+          go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
       - name: Check Diff
         run: |
@@ -98,8 +98,8 @@ jobs:
       - name: Find the Go Cache
         id: go
         run: |
-          echo "::set-output name=build-cache::$(go env GOCACHE)"
-          echo "::set-output name=mod-cache::$(go env GOMODCACHE)"
+          echo "build-cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Cache the Go Build Cache
         uses: actions/cache@v3
@@ -115,7 +115,7 @@ jobs:
       
       - name: Install Swag
         run: |
-          go install github.com/swaggo/swag/cmd/swag@latest
+          go install github.com/swaggo/swag/cmd/swag@v1.16.4
       
       - name: Generate Swagger Docs
         run: |
@@ -142,8 +142,8 @@ jobs:
       - name: Find the Go Cache
         id: go
         run: |
-          echo "::set-output name=build-cache::$(go env GOCACHE)"
-          echo "::set-output name=mod-cache::$(go env GOMODCACHE)"
+          echo "build-cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "mod-cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Cache the Go Build Cache
         uses: actions/cache@v3
@@ -159,7 +159,7 @@ jobs:
       
       - name: Install Swag
         run: |
-          go install github.com/swaggo/swag/cmd/swag@latest
+          go install github.com/swaggo/swag/cmd/swag@v1.16.4
       
       - name: Generate Swagger Docs
         run: |

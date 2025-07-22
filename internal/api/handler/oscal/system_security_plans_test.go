@@ -193,7 +193,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSPValidationError
 		{
 			name: "invalid UUID format",
 			modifySSP: func(ssp *oscalTypes_1_1_3.SystemSecurityPlan) {
-				ssp.UUID = "invalid-uuid"
+				ssp.UUID = "invalid0-uuid-4mat-1234-567890123456"
 			},
 			expectedMsg: "invalid UUID format",
 		},
@@ -476,6 +476,12 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusCreated, resp.Code)
 
+	// Parse response to get the actual SSP UUID
+	var createSSPResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+	err = json.Unmarshal(resp.Body.Bytes(), &createSSPResponse)
+	suite.NoError(err)
+	actualSSPUUID := createSSPResponse.Data.UUID
+
 	testCases := []struct {
 		name           string
 		sspID          string
@@ -484,14 +490,14 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	}{
 		{
 			name:           "invalid SSP ID",
-			sspID:          "invalid-uuid",
+			sspID:          "invalid0-uuid-4mat-1234-567890123456",
 			reqID:          uuid.New().String(),
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "invalid requirement ID",
-			sspID:          ssp.UUID,
-			reqID:          "invalid-uuid",
+			sspID:          actualSSPUUID,
+			reqID:          "invalid0-uuid-4mat-1234-567890123456",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -502,7 +508,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 		},
 		{
 			name:           "non-existent requirement",
-			sspID:          ssp.UUID,
+			sspID:          actualSSPUUID,
 			reqID:          uuid.New().String(),
 			expectedStatus: http.StatusNotFound,
 		},
@@ -645,6 +651,12 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusCreated, resp.Code)
 
+	// Parse response to get the actual SSP UUID
+	var createSSPResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+	err = json.Unmarshal(resp.Body.Bytes(), &createSSPResponse)
+	suite.NoError(err)
+	actualSSPUUID := createSSPResponse.Data.UUID
+
 	testCases := []struct {
 		name           string
 		sspID          string
@@ -654,23 +666,23 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	}{
 		{
 			name:           "invalid SSP ID",
-			sspID:          "invalid-uuid",
+			sspID:          "invalid0-uuid-4mat-1234-567890123456",
 			reqID:          uuid.New().String(),
 			stmtID:         uuid.New().String(),
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "invalid requirement ID",
-			sspID:          ssp.UUID,
-			reqID:          "invalid-uuid",
+			sspID:          actualSSPUUID,
+			reqID:          "invalid0-uuid-4mat-1234-567890123456",
 			stmtID:         uuid.New().String(),
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "invalid statement ID",
-			sspID:          ssp.UUID,
+			sspID:          actualSSPUUID,
 			reqID:          uuid.New().String(),
-			stmtID:         "invalid-uuid",
+			stmtID:         "invalid0-uuid-4mat-1234-567890123456",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -697,6 +709,779 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 
 			suite.Equal(tc.expectedStatus, resp.Code)
 		})
+	}
+}
+
+// Test system implementation CRUD operations
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationCRUD() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first
+	ssp := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Test GET system implementation
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var getResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]
+	err = json.Unmarshal(resp.Body.Bytes(), &getResponse)
+	suite.NoError(err)
+	suite.NotNil(getResponse.Data.Users)
+	suite.NotNil(getResponse.Data.Components)
+
+	// Test UPDATE system implementation
+	updatedSystemImpl := oscalTypes_1_1_3.SystemImplementation{
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "environment",
+				Value: "production",
+			},
+			{
+				Name:  "security-level",
+				Value: "high",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/system-architecture",
+				MediaType: "application/pdf",
+				Text:      "System Architecture Document",
+			},
+		},
+		Users: []oscalTypes_1_1_3.SystemUser{
+			{
+				UUID:    uuid.New().String(),
+				Title:   "Updated System Administrator",
+				RoleIds: &[]string{"admin", "security-admin"},
+				AuthorizedPrivileges: &[]oscalTypes_1_1_3.AuthorizedPrivilege{
+					{
+						Title:              "Full Administrative Access",
+						FunctionsPerformed: []string{"system-administration", "security-management"},
+					},
+				},
+			},
+		},
+		Components: []oscalTypes_1_1_3.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Type:        "software",
+				Title:       "Updated Test Application",
+				Description: "Updated test application component",
+				Props: &[]oscalTypes_1_1_3.Property{
+					{
+						Name:  "version",
+						Value: "2.0.0",
+					},
+				},
+				Links: &[]oscalTypes_1_1_3.Link{
+					{
+						Href: "https://example.com/app-docs",
+						Text: "Application Documentation",
+					},
+				},
+				Status: oscalTypes_1_1_3.SystemComponentStatus{
+					State: "operational",
+				},
+			},
+		},
+		InventoryItems: &[]oscalTypes_1_1_3.InventoryItem{
+			{
+				UUID:        uuid.New().String(),
+				Description: "Test Inventory Item",
+				Props: &[]oscalTypes_1_1_3.Property{
+					{
+						Name:  "asset-type",
+						Value: "hardware",
+					},
+				},
+				Links: &[]oscalTypes_1_1_3.Link{
+					{
+						Href: "https://example.com/inventory",
+						Text: "Inventory Management System",
+					},
+				},
+				ResponsibleParties: &[]oscalTypes_1_1_3.ResponsibleParty{
+					{
+						RoleId:     "asset-manager",
+						PartyUuids: []string{"org-1"},
+					},
+				},
+			},
+		},
+		LeveragedAuthorizations: &[]oscalTypes_1_1_3.LeveragedAuthorization{
+			{
+				UUID:  uuid.New().String(),
+				Title: "Cloud Platform Authorization",
+				Links: &[]oscalTypes_1_1_3.Link{
+					{
+						Href: "https://example.com/cloud-auth",
+						Text: "Cloud Authorization Documentation",
+					},
+				},
+				PartyUuid:      uuid.New().String(),
+				DateAuthorized: time.Now().Format("2006-01-02"),
+			},
+		},
+		Remarks: "Updated system implementation with comprehensive configuration",
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation", ssp.UUID), updatedSystemImpl)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemImplementation]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateResponse)
+	suite.NoError(err)
+
+	// Verify updated fields
+	suite.Equal("Updated system implementation with comprehensive configuration", updateResponse.Data.Remarks)
+	suite.Require().NotNil(updateResponse.Data.Props)
+	suite.Len(*updateResponse.Data.Props, 2)
+	suite.Equal("environment", (*updateResponse.Data.Props)[0].Name)
+	suite.Equal("production", (*updateResponse.Data.Props)[0].Value)
+
+	suite.Require().NotNil(updateResponse.Data.Links)
+	suite.Len(*updateResponse.Data.Links, 1)
+	suite.Equal("https://example.com/system-architecture", (*updateResponse.Data.Links)[0].Href)
+
+	suite.Require().NotNil(updateResponse.Data.InventoryItems)
+	suite.Len(*updateResponse.Data.InventoryItems, 1)
+	suite.Equal("Test Inventory Item", (*updateResponse.Data.InventoryItems)[0].Description)
+
+	suite.Require().NotNil(updateResponse.Data.LeveragedAuthorizations)
+	suite.Len(*updateResponse.Data.LeveragedAuthorizations, 1)
+	suite.Equal("Cloud Platform Authorization", (*updateResponse.Data.LeveragedAuthorizations)[0].Title)
+}
+
+// Test system implementation users CRUD operations
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationUsersCRUD() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first
+	ssp := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Test GET users
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/users", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var getUsersResponse handler.GenericDataListResponse[oscalTypes_1_1_3.SystemUser]
+	err = json.Unmarshal(resp.Body.Bytes(), &getUsersResponse)
+	suite.NoError(err)
+	suite.NotEmpty(getUsersResponse.Data) // Should have the initial user
+
+	// Test CREATE user
+	newUser := oscalTypes_1_1_3.SystemUser{
+		UUID:    uuid.New().String(),
+		Title:   "Security Officer",
+		RoleIds: &[]string{"security-officer", "auditor"},
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "clearance-level",
+				Value: "secret",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href: "https://example.com/user-profile",
+				Text: "User Profile",
+			},
+		},
+		AuthorizedPrivileges: &[]oscalTypes_1_1_3.AuthorizedPrivilege{
+			{
+				Title:              "Security Management",
+				FunctionsPerformed: []string{"security-monitoring", "compliance-auditing"},
+			},
+		},
+		Remarks: "Responsible for security oversight and compliance monitoring",
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/users", ssp.UUID), newUser)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createUserResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemUser]
+	err = json.Unmarshal(resp.Body.Bytes(), &createUserResponse)
+	suite.NoError(err)
+	suite.Equal("Security Officer", createUserResponse.Data.Title)
+	suite.Equal("Responsible for security oversight and compliance monitoring", createUserResponse.Data.Remarks)
+
+	userID := createUserResponse.Data.UUID
+
+	// Test UPDATE user
+	updatedUser := oscalTypes_1_1_3.SystemUser{
+		UUID:    userID,
+		Title:   "Senior Security Officer",
+		RoleIds: &[]string{"senior-security-officer", "compliance-manager"},
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "clearance-level",
+				Value: "top-secret",
+			},
+			{
+				Name:  "experience-years",
+				Value: "10",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href: "https://example.com/senior-user-profile",
+				Text: "Senior User Profile",
+			},
+		},
+		AuthorizedPrivileges: &[]oscalTypes_1_1_3.AuthorizedPrivilege{
+			{
+				Title:              "Advanced Security Management",
+				FunctionsPerformed: []string{"security-architecture", "risk-management", "compliance-oversight"},
+			},
+		},
+		Remarks: "Senior security officer with advanced privileges and oversight responsibilities",
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/users/%s", ssp.UUID, userID), updatedUser)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateUserResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemUser]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateUserResponse)
+	suite.NoError(err)
+	suite.Equal("Senior Security Officer", updateUserResponse.Data.Title)
+	suite.Equal("Senior security officer with advanced privileges and oversight responsibilities", updateUserResponse.Data.Remarks)
+
+	// Verify props
+	suite.Require().NotNil(updateUserResponse.Data.Props)
+	suite.Len(*updateUserResponse.Data.Props, 2)
+	suite.Equal("clearance-level", (*updateUserResponse.Data.Props)[0].Name)
+	suite.Equal("top-secret", (*updateUserResponse.Data.Props)[0].Value)
+
+	// Test DELETE user
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/users/%s", ssp.UUID, userID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// Verify user is deleted
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/users", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var finalUsersResponse handler.GenericDataListResponse[oscalTypes_1_1_3.SystemUser]
+	err = json.Unmarshal(resp.Body.Bytes(), &finalUsersResponse)
+	suite.NoError(err)
+
+	// Should not contain the deleted user
+	for _, user := range finalUsersResponse.Data {
+		suite.NotEqual(userID, user.UUID)
+	}
+}
+
+// Test system implementation components CRUD operations
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationComponentsCRUD() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first
+	ssp := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Test GET components
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var getComponentsResponse handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]
+	err = json.Unmarshal(resp.Body.Bytes(), &getComponentsResponse)
+	suite.NoError(err)
+	suite.NotEmpty(getComponentsResponse.Data) // Should have the initial component
+
+	// Test CREATE component
+	newComponent := oscalTypes_1_1_3.SystemComponent{
+		UUID:        uuid.New().String(),
+		Type:        "service",
+		Title:       "Authentication Service",
+		Description: "Centralized authentication and authorization service",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "version",
+				Value: "3.2.1",
+			},
+			{
+				Name:  "vendor",
+				Value: "ACME Corp",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/auth-service-docs",
+				MediaType: "text/html",
+				Text:      "Authentication Service Documentation",
+			},
+		},
+		Status: oscalTypes_1_1_3.SystemComponentStatus{
+			State: "operational",
+		},
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+			{
+				RoleId:  "system-administrator",
+				Remarks: "Primary administrator for authentication service",
+			},
+		},
+		Remarks: "Critical authentication service providing SSO capabilities",
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components", ssp.UUID), newComponent)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createComponentResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
+	err = json.Unmarshal(resp.Body.Bytes(), &createComponentResponse)
+	suite.NoError(err)
+	suite.Equal("Authentication Service", createComponentResponse.Data.Title)
+	suite.Equal("service", createComponentResponse.Data.Type)
+	suite.Equal("Critical authentication service providing SSO capabilities", createComponentResponse.Data.Remarks)
+
+	componentID := createComponentResponse.Data.UUID
+
+	// Test UPDATE component
+	updatedComponent := oscalTypes_1_1_3.SystemComponent{
+		UUID:        componentID,
+		Type:        "service",
+		Title:       "Enhanced Authentication Service",
+		Description: "Enhanced centralized authentication and authorization service with MFA support",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "version",
+				Value: "4.0.0",
+			},
+			{
+				Name:  "vendor",
+				Value: "ACME Corp",
+			},
+			{
+				Name:  "mfa-enabled",
+				Value: "true",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/enhanced-auth-service-docs",
+				MediaType: "text/html",
+				Text:      "Enhanced Authentication Service Documentation",
+			},
+		},
+		Status: oscalTypes_1_1_3.SystemComponentStatus{
+			State: "operational",
+		},
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+			{
+				RoleId:  "system-administrator",
+				Remarks: "Primary administrator for enhanced authentication service",
+			},
+			{
+				RoleId:  "security-officer",
+				Remarks: "Security oversight for MFA implementation",
+			},
+		},
+		Remarks: "Enhanced authentication service with multi-factor authentication capabilities",
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components/%s", ssp.UUID, componentID), updatedComponent)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateComponentResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateComponentResponse)
+	suite.NoError(err)
+	suite.Equal("Enhanced Authentication Service", updateComponentResponse.Data.Title)
+	suite.Equal("Enhanced authentication service with multi-factor authentication capabilities", updateComponentResponse.Data.Remarks)
+
+	// Verify props
+	suite.Require().NotNil(updateComponentResponse.Data.Props)
+	suite.Len(*updateComponentResponse.Data.Props, 3)
+	suite.Equal("version", (*updateComponentResponse.Data.Props)[0].Name)
+	suite.Equal("4.0.0", (*updateComponentResponse.Data.Props)[0].Value)
+	suite.Equal("mfa-enabled", (*updateComponentResponse.Data.Props)[2].Name)
+	suite.Equal("true", (*updateComponentResponse.Data.Props)[2].Value)
+
+	// Test DELETE component
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components/%s", ssp.UUID, componentID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// Verify component is deleted
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var finalComponentsResponse handler.GenericDataListResponse[oscalTypes_1_1_3.SystemComponent]
+	err = json.Unmarshal(resp.Body.Bytes(), &finalComponentsResponse)
+	suite.NoError(err)
+
+	// Should not contain the deleted component
+	for _, component := range finalComponentsResponse.Data {
+		suite.NotEqual(componentID, component.UUID)
+	}
+}
+
+// Test system implementation inventory items CRUD operations
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationInventoryItemsCRUD() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first
+	ssp := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Test GET inventory items
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/inventory-items", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var getInventoryResponse handler.GenericDataListResponse[oscalTypes_1_1_3.InventoryItem]
+	err = json.Unmarshal(resp.Body.Bytes(), &getInventoryResponse)
+	suite.NoError(err)
+
+	// Test CREATE inventory item
+	newInventoryItem := oscalTypes_1_1_3.InventoryItem{
+		UUID:        uuid.New().String(),
+		Description: "Primary Database Server",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "asset-type",
+				Value: "hardware",
+			},
+			{
+				Name:  "asset-tag",
+				Value: "DB-SRV-001",
+			},
+			{
+				Name:  "location",
+				Value: "Data Center A",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/asset-management/DB-SRV-001",
+				MediaType: "application/json",
+				Text:      "Asset Management Record",
+			},
+		},
+		ResponsibleParties: &[]oscalTypes_1_1_3.ResponsibleParty{
+			{
+				RoleId:     "asset-manager",
+				PartyUuids: []string{"org-1"},
+			},
+			{
+				RoleId:     "system-administrator",
+				PartyUuids: []string{"admin-1"},
+			},
+		},
+		ImplementedComponents: &[]oscalTypes_1_1_3.ImplementedComponent{
+			{
+				ComponentUuid: uuid.New().String(),
+				Remarks:       "Database management system running on this server",
+			},
+		},
+		Remarks: "Critical database server hosting production data",
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/inventory-items", ssp.UUID), newInventoryItem)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createInventoryResponse handler.GenericDataResponse[oscalTypes_1_1_3.InventoryItem]
+	err = json.Unmarshal(resp.Body.Bytes(), &createInventoryResponse)
+	suite.NoError(err)
+	suite.Equal("Primary Database Server", createInventoryResponse.Data.Description)
+	suite.Equal("Critical database server hosting production data", createInventoryResponse.Data.Remarks)
+
+	inventoryID := createInventoryResponse.Data.UUID
+
+	// Test UPDATE inventory item
+	updatedInventoryItem := oscalTypes_1_1_3.InventoryItem{
+		UUID:        inventoryID,
+		Description: "Enhanced Primary Database Server",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "asset-type",
+				Value: "hardware",
+			},
+			{
+				Name:  "asset-tag",
+				Value: "DB-SRV-001",
+			},
+			{
+				Name:  "location",
+				Value: "Data Center A - Rack 7",
+			},
+			{
+				Name:  "maintenance-status",
+				Value: "up-to-date",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/asset-management/DB-SRV-001",
+				MediaType: "application/json",
+				Text:      "Asset Management Record",
+			},
+			{
+				Href:      "https://example.com/monitoring/DB-SRV-001",
+				MediaType: "application/json",
+				Text:      "Server Monitoring Dashboard",
+			},
+		},
+		ResponsibleParties: &[]oscalTypes_1_1_3.ResponsibleParty{
+			{
+				RoleId:     "asset-manager",
+				PartyUuids: []string{"org-1"},
+			},
+			{
+				RoleId:     "system-administrator",
+				PartyUuids: []string{"admin-1"},
+			},
+			{
+				RoleId:     "database-administrator",
+				PartyUuids: []string{"dba-1"},
+			},
+		},
+		ImplementedComponents: &[]oscalTypes_1_1_3.ImplementedComponent{
+			{
+				ComponentUuid: uuid.New().String(),
+				Remarks:       "Enhanced database management system with high availability",
+			},
+		},
+		Remarks: "Enhanced critical database server with improved monitoring and high availability",
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/inventory-items/%s", ssp.UUID, inventoryID), updatedInventoryItem)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateInventoryResponse handler.GenericDataResponse[oscalTypes_1_1_3.InventoryItem]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateInventoryResponse)
+	suite.NoError(err)
+	suite.Equal("Enhanced Primary Database Server", updateInventoryResponse.Data.Description)
+	suite.Equal("Enhanced critical database server with improved monitoring and high availability", updateInventoryResponse.Data.Remarks)
+
+	// Verify props
+	suite.Require().NotNil(updateInventoryResponse.Data.Props)
+	suite.Len(*updateInventoryResponse.Data.Props, 4)
+	suite.Equal("location", (*updateInventoryResponse.Data.Props)[2].Name)
+	suite.Equal("Data Center A - Rack 7", (*updateInventoryResponse.Data.Props)[2].Value)
+	suite.Equal("maintenance-status", (*updateInventoryResponse.Data.Props)[3].Name)
+	suite.Equal("up-to-date", (*updateInventoryResponse.Data.Props)[3].Value)
+
+	// Test DELETE inventory item
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/inventory-items/%s", ssp.UUID, inventoryID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// Verify inventory item is deleted
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/inventory-items", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var finalInventoryResponse handler.GenericDataListResponse[oscalTypes_1_1_3.InventoryItem]
+	err = json.Unmarshal(resp.Body.Bytes(), &finalInventoryResponse)
+	suite.NoError(err)
+
+	// Should not contain the deleted inventory item
+	for _, item := range finalInventoryResponse.Data {
+		suite.NotEqual(inventoryID, item.UUID)
+	}
+}
+
+// Test system implementation leveraged authorizations CRUD operations
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationLeveragedAuthorizationsCRUD() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first
+	ssp := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Test GET leveraged authorizations
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/leveraged-authorizations", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var getLeveragedAuthsResponse handler.GenericDataListResponse[oscalTypes_1_1_3.LeveragedAuthorization]
+	err = json.Unmarshal(resp.Body.Bytes(), &getLeveragedAuthsResponse)
+	suite.NoError(err)
+
+	// Test CREATE leveraged authorization
+	newLeveragedAuth := oscalTypes_1_1_3.LeveragedAuthorization{
+		UUID:  uuid.New().String(),
+		Title: "AWS Cloud Platform Authorization",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "authorization-type",
+				Value: "cloud-platform",
+			},
+			{
+				Name:  "authorization-level",
+				Value: "fedramp-high",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/aws-fedramp-authorization",
+				MediaType: "application/pdf",
+				Text:      "AWS FedRAMP Authorization Package",
+			},
+		},
+		PartyUuid:      uuid.New().String(),
+		DateAuthorized: time.Now().Format("2006-01-02"),
+		Remarks:        "Leveraged authorization for AWS cloud platform services under FedRAMP High",
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/leveraged-authorizations", ssp.UUID), newLeveragedAuth)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createLeveragedAuthResponse handler.GenericDataResponse[oscalTypes_1_1_3.LeveragedAuthorization]
+	err = json.Unmarshal(resp.Body.Bytes(), &createLeveragedAuthResponse)
+	suite.NoError(err)
+	suite.Equal("AWS Cloud Platform Authorization", createLeveragedAuthResponse.Data.Title)
+	suite.Equal("Leveraged authorization for AWS cloud platform services under FedRAMP High", createLeveragedAuthResponse.Data.Remarks)
+
+	authID := createLeveragedAuthResponse.Data.UUID
+
+	// Test UPDATE leveraged authorization
+	updatedLeveragedAuth := oscalTypes_1_1_3.LeveragedAuthorization{
+		UUID:  authID,
+		Title: "Enhanced AWS Cloud Platform Authorization",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "authorization-type",
+				Value: "cloud-platform",
+			},
+			{
+				Name:  "authorization-level",
+				Value: "fedramp-high",
+			},
+			{
+				Name:  "review-status",
+				Value: "reviewed",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://example.com/aws-fedramp-authorization",
+				MediaType: "application/pdf",
+				Text:      "AWS FedRAMP Authorization Package",
+			},
+			{
+				Href:      "https://example.com/internal-review-report",
+				MediaType: "application/pdf",
+				Text:      "Internal Security Review Report",
+			},
+		},
+		PartyUuid:      uuid.New().String(),
+		DateAuthorized: time.Now().Format("2006-01-02"),
+		Remarks:        "Enhanced leveraged authorization for AWS cloud platform services with additional security controls and regular reviews",
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/leveraged-authorizations/%s", ssp.UUID, authID), updatedLeveragedAuth)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateLeveragedAuthResponse handler.GenericDataResponse[oscalTypes_1_1_3.LeveragedAuthorization]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateLeveragedAuthResponse)
+	suite.NoError(err)
+	suite.Equal("Enhanced AWS Cloud Platform Authorization", updateLeveragedAuthResponse.Data.Title)
+	suite.Equal("Enhanced leveraged authorization for AWS cloud platform services with additional security controls and regular reviews", updateLeveragedAuthResponse.Data.Remarks)
+
+	// Verify props
+	suite.Require().NotNil(updateLeveragedAuthResponse.Data.Props)
+	suite.Len(*updateLeveragedAuthResponse.Data.Props, 3)
+	suite.Equal("review-status", (*updateLeveragedAuthResponse.Data.Props)[2].Name)
+	suite.Equal("reviewed", (*updateLeveragedAuthResponse.Data.Props)[2].Value)
+
+	// Test DELETE leveraged authorization
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/leveraged-authorizations/%s", ssp.UUID, authID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	// Verify leveraged authorization is deleted
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/leveraged-authorizations", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var finalLeveragedAuthsResponse handler.GenericDataListResponse[oscalTypes_1_1_3.LeveragedAuthorization]
+	err = json.Unmarshal(resp.Body.Bytes(), &finalLeveragedAuthsResponse)
+	suite.NoError(err)
+
+	// Should not contain the deleted leveraged authorization
+	for _, auth := range finalLeveragedAuthsResponse.Data {
+		suite.NotEqual(authID, auth.UUID)
 	}
 }
 
