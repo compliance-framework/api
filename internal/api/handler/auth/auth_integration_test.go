@@ -45,7 +45,9 @@ func (suite *AuthAPIIntegrationSuite) SetupSuite() {
 	suite.IntegrationTestSuite.SetupSuite()
 
 	// Setup logger and server once for all tests
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 	suite.logger = logger.Sugar()
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)

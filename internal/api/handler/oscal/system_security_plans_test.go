@@ -142,7 +142,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) createBasicSSP() *oscalTypes
 
 // Test creating a basic SSP
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSP() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -170,7 +172,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSP() {
 
 // Test creating SSP with validation errors
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSPValidationErrors() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -235,7 +239,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSPValidationError
 
 // Test retrieving SSP by ID
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSP() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -268,7 +274,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSP() {
 
 // Test retrieving non-existent SSP
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSPNotFound() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -287,7 +295,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSPNotFound() {
 
 // Test listing SSPs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestListSSPs() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -347,7 +357,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestListSSPs() {
 
 // Test creating a statement within an implemented requirement
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequirementStatement() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -461,7 +473,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 
 // Test creating a statement with invalid IDs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequirementStatementInvalidIDs() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -534,7 +548,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 
 // Test updating a statement within an implemented requirement
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatement() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -636,7 +652,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 
 // Test updating a statement with invalid IDs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementInvalidIDs() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -714,7 +732,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 
 // Test system implementation CRUD operations
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationCRUD() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -868,7 +888,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationCRUD
 
 // Test system implementation users CRUD operations
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationUsersCRUD() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -1004,7 +1026,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationUser
 
 // Test system implementation components CRUD operations
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationComponentsCRUD() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -1165,7 +1189,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationComp
 
 // Test system implementation inventory items CRUD operations
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationInventoryItemsCRUD() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -1347,7 +1373,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationInve
 
 // Test system implementation leveraged authorizations CRUD operations
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationLeveragedAuthorizationsCRUD() {
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)

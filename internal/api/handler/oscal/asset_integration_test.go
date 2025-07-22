@@ -34,7 +34,9 @@ type AssetApiIntegrationSuite struct {
 func (suite *AssetApiIntegrationSuite) SetupSuite() {
 	suite.IntegrationTestSuite.SetupSuite()
 
-	logger, _ := zap.NewDevelopment()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 	suite.logger = logger.Sugar()
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
