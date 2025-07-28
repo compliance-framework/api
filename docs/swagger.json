@@ -9266,7 +9266,7 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Oscal"
+                    "System Security Plans"
                 ],
                 "summary": "Create a new statement within an implemented requirement",
                 "parameters": [
@@ -17364,7 +17364,7 @@
         "relational.BackMatterResource": {
             "type": "object",
             "properties": {
-                "back-matter-id": {
+                "backMatterID": {
                     "type": "string"
                 },
                 "base64": {
@@ -17383,6 +17383,7 @@
                     }
                 },
                 "id": {
+                    "description": "required",
                     "type": "string"
                 },
                 "props": {

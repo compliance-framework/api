@@ -2531,7 +2531,7 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirement(ctx echo.Contex
 //
 //	@Summary		Create a new statement within an implemented requirement
 //	@Description	Creates a new statement within an implemented requirement for a given SSP.
-//	@Tags			Oscal
+//	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string						true	"SSP ID"

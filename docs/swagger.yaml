@@ -3922,7 +3922,7 @@ definitions:
     type: object
   relational.BackMatterResource:
     properties:
-      back-matter-id:
+      backMatterID:
         type: string
       base64:
         $ref: '#/definitions/datatypes.JSONType-relational_Base64'
@@ -3935,6 +3935,7 @@ definitions:
           $ref: '#/definitions/relational.DocumentID'
         type: array
       id:
+        description: required
         type: string
       props:
         items:
@@ -11308,7 +11309,7 @@ paths:
             $ref: '#/definitions/api.Error'
       summary: Create a new statement within an implemented requirement
       tags:
-      - Oscal
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}:
     put:
       consumes:
