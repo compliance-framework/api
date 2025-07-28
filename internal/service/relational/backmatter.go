@@ -37,8 +37,8 @@ func (b *BackMatter) MarshalOscal() *oscaltypes113.BackMatter {
 }
 
 type BackMatterResource struct {
-	UUIDModel                                      // required
-	BackMatterID uuid.UUID                         `json:"back-matter-id"`
+	ID           uuid.UUID                         `gorm:"primary_key"` // required
+	BackMatterID uuid.UUID                         `gorm:"primary_key"`
 	Title        *string                           `json:"title"`
 	Description  *string                           `json:"description"`
 	Remarks      *string                           `json:"remarks"`
@@ -53,9 +53,7 @@ func (c *BackMatterResource) UnmarshalOscal(resource oscaltypes113.Resource) *Ba
 	id := uuid.MustParse(resource.UUID)
 
 	*c = BackMatterResource{
-		UUIDModel: UUIDModel{
-			ID: &id,
-		},
+		ID:          id,
 		Title:       &resource.Title,
 		Description: &resource.Description,
 		Remarks:     &resource.Remarks,
@@ -97,7 +95,7 @@ func (c *BackMatterResource) UnmarshalOscal(resource oscaltypes113.Resource) *Ba
 // MarshalOscal converts the BackMatterResource back to an OSCAL Resource
 func (b *BackMatterResource) MarshalOscal() *oscaltypes113.Resource {
 	res := &oscaltypes113.Resource{
-		UUID: b.UUIDModel.ID.String(),
+		UUID: b.ID.String(),
 	}
 
 	if b.Title != nil {

@@ -3167,6 +3167,10 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestBackMatterResourc
 	suite.server.E().ServeHTTP(updateRec, updateReq)
 	suite.Equal(http.StatusOK, updateRec.Code)
 
+	body := []byte{}
+	updateReq.Body.Read(body)
+	fmt.Println(string(body))
+
 	// Verify the update
 	verifyRec, verifyReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/back-matter/resources", poamUUID), nil)
 	suite.server.E().ServeHTTP(verifyRec, verifyReq)

@@ -230,7 +230,7 @@ func (h *PlanOfActionAndMilestonesHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("invalid id", "error", err)
+		h.sugar.Warnw("invalid id", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
@@ -484,7 +484,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateMetadata(ctx echo.Context) erro
 
 	var poam relational.PlanOfActionAndMilestones
 	if err := h.db.Preload("Metadata").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
+		h.sugar.Warnw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
@@ -525,7 +525,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetImportSsp(ctx echo.Context) error 
 	}
 	var poam relational.PlanOfActionAndMilestones
 	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
+		h.sugar.Warnw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 	importSsp := poam.ImportSsp.Data()
@@ -671,7 +671,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetSystemId(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("invalid id", "error", err)
+		h.sugar.Warnw("invalid id", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
@@ -853,7 +853,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatter(ctx echo.Context) error
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("invalid id", "error", err)
+		h.sugar.Warnw("invalid id", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -970,12 +970,12 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatter(ctx echo.Context) er
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("invalid id", "error", err)
+		h.sugar.Warnw("invalid id", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	var poam relational.PlanOfActionAndMilestones
 	if err := h.db.Preload("BackMatter").Preload("BackMatter.Resources").First(&poam, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
+		h.sugar.Warnw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 	// Store the old back-matter ID for resource cleanup
@@ -1930,7 +1930,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetBackMatterResources(ctx echo.Conte
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("invalid id", "error", err)
+		h.sugar.Warnw("invalid id", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -2049,7 +2049,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx echo.Con
 
 	var poam relational.PlanOfActionAndMilestones
 	if err := h.db.Preload("BackMatter").First(&poam, "id = ?", poamID).Error; err != nil {
-		h.sugar.Errorw("failed to get poam", "error", err)
+		h.sugar.Warnw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
@@ -2059,7 +2059,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx echo.Con
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
-		h.sugar.Errorf("Failed to find resource: %v", err)
+		h.sugar.Warnw("Failed to find resource: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -2072,7 +2072,7 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx echo.Con
 	relResource := &relational.BackMatterResource{}
 	relResource.UnmarshalOscal(oscalResource)
 	relResource.BackMatterID = *poam.BackMatter.ID
-	relResource.ID = &resourceID
+	relResource.ID = resourceID
 
 	if err := h.db.Save(relResource).Error; err != nil {
 		h.sugar.Errorf("Failed to update resource: %v", err)

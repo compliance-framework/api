@@ -115,7 +115,7 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		h.sugar.Warnw("error parsing UUID", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -125,7 +125,7 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 		Preload("Metadata.Revisions").
 		Where("id = ?", id).
 		First(&profile).Error; err != nil {
-		h.sugar.Errorw("error getting profile", "id", idParam, "error", err)
+		h.sugar.Warnw("error getting profile", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -214,7 +214,7 @@ func (h *ProfileHandler) ListImports(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		h.sugar.Warnw("error parsing UUID", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -222,7 +222,7 @@ func (h *ProfileHandler) ListImports(ctx echo.Context) error {
 	if err := h.db.
 		Preload("Imports").Preload("Imports.IncludeControls").Preload("Imports.ExcludeControls").
 		Where("id = ?", id).First(&profile).Error; err != nil {
-		h.sugar.Errorw("error listing imports", "id", idParam, "error", err)
+		h.sugar.Warnw("error listing imports", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -350,9 +350,7 @@ func (h *ProfileHandler) AddImport(ctx echo.Context) error {
 
 	resourceUUID := uuid.New()
 	resource := relational.BackMatterResource{
-		UUIDModel: relational.UUIDModel{
-			ID: &resourceUUID,
-		},
+		ID:    resourceUUID,
 		Title: &catalog.Metadata.Title,
 		RLinks: []relational.ResourceLink{
 			{
@@ -541,7 +539,7 @@ func (h *ProfileHandler) GetMerge(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		h.sugar.Warnw("error parsing UUID", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -550,7 +548,7 @@ func (h *ProfileHandler) GetMerge(ctx echo.Context) error {
 		Preload("Merge").
 		Where("id = ?", id).
 		First(&profile).Error; err != nil {
-		h.sugar.Errorw("error getting profile", "id", idParam, "error", err)
+		h.sugar.Warnw("error getting profile", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -592,7 +590,7 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 
 	var relationalMerge relational.Merge
 	if err := h.db.Where("profile_id = ?", id).First(&relationalMerge).Error; err != nil {
-		h.sugar.Errorw("error finding merge", "id", idParam, "error", err)
+		h.sugar.Warnw("error finding merge", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -634,14 +632,14 @@ func (h *ProfileHandler) GetBackmatter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		h.sugar.Warnw("error parsing UUID", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	var profile relational.Profile
 
 	if err := h.db.Preload("BackMatter").Preload("BackMatter.Resources").Where("id = ?", id).First(&profile).Error; err != nil {
-		h.sugar.Errorw("error getting profile", "id", idParam, "error", err)
+		h.sugar.Warnw("error getting profile", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -755,7 +753,7 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 
 	var oscalProfile oscalTypes_1_1_3.Profile
 	if err := ctx.Bind(&oscalProfile); err != nil {
-		h.sugar.Errorw("error binding profile", "error", err)
+		h.sugar.Warnw("error binding profile", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -822,7 +820,7 @@ func (h *ProfileHandler) GetModify(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		h.sugar.Warnw("error parsing UUID", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -834,7 +832,7 @@ func (h *ProfileHandler) GetModify(ctx echo.Context) error {
 		Preload("Modify.Alters.Adds").
 		Where("id = ?", id).
 		First(&profile).Error; err != nil {
-		h.sugar.Errorw("error getting profile", "id", idParam, "error", err)
+		h.sugar.Warnw("error getting profile", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -1199,7 +1197,7 @@ func FindOscalCatalogFromBackMatter(profile *relational.Profile, ref string) (uu
 
 	resources := profile.BackMatter.Resources
 	for _, resource := range resources {
-		if resource.UUIDModel.ID.String() == id {
+		if resource.ID.String() == id {
 			for _, link := range resource.RLinks {
 				if link.MediaType == "application/ccf+oscal+json" {
 					hrefUUID := strings.TrimPrefix(link.Href, "#")

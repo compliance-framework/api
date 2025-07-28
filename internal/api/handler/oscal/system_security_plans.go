@@ -2838,7 +2838,7 @@ func (h *SystemSecurityPlanHandler) UpdateBackMatterResource(ctx echo.Context) e
 	relResource := &relational.BackMatterResource{}
 	relResource.UnmarshalOscal(oscalResource)
 	relResource.BackMatterID = *ssp.BackMatter.ID
-	relResource.ID = &resourceID
+	relResource.ID = resourceID
 
 	if err := h.db.Save(relResource).Error; err != nil {
 		h.sugar.Errorf("Failed to update resource: %v", err)

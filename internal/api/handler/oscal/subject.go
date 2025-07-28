@@ -146,7 +146,7 @@ func (h *AssessmentPlanHandler) CreateAssessmentSubject(ctx echo.Context) error 
 	var plan relational.AssessmentPlan
 	if err := tx.First(&plan, "id = ?", id).Error; err != nil {
 		tx.Rollback()
-		h.sugar.Errorf("Failed to find assessment plan: %v", err)
+		h.sugar.Warnw("Failed to find assessment plan: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
