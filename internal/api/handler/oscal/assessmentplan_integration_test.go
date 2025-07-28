@@ -384,12 +384,6 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanSubResourceEnd
 		suite.Equal(http.StatusNotFound, rec.Code)
 	})
 
-	suite.Run("GetTermsAndConditions_NotFound", func() {
-		rec, req := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s/terms-and-conditions", planID), nil)
-		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(http.StatusNotFound, rec.Code)
-	})
-
 	suite.Run("GetBackMatter_NotFound", func() {
 		rec, req := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s/back-matter", planID), nil)
 		suite.server.E().ServeHTTP(rec, req)

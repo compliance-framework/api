@@ -25,7 +25,8 @@ type AssessmentPlan struct {
 	AssessmentSubjects []AssessmentSubject `gorm:"many2many:assessment_plan_assessment_subjects"`
 	LocalDefinitions   LocalDefinitions    `gorm:"polymorphic:Parent"`
 
-	TermsAndConditions TermsAndConditions
+	TermsAndConditionsID *uuid.UUID
+	TermsAndConditions   *TermsAndConditions
 }
 
 func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *AssessmentPlan {
@@ -65,7 +66,7 @@ func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *Ass
 	}
 	// TermsAndConditions
 	if op.TermsAndConditions != nil {
-		i.TermsAndConditions = *(&TermsAndConditions{}).UnmarshalOscal(*op.TermsAndConditions)
+		i.TermsAndConditions = (&TermsAndConditions{}).UnmarshalOscal(*op.TermsAndConditions)
 	}
 	return i
 }
@@ -80,7 +81,7 @@ func (i *AssessmentPlan) MarshalOscal() *oscalTypes_1_1_3.AssessmentPlan {
 	}
 
 	// TermsAndConditions - check for proper initialization before marshaling
-	if i.TermsAndConditions.ID != nil {
+	if i.TermsAndConditions != nil {
 		ret.TermsAndConditions = i.TermsAndConditions.MarshalOscal()
 	}
 
@@ -556,6 +557,7 @@ func (i *IdentifiedSubject) MarshalOscal() *oscalTypes_1_1_3.IdentifiedSubject {
 }
 
 type Attestation struct {
+	UUIDModel
 	ResultID           uuid.UUID
 	ResponsibleParties []ResponsibleParty                  `gorm:"many2many:attestation_responsible_parties"`
 	Parts              datatypes.JSONSlice[AssessmentPart] // required
@@ -640,12 +642,19 @@ type AssessmentPart struct {
 	Prose            string
 	Props            datatypes.JSONSlice[Prop]
 	Links            datatypes.JSONSlice[Link]
-	AssessmentPartID string
+	AssessmentPartID *uuid.UUID
 	Parts            []AssessmentPart
 }
 
 func (p *AssessmentPart) UnmarshalOscal(data oscalTypes_1_1_3.AssessmentPart) *AssessmentPart {
-	id := uuid.MustParse(data.UUID)
+	id, err := uuid.Parse(data.UUID)
+	if err != nil {
+		if data.UUID == "" {
+			id = uuid.New()
+		} else {
+			panic(err)
+		}
+	}
 	*p = AssessmentPart{
 		UUIDModel: UUIDModel{
 			ID: &id,
@@ -797,8 +806,8 @@ func (i *LocalDefinitions) MarshalOscal() *oscalTypes_1_1_3.LocalDefinitions {
 type LocalObjective struct {
 	UUIDModel
 
-	ControlID string // required
-	Control   Control
+	ControlID string  // required
+	Control   Control `gorm:"references:ID"`
 
 	Description *string
 	Remarks     *string

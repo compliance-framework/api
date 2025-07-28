@@ -64,7 +64,12 @@ func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 
 	var tasks []relational.Task
 	if err := h.db.
+		Preload("AssociatedActivities").
+		Preload("AssociatedActivities.Activity").
+		Preload("AssociatedActivities.Activity.Steps").
+		Preload("Tasks").
 		Preload("Dependencies").
+		Preload("Dependencies.Task").
 		Where("parent_id = ? AND parent_type = ?", id, "assessment_plans").
 		Find(&tasks).Error; err != nil {
 		h.sugar.Errorf("Failed to retrieve tasks: %v", err)

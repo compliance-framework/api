@@ -17,6 +17,9 @@ type SystemSecurityPlan struct {
 	SystemCharacteristics SystemCharacteristics             `json:"system-characteristics"`
 	SystemImplementation  SystemImplementation              `json:"system-implementation"`
 	ControlImplementation ControlImplementation             `json:"control-implementation"`
+
+	ProfileID *uuid.UUID
+	Profile   *Profile
 }
 
 func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPlan) *SystemSecurityPlan {
@@ -760,13 +763,17 @@ func (u *SystemUser) UnmarshalOscal(ou oscalTypes_1_1_3.SystemUser) *SystemUser 
 		Remarks:     ou.Remarks,
 		Props:       ConvertOscalToProps(ou.Props),
 		Links:       ConvertOscalToLinks(ou.Links),
-		RoleIDs:     datatypes.NewJSONSlice(*ou.RoleIds),
 		AuthorizedPrivileges: ConvertList(ou.AuthorizedPrivileges, func(oap oscalTypes_1_1_3.AuthorizedPrivilege) AuthorizedPrivilege {
 			privilege := AuthorizedPrivilege{}
 			privilege.UnmarshalOscal(oap)
 			return privilege
 		}),
 	}
+
+	if ou.RoleIds != nil {
+		u.RoleIDs = datatypes.NewJSONSlice(*ou.RoleIds)
+	}
+
 	return u
 }
 

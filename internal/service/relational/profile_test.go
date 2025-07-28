@@ -216,7 +216,7 @@ func TestParameterSetting_MarshalOscal(t *testing.T) {
 }
 
 func TestProfile_MarshalOscal(t *testing.T) {
-	f, err := os.Open("../../../testdata/sp800_53_profile.json")
+	f, err := os.Open("../../../testdata/profile_fedramp_low.json")
 	assert.NoError(t, err)
 
 	defer func() {

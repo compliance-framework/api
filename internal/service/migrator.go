@@ -107,6 +107,9 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
 		&relational.Step{},
+
+		&relational.TermsAndConditions{},
+		&relational.Attestation{},
 	)
 	return err
 }
@@ -249,6 +252,12 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.Labels{},
 		&relational.Filter{},
 		"filter_controls",
+
+		&relational.TermsAndConditions{},
+		"terms_and_conditions_parts",
+
+		&relational.Attestation{},
+		"attestation_responsible_parties",
 	)
 	return err
 }

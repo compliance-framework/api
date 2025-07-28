@@ -34,6 +34,7 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
 	api.POST("", h.Create)
 	api.GET("/:id", h.Get)
+	api.GET("/:id/resolved", h.Resolved)
 
 	api.GET("/:id/modify", h.GetModify)
 	api.GET("/:id/back-matter", h.GetBackmatter)
@@ -137,6 +138,62 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[response]{Data: responseProfile})
+}
+
+// Resolved godoc
+//
+//	@Summary		Get Resolved Profile
+//	@Description	Returns a resolved OSCAL catalog based on a given Profile ID, applying all imports and modifications.
+//	@Tags			Profile
+//	@Param			id	path	string	true	"Profile ID"
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/profiles/{id}/resolved [get]
+func (h *ProfileHandler) Resolved(ctx echo.Context) error {
+	type response struct {
+		ID string `json:"id"`
+	}
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	profile, err := FindFullProfile(h.db, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("error finding profile", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	newID, _ := uuid.NewUUID()
+	catalog, err := BuildControlCatalogForProfile(profile, h.db, newID)
+	if err != nil {
+		h.sugar.Errorw("error building control catalog", "id", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	catalog.ID = &newID
+	catalog.Metadata = profile.Metadata
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *catalog.MarshalOscal()})
+
+	//if err := h.db.Save(&catalog).Error; err != nil {
+	//	h.sugar.Errorw("error saving new catalog to database", "id", idParam, "error", err)
+	//	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	//}
+	//
+	//resp := response{
+	//	ID: catalog.UUIDModel.ID.String(),
+	//}
+	//
+	//return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{Data: resp})
 }
 
 // ListImports godoc
@@ -953,7 +1010,7 @@ func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Impo
 	}
 
 	var controls []relational.Control
-	if err := db.Preload("Controls").Find(&controls, "catalog_id = ? AND id IN ?", catalogID, ids).Error; err != nil {
+	if err := db.Preload("Controls").Preload("Controls.Controls").Find(&controls, "catalog_id = ? AND id IN ?", catalogID, ids).Error; err != nil {
 		panic(err)
 	}
 
@@ -963,6 +1020,8 @@ func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Impo
 		ctrl := relational.Control{}
 
 		ctrl.UnmarshalOscal(*controls[i].MarshalOscal(), newCatalogId)
+		ctrl.ParentID = controls[i].ParentID
+		ctrl.ParentType = controls[i].ParentType
 
 		ctrl = applySetParameters(ctrl, setParams)
 		if list, ok := additions[controls[i].ID]; ok {
@@ -971,6 +1030,140 @@ func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Impo
 		newControls[i] = ctrl
 	}
 	return catalogID, newControls
+}
+
+func rollUpToRootControl(db *gorm.DB, control relational.Control) (relational.Control, error) {
+	if control.ParentType == nil {
+		return control, nil
+	}
+
+	tx := db.Session(&gorm.Session{})
+	if *control.ParentType == "controls" {
+		parent := relational.Control{}
+		if err := tx.First(&parent, "id = ?", control.ParentID).Error; err != nil {
+			return control, err
+		}
+		parent.Controls = append(parent.Controls, control)
+		return rollUpToRootControl(tx, parent)
+	}
+
+	return control, nil
+}
+
+func rollUpToRootGroup(db *gorm.DB, group relational.Group) (relational.Group, error) {
+	if group.ParentType == nil {
+		return group, nil
+	}
+
+	tx := db.Session(&gorm.Session{})
+	if *group.ParentType == "groups" {
+		parent := relational.Group{}
+		if err := tx.First(&parent, "id = ?", *group.ParentID).Error; err != nil {
+			return group, err
+		}
+		parent.Groups = append(parent.Groups, group)
+		return rollUpToRootGroup(tx, parent)
+	}
+
+	return group, nil
+}
+
+func mergeControls(controls ...relational.Control) []relational.Control {
+	mapped := map[string]relational.Control{}
+	for _, control := range controls {
+		if sub, ok := mapped[control.ID]; ok {
+			control.Controls = append(control.Controls, sub.Controls...)
+		}
+
+		control.Controls = mergeControls(control.Controls...)
+		mapped[control.ID] = control
+	}
+
+	flattened := []relational.Control{}
+	for _, control := range mapped {
+		flattened = append(flattened, control)
+	}
+	return flattened
+}
+
+func mergeGroups(groups ...relational.Group) []relational.Group {
+	mapped := map[string]relational.Group{}
+	for _, group := range groups {
+		if sub, ok := mapped[group.ID]; ok {
+			group.Groups = append(group.Groups, sub.Groups...)
+			group.Controls = append(group.Controls, sub.Controls...)
+		}
+
+		group.Controls = mergeControls(group.Controls...)
+		group.Groups = mergeGroups(group.Groups...)
+		mapped[group.ID] = group
+	}
+	flattened := []relational.Group{}
+	for _, group := range mapped {
+		flattened = append(flattened, group)
+	}
+	return flattened
+}
+
+// ResolveControls orchestrates control resolution for all imports in the profile,
+// returning the list of catalog UUIDs and the fully processed controls.
+func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB, catalogId uuid.UUID) (*relational.Catalog, error) {
+	setParams := buildSetParams(profile.Modify.SetParameters)
+	additions := buildAdditions(profile.Modify.Alters)
+
+	var allControls []relational.Control
+
+	for _, imp := range profile.Imports {
+		_, processed := processImport(db, profile, imp, setParams, additions, catalogId)
+		allControls = append(allControls, processed...)
+	}
+
+	catalog := &relational.Catalog{
+		Controls: []relational.Control{},
+		Groups:   []relational.Group{},
+	}
+
+	// Now we have all of the controls, let's roll them up into their root controls
+	for _, control := range allControls {
+		// If it has no parent, it's already the root
+		if control.ParentType == nil {
+			catalog.Controls = append(catalog.Controls, control)
+			continue
+		}
+
+		// Roll it up all the way to the highest parenting control
+		rootControl, err := rollUpToRootControl(db, control)
+		if err != nil {
+			return &relational.Catalog{}, err
+		}
+
+		// If the root control has no parent, add it straight to the catalog
+		if rootControl.ParentType == nil {
+			catalog.Controls = append(catalog.Controls, rootControl)
+			continue
+		}
+
+		// If the control has a group as a parent, roll it up.
+		if *rootControl.ParentType == "groups" {
+			group := &relational.Group{}
+			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
+				return &relational.Catalog{}, err
+			}
+			group.Controls = append(group.Controls, rootControl)
+			rootGroup, err := rollUpToRootGroup(db, *group)
+			if err != nil {
+				return &relational.Catalog{}, err
+			}
+			catalog.Groups = append(catalog.Groups, rootGroup)
+			continue
+		}
+	}
+
+	// Merge groups and controls
+	catalog.Controls = mergeControls(catalog.Controls...)
+	catalog.Groups = mergeGroups(catalog.Groups...)
+
+	return catalog, nil
 }
 
 // ResolveControls orchestrates control resolution for all imports in the profile,
@@ -987,6 +1180,13 @@ func ResolveControls(profile *relational.Profile, db *gorm.DB, catalogId uuid.UU
 		uuid, processed := processImport(db, profile, imp, setParams, additions, catalogId)
 		allControls = append(allControls, processed...)
 		uuids[i] = uuid
+	}
+
+	for _, control := range allControls {
+		fmt.Println(control.ID)
+		fmt.Println(control.Title)
+		fmt.Println(*control.ParentType)
+		fmt.Println(*control.ParentID)
 	}
 
 	return uuids, &allControls

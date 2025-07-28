@@ -62,7 +62,7 @@ func (suite *ProfileIntegrationSuite) SetupSuite() {
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 
-	profileFp, err := os.Open("../../../../testdata/sp800_53_profile.json")
+	profileFp, err := os.Open("../../../../testdata/profile_fedramp_low.json")
 	suite.Require().NoError(err, "Failed to open profile file")
 	defer profileFp.Close()
 

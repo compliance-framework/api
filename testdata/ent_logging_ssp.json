@@ -115,132 +115,7 @@
         "remarks": "This is an example, and is not intended to be implemented as a system"
       },
       "authorization-boundary": {
-        "description": "The description of the authorization boundary would go here.",
-        "props": [
-          {
-            "name": "cloud-deployment-model",
-            "value": "private-cloud"
-          },
-          {
-            "name": "cloud-service-model",
-            "value": "iaas"
-          }
-        ],
-        "links": [
-          {
-            "href": "http://example.com"
-          }
-        ],
-        "remarks": "Remarks about the authorization boundary",
-        "diagrams": [
-          {
-            "uuid": "0f488870-0e1f-470e-bf52-d8876e0115fd",
-            "description": "Test Diagram",
-            "props": [
-              {
-                "name": "cloud-deployment-model",
-                "value": "private-cloud"
-              },
-              {
-                "name": "cloud-service-model",
-                "value": "iaas"
-              }
-            ],
-            "links": [
-              {
-                "href": "http://example.com"
-              }
-            ],
-            "caption": "Caption of the diagram",
-            "remarks": "remarks"
-          }
-        ]
-      },
-      "network-architecture": {
-        "description": "Network diagrams",
-        "props": [
-          {
-            "name": "cloud-deployment-model",
-            "value": "private-cloud"
-          },
-          {
-            "name": "cloud-service-model",
-            "value": "iaas"
-          }
-        ],
-        "links": [
-          {
-            "href": "http://example.com"
-          }
-        ],
-        "remarks": "Overall network diagram of the system",
-        "diagrams": [
-          {
-            "uuid": "617747c4-48a7-42ee-85e7-58ce989d696b",
-            "description": "Test Network Diagram"
-          }
-        ]
-      },
-      "date-authorized": "2025-01-02",
-      "system-information": {
-        "props": [
-          {
-            "name": "cloud-deployment-model",
-            "value": "private-cloud"
-          },
-          {
-            "name": "cloud-service-model",
-            "value": "iaas"
-          }
-        ],
-        "links": [
-          {
-            "href": "http://example.com"
-          }
-        ],
-        "information-types": [
-          {
-            "uuid": "946043e5-62be-4ed9-8c2a-bb7d512f6a31",
-            "title": "Test information type",
-            "description": "more indepth description of the information type",
-            "props": [
-              {
-                "name": "cloud-deployment-model",
-                "value": "private-cloud"
-              },
-              {
-                "name": "cloud-service-model",
-                "value": "iaas"
-              }
-            ],
-            "links": [
-              {
-                "href": "http://example.com"
-              }
-            ],
-            "categorizations": [
-              {
-                "system": "foobar",
-                "information-type-ids": [
-                  "foo",
-                  "bar"
-                ]
-              }
-            ],
-            "confidentiality-impact": {
-              "base": "test",
-              "selected": "yes"
-            },
-            "integrity-impact": {
-              "base": "test",
-              "selected": "yes"
-            },
-            "availability-impact": {
-              "base": "test",
-              "selected": "yes"
-            }
-          }
-        ]
+        "description": "The description of the authorization boundary would go here."
       }
     },
     "system-implementation": {
@@ -256,16 +131,6 @@
           ],
           "role-ids": [
             "asset-administrator"
-          ],
-          "authorized-privileges": [
-            {
-              "title": "Suoeradmin",
-              "functions-performed": [
-                "read",
-                "write",
-                "destroy"
-              ]
-            }
           ]
         },
         {
@@ -522,14 +387,6 @@
               ]
             }
           ]
-        }
-      ],
-      "leveraged-authorizations": [
-        {
-          "uuid": "da6b3d4a-a96d-43b0-aa40-6a2f4ac4738a",
-          "title": "Authorized for access",
-          "party-uuid": "5cca1c8e-a873-4049-bb4c-40ae3321ca3a",
-          "date-authorized": "2025-04-01"
         }
       ],
       "remarks": "This is a partial implementation that addresses the logging server portion of the auditing system."

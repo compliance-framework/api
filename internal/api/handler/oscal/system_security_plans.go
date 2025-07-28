@@ -110,6 +110,8 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
 	api.GET("/:id", h.Get)
 	api.PUT("/:id", h.Update)
+	api.GET("/:id/profile", h.GetProfile)
+	api.PUT("/:id/profile", h.AttachProfile)
 	api.DELETE("/:id", h.Delete)
 	api.GET("/:id/full", h.Full)
 	api.GET("/:id/metadata", h.GetMetadata)
@@ -1239,6 +1241,103 @@ func (h *SystemSecurityPlanHandler) UpdateMetadata(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Metadata]{Data: *relMetadata.MarshalOscal()})
+}
+
+// GetProfile godoc
+//
+//	@Summary		Get Profile for a System Security Plan
+//	@Description	Retrieves the Profile attached to the specified System Security Plan.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id	path		string	true	"System Security Plan ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Profile]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/profile [get]
+func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP ID", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("Profile").
+		Preload("Profile.Metadata").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		h.sugar.Errorf("Failed to fetch SSP: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	if ssp.Profile == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("No profile attached")))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Profile]{Data: ssp.Profile.MarshalOscal()})
+}
+
+// AttachProfile godoc
+//
+//	@Summary		Attach a Profile to a System Security Plan
+//	@Description	Associates a given Profile with a System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		string	true	"SSP ID"
+//	@Param			profileId	body		string	true	"Profile ID to attach"
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+//	@Failure		400			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/profile [put]
+func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var input struct {
+		ProfileID string `json:"profileId"`
+	}
+	if err := ctx.Bind(&input); err != nil {
+		h.sugar.Warnw("Invalid profile ID input", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	profileID, err := uuid.Parse(input.ProfileID)
+	if err != nil {
+		h.sugar.Warnw("Invalid profile ID format", "profileId", input.ProfileID, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.First(&ssp, "id = ?", sspID).Error; err != nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+	}
+
+	// Ensure the profile exists
+	var profile relational.Profile
+	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("Profile not found")))
+	}
+
+	ssp.Profile = &profile
+	if err := h.db.Save(&ssp).Error; err != nil {
+		h.sugar.Errorf("Failed to attach profile to SSP: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: *ssp.MarshalOscal()})
 }
 
 // GetImportProfile godoc
