@@ -26,7 +26,7 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config)
 	e := echo.New()
 	e.Binder = &binders.CustomBinder{}
 	e.Pre(middleware.RemoveTrailingSlash())
-	//e.Use(middleware.Logger())
+	e.Use(middleware.Logger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     config.APIAllowedOrigins,
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
