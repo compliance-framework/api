@@ -146,10 +146,14 @@ func (i *AssessmentResult) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentResults)
 
 func (i *AssessmentResult) MarshalOscal() *oscalTypes_1_1_3.AssessmentResults {
 	ret := oscalTypes_1_1_3.AssessmentResults{
-		ImportAp:         oscalTypes_1_1_3.ImportAp(i.ImportAp.Data()),
-		Metadata:         *i.Metadata.MarshalOscal(),
-		LocalDefinitions: i.LocalDefinitions.MarshalOscal(),
-		UUID:             i.ID.String(),
+		ImportAp: oscalTypes_1_1_3.ImportAp(i.ImportAp.Data()),
+		Metadata: *i.Metadata.MarshalOscal(),
+		UUID:     i.ID.String(),
+	}
+	
+	// Only set LocalDefinitions if it's not nil
+	if i.LocalDefinitions != nil {
+		ret.LocalDefinitions = i.LocalDefinitions.MarshalOscal()
 	}
 
 	// Results
@@ -564,7 +568,17 @@ type Attestation struct {
 }
 
 func (i *Attestation) UnmarshalOscal(op oscalTypes_1_1_3.AttestationStatements) *Attestation {
+	// Preserve existing ID and ResultID if they exist
+	existingID := i.ID
+	existingResultID := i.ResultID
+	
+	// Zero the struct first
 	*i = Attestation{}
+	
+	// Now restore the preserved values
+	i.ID = existingID
+	i.ResultID = existingResultID
+	
 	if op.Parts != nil {
 		parts := ConvertList(&op.Parts, func(data oscalTypes_1_1_3.AssessmentPart) AssessmentPart {
 			output := AssessmentPart{}
@@ -759,6 +773,11 @@ func (i *LocalDefinitions) UnmarshalOscal(op oscalTypes_1_1_3.LocalDefinitions) 
 }
 
 func (i *LocalDefinitions) MarshalOscal() *oscalTypes_1_1_3.LocalDefinitions {
+	// Handle nil LocalDefinitions
+	if i == nil {
+		return nil
+	}
+	
 	ret := &oscalTypes_1_1_3.LocalDefinitions{}
 
 	// Remarks - check for nil before dereferencing

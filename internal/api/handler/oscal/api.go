@@ -38,4 +38,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	activityHandler := NewActivityHandler(logger, db)
 	activityHandler.Register(oscalGroup.Group("/activities"))
+
+	assessmentResultsHandler := NewAssessmentResultsHandler(logger, db)
+	assessmentResultsHandler.Register(oscalGroup.Group("/assessment-results"))
 }

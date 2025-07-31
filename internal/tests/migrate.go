@@ -132,6 +132,7 @@ func (t *TestMigrator) Up() error {
 		&relational.Result{},
 		&relational.AssessmentLog{},
 		&relational.AssessmentLogEntry{},
+		&relational.Attestation{},
 		&relational.User{},
 
 		&service.Heartbeat{},
