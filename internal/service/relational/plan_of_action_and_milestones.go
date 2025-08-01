@@ -591,17 +591,13 @@ func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1
 
 	if len(p.Components) > 0 {
 		components := make([]oscalTypes_1_1_3.SystemComponent, len(p.Components))
-		for i, comp := range p.Components {
-			components[i] = comp
-		}
+		copy(components, p.Components)
 		ret.Components = &components
 	}
 
 	if len(p.InventoryItems) > 0 {
 		items := make([]oscalTypes_1_1_3.InventoryItem, len(p.InventoryItems))
-		for i, item := range p.InventoryItems {
-			items[i] = item
-		}
+		copy(items, p.InventoryItems)
 		ret.InventoryItems = &items
 	}
 
@@ -676,9 +672,7 @@ func (o *Observation) UnmarshalOscal(oo oscalTypes_1_1_3.Observation) *Observati
 
 func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
 	methods := make([]string, len(o.Methods))
-	for i, method := range o.Methods {
-		methods[i] = method
-	}
+	copy(methods, o.Methods)
 
 	ret := oscalTypes_1_1_3.Observation{
 		UUID:        o.UUIDModel.ID.String(),
@@ -733,9 +727,7 @@ func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
 
 	if len(o.Types) > 0 {
 		types := make([]string, len(o.Types))
-		for i, typ := range o.Types {
-			types[i] = typ
-		}
+		copy(types, o.Types)
 		ret.Types = &types
 	}
 

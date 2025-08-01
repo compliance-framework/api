@@ -2,11 +2,12 @@ package relational
 
 import (
 	"encoding/json"
+	"testing"
+	"time"
+
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 func TestRole_OscalMarshalling(t *testing.T) {

@@ -44,7 +44,7 @@ func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPl
 			ID: &id,
 		},
 		Metadata:              metadata,
-		ImportProfile:         datatypes.NewJSONType[ImportProfile](importProfile),
+		ImportProfile:         datatypes.NewJSONType(importProfile),
 		SystemCharacteristics: systemCharacteristics,
 		SystemImplementation:  systemImplementation,
 		ControlImplementation: controlImplementation,
@@ -793,9 +793,7 @@ func (u *SystemUser) MarshalOscal() *oscalTypes_1_1_3.SystemUser {
 	}
 	if len(u.RoleIDs) > 0 {
 		rs := make([]string, len(u.RoleIDs))
-		for i, v := range u.RoleIDs {
-			rs[i] = v
-		}
+		copy(rs, u.RoleIDs)
 		ret.RoleIds = &rs
 	}
 	if len(u.AuthorizedPrivileges) > 0 {

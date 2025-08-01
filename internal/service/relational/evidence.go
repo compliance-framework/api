@@ -2,13 +2,14 @@ package relational
 
 import (
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"strings"
-	"time"
 )
 
 type Evidence struct {
@@ -17,7 +18,7 @@ type Evidence struct {
 
 	// UUID needs to remain consistent when automation runs again, but unique for each subject.
 	// It represents the "stream" of the same observation being made over time.
-	UUID uuid.UUID `json:"uuid" gorm:"index:evidence_stream_idx;index:evidence_stream_collected_idx,priority:1" json:"uuid,omitempty"`
+	UUID uuid.UUID `gorm:"index:evidence_stream_idx;index:evidence_stream_collected_idx,priority:1" json:"uuid,omitempty"`
 
 	Title       string  `json:"title"`
 	Description string  `json:"description"`

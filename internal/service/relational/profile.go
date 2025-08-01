@@ -109,7 +109,7 @@ func (i *Import) UnmarshalOscal(oi oscalTypes_1_1_3.Import) *Import {
 	*i = Import{
 		UUIDModel:  UUIDModel{},
 		Href:       oi.Href,
-		IncludeAll: datatypes.NewJSONType[*IncludeAll](oi.IncludeAll),
+		IncludeAll: datatypes.NewJSONType(oi.IncludeAll),
 		IncludeControls: ConvertList(oi.IncludeControls, func(oc oscalTypes_1_1_3.SelectControlById) SelectControlById {
 			control := SelectControlById{}
 			control.UnmarshalOscal(oc)
@@ -226,7 +226,7 @@ func (s *SelectControlById) UnmarshalOscal(o oscalTypes_1_1_3.SelectControlById)
 	*s = SelectControlById{
 		UUIDModel:         UUIDModel{},
 		WithChildControls: o.WithChildControls,
-		WithIds:           datatypes.NewJSONSlice[string](*o.WithIds),
+		WithIds:           datatypes.NewJSONSlice(*o.WithIds),
 		Matching: ConvertList(o.Matching, func(om oscalTypes_1_1_3.Matching) Matching {
 			m := Matching{}
 			m.UnmarshalOscal(om)
@@ -457,9 +457,7 @@ func (p *ParameterSetting) MarshalOscal() oscalTypes_1_1_3.ParameterSetting {
 
 	if len(p.Values) > 0 {
 		values := make([]string, len(p.Values))
-		for i, value := range p.Values {
-			values[i] = value
-		}
+		copy(values, p.Values)
 		ret.Values = &values
 	}
 

@@ -1,9 +1,10 @@
 package service
 
 import (
+	"time"
+
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
-	"time"
 )
 
 type Heartbeat struct {

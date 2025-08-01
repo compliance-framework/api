@@ -3,10 +3,11 @@
 package tests
 
 import (
+	"testing"
+
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/suite"
-	"testing"
 )
 
 func TestCatalog(t *testing.T) {
