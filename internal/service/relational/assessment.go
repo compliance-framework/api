@@ -150,7 +150,7 @@ func (i *AssessmentResult) MarshalOscal() *oscalTypes_1_1_3.AssessmentResults {
 		Metadata: *i.Metadata.MarshalOscal(),
 		UUID:     i.ID.String(),
 	}
-	
+
 	// Only set LocalDefinitions if it's not nil
 	if i.LocalDefinitions != nil {
 		ret.LocalDefinitions = i.LocalDefinitions.MarshalOscal()
@@ -571,14 +571,14 @@ func (i *Attestation) UnmarshalOscal(op oscalTypes_1_1_3.AttestationStatements) 
 	// Preserve existing ID and ResultID if they exist
 	existingID := i.ID
 	existingResultID := i.ResultID
-	
+
 	// Zero the struct first
 	*i = Attestation{}
-	
+
 	// Now restore the preserved values
 	i.ID = existingID
 	i.ResultID = existingResultID
-	
+
 	if op.Parts != nil {
 		parts := ConvertList(&op.Parts, func(data oscalTypes_1_1_3.AssessmentPart) AssessmentPart {
 			output := AssessmentPart{}
@@ -777,7 +777,7 @@ func (i *LocalDefinitions) MarshalOscal() *oscalTypes_1_1_3.LocalDefinitions {
 	if i == nil {
 		return nil
 	}
-	
+
 	ret := &oscalTypes_1_1_3.LocalDefinitions{}
 
 	// Remarks - check for nil before dereferencing
@@ -1364,11 +1364,11 @@ type AssociatedActivity struct {
 func (i *AssociatedActivity) UnmarshalOscal(op oscalTypes_1_1_3.AssociatedActivity) *AssociatedActivity {
 	id := uuid.MustParse(op.ActivityUuid)
 	*i = AssociatedActivity{
-		Activity: *(&Activity{
+		Activity: Activity{
 			UUIDModel: UUIDModel{
 				ID: &id,
 			},
-		}),
+		},
 		Remarks: &op.Remarks,
 	}
 	if op.Props != nil {
@@ -1429,8 +1429,8 @@ type Activity struct {
 	Description string  `json:"description,omitempty"` // required
 	Remarks     *string `json:"remarks,omitempty"`     // required
 
-	Props datatypes.JSONSlice[Prop] `json:"props" json:"props,omitempty"`
-	Links datatypes.JSONSlice[Link] `json:"links" json:"links,omitempty"`
+	Props datatypes.JSONSlice[Prop] `json:"props,omitempty"`
+	Links datatypes.JSONSlice[Link] `json:"links,omitempty"`
 	Steps []Step                    `json:"steps,omitempty"`
 
 	RelatedControlsID *uuid.UUID

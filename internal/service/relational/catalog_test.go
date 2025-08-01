@@ -2,12 +2,13 @@ package relational
 
 import (
 	"encoding/json"
-	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPart_OscalMarshalling(t *testing.T) {
@@ -76,6 +77,7 @@ func TestPart_OscalMarshalling(t *testing.T) {
 		},
 	}
 	inputJson, err := json.Marshal(oscalPart)
+	assert.NoError(t, err)
 
 	// Marshal and Unmarshal, and make sure it remains exactly the same
 	part := &Part{}

@@ -71,20 +71,6 @@ func (h *AssessmentPlanHandler) Register(api *echo.Group) {
 	api.DELETE("/:id/assessment-assets/:assetId", h.DeleteAssessmentAsset)
 }
 
-// validateActivityInput validates activity input
-func (h *AssessmentPlanHandler) validateActivityInput(activity *oscalTypes_1_1_3.Activity) error {
-	if activity.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(activity.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if activity.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	return nil
-}
-
 // verifyAssessmentPlanExists checks if an assessment plan exists in the database
 func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx echo.Context, planID uuid.UUID) error {
 	var count int64
@@ -169,23 +155,23 @@ func (h *AssessmentPlanHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [get]
 func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
-	if err := h.db.
+	err = h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
-		First(&plan, "id = ?", id).Error; err != nil {
+		First(&plan, id).Error
+
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Warnw("Failed to load assessment plan", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		h.sugar.Errorw("Failed to load assessment plan", "id", id.String(), "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]{Data: plan.MarshalOscal()})

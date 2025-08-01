@@ -2,12 +2,13 @@ package relational
 
 import (
 	"encoding/json"
-	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSatisfiedControlImplementationResponsibilityUnmarshal(t *testing.T) {
