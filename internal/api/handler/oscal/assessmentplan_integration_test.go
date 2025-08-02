@@ -13,6 +13,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -47,41 +48,22 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupTest() {
 	suite.Require().NoError(err)
 }
 
-// Helper method to create a test request with Bearer token authentication
-func (suite *AssessmentPlanApiIntegrationSuite) createRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {
-	var reqBody []byte
-	var err error
-
-	if body != nil {
-		reqBody, err = json.Marshal(body)
-		suite.Require().NoError(err, "Failed to marshal request body")
-	}
-
-	token, err := suite.GetAuthToken()
-	suite.Require().NoError(err)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(method, path, bytes.NewReader(reqBody))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
-
-	return rec, req
-}
-
 func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanCreate() {
-	planID := uuid.New()
-	testPlan := &oscalTypes_1_1_3.AssessmentPlan{
-		UUID: planID.String(),
-		Metadata: oscalTypes_1_1_3.Metadata{
-			Title:   "Test Assessment Plan",
-			Version: "1.0.0",
+	id := uuid.New()
+	rec, req := suite.createRequest(
+		http.MethodPost,
+		"/api/oscal/assessment-plans",
+		&oscalTypes_1_1_3.AssessmentPlan{
+			UUID: id.String(),
+			Metadata: oscalTypes_1_1_3.Metadata{
+				Title:   "Test Assessment Plan",
+				Version: "1.0.0",
+			},
+			ImportSsp: oscalTypes_1_1_3.ImportSsp{
+				Href: "test-ssp-reference",
+			},
 		},
-		ImportSsp: oscalTypes_1_1_3.ImportSsp{
-			Href: "test-ssp-reference",
-		},
-	}
-
-	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
+	)
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
 
@@ -89,31 +71,23 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanCreate() {
 	var response handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]
 	err := json.Unmarshal(rec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.Equal(planID.String(), response.Data.UUID)
+	suite.Equal(id.String(), response.Data.UUID)
 	suite.Equal("Test Assessment Plan", response.Data.Metadata.Title)
 }
 
 func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanGet() {
-	// Create test plan first
-	planID := uuid.New()
-	testPlan := &oscalTypes_1_1_3.AssessmentPlan{
-		UUID: planID.String(),
-		Metadata: oscalTypes_1_1_3.Metadata{
-			Title:   "Test Assessment Plan",
-			Version: "1.0.0",
+	id := uuid.New()
+	suite.DB.Create(&relational.AssessmentPlan{
+		UUIDModel: relational.UUIDModel{
+			ID: &id,
 		},
-		ImportSsp: oscalTypes_1_1_3.ImportSsp{
-			Href: "test-ssp-reference",
+		Metadata: relational.Metadata{
+			Title: "Test Assessment Plan",
 		},
-	}
-
-	// Create the plan
-	createRec, createReq := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
-	suite.server.E().ServeHTTP(createRec, createReq)
-	suite.Equal(http.StatusCreated, createRec.Code)
+	})
 
 	// Test Get
-	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s", planID), nil)
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/assessment-plans/%s", id.String()), nil)
 	suite.server.E().ServeHTTP(getRec, getReq)
 	suite.Equal(http.StatusOK, getRec.Code)
 
@@ -121,7 +95,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanGet() {
 	var response handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]
 	err := json.Unmarshal(getRec.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.Equal(planID.String(), response.Data.UUID)
+	suite.Equal(id.String(), response.Data.UUID)
 	suite.Equal("Test Assessment Plan", response.Data.Metadata.Title)
 }
 
@@ -459,4 +433,25 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanSubResourceEnd
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusNotFound, rec.Code)
 	})
+}
+
+// Helper method to create a test request with Bearer token authentication
+func (suite *AssessmentPlanApiIntegrationSuite) createRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {
+	var reqBody []byte
+	var err error
+
+	if body != nil {
+		reqBody, err = json.Marshal(body)
+		suite.Require().NoError(err, "Failed to marshal request body")
+	}
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+
+	return rec, req
 }

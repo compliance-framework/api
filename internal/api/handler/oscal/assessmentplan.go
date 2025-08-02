@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
@@ -75,41 +74,12 @@ func (h *AssessmentPlanHandler) Register(api *echo.Group) {
 func (h *AssessmentPlanHandler) verifyAssessmentPlanExists(ctx echo.Context, planID uuid.UUID) error {
 	var count int64
 	if err := h.db.Model(&relational.AssessmentPlan{}).Where("id = ?", planID).Count(&count).Error; err != nil {
-		h.sugar.Errorf("Failed to verify assessment plan existence: %v", err)
+		h.sugar.Errorw("failed to count assessment plans", "err", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	if count == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment plan not found")))
+		return api.NotFoundError(fmt.Errorf("assessment plan not found"))
 	}
-	return nil
-}
-
-// validateAssessmentPlanInput validates assessment plan input following OSCAL requirements
-func (h *AssessmentPlanHandler) validateAssessmentPlanInput(plan *oscalTypes_1_1_3.AssessmentPlan) error {
-	var errors []string
-
-	if plan.UUID == "" {
-		errors = append(errors, "UUID is required")
-	} else if _, err := uuid.Parse(plan.UUID); err != nil {
-		errors = append(errors, fmt.Sprintf("invalid UUID format: %s", plan.UUID))
-	}
-
-	if plan.Metadata.Title == "" {
-		errors = append(errors, "metadata.title is required")
-	}
-
-	if plan.Metadata.Version == "" {
-		errors = append(errors, "metadata.version is required")
-	}
-
-	if plan.ImportSsp.Href == "" {
-		errors = append(errors, "import-ssp.href is required")
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
-	}
-
 	return nil
 }
 
@@ -192,28 +162,29 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [post]
 func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
-	var plan oscalTypes_1_1_3.AssessmentPlan
-	if err := ctx.Bind(&plan); err != nil {
+	var request AssessmentPlanCreateRequest
+	err := ctx.Bind(&request.Data)
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateAssessmentPlanInput(&plan); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	errs := request.Validate()
+	if len(errs) > 0 {
+		return NewValidationErrorResponse(errs)
 	}
 
 	// Set metadata timestamps
 	now := time.Now()
-	plan.Metadata.LastModified = now
-	plan.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+	request.Data.Metadata.LastModified = now
+	request.Data.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
 
 	// Convert to a relational model
 	relationalPlan := &relational.AssessmentPlan{}
-	relationalPlan.UnmarshalOscal(plan)
+	relationalPlan.UnmarshalOscal(*request.Data)
 
 	// Save to the database
 	if err := h.db.Create(relationalPlan).Error; err != nil {
-		h.sugar.Errorf("Failed to create assessment plan: %v", err)
+		h.sugar.Errorw("failed to create assessment plan", "err", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -236,40 +207,40 @@ func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [put]
 func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
-	// Verify plan exists
-	if err := h.verifyAssessmentPlanExists(ctx, id); err != nil {
+	if err = h.verifyAssessmentPlanExists(ctx, id); err != nil {
 		return err
 	}
 
-	var plan oscalTypes_1_1_3.AssessmentPlan
-	if err := ctx.Bind(&plan); err != nil {
+	var request AssessmentPlanUpdateRequest
+	if err := ctx.Bind(&request.Data); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateAssessmentPlanInput(&plan); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	errs := request.Validate()
+	if len(errs) > 0 {
+		return NewValidationErrorResponse(errs)
 	}
 
 	// Update metadata
 	now := time.Now()
-	plan.Metadata.LastModified = now
+	request.Data.Metadata.LastModified = now
 
 	// Convert to a relational model
 	relationalPlan := &relational.AssessmentPlan{}
-	relationalPlan.UnmarshalOscal(plan)
+	relationalPlan.UnmarshalOscal(*request.Data)
 
 	// Update in database
 	relationalPlan.ID = &id
 	if err := h.db.Where("id = ?", id).Updates(relationalPlan).Error; err != nil {
-		h.sugar.Errorf("Failed to update assessment plan: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
+		}
+		h.sugar.Errorw("failed to update assessment plan", "err", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -289,11 +260,9 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [delete]
 func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	// Verify plan exists
@@ -303,7 +272,7 @@ func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 
 	// Delete from database
 	if err := h.db.Delete(&relational.AssessmentPlan{}, "id = ?", id).Error; err != nil {
-		h.sugar.Errorf("Failed to delete assessment plan: %v", err)
+		h.sugar.Errorw("failed to delete assessment plan", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -324,19 +293,17 @@ func (h *AssessmentPlanHandler) Delete(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/metadata [get]
 func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
 	if err := h.db.Preload("Metadata").Where("id = ?", id).First(&plan).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment plan not found")))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Errorf("Failed to retrieve assessment plan metadata: %v", err)
+		h.sugar.Errorw("failed to retrieve assessment plan metadata", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -357,19 +324,17 @@ func (h *AssessmentPlanHandler) GetMetadata(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/import-ssp [get]
 func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
 	if err := h.db.Where("id = ?", id).First(&plan).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment plan not found")))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Errorf("Failed to retrieve assessment plan: %v", err)
+		h.sugar.Errorw("failed to retrieve assessment plan", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -391,24 +356,22 @@ func (h *AssessmentPlanHandler) GetImportSsp(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/local-definitions [get]
 func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
 	if err := h.db.Preload("LocalDefinitions").Where("id = ?", id).First(&plan).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment plan not found")))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Errorf("Failed to retrieve assessment plan: %v", err)
+		h.sugar.Errorw("failed to retrieve assessment plan", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	if plan.LocalDefinitions.ID == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("local definitions not found")))
+		return api.NotFoundError(fmt.Errorf("local definitions not found for assessment plan: %s", id.String()))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.LocalDefinitions]{Data: plan.LocalDefinitions.MarshalOscal()})
@@ -428,24 +391,22 @@ func (h *AssessmentPlanHandler) GetLocalDefinitions(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/terms-and-conditions [get]
 func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
 	if err := h.db.Preload("TermsAndConditions").Where("id = ?", id).First(&plan).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment plan not found")))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Errorf("Failed to retrieve assessment plan: %v", err)
+		h.sugar.Errorw("failed to retrieve assessment plan", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	if plan.TermsAndConditions.ID == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("terms and conditions not found")))
+		return api.NotFoundError(fmt.Errorf("terms and conditions not found for assessment plan: %s", id.String()))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlanTermsAndConditions]{Data: plan.TermsAndConditions.MarshalOscal()})
@@ -465,24 +426,22 @@ func (h *AssessmentPlanHandler) GetTermsAndConditions(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/back-matter [get]
 func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
 	if err := h.db.Preload("BackMatter").Where("id = ?", id).First(&plan).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("assessment plan not found")))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Errorf("Failed to retrieve assessment plan: %v", err)
+		h.sugar.Errorw("failed to retrieve assessment plan", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	if plan.BackMatter == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("back matter not found")))
+		return api.NotFoundError(fmt.Errorf("back matter not found for assessment plan: %s", id.String()))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.BackMatter]{Data: plan.BackMatter.MarshalOscal()})
@@ -502,11 +461,9 @@ func (h *AssessmentPlanHandler) GetBackMatter(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id}/full [get]
 func (h *AssessmentPlanHandler) Full(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
-		h.sugar.Warnw("Invalid assessment plan id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return api.InvalidUUIDError(err)
 	}
 
 	var plan relational.AssessmentPlan
@@ -527,10 +484,10 @@ func (h *AssessmentPlanHandler) Full(ctx echo.Context) error {
 		Preload("BackMatter").
 		First(&plan, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
 		}
-		h.sugar.Warnw("Failed to load assessment plan", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		h.sugar.Errorw("failed to load assessment plan", "id", id.String(), "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AssessmentPlan]{Data: plan.MarshalOscal()})
