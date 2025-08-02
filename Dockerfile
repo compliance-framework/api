@@ -1,11 +1,9 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian.
-FROM golang:1.23 AS local
+FROM golang:1.24 AS local
 
 # Create and change to the app directory.
 WORKDIR /app
-
-RUN go install github.com/swaggo/swag/cmd/swag@latest && go install github.com/air-verse/air@v1.61.5
 
 # Copy local code to the container image.
 COPY . ./
@@ -13,14 +11,12 @@ COPY . ./
 # Regenerate the swagger
 RUN make swag
 
-CMD ["air"]
+CMD ["go", "tool", "air"]
 
-FROM golang:1.23 AS builder
+FROM golang:1.24 AS builder
 
 # Create and change to the app directory.
 WORKDIR /app
-
-RUN go install github.com/swaggo/swag/cmd/swag@latest
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -34,7 +30,7 @@ RUN make swag
 # Build it
 RUN GOOS=linux go build -o /api
 
-FROM golang:1.23 AS production
+FROM golang:1.24 AS production
 WORKDIR /
 
 COPY --from=builder /api /api

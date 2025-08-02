@@ -130,8 +130,8 @@ down: ## Stop the service running in Docker Compose
 	@docker compose -f docker-compose.yml down
 
 swag: ## swag setup and lint
-	@swag init --parseDependency --parseInternal
-	@swag fmt
+	@go tool swag init --parseDependency --parseInternal
+	@go tool swag fmt
 
 .PHONY: generate-keys
 generate-keys:
