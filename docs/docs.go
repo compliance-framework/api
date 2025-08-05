@@ -14794,6 +14794,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/handler.EvidenceActivity"
                     }
                 },
+                "backMatter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                },
                 "components": {
                     "description": "Which components of the subject are being observed. A tool, user, policy etc.",
                     "type": "array",
@@ -16262,6 +16265,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
                     }
+                },
+                "backMatter": {
+                    "$ref": "#/definitions/relational.BackMatter"
                 },
                 "components": {
                     "type": "array",
@@ -21463,6 +21469,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.Activity"
                     }
+                },
+                "backMatter": {
+                    "$ref": "#/definitions/relational.BackMatter"
                 },
                 "components": {
                     "description": "Which components of the subject are being observed. A tool, user, policy etc.",

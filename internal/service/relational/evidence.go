@@ -18,7 +18,8 @@ type Evidence struct {
 
 	// UUID needs to remain consistent when automation runs again, but unique for each subject.
 	// It represents the "stream" of the same observation being made over time.
-	UUID uuid.UUID `gorm:"index:evidence_stream_idx;index:evidence_stream_collected_idx,priority:1" json:"uuid,omitempty"`
+	UUID       uuid.UUID   `gorm:"index:evidence_stream_idx;index:evidence_stream_collected_idx,priority:1" json:"uuid,omitempty"`
+	BackMatter *BackMatter `gorm:"polymorphic:Parent;"`
 
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
