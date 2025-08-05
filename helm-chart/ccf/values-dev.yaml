@@ -3,7 +3,7 @@ global:
   environment: dev
 
 api:
-  replicaCount: 1
+  replicaCount: 2  # Changed from 1 to 2 for GitOps demo
   image:
     pullPolicy: Never  # For local development
 
