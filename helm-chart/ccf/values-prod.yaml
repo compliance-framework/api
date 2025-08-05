@@ -1,0 +1,55 @@
+# Production environment overrides
+global:
+  environment: prod
+
+api:
+  replicaCount: 3
+  
+  image:
+    repository: your-registry.io/ccf/api
+    tag: "1.0.0"
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP  # Use with Ingress/LoadBalancer
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+postgresql:
+  auth:
+    # Override with strong passwords in production!
+    password: "changeme-prod-password"
+  
+  persistence:
+    enabled: true
+    size: 50Gi
+    # storageClass: "fast-ssd"  # Use appropriate storage class
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: ccf.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ccf-tls
+      hosts:
+        - ccf.yourdomain.com

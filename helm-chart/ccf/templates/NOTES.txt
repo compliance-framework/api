@@ -1,0 +1,37 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.api.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "ccf.fullname" . }}-api)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.api.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "ccf.fullname" . }}-api'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "ccf.fullname" . }}-api --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.api.service.port }}
+{{- else if contains "ClusterIP" .Values.api.service.type }}
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "ccf.fullname" . }}-api 8080:{{ .Values.api.service.port }} &
+  echo "Visit http://127.0.0.1:8080 to use your application"
+{{- end }}
+
+2. Run database migrations:
+  kubectl exec --namespace {{ .Release.Namespace }} deployment/{{ include "ccf.fullname" . }}-api -- /api migrate up
+
+3. Create an admin user:
+  kubectl exec --namespace {{ .Release.Namespace }} deployment/{{ include "ccf.fullname" . }}-api -- /api users add \
+    --email="admin@example.com" \
+    --first-name="Admin" \
+    --last-name="User" \
+    --password="admin123"
+
+4. Import OSCAL data (requires port-forwarding PostgreSQL):
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "ccf.fullname" . }}-postgresql 5432:5432 &
+  
+  Then run from your local machine:
+  CCF_DB_DRIVER=postgres CCF_DB_CONNECTION="host=localhost user={{ .Values.postgresql.auth.username }} password={{ .Values.postgresql.auth.password }} dbname={{ .Values.postgresql.auth.database }} port=5432 sslmode=disable" \
+  go run main.go oscal import -f testdata/sp800_53_catalog.json

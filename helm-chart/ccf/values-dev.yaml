@@ -1,0 +1,12 @@
+# Development environment overrides
+global:
+  environment: dev
+
+api:
+  replicaCount: 1
+  image:
+    pullPolicy: Never  # For local development
+
+postgresql:
+  persistence:
+    enabled: false  # No persistence in dev

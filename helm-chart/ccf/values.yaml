@@ -1,0 +1,98 @@
+# Default values for ccf.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+global:
+  # Environment name (dev, staging, prod)
+  environment: dev
+
+# CCF API Configuration
+api:
+  # Number of API replicas
+  replicaCount: 1
+  
+  image:
+    repository: api
+    tag: local
+    pullPolicy: Never  # Set to Always for production
+  
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30080
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  # Environment variables
+  env:
+    APP_PORT: "8080"
+    CCF_DB_DRIVER: "postgres"
+    # Additional env vars can be added here
+  
+  # Database connection will be constructed from postgres values
+  # CCF_DB_CONNECTION is built dynamically in the template
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  
+  # PostgreSQL authentication
+  auth:
+    username: postgres
+    password: postgres
+    database: ccf
+  
+  # Service configuration
+  service:
+    port: 5432
+  
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  # Persistence configuration
+  persistence:
+    enabled: false  # Set to true for production
+    size: 10Gi
+    storageClass: ""  # Leave empty for default
+
+# Ingress configuration (optional)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: ccf.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: ccf-tls
+  #    hosts:
+  #      - ccf.local
+
+# Additional ConfigMap data
+configMap:
+  # Add any additional configuration here
+  data: {}
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000

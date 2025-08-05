@@ -1,0 +1,17 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ccf.fullname" . }}-postgresql
+  labels:
+    {{- include "ccf.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.postgresql.service.port }}
+    targetPort: {{ .Values.postgresql.service.port }}
+  selector:
+    {{- include "ccf.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+{{- end }}

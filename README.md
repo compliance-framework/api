@@ -45,6 +45,30 @@ $ go run main.go oscal import -f testdata/ # Import a directory with OSCAL docum
 $ go run main.go help # Learn more about all the available commands
 ```
 
+## Deployment Options
+
+> 📚 **New to deployment?** See our [Deployment Guide](DEPLOYMENT.md) to choose the best method for your needs.
+
+### Option 1: Docker Compose (Simplest for Development)
+```shell
+make up
+# OR docker compose up -d
+```
+
+### Option 2: Kubernetes with Plain YAML (Basic)
+```shell
+cd k8s
+./deploy.sh
+```
+See [k8s/README.md](k8s/README.md) for detailed instructions.
+
+### Option 3: Kubernetes with Helm (Recommended for Production)
+```shell
+# Install Helm first: https://helm.sh/docs/intro/install/
+helm install my-ccf ./helm-chart/ccf -f ./helm-chart/ccf/values-dev.yaml
+```
+See [helm-chart/ccf/README.md](helm-chart/ccf/README.md) for detailed Helm instructions.
+
 ### Accessing Swagger Documentation
 
 > [!IMPORTANT]

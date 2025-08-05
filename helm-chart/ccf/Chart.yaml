@@ -1,0 +1,23 @@
+apiVersion: v2
+name: ccf
+description: A Helm chart for CCF (Compliance Configuration Framework)
+type: application
+
+# Chart version - increment this when you make changes to the chart
+version: 0.1.0
+
+# Application version - this is the version of CCF being deployed
+appVersion: "1.0.0"
+
+keywords:
+  - ccf
+  - compliance
+  - oscal
+  
+maintainers:
+  - name: Sonny TADJER
+    email: sonny.tadjer@container-solutions.com
+
+home: https://github.com/compliance-framework/configuration-service
+sources:
+  - https://github.com/compliance-framework/configuration-service
