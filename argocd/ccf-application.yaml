@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ccf
+  name: ccf-api
   namespace: argocd
   # Finalizers ensure app resources are cleaned up when the app is deleted
   finalizers:
@@ -14,7 +14,7 @@ spec:
   source:
     repoURL: https://github.com/compliance-framework/configuration-service
     targetRevision: HEAD
-    path: helm-chart/ccf
+    path: helm-chart/ccf-api
     
     # Helm specific config
     helm:

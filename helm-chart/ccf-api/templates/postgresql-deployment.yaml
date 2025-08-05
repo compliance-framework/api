@@ -2,20 +2,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ccf.fullname" . }}-postgresql
+  name: {{ include "ccf-api.fullname" . }}-postgresql
   labels:
-    {{- include "ccf.labels" . | nindent 4 }}
+    {{- include "ccf-api.labels" . | nindent 4 }}
     app.kubernetes.io/component: database
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "ccf.selectorLabels" . | nindent 6 }}
+      {{- include "ccf-api.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: database
   template:
     metadata:
       labels:
-        {{- include "ccf.selectorLabels" . | nindent 8 }}
+        {{- include "ccf-api.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: database
     spec:
       containers:
@@ -39,7 +39,7 @@ spec:
       - name: postgres-storage
         {{- if .Values.postgresql.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "ccf.fullname" . }}-postgresql
+          claimName: {{ include "ccf-api.fullname" . }}-postgresql
         {{- else }}
         emptyDir: {}
         {{- end }}

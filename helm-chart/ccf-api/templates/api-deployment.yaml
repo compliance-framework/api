@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ccf.fullname" . }}-api
+  name: {{ include "ccf-api.fullname" . }}-api
   labels:
-    {{- include "ccf.labels" . | nindent 4 }}
+    {{- include "ccf-api.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicaCount }}
   selector:
     matchLabels:
-      {{- include "ccf.selectorLabels" . | nindent 6 }}
+      {{- include "ccf-api.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
-        {{- include "ccf.selectorLabels" . | nindent 8 }}
+        {{- include "ccf-api.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
       {{- if .Values.securityContext }}
@@ -31,7 +31,7 @@ spec:
         - containerPort: {{ .Values.api.service.port }}
         envFrom:
         - configMapRef:
-            name: {{ include "ccf.fullname" . }}-config
+            name: {{ include "ccf-api.fullname" . }}-config
         resources:
           {{- toYaml .Values.api.resources | nindent 10 }}
         livenessProbe:

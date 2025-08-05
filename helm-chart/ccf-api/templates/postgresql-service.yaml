@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ccf.fullname" . }}-postgresql
+  name: {{ include "ccf-api.fullname" . }}-postgresql
   labels:
-    {{- include "ccf.labels" . | nindent 4 }}
+    {{- include "ccf-api.labels" . | nindent 4 }}
     app.kubernetes.io/component: database
 spec:
   type: ClusterIP
@@ -12,6 +12,6 @@ spec:
   - port: {{ .Values.postgresql.service.port }}
     targetPort: {{ .Values.postgresql.service.port }}
   selector:
-    {{- include "ccf.selectorLabels" . | nindent 4 }}
+    {{- include "ccf-api.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: database
 {{- end }}

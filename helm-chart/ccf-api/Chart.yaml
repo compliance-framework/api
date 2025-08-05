@@ -1,6 +1,6 @@
 apiVersion: v2
-name: ccf
-description: A Helm chart for CCF (Compliance Configuration Framework)
+name: ccf-api
+description: A Helm chart for CCF API (Compliance Configuration Framework API)
 type: application
 
 # Chart version - increment this when you make changes to the chart
@@ -11,8 +11,10 @@ appVersion: "1.0.0"
 
 keywords:
   - ccf
+  - ccf-api
   - compliance
   - oscal
+  - api
   
 maintainers:
   - name: Sonny TADJER
