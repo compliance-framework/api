@@ -5767,6 +5767,44 @@ paths:
       summary: Update a filter
       tags:
       - Filters
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Returns health status of the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - health
+  /health/ready:
+    get:
+      consumes:
+      - application/json
+      description: Returns readiness status of the API including database connectivity
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Readiness check
+      tags:
+      - health
   /oscal/activities:
     post:
       consumes:
