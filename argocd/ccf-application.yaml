@@ -13,7 +13,7 @@ spec:
   # Source of the application manifests
   source:
     repoURL: https://github.com/compliance-framework/configuration-service
-    targetRevision: HEAD
+    targetRevision: chore-kubernetes-deployment
     path: helm-chart/ccf-api
     
     # Helm specific config

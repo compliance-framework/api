@@ -31,10 +31,10 @@ brew install helm
 
 ```bash
 # From the helm-chart directory
-helm install my-ccf ./ccf
+helm install my-ccf-api ./ccf-api
 
 # Or with custom values
-helm install my-ccf ./ccf -f ./ccf/values-dev.yaml
+helm install my-ccf-api ./ccf-api -f ./ccf-api/values-dev.yaml
 ```
 
 ### Production Install
@@ -42,7 +42,7 @@ helm install my-ccf ./ccf -f ./ccf/values-dev.yaml
 ```bash
 # First, customize values-prod.yaml with your settings
 # Then install with production values
-helm install ccf-prod ./ccf -f ./ccf/values-prod.yaml --namespace ccf --create-namespace
+helm install ccf-api-prod ./ccf-api -f ./ccf-api/values-prod.yaml --namespace ccf-api --create-namespace
 ```
 
 ## Configuration
@@ -67,27 +67,27 @@ See `values.yaml` for full configuration options.
 
 ### Install with custom name
 ```bash
-helm install my-release ./ccf
+helm install my-release ./ccf-api
 ```
 
 ### Upgrade a release
 ```bash
 # After making changes to values
-helm upgrade my-release ./ccf
+helm upgrade my-release ./ccf-api
 ```
 
 ### Install in specific namespace
 ```bash
-helm install my-release ./ccf --namespace ccf --create-namespace
+helm install my-release ./ccf-api --namespace ccf-api --create-namespace
 ```
 
 ### Use environment-specific values
 ```bash
 # Development
-helm install dev-release ./ccf -f ./ccf/values-dev.yaml
+helm install dev-release ./ccf-api -f ./ccf-api/values-dev.yaml
 
 # Production
-helm install prod-release ./ccf -f ./ccf/values-prod.yaml
+helm install prod-release ./ccf-api -f ./ccf-api/values-prod.yaml
 ```
 
 ### Check deployment status
@@ -105,19 +105,19 @@ helm uninstall my-release
 
 ### Method 1: Using -f flag
 ```bash
-helm install my-release ./ccf -f custom-values.yaml
+helm install my-release ./ccf-api -f custom-values.yaml
 ```
 
 ### Method 2: Using --set flag
 ```bash
-helm install my-release ./ccf \
+helm install my-release ./ccf-api \
   --set api.replicaCount=3 \
   --set postgresql.auth.password=mysecretpassword
 ```
 
 ### Method 3: Combination
 ```bash
-helm install my-release ./ccf \
+helm install my-release ./ccf-api \
   -f values-prod.yaml \
   --set api.image.tag=v2.0.0
 ```
@@ -150,7 +150,7 @@ postgresql:
 ingress:
   enabled: true
   hosts:
-    - host: ccf.example.com
+    - host: ccf-api.example.com
 ```
 
 ## Helm Commands Reference
@@ -169,20 +169,20 @@ helm get manifest my-release
 helm rollback my-release
 
 # Dry run (see what would be installed)
-helm install my-release ./ccf --dry-run
+helm install my-release ./ccf-api --dry-run
 
 # Debug installation
-helm install my-release ./ccf --debug
+helm install my-release ./ccf-api --debug
 
 # Package chart
-helm package ./ccf
+helm package ./ccf-api
 ```
 
 ## Troubleshooting
 
 ### Check pod logs
 ```bash
-kubectl logs deployment/my-release-ccf-api
+kubectl logs deployment/my-release-ccf-api-api
 ```
 
 ### Describe pods
@@ -197,7 +197,7 @@ kubectl get events --sort-by='.lastTimestamp'
 
 ### Validate chart
 ```bash
-helm lint ./ccf
+helm lint ./ccf-api
 ```
 
 ## Advanced Features
@@ -211,7 +211,7 @@ You can add dependencies like external PostgreSQL charts in `Chart.yaml`
 ### Template Debugging
 ```bash
 # See rendered templates without installing
-helm template my-release ./ccf
+helm template my-release ./ccf-api
 ```
 
 ## Next Steps
