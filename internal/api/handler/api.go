@@ -8,6 +8,10 @@ import (
 )
 
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) {
+	// Health endpoints (no /api prefix for Kubernetes probes)
+	healthHandler := NewHealthHandler(logger, db)
+	healthHandler.Register(server.E().Group("/health"))
+
 	filterHandler := NewFilterHandler(logger, db)
 	filterHandler.Register(server.API().Group("/filters"))
 
