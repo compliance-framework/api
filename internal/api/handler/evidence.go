@@ -2,6 +2,9 @@ package handler
 
 import (
 	"errors"
+	"net/http"
+	"time"
+
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
@@ -13,8 +16,6 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"net/http"
-	"time"
 )
 
 type EvidenceHandler struct {
@@ -139,8 +140,9 @@ type EvidenceCreateRequest struct {
 	End     time.Time
 	Expires *time.Time
 
-	Props []oscalTypes_1_1_3.Property
-	Links []oscalTypes_1_1_3.Link
+	Props      []oscalTypes_1_1_3.Property
+	Links      []oscalTypes_1_1_3.Link
+	BackMatter *oscalTypes_1_1_3.BackMatter
 
 	// Who or What is generating this evidence
 	Origins []oscalTypes_1_1_3.Origin
@@ -303,6 +305,12 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
 	}
 
+	var backMatter *relational.BackMatter
+	if input.BackMatter != nil {
+		backMatter = &relational.BackMatter{}
+		backMatter.UnmarshalOscal(*input.BackMatter)
+	}
+
 	evidence := relational.Evidence{
 		UUIDModel: relational.UUIDModel{
 			ID: internal.Pointer(uuid.New()),
@@ -321,7 +329,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			out.UnmarshalOscal(ol)
 			return out
 		}),
-		Status: datatypes.NewJSONType(input.Status),
+		BackMatter: backMatter,
+		Status:     datatypes.NewJSONType(input.Status),
 	}
 
 	if err := h.db.Create(&evidence).Error; err != nil {
