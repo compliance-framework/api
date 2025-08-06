@@ -8,6 +8,17 @@ aggregation for compliance, and agent-collected data.
 The data structures in the service are heavily based on OSCAL (Open Security Controls Assessment Language), with the
 goal of full support.
 
+## Deployment
+
+All Kubernetes, Helm, and ArgoCD deployment configurations have been moved to a centralized repository:
+**https://github.com/compliance-framework/ccf-deployments**
+
+Please refer to that repository for:
+- Helm charts with PostgreSQL configuration
+- ArgoCD configurations
+- Environment-specific deployments
+- Deployment scripts and documentation
+
 ## Prerequisites
 - Docker / Podman
 - Docker Compose / Podman Compose
