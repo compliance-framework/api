@@ -259,7 +259,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Evidence"
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -16686,6 +16689,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/oscal.ProfileHandler"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-relational_Evidence": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.Evidence"
                         }
                     ]
                 }
