@@ -59,7 +59,7 @@ func (suite *AuthAPIIntegrationSuite) TestLogin() {
 	suite.Require().NoError(err)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader([]byte(`{"email":"test@example.com","password":"Pa55w0rd"}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader([]byte(`{"email":"dummy@example.com","password":"Pa55w0rd"}`)))
 	req.Header.Set("Content-Type", "application/json")
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusOK, rec.Code, "Expected status code 200 OK")
