@@ -95,7 +95,6 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 	return ctx.JSON(200, GenericDataResponse[relational.User]{
 		Data: user,
 	})
-
 }
 
 // GetMe godoc
