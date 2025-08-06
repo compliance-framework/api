@@ -165,7 +165,7 @@ type EvidenceCreateRequest struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			evidence	body		EvidenceCreateRequest	true	"Evidence create request"
-//	@Success		201			{object}	nil
+//	@Success		201			{object}	GenericDataResponse[relational.Evidence]
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
@@ -358,7 +358,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	}
 
 	// Return a 201 Created response with no content.
-	return ctx.NoContent(http.StatusCreated)
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[relational.Evidence]{Data: evidence})
 }
 
 // Search godoc

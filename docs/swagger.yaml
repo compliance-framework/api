@@ -1045,6 +1045,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Task'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-relational_Evidence:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.Evidence'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-relational_Filter:
     properties:
       data:
@@ -1075,7 +1082,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Activity'
         type: array
-      backMatter:
+      back-matter:
         $ref: '#/definitions/relational.BackMatter'
       components:
         items:
@@ -4506,7 +4513,7 @@ definitions:
         items:
           $ref: '#/definitions/relational.Activity'
         type: array
-      backMatter:
+      back-matter:
         $ref: '#/definitions/relational.BackMatter'
       components:
         description: Which components of the subject are being observed. A tool, user,
@@ -5622,6 +5629,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_Evidence'
         "400":
           description: Bad Request
           schema:
