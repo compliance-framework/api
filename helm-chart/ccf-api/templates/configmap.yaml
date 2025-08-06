@@ -5,11 +5,15 @@ metadata:
   labels:
     {{- include "ccf-api.labels" . | nindent 4 }}
 data:
+  # Non-sensitive environment variables
+  APP_PORT: {{ .Values.api.service.port | quote }}
+  CCF_DB_DRIVER: "postgres"
+  LOG_LEVEL: {{ .Values.api.logLevel | default "info" | quote }}
   {{- range $key, $value := .Values.api.env }}
+  {{- if not (has $key (list "CCF_DB_CONNECTION" "JWT_SECRET" "API_KEY" "DATABASE_PASSWORD")) }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}
-  # Database connection string is built from PostgreSQL values
-  CCF_DB_CONNECTION: {{ include "ccf-api.postgresConnection" . | quote }}
+  {{- end }}
   {{- if .Values.configMap.data }}
   {{- toYaml .Values.configMap.data | nindent 2 }}
   {{- end }}

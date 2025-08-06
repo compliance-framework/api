@@ -1,4 +1,7 @@
-# Production environment overrides
+# Production values for ccf-api
+# IMPORTANT: Never commit actual passwords to git!
+# Use --set flags, sealed secrets, or external secret operators
+
 global:
   environment: prod
 
@@ -7,11 +10,12 @@ api:
   
   image:
     repository: your-registry.io/ccf/api
-    tag: "1.0.0"
+    tag: "1.0.0"  # Always use specific version tags
     pullPolicy: Always
   
   service:
-    type: ClusterIP  # Use with Ingress/LoadBalancer
+    type: ClusterIP  # Use Ingress for external access
+    port: 8080
   
   resources:
     limits:
@@ -20,16 +24,33 @@ api:
     requests:
       cpu: 500m
       memory: 512Mi
+  
+  auth:
+    # These MUST be overridden with secure values
+    jwtSecret: ""  # Set via --set or external secret
+    apiKey: ""     # Set via --set or external secret
+  
+  logLevel: "warn"
 
 postgresql:
+  image:
+    repository: postgres
+    tag: "17.5-alpine"
+    pullPolicy: IfNotPresent
+  
   auth:
-    # Override with strong passwords in production!
-    password: "changeme-prod-password"
+    username: ccf_prod
+    password: ""  # MUST be set via --set or external secret
+    database: ccf_prod
+  
+  ssl:
+    enabled: true
+    mode: "require"
   
   persistence:
     enabled: true
     size: 50Gi
-    # storageClass: "fast-ssd"  # Use appropriate storage class
+    storageClass: "fast-ssd"  # Use appropriate storage class
   
   resources:
     limits:
@@ -44,12 +65,30 @@ ingress:
   className: "nginx"
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
   hosts:
-    - host: ccf.yourdomain.com
+    - host: api.ccf.yourdomain.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: ccf-tls
+    - secretName: ccf-api-tls
       hosts:
-        - ccf.yourdomain.com
+        - api.ccf.yourdomain.com
+
+# Security settings
+networkPolicy:
+  enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

@@ -1,10 +1,10 @@
-# CCF Helm Chart
+# CCF API Helm Chart
 
-This Helm chart deploys the Compliance Configuration Framework (CCF) on Kubernetes.
+This Helm chart deploys the Compliance Configuration Framework (CCF) API on Kubernetes following security best practices.
 
 ## What is Helm?
 
-Helm is a package manager for Kubernetes. It allows you to:
+Helm is a package manager for Kubernetes that allows you to:
 - Package your application as a "chart"
 - Configure deployments using values files
 - Manage releases and rollbacks
@@ -12,15 +12,22 @@ Helm is a package manager for Kubernetes. It allows you to:
 
 ## Prerequisites
 
-- Kubernetes 1.19+
-- Helm 3.0+
+- Kubernetes 1.25+
+- Helm 3.8+
 - PV provisioner support in the underlying infrastructure (for production)
+- Metrics Server (for HPA)
+- NGINX Ingress Controller (optional)
+- cert-manager (optional, for TLS)
 
 ## Installing Helm
 
 ```bash
 # macOS
 brew install helm
+
+# Linux
+curl https://get.helm.sh/helm-v3.13.0-linux-amd64.tar.gz | tar xz
+sudo mv linux-amd64/helm /usr/local/bin/
 
 # Or download from https://helm.sh/docs/intro/install/
 ```
@@ -37,187 +44,210 @@ helm install my-ccf-api ./ccf-api
 helm install my-ccf-api ./ccf-api -f ./ccf-api/values-dev.yaml
 ```
 
-### Production Install
+### Production Install with Security Best Practices
 
 ```bash
-# First, customize values-prod.yaml with your settings
-# Then install with production values
-helm install ccf-api-prod ./ccf-api -f ./ccf-api/values-prod.yaml --namespace ccf-api --create-namespace
+# 1. Create namespace
+kubectl create namespace ccf-prod
+
+# 2. Create secure password
+export DB_PASSWORD=$(openssl rand -base64 32)
+
+# 3. Install with secure configuration
+helm install ccf-api ./ccf-api \
+  -f ./ccf-api/values-prod.yaml \
+  --namespace ccf-prod \
+  --set postgresql.auth.password=$DB_PASSWORD \
+  --set api.auth.jwtSecret=$(openssl rand -base64 32) \
+  --set api.auth.apiKey=$(openssl rand -base64 32)
 ```
+
+## Security Features
+
+This Helm chart implements the following security best practices:
+
+### 1. Secrets Management
+- Database credentials stored in Kubernetes Secrets
+- JWT secrets auto-generated if not provided
+- Secrets referenced via environment variables
+- Support for external secret operators
+
+### 2. Network Security
+- NetworkPolicy support for pod-to-pod communication
+- TLS/SSL support for database connections
+- Ingress with TLS termination
+- Rate limiting support
+
+### 3. Pod Security
+- Non-root user execution
+- Read-only root filesystem
+- Security context with minimal privileges
+- Capability dropping (ALL)
+- Seccomp profiles
+
+### 4. High Availability
+- Pod Disruption Budgets
+- Horizontal Pod Autoscaling
+- Health checks (liveness & readiness)
+- Rolling updates with zero downtime
 
 ## Configuration
 
-The following table lists the configurable parameters and their default values:
+### Key Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `api.replicaCount` | Number of API replicas | `1` |
 | `api.image.repository` | API image repository | `api` |
 | `api.image.tag` | API image tag | `local` |
-| `api.service.type` | Kubernetes service type | `NodePort` |
-| `api.service.port` | Service port | `8080` |
+| `api.auth.jwtSecret` | JWT secret (auto-generated if empty) | `""` |
+| `api.resources.limits.memory` | Memory limit | `512Mi` |
+| `api.resources.limits.cpu` | CPU limit | `500m` |
 | `postgresql.enabled` | Enable PostgreSQL | `true` |
-| `postgresql.auth.password` | PostgreSQL password | `postgres` |
-| `postgresql.persistence.enabled` | Enable persistence | `false` |
-| `ingress.enabled` | Enable ingress | `false` |
+| `postgresql.auth.password` | Database password | `postgres` |
+| `postgresql.ssl.enabled` | Enable SSL for database | `false` |
+| `postgresql.persistence.enabled` | Enable persistent storage | `false` |
+| `networkPolicy.enabled` | Enable network policies | `false` |
+| `autoscaling.enabled` | Enable HPA | `false` |
+| `podDisruptionBudget.enabled` | Enable PDB | `false` |
 
-See `values.yaml` for full configuration options.
+### Environment-Specific Values
+
+```bash
+# Development
+helm install ccf-api ./ccf-api -f values-dev.yaml
+
+# Staging
+helm install ccf-api ./ccf-api -f values-staging.yaml
+
+# Production
+helm install ccf-api ./ccf-api -f values-prod.yaml
+```
 
 ## Common Operations
 
-### Install with custom name
+### Upgrade Release
+
 ```bash
-helm install my-release ./ccf-api
+helm upgrade ccf-api ./ccf-api -f values-prod.yaml
 ```
 
-### Upgrade a release
+### Check Status
+
 ```bash
-# After making changes to values
-helm upgrade my-release ./ccf-api
+helm status ccf-api
+kubectl get pods -l app.kubernetes.io/name=ccf-api
 ```
 
-### Install in specific namespace
+### View Logs
+
 ```bash
-helm install my-release ./ccf-api --namespace ccf-api --create-namespace
+kubectl logs -l app.kubernetes.io/name=ccf-api,app.kubernetes.io/component=api
 ```
 
-### Use environment-specific values
-```bash
-# Development
-helm install dev-release ./ccf-api -f ./ccf-api/values-dev.yaml
+### Access the API
 
-# Production
-helm install prod-release ./ccf-api -f ./ccf-api/values-prod.yaml
+```bash
+# Port forward for local access
+kubectl port-forward svc/ccf-api-api 8080:8080
+
+# Via Ingress (if enabled)
+curl https://api.ccf.yourdomain.com/health
 ```
 
-### Check deployment status
+### Database Operations
+
 ```bash
-helm status my-release
-kubectl get pods
+# Run migrations
+kubectl exec deployment/ccf-api-api -- /api migrate up
+
+# Create user
+kubectl exec deployment/ccf-api-api -- /api users add \
+  --email="admin@example.com" \
+  --first-name="Admin" \
+  --last-name="User"
 ```
 
-### Uninstall
-```bash
-helm uninstall my-release
-```
+## GitOps with ArgoCD
 
-## Customizing Values
+### Deploy with ArgoCD
 
-### Method 1: Using -f flag
-```bash
-helm install my-release ./ccf-api -f custom-values.yaml
-```
-
-### Method 2: Using --set flag
-```bash
-helm install my-release ./ccf-api \
-  --set api.replicaCount=3 \
-  --set postgresql.auth.password=mysecretpassword
-```
-
-### Method 3: Combination
-```bash
-helm install my-release ./ccf-api \
-  -f values-prod.yaml \
-  --set api.image.tag=v2.0.0
-```
-
-## Environment-Specific Deployments
-
-### Development (Minikube)
+1. Update `argocd/ccf-application.yaml`:
 ```yaml
-# values-dev.yaml
-api:
-  image:
-    pullPolicy: Never
-postgresql:
-  persistence:
-    enabled: false
+spec:
+  source:
+    helm:
+      parameters:
+        - name: postgresql.auth.password
+          value: <path:secret/data/ccf#password>  # Using ArgoCD Vault plugin
 ```
 
-### Production
-```yaml
-# values-prod.yaml
-api:
-  replicaCount: 3
-  resources:
-    limits:
-      memory: 1Gi
-postgresql:
-  persistence:
-    enabled: true
-    size: 50Gi
-ingress:
-  enabled: true
-  hosts:
-    - host: ccf-api.example.com
-```
-
-## Helm Commands Reference
-
+2. Apply the application:
 ```bash
-# List releases
-helm list
-
-# Get release values
-helm get values my-release
-
-# Get release manifest
-helm get manifest my-release
-
-# Rollback to previous version
-helm rollback my-release
-
-# Dry run (see what would be installed)
-helm install my-release ./ccf-api --dry-run
-
-# Debug installation
-helm install my-release ./ccf-api --debug
-
-# Package chart
-helm package ./ccf-api
+kubectl apply -f argocd/ccf-application.yaml
 ```
 
 ## Troubleshooting
 
-### Check pod logs
+### Pod Not Starting
+
 ```bash
-kubectl logs deployment/my-release-ccf-api-api
+# Check pod status
+kubectl describe pod -l app.kubernetes.io/name=ccf-api
+
+# Check logs
+kubectl logs -l app.kubernetes.io/name=ccf-api --previous
 ```
 
-### Describe pods
+### Database Connection Issues
+
 ```bash
-kubectl describe pod -l app.kubernetes.io/instance=my-release
+# Test database connection
+kubectl exec deployment/ccf-api-api -- nc -zv ccf-api-postgresql 5432
+
+# Check secrets
+kubectl get secrets
+kubectl describe secret ccf-api-secrets
 ```
 
-### Get events
+### Performance Issues
+
 ```bash
-kubectl get events --sort-by='.lastTimestamp'
+# Check HPA status
+kubectl get hpa
+
+# Check resource usage
+kubectl top pods -l app.kubernetes.io/name=ccf-api
 ```
 
-### Validate chart
-```bash
-helm lint ./ccf-api
-```
+## Production Checklist
 
-## Advanced Features
+- [ ] Use specific image tags (not `latest`)
+- [ ] Set resource requests and limits
+- [ ] Enable persistence for PostgreSQL
+- [ ] Configure backups for database
+- [ ] Use strong passwords (minimum 32 characters)
+- [ ] Enable NetworkPolicies
+- [ ] Configure Ingress with TLS
+- [ ] Enable PodDisruptionBudget
+- [ ] Enable HorizontalPodAutoscaler
+- [ ] Configure monitoring and alerting
+- [ ] Set up log aggregation
+- [ ] Implement backup and disaster recovery
+- [ ] Use external secret management (Vault, Sealed Secrets, etc.)
 
-### Using Helm Hooks
-Helm supports hooks for lifecycle events (pre-install, post-upgrade, etc.)
+## Best Practices
 
-### Using Subcharts
-You can add dependencies like external PostgreSQL charts in `Chart.yaml`
+1. **Never commit passwords to Git** - Use Helm's `--set` flag or external secret management
+2. **Use separate values files** per environment
+3. **Enable all security features** in production
+4. **Regular updates** - Keep images and dependencies updated
+5. **Monitor resource usage** and adjust limits accordingly
+6. **Test upgrades** in staging before production
+7. **Backup before major changes**
 
-### Template Debugging
-```bash
-# See rendered templates without installing
-helm template my-release ./ccf-api
-```
+## Support
 
-## Next Steps
-
-1. Customize `values.yaml` for your environment
-2. Set up CI/CD with Helm
-3. Use Helm secrets for sensitive data
-4. Consider using Helmfile for managing multiple environments
-5. Look into ArgoCD for GitOps with Helm
+For issues and questions:
+- GitHub Issues: https://github.com/compliance-framework/api/issues
+- Documentation: https://docs.ccf.io

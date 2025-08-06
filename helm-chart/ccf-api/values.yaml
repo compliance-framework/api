@@ -31,11 +31,32 @@ api:
       cpu: 250m
       memory: 256Mi
   
-  # Environment variables
+  # Environment variables (non-sensitive only)
   env:
     APP_PORT: "8080"
     CCF_DB_DRIVER: "postgres"
     # Additional env vars can be added here
+  
+  # Authentication configuration
+  auth:
+    jwtSecret: ""  # If empty, will be auto-generated
+    apiKey: ""  # Optional API key for additional security
+  
+  # Logging
+  logLevel: "info"  # debug, info, warn, error
+  
+  # Health probe configuration
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
   
   # Database connection will be constructed from postgres values
   # CCF_DB_CONNECTION is built dynamically in the template
@@ -44,11 +65,21 @@ api:
 postgresql:
   enabled: true
   
+  image:
+    repository: postgres
+    tag: "17.5"
+    pullPolicy: IfNotPresent
+  
   # PostgreSQL authentication
   auth:
     username: postgres
-    password: postgres
+    password: postgres  # CHANGE THIS IN PRODUCTION!
     database: ccf
+  
+  # SSL/TLS configuration
+  ssl:
+    enabled: false  # Enable in production
+    mode: "require"  # disable, allow, prefer, require, verify-ca, verify-full
   
   # Service configuration
   service:
@@ -91,8 +122,38 @@ configMap:
   # Add any additional configuration here
   data: {}
 
-# Security context
+# Pod Security Context
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000
   fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container Security Context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# Network Policy
+networkPolicy:
+  enabled: false  # Enable in production
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

@@ -15,6 +15,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
       labels:
         {{- include "ccf-api.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
@@ -29,6 +30,38 @@ spec:
         imagePullPolicy: {{ .Values.api.image.pullPolicy }}
         ports:
         - containerPort: {{ .Values.api.service.port }}
+          name: http
+          protocol: TCP
+        env:
+        - name: CCF_DB_CONNECTION
+          value: "host={{ include "ccf-api.fullname" . }}-postgresql user=$(DATABASE_USERNAME) password=$(DATABASE_PASSWORD) dbname=$(DATABASE_NAME) port=5432 sslmode={{ .Values.postgresql.ssl.mode | default "require" }}"
+        - name: DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ccf-api.fullname" . }}-secrets
+              key: database-username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ccf-api.fullname" . }}-secrets
+              key: database-password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ccf-api.fullname" . }}-secrets
+              key: database-name
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ccf-api.fullname" . }}-secrets
+              key: jwt-secret
+        {{- if .Values.api.auth.apiKey }}
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ccf-api.fullname" . }}-secrets
+              key: api-key
+        {{- end }}
         envFrom:
         - configMapRef:
             name: {{ include "ccf-api.fullname" . }}-config
@@ -37,12 +70,16 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: {{ .Values.api.service.port }}
-          initialDelaySeconds: 30
-          periodSeconds: 10
+            port: http
+          initialDelaySeconds: {{ .Values.api.livenessProbe.initialDelaySeconds | default 30 }}
+          periodSeconds: {{ .Values.api.livenessProbe.periodSeconds | default 10 }}
+          timeoutSeconds: {{ .Values.api.livenessProbe.timeoutSeconds | default 5 }}
+          failureThreshold: {{ .Values.api.livenessProbe.failureThreshold | default 3 }}
         readinessProbe:
           httpGet:
             path: /health/ready
-            port: {{ .Values.api.service.port }}
-          initialDelaySeconds: 5
-          periodSeconds: 5
+            port: http
+          initialDelaySeconds: {{ .Values.api.readinessProbe.initialDelaySeconds | default 5 }}
+          periodSeconds: {{ .Values.api.readinessProbe.periodSeconds | default 5 }}
+          timeoutSeconds: {{ .Values.api.readinessProbe.timeoutSeconds | default 3 }}
+          successThreshold: {{ .Values.api.readinessProbe.successThreshold | default 1 }}
