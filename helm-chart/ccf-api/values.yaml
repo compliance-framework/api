@@ -157,3 +157,10 @@ autoscaling:
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
+
+# External Secrets Configuration
+externalSecrets:
+  enabled: false  # Set to true when using Sealed Secrets or other external secret managers
+  # When enabled, the chart expects these secrets to exist:
+  # - ccf-api-secrets (with keys: database-password, database-username, database-name, jwt-secret, api-key)
+  # - ccf-api-postgresql (with keys: postgres-password, password, username)
