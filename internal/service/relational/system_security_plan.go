@@ -1,6 +1,7 @@
 package relational
 
 import (
+	"fmt"
 	"time"
 
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -657,15 +658,22 @@ type SystemImplementation struct {
 	Remarks                 string                    `json:"remarks"`
 	Users                   []SystemUser              `json:"users"`
 	LeveragedAuthorizations []LeveragedAuthorization  `json:"leveraged-authorizations"`
-	Components              []SystemComponent         `json:"components"`
+	Components              []SystemComponent         `json:"components" gorm:"many2many:system_implementation_components"`
 	InventoryItems          []InventoryItem           `json:"inventory-items"`
 
 	SystemSecurityPlanId uuid.UUID
 }
 
 func (si *SystemImplementation) UnmarshalOscal(osi oscalTypes_1_1_3.SystemImplementation) *SystemImplementation {
+	// There may be a better way to do this but for now we generate in advance so we know it when creating FKs
+	// If GORM has a way of doing this we should change to that.
+	id := uuid.New()
+	uuid := UUIDModel{
+		ID: &id,
+	}
+	fmt.Printf("UUID %v\n", uuid)
 	*si = SystemImplementation{
-		UUIDModel: UUIDModel{},
+		UUIDModel: uuid,
 		Props:     ConvertOscalToProps(osi.Props),
 		Links:     ConvertOscalToLinks(osi.Links),
 		Remarks:   osi.Remarks,
@@ -682,6 +690,8 @@ func (si *SystemImplementation) UnmarshalOscal(osi oscalTypes_1_1_3.SystemImplem
 		Components: ConvertList(&osi.Components, func(osc oscalTypes_1_1_3.SystemComponent) SystemComponent {
 			component := SystemComponent{}
 			component.UnmarshalOscal(osc)
+			component.ParentType = "system_implementation"
+			component.ParentID = &id
 			return component
 		}),
 		InventoryItems: ConvertList(osi.InventoryItems, func(oii oscalTypes_1_1_3.InventoryItem) InventoryItem {
@@ -914,7 +924,8 @@ type SystemComponent struct {
 	Props            datatypes.JSONSlice[Prop]                 `json:"props"`
 	Links            datatypes.JSONSlice[Link]                 `json:"links"`
 
-	SystemImplementationId uuid.UUID
+	ParentID   *uuid.UUID
+	ParentType string
 
 	Evidence []Evidence `gorm:"many2many:evidence_components"`
 }

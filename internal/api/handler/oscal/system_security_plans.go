@@ -1740,7 +1740,8 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 
 	relComponent := &relational.SystemComponent{}
 	relComponent.UnmarshalOscal(oscalComponent)
-	relComponent.SystemImplementationId = *systemImpl.ID
+	relComponent.ParentID = systemImpl.ID
+	relComponent.ParentType = "system_implementation"
 
 	if err := h.db.Create(relComponent).Error; err != nil {
 		h.sugar.Errorf("Failed to create component: %v", err)
@@ -1813,7 +1814,8 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo
 
 	relComponent := &relational.SystemComponent{}
 	relComponent.UnmarshalOscal(oscalComponent)
-	relComponent.SystemImplementationId = *systemImpl.ID
+	relComponent.ParentID = systemImpl.ID
+	relComponent.ParentType = "system_implementation"
 	relComponent.ID = &componentID
 
 	if err := h.db.Save(relComponent).Error; err != nil {
