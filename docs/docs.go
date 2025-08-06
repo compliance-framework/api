@@ -16757,7 +16757,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
                     }
                 },
-                "backMatter": {
+                "back-matter": {
                     "$ref": "#/definitions/relational.BackMatter"
                 },
                 "components": {
@@ -21964,7 +21964,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Activity"
                     }
                 },
-                "backMatter": {
+                "back-matter": {
                     "$ref": "#/definitions/relational.BackMatter"
                 },
                 "components": {

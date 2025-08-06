@@ -1082,7 +1082,7 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Activity'
         type: array
-      backMatter:
+      back-matter:
         $ref: '#/definitions/relational.BackMatter'
       components:
         items:
@@ -4513,7 +4513,7 @@ definitions:
         items:
           $ref: '#/definitions/relational.Activity'
         type: array
-      backMatter:
+      back-matter:
         $ref: '#/definitions/relational.BackMatter'
       components:
         description: Which components of the subject are being observed. A tool, user,

@@ -16751,7 +16751,7 @@
                         "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
                     }
                 },
-                "backMatter": {
+                "back-matter": {
                     "$ref": "#/definitions/relational.BackMatter"
                 },
                 "components": {
@@ -21958,7 +21958,7 @@
                         "$ref": "#/definitions/relational.Activity"
                     }
                 },
-                "backMatter": {
+                "back-matter": {
                     "$ref": "#/definitions/relational.BackMatter"
                 },
                 "components": {
