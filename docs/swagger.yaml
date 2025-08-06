@@ -43,6 +43,14 @@ definitions:
     type: object
   datatypes.JSONType-relational_SystemComponentStatus:
     type: object
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
   handler.ComplianceByControl.StatusCount:
     properties:
       count:
@@ -613,6 +621,14 @@ definitions:
           $ref: '#/definitions/relational.Evidence'
         type: array
     type: object
+  handler.GenericDataListResponse-relational_User:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.User'
+        type: array
+    type: object
   handler.GenericDataResponse-array_oscalTypes_1_1_3_AssessmentAssets:
     properties:
       data:
@@ -1036,6 +1052,13 @@ definitions:
         - $ref: '#/definitions/relational.Filter'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-relational_User:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.User'
+        description: Items from the list response
+    type: object
   handler.HeartbeatCreateRequest:
     properties:
       created_at:
@@ -1130,6 +1153,8 @@ definitions:
         items:
           $ref: '#/definitions/handler.StatusCount'
         type: array
+    type: object
+  handler.UserHandler:
     type: object
   handler.createFilterRequest:
     properties:
@@ -5406,6 +5431,33 @@ definitions:
     - TelephoneNumberTypeHome
     - TelephoneNumberTypeOffice
     - TelephoneNumberTypeMobile
+  relational.User:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        allOf:
+        - $ref: '#/definitions/gorm.DeletedAt'
+        description: Soft delete
+      email:
+        type: string
+      failedLogins:
+        type: integer
+      firstName:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      isLocked:
+        type: boolean
+      lastLogin:
+        type: string
+      lastName:
+        type: string
+      updatedAt:
+        type: string
+    type: object
 externalDocs:
   description: OpenAPI
   url: https://swagger.io/resources/open-api/
@@ -14949,6 +15001,285 @@ paths:
       summary: Update a system user
       tags:
       - System Security Plans
+  /users:
+    get:
+      description: Lists all users in the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List all users
+      tags:
+      - Users
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user in the system
+      parameters:
+      - description: User details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UserHandler'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a new user
+      tags:
+      - Users
+  /users/{id}:
+    delete:
+      description: Deletes a user from the system
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a user
+      tags:
+      - Users
+    get:
+      description: Get user details by user ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get user by ID
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Updates the details of an existing user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UserHandler'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update user details
+      tags:
+      - Users
+  /users/{id}/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Changes the password for a user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Change Password Request
+        in: body
+        name: changePasswordRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UserHandler'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Change password for a specific user
+      tags:
+      - Users
+  /users/me:
+    get:
+      description: Retrieves the details of the currently logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get logged-in user details
+      tags:
+      - Users
+  /users/me/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Changes the password for the currently logged-in user
+      parameters:
+      - description: Change Password Request
+        in: body
+        name: changePasswordRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UserHandler'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Change password for logged-in user
+      tags:
+      - Users
 produces:
 - application/json
 securityDefinitions:

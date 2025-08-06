@@ -287,8 +287,8 @@ func (t *TestMigrator) Down() error {
 
 func (t *TestMigrator) CreateUser() error {
 	user := &relational.User{
-		Email:     "test@example.com",
-		FirstName: "Test",
+		Email:     "dummy@example.com",
+		FirstName: "Dummy",
 		LastName:  "User",
 	}
 	user.SetPassword("Pa55w0rd")
