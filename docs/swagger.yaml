@@ -143,7 +143,7 @@ definitions:
         items:
           $ref: '#/definitions/handler.EvidenceActivity'
         type: array
-      backMatter:
+      back-matter:
         $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
       components:
         description: Which components of the subject are being observed. A tool, user,
@@ -1083,7 +1083,7 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.Activity'
         type: array
       back-matter:
-        $ref: '#/definitions/relational.BackMatter'
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
       components:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
