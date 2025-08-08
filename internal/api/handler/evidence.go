@@ -142,7 +142,7 @@ type EvidenceCreateRequest struct {
 
 	Props      []oscalTypes_1_1_3.Property
 	Links      []oscalTypes_1_1_3.Link
-	BackMatter *oscalTypes_1_1_3.BackMatter
+	BackMatter *oscalTypes_1_1_3.BackMatter `json:"back-matter,omitempty"`
 
 	// Who or What is generating this evidence
 	Origins []oscalTypes_1_1_3.Origin
@@ -398,6 +398,7 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 
 type OscalLikeEvidence struct {
 	relational.Evidence
+	BackMatter     *oscalTypes_1_1_3.BackMatter         `json:"back-matter,omitempty"`
 	Props          []oscalTypes_1_1_3.Property          `json:"props"`
 	Links          []oscalTypes_1_1_3.Link              `json:"links"`
 	Origins        []oscalTypes_1_1_3.Origin            `json:"origins,omitempty"`
@@ -439,6 +440,10 @@ func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
 		}
 		return out
 	}()
+	o.BackMatter = &oscalTypes_1_1_3.BackMatter{}
+	if evidence.BackMatter != nil {
+		o.BackMatter = evidence.BackMatter.MarshalOscal()
+	}
 	o.Status = evidence.Status.Data()
 	return nil
 }
@@ -465,6 +470,8 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 	var evidence relational.Evidence
 	if err := h.db.
 		Preload("Labels").
+		Preload("BackMatter").
+		Preload("BackMatter.Resources").
 		Preload("Activities").
 		Preload("Activities.Steps").
 		Preload("InventoryItems").

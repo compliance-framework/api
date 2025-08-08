@@ -15247,7 +15247,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/handler.EvidenceActivity"
                     }
                 },
-                "backMatter": {
+                "back-matter": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
                 },
                 "components": {
@@ -16758,7 +16758,7 @@ const docTemplate = `{
                     }
                 },
                 "back-matter": {
-                    "$ref": "#/definitions/relational.BackMatter"
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
                 },
                 "components": {
                     "type": "array",
