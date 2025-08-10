@@ -1,7 +1,6 @@
 package relational
 
 import (
-	"fmt"
 	"time"
 
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -52,6 +51,8 @@ func (i *AssessmentPlan) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentPlan) *Ass
 	// AssessmentAssets
 	if op.AssessmentAssets != nil {
 		i.AssessmentAssets = (&AssessmentAsset{}).UnmarshalOscal(*op.AssessmentAssets)
+		i.AssessmentAssets.ParentID = *i.ID
+		i.AssessmentAssets.ParentType = "assessment_plan"
 	}
 	// AssessmentSubjects
 	if op.AssessmentSubjects != nil {
@@ -1076,12 +1077,27 @@ type AssessmentAsset struct {
 }
 
 func (i *AssessmentAsset) UnmarshalOscal(op oscalTypes_1_1_3.AssessmentAssets) *AssessmentAsset {
-	*i = AssessmentAsset{}
+	id := uuid.New()
+	*i = AssessmentAsset{
+		UUIDModel: UUIDModel{
+			ID: &id,
+		},
+	}
 	// AssessmentPlatforms
 	if op.AssessmentPlatforms != nil {
 		i.AssessmentPlatforms = make([]AssessmentPlatform, len(op.AssessmentPlatforms))
 		for idx, ap := range op.AssessmentPlatforms {
 			i.AssessmentPlatforms[idx] = *(&AssessmentPlatform{}).UnmarshalOscal(ap)
+		}
+	}
+	// Components
+	if op.Components != nil {
+		i.Components = make([]SystemComponent, len(*op.Components))
+		for idx, c := range *op.Components {
+			systemComponent := (&SystemComponent{}).UnmarshalOscal(c)
+			systemComponent.ParentID = &id
+			systemComponent.ParentType = "assessment_asset"
+			i.Components[idx] = *systemComponent
 		}
 	}
 	return i
@@ -1395,7 +1411,6 @@ func (i *AssociatedActivity) UnmarshalOscal(op oscalTypes_1_1_3.AssociatedActivi
 }
 
 func (i *AssociatedActivity) MarshalOscal() *oscalTypes_1_1_3.AssociatedActivity {
-	fmt.Println(i.Activity)
 	ret := &oscalTypes_1_1_3.AssociatedActivity{
 		ActivityUuid: i.Activity.ID.String(),
 		Remarks:      *i.Remarks,

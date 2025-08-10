@@ -207,6 +207,7 @@ func MigrateDown(db *gorm.DB) error {
 		"result_risks",
 		"control_selection_assessed_controls_included",
 		"control_selection_assessed_controls_excluded",
+		"system_implementation_components",
 		&relational.Profile{},
 		&relational.Import{},
 		&relational.Merge{},
