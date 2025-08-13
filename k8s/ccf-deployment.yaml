@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
       - name: api
-        image: api:local
-        imagePullPolicy: Never  # For local development with minikube
+        image: ghcr.io/compliance-framework/api:latest
+        imagePullPolicy: Always  # Always pull to get latest
         ports:
         - containerPort: 8080
         envFrom:
