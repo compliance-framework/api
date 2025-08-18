@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ccf-config
-data:
-  APP_PORT: "8080"
-  CCF_DB_DRIVER: "postgres"
-  CCF_DB_CONNECTION: "host=postgres-service user=postgres password=postgres dbname=ccf port=5432 sslmode=disable"
