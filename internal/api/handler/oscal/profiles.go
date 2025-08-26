@@ -767,6 +767,15 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 	profileRel.UnmarshalOscal(oscalProfile)
 	profileRel.Metadata.LastModified = &now
 	profileRel.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	if profileRel.Modify == nil {
+		profileRel.Modify = &relational.Modify{}
+	}
+
+	if profileRel.Merge == nil {
+		profileRel.Merge = &relational.Merge{}
+	}
+
 	if err := h.db.Create(profileRel).Error; err != nil {
 		h.sugar.Errorw("error creating profile", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
