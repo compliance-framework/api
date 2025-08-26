@@ -14,7 +14,7 @@ type Profile struct {
 	Metadata   Metadata    `json:"metadata" gorm:"Polymorphic:Parent"`
 	BackMatter *BackMatter `json:"back-matter" gorm:"Polymorphic:Parent"`
 	Imports    []Import    `json:"imports"`
-	Merge      Merge       `json:"merge"`
+	Merge      *Merge      `json:"merge"`
 	Modify     *Modify     `json:"modify"`
 }
 
@@ -47,7 +47,7 @@ func (p *Profile) UnmarshalOscal(op oscalTypes_1_1_3.Profile) *Profile {
 	if op.Merge != nil {
 		merge := Merge{}
 		merge.UnmarshalOscal(*op.Merge)
-		p.Merge = merge
+		p.Merge = &merge
 	}
 
 	if op.Modify != nil {
