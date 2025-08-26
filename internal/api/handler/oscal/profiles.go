@@ -596,7 +596,10 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 			relationalMerge = relational.Merge{
 				ProfileID: id,
 			}
-			h.db.Create(&relationalMerge)
+			if err = h.db.Create(&relationalMerge).Error; err != nil {
+				h.sugar.Errorw("error creating merge", "id", idParam, "error", err)
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
 		} else {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
@@ -1121,8 +1124,8 @@ func mergeGroups(groups ...relational.Group) []relational.Group {
 // ResolveControls orchestrates control resolution for all imports in the profile,
 // returning the list of catalog UUIDs and the fully processed controls.
 func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB, catalogId uuid.UUID) (*relational.Catalog, error) {
-	var setParams map[string]relational.ParameterSetting
-	var additions map[string][]relational.Addition
+	setParams := make(map[string]relational.ParameterSetting)
+	additions := make(map[string][]relational.Addition)
 	if profile.Modify != nil {
 		setParams = buildSetParams(profile.Modify.SetParameters)
 		additions = buildAdditions(profile.Modify.Alters)
