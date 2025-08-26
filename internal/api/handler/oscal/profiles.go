@@ -582,6 +582,15 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	var profile relational.Profile
+	if err := h.db.Where("id = ?", id).First(&profile).Error; err != nil {
+		h.sugar.Warnw("error getting profile", "id", idParam, "error", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
 	var payload oscalTypes_1_1_3.Merge
 	if err := ctx.Bind(&payload); err != nil {
 		h.sugar.Errorw("error binding request data", "id", idParam, "error", err)
