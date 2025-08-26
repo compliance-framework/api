@@ -592,9 +592,15 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 	if err := h.db.Where("profile_id = ?", id).First(&relationalMerge).Error; err != nil {
 		h.sugar.Warnw("error finding merge", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+			h.sugar.Infow("merge not found, creating new one", "id", idParam)
+			relationalMerge = relational.Merge{
+				ProfileID: id,
 		}
+			h.db.Create(&relationalMerge)
+		} else {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+
 	}
 
 	relationalPayload := relational.Merge{}
