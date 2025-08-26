@@ -582,6 +582,15 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	var profile relational.Profile
+	if err := h.db.Where("id = ?", id).First(&profile).Error; err != nil {
+		h.sugar.Warnw("error getting profile", "id", idParam, "error", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
 	var payload oscalTypes_1_1_3.Merge
 	if err := ctx.Bind(&payload); err != nil {
 		h.sugar.Errorw("error binding request data", "id", idParam, "error", err)
@@ -592,9 +601,18 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 	if err := h.db.Where("profile_id = ?", id).First(&relationalMerge).Error; err != nil {
 		h.sugar.Warnw("error finding merge", "id", idParam, "error", err)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+			h.sugar.Infow("merge not found, creating new one", "id", idParam)
+			relationalMerge = relational.Merge{
+				ProfileID: id,
+			}
+			if err = h.db.Create(&relationalMerge).Error; err != nil {
+				h.sugar.Errorw("error creating merge", "id", idParam, "error", err)
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
+		} else {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+
 	}
 
 	relationalPayload := relational.Merge{}
@@ -761,6 +779,15 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 	profileRel.UnmarshalOscal(oscalProfile)
 	profileRel.Metadata.LastModified = &now
 	profileRel.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	if profileRel.Modify == nil {
+		profileRel.Modify = &relational.Modify{}
+	}
+
+	if profileRel.Merge == nil {
+		profileRel.Merge = &relational.Merge{}
+	}
+
 	if err := h.db.Create(profileRel).Error; err != nil {
 		h.sugar.Errorw("error creating profile", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -1106,8 +1133,12 @@ func mergeGroups(groups ...relational.Group) []relational.Group {
 // ResolveControls orchestrates control resolution for all imports in the profile,
 // returning the list of catalog UUIDs and the fully processed controls.
 func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB, catalogId uuid.UUID) (*relational.Catalog, error) {
-	setParams := buildSetParams(profile.Modify.SetParameters)
-	additions := buildAdditions(profile.Modify.Alters)
+	setParams := make(map[string]relational.ParameterSetting)
+	additions := make(map[string][]relational.Addition)
+	if profile.Modify != nil {
+		setParams = buildSetParams(profile.Modify.SetParameters)
+		additions = buildAdditions(profile.Modify.Alters)
+	}
 
 	var allControls []relational.Control
 
