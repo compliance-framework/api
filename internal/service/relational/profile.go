@@ -84,7 +84,9 @@ func (p *Profile) MarshalOscal() *oscalTypes_1_1_3.Profile {
 	}
 	ret.Imports = imports
 
-	ret.Merge = p.Merge.MarshalOscal()
+	if p.Merge != nil {
+		ret.Merge = p.Merge.MarshalOscal()
+	}
 
 	return &ret
 }

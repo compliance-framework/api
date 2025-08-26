@@ -319,3 +319,19 @@ func TestProfileImportHrefResolve(t *testing.T) {
 		})
 	}
 }
+
+func TestMarshalMergeNil(t *testing.T) {
+	profile := &Profile{}
+	profile.UnmarshalOscal(
+		oscalTypes_1_1_3.Profile{
+			UUID: "00000000-0000-0000-0000-000000000000",
+			Metadata: oscalTypes_1_1_3.Metadata{
+				Title: "Test Profile",
+			},
+			Modify: nil,
+		},
+	)
+
+	output := profile.MarshalOscal()
+	assert.Nil(t, output.Merge)
+}
