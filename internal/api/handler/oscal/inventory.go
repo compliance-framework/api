@@ -1,0 +1,328 @@
+package oscal
+
+import (
+	"net/http"
+
+	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/service/relational"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
+
+// InventoryHandler handles inventory-related endpoints
+type InventoryHandler struct {
+	sugar *zap.SugaredLogger
+	db    *gorm.DB
+}
+
+// NewInventoryHandler creates a new InventoryHandler
+func NewInventoryHandler(sugar *zap.SugaredLogger, db *gorm.DB) *InventoryHandler {
+	return &InventoryHandler{
+		sugar: sugar,
+		db:    db,
+	}
+}
+
+// Register registers inventory routes
+func (h *InventoryHandler) Register(api *echo.Group) {
+	api.GET("", h.GetAllInventoryItems)
+	api.GET("/:id", h.GetInventoryItem)
+}
+
+// InventoryItemWithSource represents an inventory item with its source information
+type InventoryItemWithSource struct {
+	oscalTypes_1_1_3.InventoryItem
+	Source     string    `json:"source"`
+	SourceID   uuid.UUID `json:"source_id"`
+	SourceType string    `json:"source_type"`
+}
+
+// GetAllInventoryItemsRequest represents the request for getting all inventory items
+type GetAllInventoryItemsRequest struct {
+	IncludeSSP      *bool   `query:"include_ssp" json:"include_ssp,omitempty"`
+	IncludeEvidence *bool   `query:"include_evidence" json:"include_evidence,omitempty"`
+	IncludePOAM     *bool   `query:"include_poam" json:"include_poam,omitempty"`
+	IncludeAP       *bool   `query:"include_ap" json:"include_ap,omitempty"`
+	IncludeAR       *bool   `query:"include_ar" json:"include_ar,omitempty"`
+	ItemType        *string `query:"item_type" json:"item_type,omitempty"`
+	AttachedToSSP   *bool   `query:"attached_to_ssp" json:"attached_to_ssp,omitempty"`
+}
+
+// GetAllInventoryItems godoc
+//
+//	@Summary		Get All Inventory Items
+//	@Description	Retrieves all inventory items from all sources (SSP, Evidence, POAM, AP, AR)
+//	@Tags			Inventory
+//	@Produce		json
+//	@Param			include_ssp			query		boolean	false	"Include items from System Security Plans"
+//	@Param			include_evidence	query		boolean	false	"Include items from Evidence"
+//	@Param			include_poam		query		boolean	false	"Include items from Plan of Action and Milestones"
+//	@Param			include_ap			query		boolean	false	"Include items from Assessment Plans"
+//	@Param			include_ar			query		boolean	false	"Include items from Assessment Results"
+//	@Param			item_type			query		string	false	"Filter by item type (e.g., operating-system, database, web-server)"
+//	@Param			attached_to_ssp		query		boolean	false	"Filter by SSP attachment status"
+//	@Success		200	{object}	handler.GenericDataListResponse[InventoryItemWithSource]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/inventory [get]
+func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
+	var req GetAllInventoryItemsRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Default to including all sources if none specified
+	if req.IncludeSSP == nil && req.IncludeEvidence == nil && req.IncludePOAM == nil && 
+		req.IncludeAP == nil && req.IncludeAR == nil {
+		trueVal := true
+		req.IncludeSSP = &trueVal
+		req.IncludeEvidence = &trueVal
+		req.IncludePOAM = &trueVal
+		req.IncludeAP = &trueVal
+		req.IncludeAR = &trueVal
+	}
+
+	allItems := []InventoryItemWithSource{}
+
+	// Fetch from SSPs
+	if req.IncludeSSP != nil && *req.IncludeSSP {
+		if err := h.fetchSSPInventoryItems(&allItems, req); err != nil {
+			h.sugar.Errorw("Failed to fetch SSP inventory items", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Fetch from Evidence
+	if req.IncludeEvidence != nil && *req.IncludeEvidence {
+		if err := h.fetchEvidenceInventoryItems(&allItems, req); err != nil {
+			h.sugar.Errorw("Failed to fetch Evidence inventory items", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Fetch from POAMs
+	if req.IncludePOAM != nil && *req.IncludePOAM {
+		if err := h.fetchPOAMInventoryItems(&allItems, req); err != nil {
+			h.sugar.Errorw("Failed to fetch POAM inventory items", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Fetch from Assessment Plans
+	if req.IncludeAP != nil && *req.IncludeAP {
+		if err := h.fetchAPInventoryItems(&allItems, req); err != nil {
+			h.sugar.Errorw("Failed to fetch AP inventory items", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Fetch from Assessment Results
+	if req.IncludeAR != nil && *req.IncludeAR {
+		if err := h.fetchARInventoryItems(&allItems, req); err != nil {
+			h.sugar.Errorw("Failed to fetch AR inventory items", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Apply additional filters
+	filteredItems := h.applyFilters(allItems, req)
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[InventoryItemWithSource]{
+		Data: filteredItems,
+	})
+}
+
+func (h *InventoryHandler) fetchSSPInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
+	var ssps []relational.SystemSecurityPlan
+	query := h.db.Preload("SystemImplementation.InventoryItems.ImplementedComponents")
+	
+	if err := query.Find(&ssps).Error; err != nil {
+		return err
+	}
+
+	for _, ssp := range ssps {
+		oscalSSP := ssp.MarshalOscal()
+		if oscalSSP.SystemImplementation.InventoryItems == nil {
+			continue
+		}
+
+		for _, item := range *oscalSSP.SystemImplementation.InventoryItems {
+			*items = append(*items, InventoryItemWithSource{
+				InventoryItem: item,
+				Source:       "System Security Plan",
+				SourceID:     *ssp.ID,
+				SourceType:   "ssp",
+			})
+		}
+	}
+
+	return nil
+}
+
+func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
+	var evidenceItems []relational.InventoryItem
+	
+	// Query inventory items that come from evidence
+	query := h.db.Table("inventory_items").
+		Joins("JOIN evidence_inventory_items ON evidence_inventory_items.inventory_item_id = inventory_items.id").
+		Where("inventory_items.system_implementation_id IS NULL OR inventory_items.system_implementation_id = ?", uuid.Nil)
+	
+	if req.AttachedToSSP != nil && !*req.AttachedToSSP {
+		query = query.Where("inventory_items.system_implementation_id IS NULL")
+	}
+	
+	if err := query.Find(&evidenceItems).Error; err != nil {
+		return err
+	}
+
+	for _, item := range evidenceItems {
+		oscalItem := item.MarshalOscal()
+		*items = append(*items, InventoryItemWithSource{
+			InventoryItem: oscalItem,
+			Source:       "Evidence Collection",
+			SourceID:     *item.ID,
+			SourceType:   "evidence",
+		})
+	}
+
+	return nil
+}
+
+func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
+	var poams []relational.PlanOfActionAndMilestones
+	query := h.db.Find(&poams)
+	
+	if err := query.Error; err != nil {
+		return err
+	}
+
+	for _, poam := range poams {
+		oscalPOAM := poam.MarshalOscal()
+		if oscalPOAM.LocalDefinitions == nil || oscalPOAM.LocalDefinitions.InventoryItems == nil {
+			continue
+		}
+
+		for _, item := range *oscalPOAM.LocalDefinitions.InventoryItems {
+			*items = append(*items, InventoryItemWithSource{
+				InventoryItem: item,
+				Source:       "Plan of Action and Milestones",
+				SourceID:     *poam.ID,
+				SourceType:   "poam",
+			})
+		}
+	}
+
+	return nil
+}
+
+func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
+	// Assessment Plans currently don't have inventory items implemented in the handler
+	// This is a placeholder for future implementation
+	return nil
+}
+
+func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
+	// Assessment Results currently don't have inventory items implemented in the handler
+	// This is a placeholder for future implementation
+	return nil
+}
+
+func (h *InventoryHandler) applyFilters(items []InventoryItemWithSource, req GetAllInventoryItemsRequest) []InventoryItemWithSource {
+	filtered := items
+
+	// Filter by item type if specified
+	if req.ItemType != nil && *req.ItemType != "" {
+		var typeFiltered []InventoryItemWithSource
+		for _, item := range filtered {
+			// Check if the item has a property with the name "asset-type" matching the requested type
+			if item.Props != nil {
+				for _, prop := range *item.Props {
+					if prop.Name == "asset-type" && prop.Value == *req.ItemType {
+						typeFiltered = append(typeFiltered, item)
+						break
+					}
+				}
+			}
+		}
+		filtered = typeFiltered
+	}
+
+	// Additional filtering by SSP attachment status
+	if req.AttachedToSSP != nil {
+		var attachmentFiltered []InventoryItemWithSource
+		for _, item := range filtered {
+			isAttached := item.SourceType == "ssp"
+			if (*req.AttachedToSSP && isAttached) || (!*req.AttachedToSSP && !isAttached) {
+				attachmentFiltered = append(attachmentFiltered, item)
+			}
+		}
+		filtered = attachmentFiltered
+	}
+
+	return filtered
+}
+
+// GetInventoryItem godoc
+//
+//	@Summary		Get Inventory Item by ID
+//	@Description	Retrieves a specific inventory item by its ID
+//	@Tags			Inventory
+//	@Produce		json
+//	@Param			id	path		string	true	"Inventory Item ID"
+//	@Success		200	{object}	InventoryItemWithSource
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/inventory/{id} [get]
+func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid inventory item id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var item relational.InventoryItem
+	if err := h.db.Preload("ImplementedComponents").First(&item, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get inventory item", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	oscalItem := item.MarshalOscal()
+	
+	// Determine source
+	source := "Unknown"
+	sourceType := "unknown"
+	if item.SystemImplementationId != uuid.Nil {
+		source = "System Security Plan"
+		sourceType = "ssp"
+	} else {
+		// Check if it's from evidence
+		var count int64
+		h.db.Table("evidence_inventory_items").Where("inventory_item_id = ?", id).Count(&count)
+		if count > 0 {
+			source = "Evidence Collection"
+			sourceType = "evidence"
+		}
+	}
+
+	response := InventoryItemWithSource{
+		InventoryItem: oscalItem,
+		Source:       source,
+		SourceID:     *item.ID,
+		SourceType:   sourceType,
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
