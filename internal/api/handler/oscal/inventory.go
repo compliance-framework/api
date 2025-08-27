@@ -36,9 +36,9 @@ func (h *InventoryHandler) Register(api *echo.Group) {
 // InventoryItemWithSource represents an inventory item with its source information
 type InventoryItemWithSource struct {
 	oscalTypes_1_1_3.InventoryItem
-	Source     string    `json:"source"`
-	SourceID   uuid.UUID `json:"source_id"`
-	SourceType string    `json:"source_type"`
+	Source     string `json:"source"`
+	SourceID   string `json:"source_id"`
+	SourceType string `json:"source_type"`
 }
 
 // GetAllInventoryItemsRequest represents the request for getting all inventory items
@@ -156,7 +156,7 @@ func (h *InventoryHandler) fetchSSPInventoryItems(items *[]InventoryItemWithSour
 			*items = append(*items, InventoryItemWithSource{
 				InventoryItem: item,
 				Source:       "System Security Plan",
-				SourceID:     *ssp.ID,
+				SourceID:     ssp.ID.String(),
 				SourceType:   "ssp",
 			})
 		}
@@ -169,10 +169,13 @@ func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWit
 	var evidenceItems []relational.InventoryItem
 	
 	// Query inventory items that come from evidence
+	// We want items that are linked to evidence but may not have a system_implementation_id
 	query := h.db.Table("inventory_items").
 		Joins("JOIN evidence_inventory_items ON evidence_inventory_items.inventory_item_id = inventory_items.id").
-		Where("inventory_items.system_implementation_id IS NULL OR inventory_items.system_implementation_id = ?", uuid.Nil)
+		Distinct("inventory_items.*").
+		Preload("ImplementedComponents")
 	
+	// Only filter by SSP attachment if explicitly requested
 	if req.AttachedToSSP != nil && !*req.AttachedToSSP {
 		query = query.Where("inventory_items.system_implementation_id IS NULL")
 	}
@@ -186,7 +189,7 @@ func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWit
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: oscalItem,
 			Source:       "Evidence Collection",
-			SourceID:     *item.ID,
+			SourceID:     item.ID.String(),
 			SourceType:   "evidence",
 		})
 	}
@@ -212,7 +215,7 @@ func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSou
 			*items = append(*items, InventoryItemWithSource{
 				InventoryItem: item,
 				Source:       "Plan of Action and Milestones",
-				SourceID:     *poam.ID,
+				SourceID:     poam.ID.String(),
 				SourceType:   "poam",
 			})
 		}
@@ -320,7 +323,7 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 	response := InventoryItemWithSource{
 		InventoryItem: oscalItem,
 		Source:       source,
-		SourceID:     *item.ID,
+		SourceID:     item.ID.String(),
 		SourceType:   sourceType,
 	}
 
