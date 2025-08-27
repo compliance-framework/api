@@ -357,6 +357,14 @@ definitions:
           $ref: '#/definitions/handler.StatusInterval'
         type: array
     type: object
+  handler.GenericDataListResponse-oscal_InventoryItemWithSource:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscal.InventoryItemWithSource'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_List_responseCatalog:
     properties:
       data:
@@ -1223,6 +1231,37 @@ definitions:
     properties:
       metadata:
         $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
+      uuid:
+        type: string
+    type: object
+  oscal.InventoryItemWithSource:
+    properties:
+      description:
+        type: string
+      implemented-components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ImplementedComponent'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
+        type: array
+      source:
+        type: string
+      source_id:
+        type: string
+      source_type:
+        type: string
       uuid:
         type: string
     type: object
@@ -11075,6 +11114,100 @@ paths:
       summary: Update import component definitions for a component definition
       tags:
       - Component Definitions
+  /oscal/inventory:
+    get:
+      description: Retrieves all inventory items from all sources (SSP, Evidence,
+        POAM, AP, AR)
+      parameters:
+      - description: Include items from System Security Plans
+        in: query
+        name: include_ssp
+        type: string
+      - description: Include items from Evidence
+        in: query
+        name: include_evidence
+        type: string
+      - description: Include items from Plan of Action and Milestones
+        in: query
+        name: include_poam
+        type: string
+      - description: Include items from Assessment Plans
+        in: query
+        name: include_ap
+        type: string
+      - description: Include items from Assessment Results
+        in: query
+        name: include_ar
+        type: string
+      - description: Filter by item type (e.g., operating-system, database, web-server)
+        in: query
+        name: item_type
+        type: string
+      - description: Filter by SSP attachment status
+        in: query
+        name: attached_to_ssp
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscal_InventoryItemWithSource'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get All Inventory Items
+      tags:
+      - Inventory
+  /oscal/inventory/{id}:
+    get:
+      description: Retrieves a specific inventory item by its ID
+      parameters:
+      - description: Inventory Item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/oscal.InventoryItemWithSource'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get Inventory Item by ID
+      tags:
+      - Inventory
   /oscal/parties:
     get:
       description: Retrieves all parties.
