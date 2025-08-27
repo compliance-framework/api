@@ -43,13 +43,13 @@ type InventoryItemWithSource struct {
 
 // GetAllInventoryItemsRequest represents the request for getting all inventory items
 type GetAllInventoryItemsRequest struct {
-	IncludeSSP      *bool   `query:"include_ssp" json:"include_ssp,omitempty"`
-	IncludeEvidence *bool   `query:"include_evidence" json:"include_evidence,omitempty"`
-	IncludePOAM     *bool   `query:"include_poam" json:"include_poam,omitempty"`
-	IncludeAP       *bool   `query:"include_ap" json:"include_ap,omitempty"`
-	IncludeAR       *bool   `query:"include_ar" json:"include_ar,omitempty"`
-	ItemType        *string `query:"item_type" json:"item_type,omitempty"`
-	AttachedToSSP   *bool   `query:"attached_to_ssp" json:"attached_to_ssp,omitempty"`
+	IncludeSSP      string `query:"include_ssp" json:"include_ssp,omitempty"`
+	IncludeEvidence string `query:"include_evidence" json:"include_evidence,omitempty"`
+	IncludePOAM     string `query:"include_poam" json:"include_poam,omitempty"`
+	IncludeAP       string `query:"include_ap" json:"include_ap,omitempty"`
+	IncludeAR       string `query:"include_ar" json:"include_ar,omitempty"`
+	ItemType        string `query:"item_type" json:"item_type,omitempty"`
+	AttachedToSSP   string `query:"attached_to_ssp" json:"attached_to_ssp,omitempty"`
 }
 
 // GetAllInventoryItems godoc
@@ -58,40 +58,49 @@ type GetAllInventoryItemsRequest struct {
 //	@Description	Retrieves all inventory items from all sources (SSP, Evidence, POAM, AP, AR)
 //	@Tags			Inventory
 //	@Produce		json
-//	@Param			include_ssp			query		boolean	false	"Include items from System Security Plans"
-//	@Param			include_evidence	query		boolean	false	"Include items from Evidence"
-//	@Param			include_poam		query		boolean	false	"Include items from Plan of Action and Milestones"
-//	@Param			include_ap			query		boolean	false	"Include items from Assessment Plans"
-//	@Param			include_ar			query		boolean	false	"Include items from Assessment Results"
+//	@Param			include_ssp			query		string	false	"Include items from System Security Plans"
+//	@Param			include_evidence	query		string	false	"Include items from Evidence"
+//	@Param			include_poam		query		string	false	"Include items from Plan of Action and Milestones"
+//	@Param			include_ap			query		string	false	"Include items from Assessment Plans"
+//	@Param			include_ar			query		string	false	"Include items from Assessment Results"
 //	@Param			item_type			query		string	false	"Filter by item type (e.g., operating-system, database, web-server)"
-//	@Param			attached_to_ssp		query		boolean	false	"Filter by SSP attachment status"
-//	@Success		200	{object}	handler.GenericDataListResponse[InventoryItemWithSource]
-//	@Failure		400	{object}	api.Error
-//	@Failure		401	{object}	api.Error
-//	@Failure		500	{object}	api.Error
+//	@Param			attached_to_ssp		query		string	false	"Filter by SSP attachment status"
+//	@Success		200					{object}	handler.GenericDataListResponse[InventoryItemWithSource]
+//	@Failure		400					{object}	api.Error
+//	@Failure		401					{object}	api.Error
+//	@Failure		500					{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/inventory [get]
 func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
-	var req GetAllInventoryItemsRequest
-	if err := ctx.Bind(&req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	// Get query parameters directly
+	req := GetAllInventoryItemsRequest{
+		IncludeSSP:      ctx.QueryParam("include_ssp"),
+		IncludeEvidence: ctx.QueryParam("include_evidence"),
+		IncludePOAM:     ctx.QueryParam("include_poam"),
+		IncludeAP:       ctx.QueryParam("include_ap"),
+		IncludeAR:       ctx.QueryParam("include_ar"),
+		ItemType:        ctx.QueryParam("item_type"),
+		AttachedToSSP:   ctx.QueryParam("attached_to_ssp"),
 	}
 
-	// Default to including all sources if none specified
-	if req.IncludeSSP == nil && req.IncludeEvidence == nil && req.IncludePOAM == nil && 
-		req.IncludeAP == nil && req.IncludeAR == nil {
-		trueVal := true
-		req.IncludeSSP = &trueVal
-		req.IncludeEvidence = &trueVal
-		req.IncludePOAM = &trueVal
-		req.IncludeAP = &trueVal
-		req.IncludeAR = &trueVal
+	// Parse boolean values from strings
+	includeSSP := req.IncludeSSP == "" || req.IncludeSSP == "true"
+	includeEvidence := req.IncludeEvidence == "" || req.IncludeEvidence == "true"  
+	includePOAM := req.IncludePOAM == "" || req.IncludePOAM == "true"
+	includeAP := req.IncludeAP == "true"
+	includeAR := req.IncludeAR == "true"
+
+	// Default to including main sources if all are empty
+	if req.IncludeSSP == "" && req.IncludeEvidence == "" && req.IncludePOAM == "" {
+		includeSSP = true
+		includeEvidence = true
+		includePOAM = true
 	}
 
 	allItems := []InventoryItemWithSource{}
 
 	// Fetch from SSPs
-	if req.IncludeSSP != nil && *req.IncludeSSP {
+	if includeSSP {
 		if err := h.fetchSSPInventoryItems(&allItems, req); err != nil {
 			h.sugar.Errorw("Failed to fetch SSP inventory items", "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -99,7 +108,7 @@ func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
 	}
 
 	// Fetch from Evidence
-	if req.IncludeEvidence != nil && *req.IncludeEvidence {
+	if includeEvidence {
 		if err := h.fetchEvidenceInventoryItems(&allItems, req); err != nil {
 			h.sugar.Errorw("Failed to fetch Evidence inventory items", "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -107,7 +116,7 @@ func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
 	}
 
 	// Fetch from POAMs
-	if req.IncludePOAM != nil && *req.IncludePOAM {
+	if includePOAM {
 		if err := h.fetchPOAMInventoryItems(&allItems, req); err != nil {
 			h.sugar.Errorw("Failed to fetch POAM inventory items", "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -115,7 +124,7 @@ func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
 	}
 
 	// Fetch from Assessment Plans
-	if req.IncludeAP != nil && *req.IncludeAP {
+	if includeAP {
 		if err := h.fetchAPInventoryItems(&allItems, req); err != nil {
 			h.sugar.Errorw("Failed to fetch AP inventory items", "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -123,7 +132,7 @@ func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
 	}
 
 	// Fetch from Assessment Results
-	if req.IncludeAR != nil && *req.IncludeAR {
+	if includeAR {
 		if err := h.fetchARInventoryItems(&allItems, req); err != nil {
 			h.sugar.Errorw("Failed to fetch AR inventory items", "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -176,7 +185,7 @@ func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWit
 		Preload("ImplementedComponents")
 	
 	// Only filter by SSP attachment if explicitly requested
-	if req.AttachedToSSP != nil && !*req.AttachedToSSP {
+	if req.AttachedToSSP == "false" {
 		query = query.Where("inventory_items.system_implementation_id IS NULL")
 	}
 	
@@ -240,13 +249,13 @@ func (h *InventoryHandler) applyFilters(items []InventoryItemWithSource, req Get
 	filtered := items
 
 	// Filter by item type if specified
-	if req.ItemType != nil && *req.ItemType != "" {
+	if req.ItemType != "" {
 		var typeFiltered []InventoryItemWithSource
 		for _, item := range filtered {
 			// Check if the item has a property with the name "asset-type" matching the requested type
 			if item.Props != nil {
 				for _, prop := range *item.Props {
-					if prop.Name == "asset-type" && prop.Value == *req.ItemType {
+					if prop.Name == "asset-type" && prop.Value == req.ItemType {
 						typeFiltered = append(typeFiltered, item)
 						break
 					}
@@ -257,11 +266,12 @@ func (h *InventoryHandler) applyFilters(items []InventoryItemWithSource, req Get
 	}
 
 	// Additional filtering by SSP attachment status
-	if req.AttachedToSSP != nil {
+	if req.AttachedToSSP != "" {
 		var attachmentFiltered []InventoryItemWithSource
+		attachToSSP := req.AttachedToSSP == "true"
 		for _, item := range filtered {
 			isAttached := item.SourceType == "ssp"
-			if (*req.AttachedToSSP && isAttached) || (!*req.AttachedToSSP && !isAttached) {
+			if (attachToSSP && isAttached) || (!attachToSSP && !isAttached) {
 				attachmentFiltered = append(attachmentFiltered, item)
 			}
 		}
