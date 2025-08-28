@@ -758,6 +758,13 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscalTypes_1_1_3.ByComponent'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscalTypes_1_1_3_Capability:
     properties:
       data:

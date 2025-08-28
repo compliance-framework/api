@@ -16202,6 +16202,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.ByComponent"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscalTypes_1_1_3_Capability": {
             "type": "object",
             "properties": {
