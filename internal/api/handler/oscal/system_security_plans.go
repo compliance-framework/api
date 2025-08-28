@@ -3024,8 +3024,8 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 	byComponentIdParam := ctx.Param("byComponentId")
 	byComponentID, err := uuid.Parse(byComponentIdParam)
 	if err != nil {
-		h.sugar.Warnw("Invalid component id", "componentId", byComponentIdParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError((err)))
+		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	// Step 1: Verify SSP exists
