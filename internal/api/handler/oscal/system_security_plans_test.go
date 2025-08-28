@@ -53,7 +53,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) createBasicSSP() *oscalTypes
 	sspUUID := uuid.New().String()
 	now := time.Now()
 
-	componentUUID := uuid.New().String();
+	componentUUID := uuid.New().String()
 
 	return &oscalTypes_1_1_3.SystemSecurityPlan{
 		UUID: sspUUID,
