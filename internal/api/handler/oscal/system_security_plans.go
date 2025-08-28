@@ -2992,7 +2992,7 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatement(ctx ec
 //	@Param			id				path		string							true	"SSP ID"
 //	@Param			reqId			path		string							true	"Requirement ID"
 //	@Param			stmtId			path		string							true	"Statement ID"
-//  @Param			byComponentId 	path		string							true	"By-Component ID"
+//	@Param			byComponentId	path		string							true	"By-Component ID"
 //	@Param			by-component	body		oscalTypes_1_1_3.ByComponent	true	"By-Component data"
 //	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Statement]
 //	@Failure		400				{object}	api.Error
