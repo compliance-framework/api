@@ -12710,7 +12710,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Statement"
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent"
                         }
                     },
                     "400": {
