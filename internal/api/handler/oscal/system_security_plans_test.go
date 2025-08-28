@@ -693,7 +693,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 				ComponentUuid: componentUuid,
 			},
 
-		},
+			},
 			},
 		},
 	}
