@@ -248,18 +248,64 @@ func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSou
 }
 
 func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
-	// Assessment Plans currently don't have inventory items in the database structure
-	// Items created with "assessment-plan" destination are stored with properties
-	// but we can't easily query JSON properties in GORM without raw SQL
-	// This would require a different approach or database schema changes
+	// Fetch inventory items linked to Assessment Plans through LocalDefinitions
+	var apInventoryItems []struct {
+		relational.InventoryItem
+		AssessmentPlanID uuid.UUID `gorm:"column:assessment_plan_id"`
+	}
+	
+	query := h.db.Table("inventory_items").
+		Select("inventory_items.*, ap.id as assessment_plan_id").
+		Joins("JOIN local_definition_inventory_items ldi ON inventory_items.id = ldi.inventory_item_id").
+		Joins("JOIN local_definitions ld ON ld.id = ldi.local_definitions_id").
+		Joins("JOIN assessment_plans ap ON ap.id = ld.parent_id").
+		Where("ld.parent_type = ?", "assessment_plans")
+	
+	if err := query.Find(&apInventoryItems).Error; err != nil {
+		h.sugar.Errorf("Failed to fetch AP inventory items: %v", err)
+		return err
+	}
+	
+	// Convert to InventoryItemWithSource
+	for _, item := range apInventoryItems {
+		*items = append(*items, InventoryItemWithSource{
+			InventoryItem: item.InventoryItem.MarshalOscal(),
+			SourceID:      item.AssessmentPlanID.String(),
+			SourceType:    "assessment-plan",
+		})
+	}
+	
 	return nil
 }
 
 func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
-	// Assessment Results currently don't have inventory items in the database structure
-	// Items created with "assessment-results" destination are stored with properties
-	// but we can't easily query JSON properties in GORM without raw SQL
-	// This would require a different approach or database schema changes
+	// Fetch inventory items linked to Assessment Results through LocalDefinitions
+	var arInventoryItems []struct {
+		relational.InventoryItem
+		AssessmentResultID uuid.UUID `gorm:"column:assessment_result_id"`
+	}
+	
+	query := h.db.Table("inventory_items").
+		Select("inventory_items.*, ar.id as assessment_result_id").
+		Joins("JOIN local_definition_inventory_items ldi ON inventory_items.id = ldi.inventory_item_id").
+		Joins("JOIN local_definitions ld ON ld.id = ldi.local_definitions_id").
+		Joins("JOIN assessment_results ar ON ar.id = ld.parent_id").
+		Where("ld.parent_type = ?", "assessment_results")
+	
+	if err := query.Find(&arInventoryItems).Error; err != nil {
+		h.sugar.Errorf("Failed to fetch AR inventory items: %v", err)
+		return err
+	}
+	
+	// Convert to InventoryItemWithSource
+	for _, item := range arInventoryItems {
+		*items = append(*items, InventoryItemWithSource{
+			InventoryItem: item.InventoryItem.MarshalOscal(),
+			SourceID:      item.AssessmentResultID.String(),
+			SourceType:    "assessment-results",
+		})
+	}
+	
 	return nil
 }
 
