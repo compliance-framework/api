@@ -772,6 +772,195 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	suite.Equal("updated-role", (*updateResponse.Data.ResponsibleRoles)[0].RoleId)
 }
 
+// Test deleting a by-component within a statement within an implemented requirement
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequirementStatementByComponent() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first (without statements)
+	ssp := suite.createBasicSSP()
+
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+
+	// Remove statements from the SSP to create it cleanly
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	byComponentUuid := uuid.New().String()
+
+	// Create an implemented requirement with statements
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:        uuid.New().String(),
+				StatementId: "ac-1_stmt.a",
+				Remarks:     "Initial statement implementation",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+			{
+				UUID: byComponentUuid,
+				Description: "Test By Component",
+				ComponentUuid: componentUuid,
+			},
+
+			},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	err = json.Unmarshal(resp.Body.Bytes(), &createResponse)
+	suite.NoError(err)
+
+	// Extract the requirement and statement IDs
+	requirement := createResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+
+	statement := (*requirement.Statements)[0]
+
+	// Delete the by-component
+	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s",
+		ssp.UUID, requirement.UUID, statement.UUID, byComponentUuid), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+
+	suite.Equal(http.StatusNoContent, resp.Code)
+
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components/%s",
+		ssp.UUID, requirement.UUID, statement.UUID, byComponentUuid), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+
+	fmt.Printf("response: %s", resp.Body.String())
+
+	suite.Equal(http.StatusNotFound, resp.Code)
+}
+
+
+// Test creating a by-component within a statement within an implemented requirement
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequirementStatementByComponent() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create SSP first (without statements)
+	ssp := suite.createBasicSSP()
+
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+
+	// Remove statements from the SSP to create it cleanly
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	// Create an implemented requirement with statements
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		Statements: &[]oscalTypes_1_1_3.Statement{
+			{
+				UUID:        uuid.New().String(),
+				StatementId: "ac-1_stmt.a",
+				Remarks:     "Initial statement implementation",
+				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+			{
+				UUID: uuid.New().String(),
+				Description: "Test By Component",
+				ComponentUuid: componentUuid,
+			},
+
+			},
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createIRResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	err = json.Unmarshal(resp.Body.Bytes(), &createIRResponse)
+	suite.NoError(err)
+
+	// Extract the requirement and statement IDs
+	requirement := createIRResponse.Data
+	suite.Require().NotNil(requirement.Statements)
+	suite.Require().NotEmpty(*requirement.Statements)
+
+	statement := (*requirement.Statements)[0]
+
+	firstByComponent := (*statement.ByComponents)[0]
+
+	// // Update the statement's by component
+
+	newByComponent := oscalTypes_1_1_3.ByComponent{
+		ComponentUuid: firstByComponent.ComponentUuid,
+		UUID: uuid.New().String(),
+		Description: "New ByComponent",
+		Remarks: "New by-component with new remarks",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "new-prop",
+				Value: "new-value",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://new-link.com",
+				MediaType: "application/json",
+				Text:      "New Link",
+			},
+		},
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+			{
+				RoleId:  "new-role",
+				Remarks: "New role remarks",
+			},
+		},
+	}
+
+	// // Update the statement
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components",
+		ssp.UUID, requirement.UUID, statement.UUID), newByComponent)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createBCResponse handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+	err = json.Unmarshal(resp.Body.Bytes(), &createBCResponse)
+	suite.NoError(err)
+}
+
+
 // Test updating a statement with invalid IDs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementInvalidIDs() {
 	logConf := zap.NewDevelopmentConfig()
