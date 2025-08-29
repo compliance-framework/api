@@ -8723,6 +8723,61 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Creates a new inventory item with optional attachment to SSP or POAM",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "Create Inventory Item",
+                "parameters": [
+                    {
+                        "description": "Create Inventory Item Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.CreateInventoryItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_InventoryItemWithSource"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/inventory/{id}": {
@@ -16925,6 +16980,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_InventoryItemWithSource": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.InventoryItemWithSource"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_ProfileHandler": {
             "type": "object",
             "properties": {
@@ -17187,6 +17255,21 @@
                 },
                 "query": {
                     "$ref": "#/definitions/labelfilter.Query"
+                }
+            }
+        },
+        "oscal.CreateInventoryItemRequest": {
+            "type": "object",
+            "properties": {
+                "destination": {
+                    "description": "\"ssp\", \"poam\", or \"unattached\"",
+                    "type": "string"
+                },
+                "destination_id": {
+                    "type": "string"
+                },
+                "inventory_item": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
                 }
             }
         },

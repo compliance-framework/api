@@ -696,6 +696,13 @@ definitions:
         - $ref: '#/definitions/oscal.Get.responseComponentDefinition'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscal_InventoryItemWithSource:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.InventoryItemWithSource'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_ProfileHandler:
     properties:
       data:
@@ -1226,6 +1233,16 @@ definitions:
         $ref: '#/definitions/labelfilter.Condition'
       query:
         $ref: '#/definitions/labelfilter.Query'
+    type: object
+  oscal.CreateInventoryItemRequest:
+    properties:
+      destination:
+        description: '"ssp", "poam", or "unattached"'
+        type: string
+      destination_id:
+        type: string
+      inventory_item:
+        $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
     type: object
   oscal.Get.responseCatalog:
     properties:
@@ -11176,6 +11193,42 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get All Inventory Items
+      tags:
+      - Inventory
+    post:
+      consumes:
+      - application/json
+      description: Creates a new inventory item with optional attachment to SSP or
+        POAM
+      parameters:
+      - description: Create Inventory Item Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.CreateInventoryItemRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_InventoryItemWithSource'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create Inventory Item
       tags:
       - Inventory
   /oscal/inventory/{id}:

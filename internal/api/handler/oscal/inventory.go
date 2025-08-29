@@ -1,6 +1,7 @@
 package oscal
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -31,6 +32,7 @@ func NewInventoryHandler(sugar *zap.SugaredLogger, db *gorm.DB) *InventoryHandle
 func (h *InventoryHandler) Register(api *echo.Group) {
 	api.GET("", h.GetAllInventoryItems)
 	api.GET("/:id", h.GetInventoryItem)
+	api.POST("", h.CreateInventoryItem)
 }
 
 // InventoryItemWithSource represents an inventory item with its source information
@@ -39,6 +41,13 @@ type InventoryItemWithSource struct {
 	Source     string `json:"source"`
 	SourceID   string `json:"source_id"`
 	SourceType string `json:"source_type"`
+}
+
+// CreateInventoryItemRequest represents the request for creating an inventory item
+type CreateInventoryItemRequest struct {
+	Destination   string                          `json:"destination"` // "ssp", "poam", or "unattached"
+	DestinationID string                          `json:"destination_id,omitempty"`
+	InventoryItem oscalTypes_1_1_3.InventoryItem `json:"inventory_item"`
 }
 
 // GetAllInventoryItemsRequest represents the request for getting all inventory items
@@ -207,6 +216,7 @@ func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWit
 }
 
 func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
+	// First, get items from POAM documents themselves
 	var poams []relational.PlanOfActionAndMilestones
 	query := h.db.Find(&poams)
 	
@@ -229,19 +239,27 @@ func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSou
 			})
 		}
 	}
+	
+	// Also get inventory items with "planned-for" property
+	// Note: Props are stored as JSON in the inventory_items table, not as a separate table
+	// For now, we'll skip this as it requires complex JSON querying
 
 	return nil
 }
 
 func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
-	// Assessment Plans currently don't have inventory items implemented in the handler
-	// This is a placeholder for future implementation
+	// Assessment Plans currently don't have inventory items in the database structure
+	// Items created with "assessment-plan" destination are stored with properties
+	// but we can't easily query JSON properties in GORM without raw SQL
+	// This would require a different approach or database schema changes
 	return nil
 }
 
 func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
-	// Assessment Results currently don't have inventory items implemented in the handler
-	// This is a placeholder for future implementation
+	// Assessment Results currently don't have inventory items in the database structure
+	// Items created with "assessment-results" destination are stored with properties
+	// but we can't easily query JSON properties in GORM without raw SQL
+	// This would require a different approach or database schema changes
 	return nil
 }
 
@@ -338,4 +356,143 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, response)
+}
+
+// CreateInventoryItem godoc
+//
+//	@Summary		Create Inventory Item
+//	@Description	Creates a new inventory item with optional attachment to SSP or POAM
+//	@Tags			Inventory
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		CreateInventoryItemRequest	true	"Create Inventory Item Request"
+//	@Success		201		{object}	handler.GenericDataResponse[InventoryItemWithSource]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/inventory [post]
+func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
+	var req CreateInventoryItemRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Warnw("Invalid create inventory item request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate destination
+	validDestinations := map[string]bool{
+		"ssp": true,
+		"poam": true,
+		"assessment-plan": true,
+		"assessment-results": true,
+		"unattached": true,
+	}
+	if !validDestinations[req.Destination] {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid destination: %s", req.Destination)))
+	}
+
+	// Ensure UUID is set
+	if req.InventoryItem.UUID == "" {
+		req.InventoryItem.UUID = uuid.New().String()
+	}
+
+	// Create the relational inventory item
+	item := relational.InventoryItem{}
+	item.UnmarshalOscal(req.InventoryItem)
+	
+	// Set destination-specific fields
+	switch req.Destination {
+	case "ssp":
+		if req.DestinationID == "" {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("destination_id required for SSP")))
+		}
+		
+		// Get the system implementation ID
+		var systemImpl relational.SystemImplementation
+		destID, err := uuid.Parse(req.DestinationID)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		
+		if err := h.db.Where("system_security_plan_id = ?", destID).First(&systemImpl).Error; err != nil {
+			h.sugar.Errorw("Failed to find system implementation", "ssp_id", req.DestinationID, "error", err)
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		
+		if systemImpl.ID != nil {
+			item.SystemImplementationId = *systemImpl.ID
+		}
+		
+	case "poam":
+		// For POAM, store as unattached with a property indicating POAM destination
+		if req.InventoryItem.Props == nil {
+			props := []oscalTypes_1_1_3.Property{}
+			req.InventoryItem.Props = &props
+		}
+		*req.InventoryItem.Props = append(*req.InventoryItem.Props, oscalTypes_1_1_3.Property{
+			Name:  "planned-for",
+			Value: "poam:" + req.DestinationID,
+		})
+		item.UnmarshalOscal(req.InventoryItem)
+		
+	case "assessment-plan":
+		// For Assessment Plan, store as unattached with a property indicating AP destination
+		if req.InventoryItem.Props == nil {
+			props := []oscalTypes_1_1_3.Property{}
+			req.InventoryItem.Props = &props
+		}
+		*req.InventoryItem.Props = append(*req.InventoryItem.Props, oscalTypes_1_1_3.Property{
+			Name:  "discovered-in",
+			Value: "assessment-plan:" + req.DestinationID,
+		})
+		item.UnmarshalOscal(req.InventoryItem)
+		
+	case "assessment-results":
+		// For Assessment Results, store as unattached with a property indicating AR destination
+		if req.InventoryItem.Props == nil {
+			props := []oscalTypes_1_1_3.Property{}
+			req.InventoryItem.Props = &props
+		}
+		*req.InventoryItem.Props = append(*req.InventoryItem.Props, oscalTypes_1_1_3.Property{
+			Name:  "found-in",
+			Value: "assessment-results:" + req.DestinationID,
+		})
+		item.UnmarshalOscal(req.InventoryItem)
+		
+	case "unattached":
+		// No additional fields needed
+	}
+
+	// Save to database
+	if err := h.db.Create(&item).Error; err != nil {
+		h.sugar.Errorw("Failed to create inventory item", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Prepare response
+	oscalItem := item.MarshalOscal()
+	source := "Manual Creation"
+	sourceType := req.Destination
+	
+	switch req.Destination {
+	case "ssp":
+		source = "System Security Plan"
+	case "poam":
+		source = "Plan of Action and Milestones"
+	case "assessment-plan":
+		source = "Assessment Plan"
+	case "assessment-results":
+		source = "Assessment Results"
+	}
+	
+	response := InventoryItemWithSource{
+		InventoryItem: oscalItem,
+		Source:       source,
+		SourceID:     item.ID.String(),
+		SourceType:   sourceType,
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[InventoryItemWithSource]{
+		Data: response,
+	})
 }
