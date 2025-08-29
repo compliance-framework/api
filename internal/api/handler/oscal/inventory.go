@@ -465,7 +465,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 		}
 		
-		if systemImpl.ID != nil {
+		if systemImpl.ID != nil && *systemImpl.ID != uuid.Nil {
 			item.SystemImplementationId = *systemImpl.ID
 		}
 		
