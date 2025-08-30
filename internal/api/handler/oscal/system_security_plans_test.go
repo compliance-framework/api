@@ -919,7 +919,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 
 	firstByComponent := (*statement.ByComponents)[0]
 
-	// // Update the statement's by component
+	// Create the statement's by component
 
 	newByComponent := oscalTypes_1_1_3.ByComponent{
 		ComponentUuid: firstByComponent.ComponentUuid,
@@ -945,9 +945,12 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 				Remarks: "New role remarks",
 			},
 		},
+		ImplementationStatus: &oscalTypes_1_1_3.ImplementationStatus{
+			State: "Implemented",
+			Remarks: "Test Remarks",
+		},
 	}
 
-	// // Update the statement
 	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/by-components",
 		ssp.UUID, requirement.UUID, statement.UUID), newByComponent)
 	resp = httptest.NewRecorder()

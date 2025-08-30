@@ -705,7 +705,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 	}
 	sc := &relational.SystemCharacteristics{}
 	sc.UnmarshalOscal(oscalSC)
-	fmt.Println(oscalSC.Description)
+
 	sc.SystemSecurityPlanId = *ssp.ID
 	sc.ID = ssp.SystemCharacteristics.ID
 
@@ -3270,6 +3270,7 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
     relBC.UnmarshalOscal(oscalBC)
     relBC.ParentID = stmt.ID      
 	parentType := "statements"
+
     relBC.ParentType = &parentType  
 
     if err := h.db.Create(relBC).Error; err != nil {
