@@ -4,16 +4,17 @@ package sdk_test
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
-	"net"
-	"net/http"
-	"strings"
-	"time"
 
 	"github.com/compliance-framework/api/sdk"
 	"github.com/labstack/echo/v4"
@@ -95,7 +96,8 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 
 	// Next setup a full running echo server, so we can run tests against it.
 	logger, _ := zap.NewDevelopment()
-	server := api.NewServer(context.Background(), logger.Sugar(), cfg)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), cfg, metrics)
 	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	suite.Server = server

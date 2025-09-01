@@ -16,16 +16,18 @@ import (
 )
 
 type AuthHandler struct {
-	sugar  *zap.SugaredLogger
-	db     *gorm.DB
-	config *config.Config
+	sugar   *zap.SugaredLogger
+	db      *gorm.DB
+	config  *config.Config
+	metrics *api.PrometheusMetrics
 }
 
-func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) *AuthHandler {
+func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, metrics *api.PrometheusMetrics) *AuthHandler {
 	return &AuthHandler{
-		sugar:  logger,
-		db:     db,
-		config: config,
+		sugar:   logger,
+		db:      db,
+		config:  config,
+		metrics: metrics,
 	}
 }
 
@@ -175,16 +177,21 @@ func (h *AuthHandler) CheckUser(username, password string) (*relational.User, bo
 	if err := h.db.Where("email = ?", username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			h.sugar.Warnw("User not found", "username", username)
+			h.metrics.Counters.BadLogins.WithLabelValues("user_not_found").Inc()
 			return nil, true, invalidError
 		}
 		h.sugar.Errorw("Failed to query user", "error", err)
+		h.metrics.Counters.BadLogins.WithLabelValues("unknown").Inc()
 		return nil, false, err
 	}
 
 	if !user.CheckPassword(password) {
 		h.sugar.Warnw("Invalid password attempt", "username", username)
+		h.metrics.Counters.BadLogins.WithLabelValues("invalid_password").Inc()
 		return nil, true, invalidError
 	}
+
+	h.metrics.Counters.TotalLogins.Inc()
 
 	return &user, false, nil
 }

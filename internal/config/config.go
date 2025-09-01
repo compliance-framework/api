@@ -27,6 +27,8 @@ type Config struct {
 	JWTPrivateKey      *rsa.PrivateKey
 	JWTPublicKey       *rsa.PublicKey
 	APIAllowedOrigins  []string
+	MetricsEnabled     bool
+	MetricsPort        string
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -107,6 +109,9 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		}
 	}
 
+	metricsEnabled := viper.GetBool("metrics_enabled")
+	metricsPort := viper.GetString("metrics_port")
+
 	return &Config{
 		AppPort:            appPort,
 		DBDriver:           dbDriver,
@@ -116,6 +121,8 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		JWTPrivateKey:      jwtPrivateKey,
 		JWTPublicKey:       jwtPublicKey,
 		APIAllowedOrigins:  allowedOrigins,
+		MetricsEnabled:     metricsEnabled,
+		MetricsPort:        metricsPort,
 	}
 
 }

@@ -49,8 +49,9 @@ func (suite *AuthAPIIntegrationSuite) SetupSuite() {
 	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	logger, _ := logConf.Build()
 	suite.logger = logger.Sugar()
-	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
+	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, metrics)
 	fmt.Println("Server initialized")
 }
 
