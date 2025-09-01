@@ -77,9 +77,10 @@ func (m *PrometheusMetrics) StartMetricsServer(port string) {
 			Gatherer: m.registry,
 		}))
 		if err := metrics.Start(port); err != nil {
-			m.logger.Fatal(err)
+			m.logger.Error(err)
+			return
 		}
 		<-m.ctx.Done()
-		metrics.Shutdown(context.Background())
+		metrics.Shutdown(m.ctx)
 	}()
 }
