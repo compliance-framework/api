@@ -7,9 +7,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, metrics *api.PrometheusMetrics) {
 	authGroup := server.API().Group("/auth")
 
-	authHandler := NewAuthHandler(logger, db, config)
+	authHandler := NewAuthHandler(logger, db, config, metrics)
 	authHandler.Register(authGroup)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 
 	_ "github.com/compliance-framework/api/docs"
+	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
@@ -22,7 +23,7 @@ type Server struct {
 }
 
 // NewServer initializes the echo server with necessary routes and configurations.
-func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config) *Server {
+func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config, metrics *PrometheusMetrics) *Server {
 	e := echo.New()
 	e.Binder = &binders.CustomBinder{}
 	e.Pre(middleware.RemoveTrailingSlash())
@@ -31,6 +32,9 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config)
 		AllowOrigins:     config.APIAllowedOrigins,
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 		AllowCredentials: true,
+	}))
+	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
+		Registerer: metrics.Registry(),
 	}))
 	e.Validator = mw.NewValidator()
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
