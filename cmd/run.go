@@ -55,7 +55,10 @@ func RunServer(cmd *cobra.Command, args []string) {
 	sugar.Infow("Allowed Origins", "origins", config.APIAllowedOrigins)
 	server.PrintRoutes()
 
-	metrics.StartMetricsServer(":9090")
+	if config.MetricsEnabled {
+		sugar.Infow("Starting metrics server", "port", config.MetricsPort)
+		metrics.StartMetricsServer(config.MetricsPort)
+	}
 
 	checkErr(server.Start(config.AppPort), sugar)
 }
