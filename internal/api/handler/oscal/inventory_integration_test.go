@@ -72,12 +72,9 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 }
 
 func (suite *InventoryApiIntegrationSuite) SetupTest() {
-	// Clean up database before each test to ensure test isolation
-	suite.DB.Exec("DELETE FROM evidence_inventory_items")
-	suite.DB.Exec("DELETE FROM inventory_items")
-	suite.DB.Exec("DELETE FROM evidences")
-	suite.DB.Exec("DELETE FROM system_security_plans")
-	suite.DB.Exec("DELETE FROM plan_of_action_and_milestones")
+	// Use proper database refresh to ensure test isolation and recreate test user
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 }
 
 // Helper function to create authenticated requests
