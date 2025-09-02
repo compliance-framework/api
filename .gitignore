@@ -21,3 +21,6 @@ api
 !internal/api
 
 *.pem
+
+# Ignore compiled binary
+main
