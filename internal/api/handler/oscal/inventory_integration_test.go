@@ -428,7 +428,7 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_WithSSPAttac
 
 func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem() {
 	// Create and save SSP with inventory
-	ssp, items := suite.createSSPWithInventory()
+	ssp, _ := suite.createSSPWithInventory()
 	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
