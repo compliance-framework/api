@@ -8814,7 +8814,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/oscal.InventoryItemWithSource"
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_InventoryItemWithSource"
                         }
                     },
                     "400": {
