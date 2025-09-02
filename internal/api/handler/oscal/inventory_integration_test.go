@@ -437,8 +437,19 @@ func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem() {
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
 	
-	// Get the first item by ID
-	itemID := items[0].UUID
+	// First get all inventory items to get the actual saved UUIDs
+	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory", nil)
+	rec = httptest.NewRecorder()
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+	
+	var listResponse handler.GenericDataListResponse[InventoryItemWithSource]
+	err := json.NewDecoder(rec.Body).Decode(&listResponse)
+	suite.NoError(err)
+	suite.NotEmpty(listResponse.Data, "Should have inventory items")
+	
+	// Get the first item by its actual saved ID
+	itemID := listResponse.Data[0].UUID
 	req = suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/inventory/%s", itemID), nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
@@ -446,7 +457,7 @@ func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem() {
 	suite.Equal(http.StatusOK, rec.Code)
 	
 	var response InventoryItemWithSource
-	err := json.NewDecoder(rec.Body).Decode(&response)
+	err = json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
 	suite.Equal(itemID, response.UUID)
 	suite.Equal("System Security Plan", response.Source)
