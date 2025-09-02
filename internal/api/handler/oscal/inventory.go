@@ -352,7 +352,7 @@ func (h *InventoryHandler) applyFilters(items []InventoryItemWithSource, req Get
 //	@Tags			Inventory
 //	@Produce		json
 //	@Param			id	path		string	true	"Inventory Item ID"
-//	@Success		200	{object}	InventoryItemWithSource
+//	@Success		200	{object}	handler.GenericDataResponse[InventoryItemWithSource]
 //	@Failure		400	{object}	api.Error
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
@@ -401,7 +401,7 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 		SourceType:   sourceType,
 	}
 
-	return ctx.JSON(http.StatusOK, response)
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[InventoryItemWithSource]{Data: response})
 }
 
 // CreateInventoryItem godoc
