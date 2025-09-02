@@ -44,7 +44,8 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	suite.evidenceHandler = handler.NewEvidenceHandler(logger, suite.DB)
 	
 	// Initialize server
-	suite.server = api.NewServer(context.Background(), logger, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger)
+	suite.server = api.NewServer(context.Background(), logger, suite.Config, metrics)
 	
 	// Register handlers
 	apiGroup := suite.server.API()
