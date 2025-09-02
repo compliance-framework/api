@@ -456,12 +456,12 @@ func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem() {
 	
 	suite.Equal(http.StatusOK, rec.Code)
 	
-	var response InventoryItemWithSource
+	var response handler.GenericDataResponse[InventoryItemWithSource]
 	err = json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
-	suite.Equal(itemID, response.UUID)
-	suite.Equal("System Security Plan", response.Source)
-	suite.Equal("ssp", response.SourceType)
+	suite.Equal(itemID, response.Data.UUID)
+	suite.Equal("System Security Plan", response.Data.Source)
+	suite.Equal("ssp", response.Data.SourceType)
 }
 
 func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem_NotFound() {
