@@ -290,6 +290,7 @@ func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSourc
 	for _, item := range apInventoryItems {
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: item.InventoryItem.MarshalOscal(),
+			Source:        InventorySourceAssessmentPlan,
 			SourceID:      item.AssessmentPlanID.String(),
 			SourceType:    SourceTypeAssessmentPlan,
 		})
@@ -321,6 +322,7 @@ func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSourc
 	for _, item := range arInventoryItems {
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: item.InventoryItem.MarshalOscal(),
+			Source:        InventorySourceAssessmentResults,
 			SourceID:      item.AssessmentResultID.String(),
 			SourceType:    SourceTypeAssessmentResults,
 		})
