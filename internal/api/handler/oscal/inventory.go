@@ -14,6 +14,26 @@ import (
 	"gorm.io/gorm"
 )
 
+// Source type constants
+const (
+	InventorySourceSSP               = "System Security Plan"
+	InventorySourceEvidence          = "Evidence Collection"
+	InventorySourcePOAM              = "Plan of Action and Milestones"
+	InventorySourceAssessmentPlan    = "Assessment Plan"
+	InventorySourceAssessmentResults = "Assessment Results"
+	InventorySourceUnknown           = "Unknown"
+	
+	// Source type identifiers
+	SourceTypeSSP               = "ssp"
+	SourceTypeEvidence          = "evidence"
+	SourceTypePOAM              = "poam"
+	SourceTypeAssessmentPlan   = "assessment-plan"
+	SourceTypeAssessmentResults = "assessment-results"
+	SourceTypeAP                = "ap"
+	SourceTypeAR                = "ar"
+	SourceTypeUnknown           = "unknown"
+)
+
 // InventoryHandler handles inventory-related endpoints
 type InventoryHandler struct {
 	sugar *zap.SugaredLogger
@@ -173,9 +193,9 @@ func (h *InventoryHandler) fetchSSPInventoryItems(items *[]InventoryItemWithSour
 		for _, item := range *oscalSSP.SystemImplementation.InventoryItems {
 			*items = append(*items, InventoryItemWithSource{
 				InventoryItem: item,
-				Source:       "System Security Plan",
+				Source:       InventorySourceSSP,
 				SourceID:     ssp.ID.String(),
-				SourceType:   "ssp",
+				SourceType:   SourceTypeSSP,
 			})
 		}
 	}
@@ -206,9 +226,9 @@ func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWit
 		oscalItem := item.MarshalOscal()
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: oscalItem,
-			Source:       "Evidence Collection",
+			Source:       InventorySourceEvidence,
 			SourceID:     item.ID.String(),
-			SourceType:   "evidence",
+			SourceType:   SourceTypeEvidence,
 		})
 	}
 
@@ -233,9 +253,9 @@ func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSou
 		for _, item := range *oscalPOAM.LocalDefinitions.InventoryItems {
 			*items = append(*items, InventoryItemWithSource{
 				InventoryItem: item,
-				Source:       "Plan of Action and Milestones",
+				Source:       InventorySourcePOAM,
 				SourceID:     poam.ID.String(),
-				SourceType:   "poam",
+				SourceType:   SourceTypePOAM,
 			})
 		}
 	}
@@ -271,7 +291,7 @@ func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSourc
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: item.InventoryItem.MarshalOscal(),
 			SourceID:      item.AssessmentPlanID.String(),
-			SourceType:    "assessment-plan",
+			SourceType:    SourceTypeAssessmentPlan,
 		})
 	}
 	
@@ -302,7 +322,7 @@ func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSourc
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: item.InventoryItem.MarshalOscal(),
 			SourceID:      item.AssessmentResultID.String(),
-			SourceType:    "assessment-results",
+			SourceType:    SourceTypeAssessmentResults,
 		})
 	}
 	
@@ -334,7 +354,7 @@ func (h *InventoryHandler) applyFilters(items []InventoryItemWithSource, req Get
 		var attachmentFiltered []InventoryItemWithSource
 		attachToSSP := req.AttachedToSSP == "true"
 		for _, item := range filtered {
-			isAttached := item.SourceType == "ssp"
+			isAttached := item.SourceType == SourceTypeSSP
 			if (attachToSSP && isAttached) || (!attachToSSP && !isAttached) {
 				attachmentFiltered = append(attachmentFiltered, item)
 			}
@@ -379,18 +399,18 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 	oscalItem := item.MarshalOscal()
 	
 	// Determine source
-	source := "Unknown"
-	sourceType := "unknown"
-	if item.SystemImplementationId != uuid.Nil {
-		source = "System Security Plan"
-		sourceType = "ssp"
+	source := InventorySourceUnknown
+	sourceType := SourceTypeUnknown
+	if item.SystemImplementationId != (uuid.UUID{}) {
+		source = InventorySourceSSP
+		sourceType = SourceTypeSSP
 	} else {
 		// Check if it's from evidence
 		var count int64
 		h.db.Table("evidence_inventory_items").Where("inventory_item_id = ?", id).Count(&count)
 		if count > 0 {
-			source = "Evidence Collection"
-			sourceType = "evidence"
+			source = InventorySourceEvidence
+			sourceType = SourceTypeEvidence
 		}
 	}
 
@@ -427,10 +447,10 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 
 	// Validate destination
 	validDestinations := map[string]bool{
-		"ssp": true,
-		"poam": true,
-		"assessment-plan": true,
-		"assessment-results": true,
+		SourceTypeSSP: true,
+		SourceTypePOAM: true,
+		SourceTypeAssessmentPlan: true,
+		SourceTypeAssessmentResults: true,
 		"unattached": true,
 	}
 	if !validDestinations[req.Destination] {
@@ -448,7 +468,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 	
 	// Set destination-specific fields
 	switch req.Destination {
-	case "ssp":
+	case SourceTypeSSP:
 		if req.DestinationID == "" {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("destination_id required for SSP")))
 		}
@@ -465,11 +485,11 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 		}
 		
-		if systemImpl.ID != nil && *systemImpl.ID != uuid.Nil {
+		if systemImpl.ID != nil && *systemImpl.ID != (uuid.UUID{}) {
 			item.SystemImplementationId = *systemImpl.ID
 		}
 		
-	case "poam":
+	case SourceTypePOAM:
 		// For POAM, store as unattached with a property indicating POAM destination
 		if req.InventoryItem.Props == nil {
 			props := []oscalTypes_1_1_3.Property{}
@@ -481,7 +501,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 		})
 		item.UnmarshalOscal(req.InventoryItem)
 		
-	case "assessment-plan":
+	case SourceTypeAssessmentPlan:
 		// For Assessment Plan, store as unattached with a property indicating AP destination
 		if req.InventoryItem.Props == nil {
 			props := []oscalTypes_1_1_3.Property{}
@@ -493,7 +513,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 		})
 		item.UnmarshalOscal(req.InventoryItem)
 		
-	case "assessment-results":
+	case SourceTypeAssessmentResults:
 		// For Assessment Results, store as unattached with a property indicating AR destination
 		if req.InventoryItem.Props == nil {
 			props := []oscalTypes_1_1_3.Property{}
@@ -521,14 +541,14 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 	sourceType := req.Destination
 	
 	switch req.Destination {
-	case "ssp":
-		source = "System Security Plan"
-	case "poam":
-		source = "Plan of Action and Milestones"
-	case "assessment-plan":
-		source = "Assessment Plan"
-	case "assessment-results":
-		source = "Assessment Results"
+	case SourceTypeSSP:
+		source = InventorySourceSSP
+	case SourceTypePOAM:
+		source = InventorySourcePOAM
+	case SourceTypeAssessmentPlan:
+		source = InventorySourceAssessmentPlan
+	case SourceTypeAssessmentResults:
+		source = InventorySourceAssessmentResults
 	}
 	
 	response := InventoryItemWithSource{
