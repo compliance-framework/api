@@ -6,6 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
@@ -15,10 +20,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
 
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/assert"
@@ -154,7 +155,8 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	}
 
 	logger, _ := zap.NewDevelopment()
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(evidence)
@@ -206,7 +208,8 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		suite.NoError(suite.DB.Create(&evidence).Error)
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(struct {
@@ -258,7 +261,8 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		suite.NoError(suite.DB.Create(&evidence).Error)
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(struct {
@@ -310,7 +314,8 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		suite.NoError(suite.DB.Create(&evidence).Error)
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		var reqBody, _ = json.Marshal(struct {
@@ -373,7 +378,8 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		suite.NoError(suite.DB.Create(&evidence).Error)
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		var reqBody, _ = json.Marshal(struct {
@@ -444,7 +450,8 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		suite.NoError(suite.DB.Create(&evidence).Error)
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		var reqBody, _ = json.Marshal(struct {
@@ -542,7 +549,8 @@ func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	suite.NoError(suite.DB.Create(&evidence).Error)
 
 	logger, _ := zap.NewDevelopment()
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(struct {

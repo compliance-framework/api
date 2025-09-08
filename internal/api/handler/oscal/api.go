@@ -41,4 +41,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	assessmentResultsHandler := NewAssessmentResultsHandler(logger, db)
 	assessmentResultsHandler.Register(oscalGroup.Group("/assessment-results"))
+
+	inventoryHandler := NewInventoryHandler(logger, db)
+	inventoryHandler.Register(oscalGroup.Group("/inventory"))
 }

@@ -35,7 +35,8 @@ func (suite *ActivityApiIntegrationSuite) SetupSuite() {
 
 	logger, _ := zap.NewDevelopment()
 	suite.logger = logger.Sugar()
-	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
+	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 }
 

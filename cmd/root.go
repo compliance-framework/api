@@ -23,6 +23,8 @@ var (
 func configSetDefaults() {
 	viper.SetDefault("app_port", ":8080")
 	viper.SetDefault("db_debug", "false")
+	viper.SetDefault("metrics_enabled", "true")
+	viper.SetDefault("metrics_port", ":9090")
 }
 
 func configEnvKeys() {
@@ -35,6 +37,8 @@ func configEnvKeys() {
 	viper.BindEnv("jwt_private_key")
 	viper.BindEnv("jwt_public_key")
 	viper.BindEnv("api_allowed_origins")
+	viper.BindEnv("metrics_enabled")
+	viper.BindEnv("metrics_port")
 }
 
 func init() {

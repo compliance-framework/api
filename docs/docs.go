@@ -8644,6 +8644,206 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/inventory": {
+            "get": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Retrieves all inventory items from all sources (SSP, Evidence, POAM, AP, AR)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "Get All Inventory Items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Include items from System Security Plans",
+                        "name": "include_ssp",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Include items from Evidence",
+                        "name": "include_evidence",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Include items from Plan of Action and Milestones",
+                        "name": "include_poam",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Include items from Assessment Plans",
+                        "name": "include_ap",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Include items from Assessment Results",
+                        "name": "include_ar",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by item type (e.g., operating-system, database, web-server)",
+                        "name": "item_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by SSP attachment status",
+                        "name": "attached_to_ssp",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_InventoryItemWithSource"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Creates a new inventory item with optional attachment to SSP or POAM",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "Create Inventory Item",
+                "parameters": [
+                    {
+                        "description": "Create Inventory Item Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.CreateInventoryItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_InventoryItemWithSource"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/oscal/inventory/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ],
+                "description": "Retrieves a specific inventory item by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inventory"
+                ],
+                "summary": "Get Inventory Item by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Inventory Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_InventoryItemWithSource"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/parties": {
             "get": {
                 "security": [
@@ -16092,6 +16292,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscal_InventoryItemWithSource": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.InventoryItemWithSource"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscal_List_responseCatalog": {
             "type": "object",
             "properties": {
@@ -16916,6 +17128,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_InventoryItemWithSource": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.InventoryItemWithSource"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_ProfileHandler": {
             "type": "object",
             "properties": {
@@ -17181,6 +17406,21 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.CreateInventoryItemRequest": {
+            "type": "object",
+            "properties": {
+                "destination": {
+                    "description": "\"ssp\", \"poam\", or \"unattached\"",
+                    "type": "string"
+                },
+                "destination_id": {
+                    "type": "string"
+                },
+                "inventory_item": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                }
+            }
+        },
         "oscal.Get.responseCatalog": {
             "type": "object",
             "properties": {
@@ -17197,6 +17437,53 @@ const docTemplate = `{
             "properties": {
                 "metadata": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.InventoryItemWithSource": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "implemented-components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ImplementedComponent"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
+                    }
+                },
+                "source": {
+                    "type": "string"
+                },
+                "source_id": {
+                    "type": "string"
+                },
+                "source_type": {
+                    "type": "string"
                 },
                 "uuid": {
                     "type": "string"

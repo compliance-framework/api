@@ -6,6 +6,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -14,9 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestFilterApi(t *testing.T) {
@@ -46,7 +47,8 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		}
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)
@@ -89,7 +91,8 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		}
 
 		logger, _ := zap.NewDevelopment()
-		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)

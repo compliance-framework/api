@@ -151,7 +151,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSP() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	ssp := suite.createBasicSSP()
@@ -181,7 +182,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateSSPValidationError
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	testCases := []struct {
@@ -248,7 +250,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSP() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -283,7 +286,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetSSPNotFound() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	nonExistentUUID := uuid.New().String()
@@ -304,7 +308,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestListSSPs() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create multiple SSPs
@@ -366,7 +371,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first (without statements)
@@ -482,7 +488,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -557,7 +564,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first (without statements)
@@ -661,7 +669,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first (without statements)
@@ -687,13 +696,12 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 				StatementId: "ac-1_stmt.a",
 				Remarks:     "Initial statement implementation",
 				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
-			{
-				UUID: uuid.New().String(),
-				Description: "Test By Component",
-				ComponentUuid: componentUuid,
-			},
-
-			},
+					{
+						UUID:          uuid.New().String(),
+						Description:   "Test By Component",
+						ComponentUuid: componentUuid,
+					},
+				},
 			},
 		},
 	}
@@ -720,9 +728,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 
 	updatedByComponent := oscalTypes_1_1_3.ByComponent{
 		ComponentUuid: firstByComponent.ComponentUuid,
-		UUID: firstByComponent.UUID,
-		Description: firstByComponent.Description,
-		Remarks: "Updated by-component with new remarks",
+		UUID:          firstByComponent.UUID,
+		Description:   firstByComponent.Description,
+		Remarks:       "Updated by-component with new remarks",
 		Props: &[]oscalTypes_1_1_3.Property{
 			{
 				Name:  "updated-prop",
@@ -759,7 +767,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	// Verify the updated statement
 	suite.Equal(updatedByComponent.UUID, updateResponse.Data.UUID)
 	suite.Equal(updatedByComponent.ComponentUuid, updateResponse.Data.ComponentUuid)
-	suite.Equal( "Updated by-component with new remarks", updateResponse.Data.Remarks)
+	suite.Equal("Updated by-component with new remarks", updateResponse.Data.Remarks)
 	suite.Require().NotNil(updateResponse.Data.Props)
 	suite.Len(*updateResponse.Data.Props, 1)
 	suite.Equal("updated-prop", (*updateResponse.Data.Props)[0].Name)
@@ -973,7 +981,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -1053,7 +1062,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationCRUD
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -1209,7 +1219,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationUser
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -1347,7 +1358,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationComp
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -1510,7 +1522,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationInve
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
@@ -1694,7 +1707,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationLeve
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first
