@@ -789,7 +789,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first (without statements)
@@ -872,7 +873,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
 	// Create SSP first (without statements)
