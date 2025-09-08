@@ -3102,10 +3102,10 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id				path		string							true	"SSP ID"
-//	@Param			reqId			path		string							true	"Requirement ID"
-//	@Param			stmtId			path		string							true	"Statement ID"
-//	@Param			byComponentId	path		string							true	"By-Component ID"
+//	@Param			id				path		string	true	"SSP ID"
+//	@Param			reqId			path		string	true	"Requirement ID"
+//	@Param			stmtId			path		string	true	"Statement ID"
+//	@Param			byComponentId	path		string	true	"By-Component ID"
 //	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
 //	@Failure		400				{object}	api.Error
 //	@Failure		404				{object}	api.Error

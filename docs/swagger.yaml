@@ -13726,8 +13726,106 @@ paths:
       summary: Update a statement within an implemented requirement
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components:
+    post:
+      consumes:
+      - application/json
+      description: Create a by-component within an existing statement within an implemented
+        requirement for a given SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component data
+        in: body
+        name: by-component
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ByComponent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a by-component within a statement (within an implemented requirement)
+      tags:
+      - System Security Plans
   ? /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId}
-  : put:
+  : delete:
+      consumes:
+      - application/json
+      description: Deletes a by-component within an existing statement within an implemented
+        requirement for a given SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete a by-component within a statement (within an implemented requirement)
+      tags:
+      - System Security Plans
+    put:
       consumes:
       - application/json
       description: Updates a by-component within an existing statement within an implemented
