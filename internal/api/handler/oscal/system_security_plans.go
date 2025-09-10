@@ -120,9 +120,9 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.PUT("/:id/import-profile", h.UpdateImportProfile)
 	api.GET("/:id/system-characteristics", h.GetCharacteristics)
 	api.PUT("/:id/system-characteristics", h.UpdateCharacteristics)
-    api.GET("/:id/system-characteristics/network-architecture", h.GetCharacteristicsNetworkArchitecture)
-    api.POST("/:id/system-characteristics/network-architecture/new", h.CreateCharacteristicsNetworkArchitectureDiagram)
-    api.PUT("/:id/system-characteristics/network-architecture/diagrams/:diagram", h.UpdateCharacteristicsNetworkArchitectureDiagram)
+	api.GET("/:id/system-characteristics/network-architecture", h.GetCharacteristicsNetworkArchitecture)
+	api.POST("/:id/system-characteristics/network-architecture/diagrams", h.CreateCharacteristicsNetworkArchitectureDiagram)
+	api.PUT("/:id/system-characteristics/network-architecture/diagrams/:diagram", h.UpdateCharacteristicsNetworkArchitectureDiagram)
 	api.GET("/:id/system-characteristics/data-flow", h.GetCharacteristicsDataFlow)
 	api.PUT("/:id/system-characteristics/data-flow/diagrams/:diagram", h.UpdateCharacteristicsDataFlowDiagram)
 	api.GET("/:id/system-characteristics/authorization-boundary", h.GetCharacteristicsAuthorizationBoundary)
@@ -373,61 +373,61 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx ec
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/new [post]
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams [post]
 func (h *SystemSecurityPlanHandler) CreateCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
-    idParam := ctx.Param("id")
-    sspID, err := uuid.Parse(idParam)
-    if err != nil {
-        h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
-        return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-    }
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
-    // Load SSP with Network Architecture so we can attach the diagram
-    var ssp relational.SystemSecurityPlan
-    if err := h.db.
-        Preload("SystemCharacteristics.NetworkArchitecture").
-        First(&ssp, "id = ?", sspID).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(err))
-        }
-        h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
-        return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-    }
+	// Load SSP with Network Architecture so we can attach the diagram
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.NetworkArchitecture").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
-    na := ssp.SystemCharacteristics.NetworkArchitecture
-    if na == nil || na.ID == nil {
-        return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no network architecture for system security plan %s", idParam)))
-    }
+	na := ssp.SystemCharacteristics.NetworkArchitecture
+	if na == nil || na.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no network architecture for system security plan %s", idParam)))
+	}
 
-    // Bind incoming diagram
-    var oscalDiag oscalTypes_1_1_3.Diagram
-    if err := ctx.Bind(&oscalDiag); err != nil {
-        h.sugar.Warnw("Invalid create diagram request", "error", err)
-        return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-    }
+	// Bind incoming diagram
+	var oscalDiag oscalTypes_1_1_3.Diagram
+	if err := ctx.Bind(&oscalDiag); err != nil {
+		h.sugar.Warnw("Invalid create diagram request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
-    // Basic UUID validation (consistent with other creates)
-    if oscalDiag.UUID == "" {
-        return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
-    }
-    if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
-        return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
-    }
+	// Basic UUID validation (consistent with other creates)
+	if oscalDiag.UUID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	}
+	if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	}
 
-    // Map to relational model and set polymorphic parent
-    relDiag := &relational.Diagram{}
-    relDiag.UnmarshalOscal(oscalDiag)
-    parentID := na.ID.String()
-    parentType := "network_architectures"
-    relDiag.ParentID = &parentID
-    relDiag.ParentType = &parentType
+	// Map to relational model and set polymorphic parent
+	relDiag := &relational.Diagram{}
+	relDiag.UnmarshalOscal(oscalDiag)
+	parentID := na.ID.String()
+	parentType := "network_architectures"
+	relDiag.ParentID = &parentID
+	relDiag.ParentType = &parentType
 
-    if err := h.db.Create(relDiag).Error; err != nil {
-        h.sugar.Errorf("Failed to create network architecture diagram: %v", err)
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	if err := h.db.Create(relDiag).Error; err != nil {
+		h.sugar.Errorf("Failed to create network architecture diagram: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
-    return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
 }
 
 // UpdateCharacteristicsNetworkArchitectureDiagram godoc
@@ -3102,66 +3102,66 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 	}
 
 	// Step 1: Verify SSP exists
-    var ssp relational.SystemSecurityPlan
-    if err := h.db.Preload("ControlImplementation").
-        First(&ssp, "id = ?", sspID).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 2: Verify Implemented Requirement belongs to SSP
-    var req relational.ImplementedRequirement
-    if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
-        First(&req).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 3: Verify Statement belongs to Requirement
-    var stmt relational.Statement
-    if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
-        First(&stmt).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var stmt relational.Statement
+	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
+		First(&stmt).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 4: Verify ByComponent belongs to Statement
-    var existing relational.ByComponent
-    if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", 
-        byComponentID, stmt.ID, "statements").
-        First(&existing).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var existing relational.ByComponent
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
+		byComponentID, stmt.ID, "statements").
+		First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 5: Parse request body
-    var oscalBC oscalTypes_1_1_3.ByComponent
-    if err := ctx.Bind(&oscalBC); err != nil {
-        return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-    }
+	var oscalBC oscalTypes_1_1_3.ByComponent
+	if err := ctx.Bind(&oscalBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
-    // Step 6: Map and update
-    relBC := &relational.ByComponent{}
-    relBC.UnmarshalOscal(oscalBC)
-    relBC.ID = &byComponentID
-    relBC.ParentID = stmt.ID      
+	// Step 6: Map and update
+	relBC := &relational.ByComponent{}
+	relBC.UnmarshalOscal(oscalBC)
+	relBC.ID = &byComponentID
+	relBC.ParentID = stmt.ID
 	parentType := "statements"
-    relBC.ParentType = &parentType  
+	relBC.ParentType = &parentType
 
-    if err := h.db.Save(relBC).Error; err != nil {
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	if err := h.db.Save(relBC).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
-    // Step 7: Return updated
-    return ctx.JSON(http.StatusOK,
-        handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
-    )
+	// Step 7: Return updated
+	return ctx.JSON(http.StatusOK,
+		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
+	)
 }

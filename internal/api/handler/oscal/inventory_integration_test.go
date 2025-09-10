@@ -26,45 +26,45 @@ import (
 
 type InventoryApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
-	handler *InventoryHandler
-	sspHandler *SystemSecurityPlanHandler
-	poamHandler *PlanOfActionAndMilestonesHandler
+	handler         *InventoryHandler
+	sspHandler      *SystemSecurityPlanHandler
+	poamHandler     *PlanOfActionAndMilestonesHandler
 	evidenceHandler *handler.EvidenceHandler
-	server *api.Server
+	server          *api.Server
 }
 
 func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	suite.IntegrationTestSuite.SetupSuite()
-	
+
 	// Initialize handlers
 	logger := zap.NewNop().Sugar()
 	suite.handler = NewInventoryHandler(logger, suite.DB)
 	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB)
 	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
 	suite.evidenceHandler = handler.NewEvidenceHandler(logger, suite.DB)
-	
+
 	// Initialize server
 	metrics := api.NewMetricsHandler(context.Background(), logger)
 	suite.server = api.NewServer(context.Background(), logger, suite.Config, metrics)
-	
+
 	// Register handlers
 	apiGroup := suite.server.API()
-	
+
 	// Register inventory handler with auth middleware
 	inventoryGroup := apiGroup.Group("/oscal/inventory")
 	inventoryGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
 	suite.handler.Register(inventoryGroup)
-	
+
 	// Register SSP handler
 	sspGroup := apiGroup.Group("/oscal/system-security-plans")
 	sspGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
 	suite.sspHandler.Register(sspGroup)
-	
+
 	// Register POAM handler
 	poamGroup := apiGroup.Group("/oscal/plan-of-action-and-milestones")
 	poamGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
 	suite.poamHandler.Register(poamGroup)
-	
+
 	// Register evidence handler
 	evidenceGroup := apiGroup.Group("/evidence")
 	evidenceGroup.Use(middleware.JWTMiddleware(suite.Config.JWTPublicKey))
@@ -98,7 +98,7 @@ func (suite *InventoryApiIntegrationSuite) createRequest(method, path string, bo
 func (suite *InventoryApiIntegrationSuite) createSSPWithInventory() (*oscalTypes_1_1_3.SystemSecurityPlan, []oscalTypes_1_1_3.InventoryItem) {
 	sspUUID := uuid.New().String()
 	now := time.Now()
-	
+
 	inventoryItems := []oscalTypes_1_1_3.InventoryItem{
 		{
 			UUID:        uuid.New().String(),
@@ -192,11 +192,11 @@ func (suite *InventoryApiIntegrationSuite) createEvidenceWithInventory() (*handl
 	}
 
 	evidence := &handler.EvidenceCreateRequest{
-		UUID:        uuid.New(),
-		Title:       "Test Evidence with Inventory",
-		Description: "Evidence containing inventory items from agent scan",
-		Start:       time.Now().Add(-1 * time.Hour),
-		End:         time.Now(),
+		UUID:           uuid.New(),
+		Title:          "Test Evidence with Inventory",
+		Description:    "Evidence containing inventory items from agent scan",
+		Start:          time.Now().Add(-1 * time.Hour),
+		End:            time.Now(),
 		InventoryItems: inventoryItems,
 		Status: oscalTypes_1_1_3.ObjectiveStatus{
 			State: "satisfied",
@@ -210,7 +210,7 @@ func (suite *InventoryApiIntegrationSuite) createEvidenceWithInventory() (*handl
 func (suite *InventoryApiIntegrationSuite) createPOAMWithInventory() (*oscalTypes_1_1_3.PlanOfActionAndMilestones, []oscalTypes_1_1_3.InventoryItem) {
 	poamUUID := uuid.New().String()
 	now := time.Now()
-	
+
 	inventoryItems := []oscalTypes_1_1_3.InventoryItem{
 		{
 			UUID:        uuid.New().String(),
@@ -256,11 +256,11 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_Empty() {
 	// Test when database is empty
 	req := suite.createRequest(http.MethodGet, "/api/oscal/inventory", nil)
 	rec := httptest.NewRecorder()
-	
+
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
@@ -270,25 +270,25 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_Empty() {
 func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_FromSSP() {
 	// Create an SSP with inventory items
 	ssp, expectedItems := suite.createSSPWithInventory()
-	
+
 	// Save SSP to database
 	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Get all inventory items
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
 	suite.Len(response.Data, len(expectedItems))
-	
+
 	// Verify items are from SSP
 	for _, item := range response.Data {
 		suite.Equal("System Security Plan", item.Source)
@@ -300,25 +300,25 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_FromSSP() {
 func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_FromEvidence() {
 	// Create evidence with inventory items
 	evidence, expectedItems := suite.createEvidenceWithInventory()
-	
+
 	// Save evidence to database
 	req := suite.createRequest(http.MethodPost, "/api/evidence", evidence)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Get all inventory items
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory?include_evidence=true&include_ssp=false", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
 	suite.Len(response.Data, len(expectedItems))
-	
+
 	// Verify items are from Evidence
 	for _, item := range response.Data {
 		suite.Equal("Evidence Collection", item.Source)
@@ -329,25 +329,25 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_FromEvidence
 func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_FromPOAM() {
 	// Create a POAM with inventory items
 	poam, expectedItems := suite.createPOAMWithInventory()
-	
+
 	// Save POAM to database
 	req := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", poam)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Get all inventory items from POAM only
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory?include_poam=true&include_ssp=false&include_evidence=false", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
 	suite.Len(response.Data, len(expectedItems))
-	
+
 	// Verify items are from POAM
 	for _, item := range response.Data {
 		suite.Equal("Plan of Action and Milestones", item.Source)
@@ -358,20 +358,20 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_FromPOAM() {
 func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_WithTypeFilter() {
 	// Create SSP with different types of inventory
 	ssp, _ := suite.createSSPWithInventory()
-	
+
 	// Save SSP
 	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Filter by web-server type
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory?item_type=web-server", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
@@ -386,40 +386,40 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_WithSSPAttac
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Create evidence with inventory (not attached to SSP)
 	evidence, _ := suite.createEvidenceWithInventory()
 	req = suite.createRequest(http.MethodPost, "/api/evidence", evidence)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Get only items attached to SSP
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory?attached_to_ssp=true", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
-	
+
 	// Should only get SSP items
 	for _, item := range response.Data {
 		suite.Equal("ssp", item.SourceType)
 	}
-	
+
 	// Get only items NOT attached to SSP
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory?attached_to_ssp=false", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	err = json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
-	
+
 	// Should only get evidence items
 	for _, item := range response.Data {
 		suite.Equal("evidence", item.SourceType)
@@ -433,26 +433,26 @@ func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem() {
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// First get all inventory items to get the actual saved UUIDs
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var listResponse handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&listResponse)
 	suite.NoError(err)
 	suite.NotEmpty(listResponse.Data, "Should have inventory items")
-	
+
 	// Get the first item by its actual saved ID
 	itemID := listResponse.Data[0].UUID
 	req = suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/inventory/%s", itemID), nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataResponse[InventoryItemWithSource]
 	err = json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
@@ -467,7 +467,7 @@ func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem_NotFound() {
 	req := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/inventory/%s", fakeID), nil)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusNotFound, rec.Code)
 }
 
@@ -476,7 +476,7 @@ func (suite *InventoryApiIntegrationSuite) TestGetInventoryItem_InvalidUUID() {
 	req := suite.createRequest(http.MethodGet, "/api/oscal/inventory/invalid-uuid", nil)
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusBadRequest, rec.Code)
 }
 
@@ -485,9 +485,9 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_Unauthorized
 	req := httptest.NewRequest(http.MethodGet, "/api/oscal/inventory", nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-	
+
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusUnauthorized, rec.Code)
 }
 
@@ -498,26 +498,26 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_MultipleSour
 	rec := httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Create POAM with inventory
 	poam, _ := suite.createPOAMWithInventory()
 	req = suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", poam)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusCreated, rec.Code)
-	
+
 	// Get items from SSP and POAM only
 	req = suite.createRequest(http.MethodGet, "/api/oscal/inventory?include_ssp=true&include_poam=true&include_evidence=false", nil)
 	rec = httptest.NewRecorder()
 	suite.server.E().ServeHTTP(rec, req)
-	
+
 	suite.Equal(http.StatusOK, rec.Code)
-	
+
 	var response handler.GenericDataListResponse[InventoryItemWithSource]
 	err := json.NewDecoder(rec.Body).Decode(&response)
 	suite.NoError(err)
 	suite.Len(response.Data, 3) // 2 from SSP + 1 from POAM
-	
+
 	// Verify sources
 	sourceTypes := make(map[string]bool)
 	for _, item := range response.Data {

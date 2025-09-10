@@ -22,12 +22,12 @@ const (
 	InventorySourceAssessmentPlan    = "Assessment Plan"
 	InventorySourceAssessmentResults = "Assessment Results"
 	InventorySourceUnknown           = "Unknown"
-	
+
 	// Source type identifiers
 	SourceTypeSSP               = "ssp"
 	SourceTypeEvidence          = "evidence"
 	SourceTypePOAM              = "poam"
-	SourceTypeAssessmentPlan   = "assessment-plan"
+	SourceTypeAssessmentPlan    = "assessment-plan"
 	SourceTypeAssessmentResults = "assessment-results"
 	SourceTypeAP                = "ap"
 	SourceTypeAR                = "ar"
@@ -65,8 +65,8 @@ type InventoryItemWithSource struct {
 
 // CreateInventoryItemRequest represents the request for creating an inventory item
 type CreateInventoryItemRequest struct {
-	Destination   string                          `json:"destination"` // "ssp", "poam", or "unattached"
-	DestinationID string                          `json:"destination_id,omitempty"`
+	Destination   string                         `json:"destination"` // "ssp", "poam", or "unattached"
+	DestinationID string                         `json:"destination_id,omitempty"`
 	InventoryItem oscalTypes_1_1_3.InventoryItem `json:"inventory_item"`
 }
 
@@ -114,7 +114,7 @@ func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
 
 	// Parse boolean values from strings
 	includeSSP := req.IncludeSSP == "" || req.IncludeSSP == "true"
-	includeEvidence := req.IncludeEvidence == "" || req.IncludeEvidence == "true"  
+	includeEvidence := req.IncludeEvidence == "" || req.IncludeEvidence == "true"
 	includePOAM := req.IncludePOAM == "" || req.IncludePOAM == "true"
 	includeAP := req.IncludeAP == "true"
 	includeAR := req.IncludeAR == "true"
@@ -179,7 +179,7 @@ func (h *InventoryHandler) GetAllInventoryItems(ctx echo.Context) error {
 func (h *InventoryHandler) fetchSSPInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
 	var ssps []relational.SystemSecurityPlan
 	query := h.db.Preload("SystemImplementation.InventoryItems.ImplementedComponents")
-	
+
 	if err := query.Find(&ssps).Error; err != nil {
 		return err
 	}
@@ -193,9 +193,9 @@ func (h *InventoryHandler) fetchSSPInventoryItems(items *[]InventoryItemWithSour
 		for _, item := range *oscalSSP.SystemImplementation.InventoryItems {
 			*items = append(*items, InventoryItemWithSource{
 				InventoryItem: item,
-				Source:       InventorySourceSSP,
-				SourceID:     ssp.ID.String(),
-				SourceType:   SourceTypeSSP,
+				Source:        InventorySourceSSP,
+				SourceID:      ssp.ID.String(),
+				SourceType:    SourceTypeSSP,
 			})
 		}
 	}
@@ -205,19 +205,19 @@ func (h *InventoryHandler) fetchSSPInventoryItems(items *[]InventoryItemWithSour
 
 func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWithSource, req GetAllInventoryItemsRequest) error {
 	var evidenceItems []relational.InventoryItem
-	
+
 	// Query inventory items that come from evidence
 	// We want items that are linked to evidence but may not have a system_implementation_id
 	query := h.db.Table("inventory_items").
 		Joins("JOIN evidence_inventory_items ON evidence_inventory_items.inventory_item_id = inventory_items.id").
 		Distinct("inventory_items.*").
 		Preload("ImplementedComponents")
-	
+
 	// Only filter by SSP attachment if explicitly requested
 	if req.AttachedToSSP == "false" {
 		query = query.Where("inventory_items.system_implementation_id IS NULL")
 	}
-	
+
 	if err := query.Find(&evidenceItems).Error; err != nil {
 		return err
 	}
@@ -226,9 +226,9 @@ func (h *InventoryHandler) fetchEvidenceInventoryItems(items *[]InventoryItemWit
 		oscalItem := item.MarshalOscal()
 		*items = append(*items, InventoryItemWithSource{
 			InventoryItem: oscalItem,
-			Source:       InventorySourceEvidence,
-			SourceID:     item.ID.String(),
-			SourceType:   SourceTypeEvidence,
+			Source:        InventorySourceEvidence,
+			SourceID:      item.ID.String(),
+			SourceType:    SourceTypeEvidence,
 		})
 	}
 
@@ -239,7 +239,7 @@ func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSou
 	// First, get items from POAM documents themselves
 	var poams []relational.PlanOfActionAndMilestones
 	query := h.db.Find(&poams)
-	
+
 	if err := query.Error; err != nil {
 		return err
 	}
@@ -253,13 +253,13 @@ func (h *InventoryHandler) fetchPOAMInventoryItems(items *[]InventoryItemWithSou
 		for _, item := range *oscalPOAM.LocalDefinitions.InventoryItems {
 			*items = append(*items, InventoryItemWithSource{
 				InventoryItem: item,
-				Source:       InventorySourcePOAM,
-				SourceID:     poam.ID.String(),
-				SourceType:   SourceTypePOAM,
+				Source:        InventorySourcePOAM,
+				SourceID:      poam.ID.String(),
+				SourceType:    SourceTypePOAM,
 			})
 		}
 	}
-	
+
 	// Also get inventory items with "planned-for" property
 	// Note: Props are stored as JSON in the inventory_items table, not as a separate table
 	// For now, we'll skip this as it requires complex JSON querying
@@ -273,19 +273,19 @@ func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSourc
 		relational.InventoryItem
 		AssessmentPlanID uuid.UUID `gorm:"column:assessment_plan_id"`
 	}
-	
+
 	query := h.db.Table("inventory_items").
 		Select("inventory_items.*, ap.id as assessment_plan_id").
 		Joins("JOIN local_definition_inventory_items ldi ON inventory_items.id = ldi.inventory_item_id").
 		Joins("JOIN local_definitions ld ON ld.id = ldi.local_definitions_id").
 		Joins("JOIN assessment_plans ap ON ap.id = ld.parent_id").
 		Where("ld.parent_type = ?", "assessment_plans")
-	
+
 	if err := query.Find(&apInventoryItems).Error; err != nil {
 		h.sugar.Errorf("Failed to fetch AP inventory items: %v", err)
 		return err
 	}
-	
+
 	// Convert to InventoryItemWithSource
 	for _, item := range apInventoryItems {
 		*items = append(*items, InventoryItemWithSource{
@@ -295,7 +295,7 @@ func (h *InventoryHandler) fetchAPInventoryItems(items *[]InventoryItemWithSourc
 			SourceType:    SourceTypeAssessmentPlan,
 		})
 	}
-	
+
 	return nil
 }
 
@@ -305,19 +305,19 @@ func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSourc
 		relational.InventoryItem
 		AssessmentResultID uuid.UUID `gorm:"column:assessment_result_id"`
 	}
-	
+
 	query := h.db.Table("inventory_items").
 		Select("inventory_items.*, ar.id as assessment_result_id").
 		Joins("JOIN local_definition_inventory_items ldi ON inventory_items.id = ldi.inventory_item_id").
 		Joins("JOIN local_definitions ld ON ld.id = ldi.local_definitions_id").
 		Joins("JOIN assessment_results ar ON ar.id = ld.parent_id").
 		Where("ld.parent_type = ?", "assessment_results")
-	
+
 	if err := query.Find(&arInventoryItems).Error; err != nil {
 		h.sugar.Errorf("Failed to fetch AR inventory items: %v", err)
 		return err
 	}
-	
+
 	// Convert to InventoryItemWithSource
 	for _, item := range arInventoryItems {
 		*items = append(*items, InventoryItemWithSource{
@@ -327,7 +327,7 @@ func (h *InventoryHandler) fetchARInventoryItems(items *[]InventoryItemWithSourc
 			SourceType:    SourceTypeAssessmentResults,
 		})
 	}
-	
+
 	return nil
 }
 
@@ -399,7 +399,7 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 	}
 
 	oscalItem := item.MarshalOscal()
-	
+
 	// Determine source
 	source := InventorySourceUnknown
 	sourceType := SourceTypeUnknown
@@ -418,9 +418,9 @@ func (h *InventoryHandler) GetInventoryItem(ctx echo.Context) error {
 
 	response := InventoryItemWithSource{
 		InventoryItem: oscalItem,
-		Source:       source,
-		SourceID:     item.ID.String(),
-		SourceType:   sourceType,
+		Source:        source,
+		SourceID:      item.ID.String(),
+		SourceType:    sourceType,
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[InventoryItemWithSource]{Data: response})
@@ -449,11 +449,11 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 
 	// Validate destination
 	validDestinations := map[string]bool{
-		SourceTypeSSP: true,
-		SourceTypePOAM: true,
-		SourceTypeAssessmentPlan: true,
+		SourceTypeSSP:               true,
+		SourceTypePOAM:              true,
+		SourceTypeAssessmentPlan:    true,
 		SourceTypeAssessmentResults: true,
-		"unattached": true,
+		"unattached":                true,
 	}
 	if !validDestinations[req.Destination] {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid destination: %s", req.Destination)))
@@ -467,30 +467,30 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 	// Create the relational inventory item
 	item := relational.InventoryItem{}
 	item.UnmarshalOscal(req.InventoryItem)
-	
+
 	// Set destination-specific fields
 	switch req.Destination {
 	case SourceTypeSSP:
 		if req.DestinationID == "" {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("destination_id required for SSP")))
 		}
-		
+
 		// Get the system implementation ID
 		var systemImpl relational.SystemImplementation
 		destID, err := uuid.Parse(req.DestinationID)
 		if err != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 		}
-		
+
 		if err := h.db.Where("system_security_plan_id = ?", destID).First(&systemImpl).Error; err != nil {
 			h.sugar.Errorw("Failed to find system implementation", "ssp_id", req.DestinationID, "error", err)
 			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 		}
-		
+
 		if systemImpl.ID != nil && *systemImpl.ID != (uuid.UUID{}) {
 			item.SystemImplementationId = *systemImpl.ID
 		}
-		
+
 	case SourceTypePOAM:
 		// For POAM, store as unattached with a property indicating POAM destination
 		if req.InventoryItem.Props == nil {
@@ -502,7 +502,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 			Value: "poam:" + req.DestinationID,
 		})
 		item.UnmarshalOscal(req.InventoryItem)
-		
+
 	case SourceTypeAssessmentPlan:
 		// For Assessment Plan, store as unattached with a property indicating AP destination
 		if req.InventoryItem.Props == nil {
@@ -514,7 +514,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 			Value: "assessment-plan:" + req.DestinationID,
 		})
 		item.UnmarshalOscal(req.InventoryItem)
-		
+
 	case SourceTypeAssessmentResults:
 		// For Assessment Results, store as unattached with a property indicating AR destination
 		if req.InventoryItem.Props == nil {
@@ -526,7 +526,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 			Value: "assessment-results:" + req.DestinationID,
 		})
 		item.UnmarshalOscal(req.InventoryItem)
-		
+
 	case "unattached":
 		// No additional fields needed
 	}
@@ -541,7 +541,7 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 	oscalItem := item.MarshalOscal()
 	source := "Manual Creation"
 	sourceType := req.Destination
-	
+
 	switch req.Destination {
 	case SourceTypeSSP:
 		source = InventorySourceSSP
@@ -552,12 +552,12 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 	case SourceTypeAssessmentResults:
 		source = InventorySourceAssessmentResults
 	}
-	
+
 	response := InventoryItemWithSource{
 		InventoryItem: oscalItem,
-		Source:       source,
-		SourceID:     item.ID.String(),
-		SourceType:   sourceType,
+		Source:        source,
+		SourceID:      item.ID.String(),
+		SourceType:    sourceType,
 	}
 
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[InventoryItemWithSource]{
