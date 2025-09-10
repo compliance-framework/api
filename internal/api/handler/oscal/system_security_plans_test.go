@@ -1650,5 +1650,76 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationLeve
 }
 
 func TestSystemSecurityPlanApiIntegrationSuite(t *testing.T) {
-	suite.Run(t, new(SystemSecurityPlanApiIntegrationSuite))
+    suite.Run(t, new(SystemSecurityPlanApiIntegrationSuite))
+}
+
+// Test creating a Network Architecture diagram
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectureDiagram() {
+    logConf := zap.NewDevelopmentConfig()
+    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+    logger, _ := logConf.Build()
+
+    err := suite.Migrator.Refresh()
+    suite.Require().NoError(err)
+
+    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+    // Create SSP with a NetworkArchitecture present
+    ssp := suite.createBasicSSP()
+    na := oscalTypes_1_1_3.NetworkArchitecture{
+        Description: "Test NA",
+    }
+    ssp.SystemCharacteristics.NetworkArchitecture = &na
+
+    // Create the SSP
+    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+    resp := httptest.NewRecorder()
+    server.E().ServeHTTP(resp, req)
+    suite.Equal(http.StatusCreated, resp.Code)
+
+    // Create a new diagram under network architecture
+    diagram := oscalTypes_1_1_3.Diagram{
+        UUID:        uuid.New().String(),
+        Description: "Network diagram 1",
+        Caption:     "NA Diagram",
+    }
+
+    createReq := suite.createRequest(http.MethodPost,
+        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/new", ssp.UUID), diagram)
+    createResp := httptest.NewRecorder()
+    server.E().ServeHTTP(createResp, createReq)
+    suite.Equal(http.StatusCreated, createResp.Code)
+
+    var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+    err = json.Unmarshal(createResp.Body.Bytes(), &createResponse)
+    suite.Require().NoError(err)
+    suite.Equal(diagram.UUID, createResponse.Data.UUID)
+    suite.Equal("Network diagram 1", createResponse.Data.Description)
+    suite.Equal("NA Diagram", createResponse.Data.Caption)
+
+    // Fetch NA and verify the diagram is listed
+    getReq := suite.createRequest(http.MethodGet,
+        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture", ssp.UUID), nil)
+    getResp := httptest.NewRecorder()
+    server.E().ServeHTTP(getResp, getReq)
+    suite.Equal(http.StatusOK, getResp.Code)
+
+    var naResponse handler.GenericDataResponse[*oscalTypes_1_1_3.NetworkArchitecture]
+    err = json.Unmarshal(getResp.Body.Bytes(), &naResponse)
+    suite.Require().NoError(err)
+    suite.Require().NotNil(naResponse.Data)
+    suite.Require().NotNil(naResponse.Data.Diagrams)
+    suite.Require().GreaterOrEqual(len(*naResponse.Data.Diagrams), 1)
+
+    // Ensure one of the diagrams matches the created one
+    found := false
+    for _, d := range *naResponse.Data.Diagrams {
+        if d.UUID == diagram.UUID {
+            found = true
+            break
+        }
+    }
+    suite.True(found, "created diagram should be present in network architecture")
 }
