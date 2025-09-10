@@ -1686,8 +1686,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 		Caption:     "NA Diagram",
 	}
 
-    createReq := suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diagram)
+	createReq := suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diagram)
 	createResp := httptest.NewRecorder()
 	server.E().ServeHTTP(createResp, createReq)
 	suite.Equal(http.StatusCreated, createResp.Code)
@@ -1726,581 +1726,581 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectur
 
 // Test creating a Data Flow diagram
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // Create SSP with a DataFlow present
-    ssp := suite.createBasicSSP()
-    df := oscalTypes_1_1_3.DataFlow{
-        Description: "Test DF",
-    }
-    ssp.SystemCharacteristics.DataFlow = &df
+	// Create SSP with a DataFlow present
+	ssp := suite.createBasicSSP()
+	df := oscalTypes_1_1_3.DataFlow{
+		Description: "Test DF",
+	}
+	ssp.SystemCharacteristics.DataFlow = &df
 
-    // Create the SSP
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// Create the SSP
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    // Create a new diagram under data flow
-    diagram := oscalTypes_1_1_3.Diagram{
-        UUID:        uuid.New().String(),
-        Description: "Data flow diagram 1",
-        Caption:     "DF Diagram",
-    }
+	// Create a new diagram under data flow
+	diagram := oscalTypes_1_1_3.Diagram{
+		UUID:        uuid.New().String(),
+		Description: "Data flow diagram 1",
+		Caption:     "DF Diagram",
+	}
 
-    createReq := suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diagram)
-    createResp := httptest.NewRecorder()
-    server.E().ServeHTTP(createResp, createReq)
-    suite.Equal(http.StatusCreated, createResp.Code)
+	createReq := suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diagram)
+	createResp := httptest.NewRecorder()
+	server.E().ServeHTTP(createResp, createReq)
+	suite.Equal(http.StatusCreated, createResp.Code)
 
-    var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
-    err = json.Unmarshal(createResp.Body.Bytes(), &createResponse)
-    suite.Require().NoError(err)
-    suite.Equal(diagram.UUID, createResponse.Data.UUID)
-    suite.Equal("Data flow diagram 1", createResponse.Data.Description)
-    suite.Equal("DF Diagram", createResponse.Data.Caption)
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+	err = json.Unmarshal(createResp.Body.Bytes(), &createResponse)
+	suite.Require().NoError(err)
+	suite.Equal(diagram.UUID, createResponse.Data.UUID)
+	suite.Equal("Data flow diagram 1", createResponse.Data.Description)
+	suite.Equal("DF Diagram", createResponse.Data.Caption)
 
-    // Fetch Data Flow and verify the diagram is listed
-    getReq := suite.createRequest(http.MethodGet,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow", ssp.UUID), nil)
-    getResp := httptest.NewRecorder()
-    server.E().ServeHTTP(getResp, getReq)
-    suite.Equal(http.StatusOK, getResp.Code)
+	// Fetch Data Flow and verify the diagram is listed
+	getReq := suite.createRequest(http.MethodGet,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow", ssp.UUID), nil)
+	getResp := httptest.NewRecorder()
+	server.E().ServeHTTP(getResp, getReq)
+	suite.Equal(http.StatusOK, getResp.Code)
 
-    var dfResponse handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]
-    err = json.Unmarshal(getResp.Body.Bytes(), &dfResponse)
-    suite.Require().NoError(err)
-    suite.Require().NotNil(dfResponse.Data)
-    suite.Require().NotNil(dfResponse.Data.Diagrams)
-    suite.Require().GreaterOrEqual(len(*dfResponse.Data.Diagrams), 1)
+	var dfResponse handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]
+	err = json.Unmarshal(getResp.Body.Bytes(), &dfResponse)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(dfResponse.Data)
+	suite.Require().NotNil(dfResponse.Data.Diagrams)
+	suite.Require().GreaterOrEqual(len(*dfResponse.Data.Diagrams), 1)
 
-    found := false
-    for _, d := range *dfResponse.Data.Diagrams {
-        if d.UUID == diagram.UUID {
-            found = true
-            break
-        }
-    }
-    suite.True(found, "created diagram should be present in data flow")
+	found := false
+	for _, d := range *dfResponse.Data.Diagrams {
+		if d.UUID == diagram.UUID {
+			found = true
+			break
+		}
+	}
+	suite.True(found, "created diagram should be present in data flow")
 }
 
 // Test creating an Authorization Boundary diagram
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateAuthorizationBoundaryDiagram() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // Create SSP with an AuthorizationBoundary present
-    ssp := suite.createBasicSSP()
-    ab := oscalTypes_1_1_3.AuthorizationBoundary{
-        Description: "Test AB",
-    }
-    ssp.SystemCharacteristics.AuthorizationBoundary = ab
+	// Create SSP with an AuthorizationBoundary present
+	ssp := suite.createBasicSSP()
+	ab := oscalTypes_1_1_3.AuthorizationBoundary{
+		Description: "Test AB",
+	}
+	ssp.SystemCharacteristics.AuthorizationBoundary = ab
 
-    // Create the SSP
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// Create the SSP
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    // Create a new diagram under authorization boundary
-    diagram := oscalTypes_1_1_3.Diagram{
-        UUID:        uuid.New().String(),
-        Description: "Authorization boundary diagram 1",
-        Caption:     "AB Diagram",
-    }
+	// Create a new diagram under authorization boundary
+	diagram := oscalTypes_1_1_3.Diagram{
+		UUID:        uuid.New().String(),
+		Description: "Authorization boundary diagram 1",
+		Caption:     "AB Diagram",
+	}
 
-    createReq := suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), diagram)
-    createResp := httptest.NewRecorder()
-    server.E().ServeHTTP(createResp, createReq)
-    suite.Equal(http.StatusCreated, createResp.Code)
+	createReq := suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), diagram)
+	createResp := httptest.NewRecorder()
+	server.E().ServeHTTP(createResp, createReq)
+	suite.Equal(http.StatusCreated, createResp.Code)
 
-    var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
-    err = json.Unmarshal(createResp.Body.Bytes(), &createResponse)
-    suite.Require().NoError(err)
-    suite.Equal(diagram.UUID, createResponse.Data.UUID)
-    suite.Equal("Authorization boundary diagram 1", createResponse.Data.Description)
-    suite.Equal("AB Diagram", createResponse.Data.Caption)
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+	err = json.Unmarshal(createResp.Body.Bytes(), &createResponse)
+	suite.Require().NoError(err)
+	suite.Equal(diagram.UUID, createResponse.Data.UUID)
+	suite.Equal("Authorization boundary diagram 1", createResponse.Data.Description)
+	suite.Equal("AB Diagram", createResponse.Data.Caption)
 
-    // Fetch Authorization Boundary and verify the diagram is listed
-    getReq := suite.createRequest(http.MethodGet,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary", ssp.UUID), nil)
-    getResp := httptest.NewRecorder()
-    server.E().ServeHTTP(getResp, getReq)
-    suite.Equal(http.StatusOK, getResp.Code)
+	// Fetch Authorization Boundary and verify the diagram is listed
+	getReq := suite.createRequest(http.MethodGet,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary", ssp.UUID), nil)
+	getResp := httptest.NewRecorder()
+	server.E().ServeHTTP(getResp, getReq)
+	suite.Equal(http.StatusOK, getResp.Code)
 
-    var abResponse handler.GenericDataResponse[*oscalTypes_1_1_3.AuthorizationBoundary]
-    err = json.Unmarshal(getResp.Body.Bytes(), &abResponse)
-    suite.Require().NoError(err)
-    suite.Require().NotNil(abResponse.Data)
-    suite.Require().NotNil(abResponse.Data.Diagrams)
-    suite.Require().GreaterOrEqual(len(*abResponse.Data.Diagrams), 1)
+	var abResponse handler.GenericDataResponse[*oscalTypes_1_1_3.AuthorizationBoundary]
+	err = json.Unmarshal(getResp.Body.Bytes(), &abResponse)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(abResponse.Data)
+	suite.Require().NotNil(abResponse.Data.Diagrams)
+	suite.Require().GreaterOrEqual(len(*abResponse.Data.Diagrams), 1)
 
-    found := false
-    for _, d := range *abResponse.Data.Diagrams {
-        if d.UUID == diagram.UUID {
-            found = true
-            break
-        }
-    }
-    suite.True(found, "created diagram should be present in authorization boundary")
+	found := false
+	for _, d := range *abResponse.Data.Diagrams {
+		if d.UUID == diagram.UUID {
+			found = true
+			break
+		}
+	}
+	suite.True(found, "created diagram should be present in authorization boundary")
 }
 
 // Negative: Network Architecture missing, invalid IDs and invalid body
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateNetworkArchitectureDiagram_Negative() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // 1) Invalid SSP ID in path
-    badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/network-architecture/diagrams", badDiagram)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// 1) Invalid SSP ID in path
+	badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/network-architecture/diagrams", badDiagram)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // 2) Missing Network Architecture -> 404
-    ssp := suite.createBasicSSP()
-    ssp.SystemCharacteristics.NetworkArchitecture = nil
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// 2) Missing Network Architecture -> 404
+	ssp := suite.createBasicSSP()
+	ssp.SystemCharacteristics.NetworkArchitecture = nil
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    // Attempt to create diagram when NA is missing
-    diagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "NA diag"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diagram)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusNotFound, resp.Code)
+	// Attempt to create diagram when NA is missing
+	diagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "NA diag"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diagram)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
 
-    // 3) Invalid/Missing diagram UUID -> 400
-    // Recreate SSP with NA present
-    err = suite.Migrator.Refresh()
-    suite.Require().NoError(err)
-    ssp2 := suite.createBasicSSP()
-    na := oscalTypes_1_1_3.NetworkArchitecture{Description: "present"}
-    ssp2.SystemCharacteristics.NetworkArchitecture = &na
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp2)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// 3) Invalid/Missing diagram UUID -> 400
+	// Recreate SSP with NA present
+	err = suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	ssp2 := suite.createBasicSSP()
+	na := oscalTypes_1_1_3.NetworkArchitecture{Description: "present"}
+	ssp2.SystemCharacteristics.NetworkArchitecture = &na
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp2)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    // Missing UUID
-    missingUUID := oscalTypes_1_1_3.Diagram{Description: "no uuid"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp2.UUID), missingUUID)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// Missing UUID
+	missingUUID := oscalTypes_1_1_3.Diagram{Description: "no uuid"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp2.UUID), missingUUID)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // Invalid UUID format
-    invalidUUID := oscalTypes_1_1_3.Diagram{UUID: "not-a-uuid", Description: "bad uuid"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp2.UUID), invalidUUID)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// Invalid UUID format
+	invalidUUID := oscalTypes_1_1_3.Diagram{UUID: "not-a-uuid", Description: "bad uuid"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp2.UUID), invalidUUID)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 }
 
 // Negative: Data Flow missing, invalid IDs and invalid body
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateDataFlowDiagram_Negative() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // 1) Invalid SSP ID in path
-    badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/data-flow/diagrams", badDiagram)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// 1) Invalid SSP ID in path
+	badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/data-flow/diagrams", badDiagram)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // 2) Missing Data Flow -> 404
-    ssp := suite.createBasicSSP()
-    ssp.SystemCharacteristics.DataFlow = nil
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// 2) Missing Data Flow -> 404
+	ssp := suite.createBasicSSP()
+	ssp.SystemCharacteristics.DataFlow = nil
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    diagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "DF diag"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diagram)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusNotFound, resp.Code)
+	diagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "DF diag"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diagram)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
 
-    // 3) Invalid/Missing diagram UUID -> 400
-    // Recreate SSP with DF present
-    err = suite.Migrator.Refresh()
-    suite.Require().NoError(err)
-    ssp2 := suite.createBasicSSP()
-    df := oscalTypes_1_1_3.DataFlow{Description: "present"}
-    ssp2.SystemCharacteristics.DataFlow = &df
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp2)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// 3) Invalid/Missing diagram UUID -> 400
+	// Recreate SSP with DF present
+	err = suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	ssp2 := suite.createBasicSSP()
+	df := oscalTypes_1_1_3.DataFlow{Description: "present"}
+	ssp2.SystemCharacteristics.DataFlow = &df
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp2)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    // Missing UUID
-    missingUUID := oscalTypes_1_1_3.Diagram{Description: "no uuid"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp2.UUID), missingUUID)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// Missing UUID
+	missingUUID := oscalTypes_1_1_3.Diagram{Description: "no uuid"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp2.UUID), missingUUID)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // Invalid UUID format
-    invalidUUID := oscalTypes_1_1_3.Diagram{UUID: "not-a-uuid", Description: "bad uuid"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp2.UUID), invalidUUID)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// Invalid UUID format
+	invalidUUID := oscalTypes_1_1_3.Diagram{UUID: "not-a-uuid", Description: "bad uuid"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp2.UUID), invalidUUID)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 }
 
 // Negative: Authorization Boundary invalid IDs and invalid body
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateAuthorizationBoundaryDiagram_Negative() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // 1) Invalid SSP ID in path
-    badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/authorization-boundary/diagrams", badDiagram)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// 1) Invalid SSP ID in path
+	badDiagram := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "bad"}
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/authorization-boundary/diagrams", badDiagram)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // 2) Invalid/Missing diagram UUID -> 400 (AB always present in model)
-    ssp := suite.createBasicSSP()
-    ab := oscalTypes_1_1_3.AuthorizationBoundary{Description: "present"}
-    ssp.SystemCharacteristics.AuthorizationBoundary = ab
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// 2) Invalid/Missing diagram UUID -> 400 (AB always present in model)
+	ssp := suite.createBasicSSP()
+	ab := oscalTypes_1_1_3.AuthorizationBoundary{Description: "present"}
+	ssp.SystemCharacteristics.AuthorizationBoundary = ab
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    // Missing UUID
-    missingUUID := oscalTypes_1_1_3.Diagram{Description: "no uuid"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), missingUUID)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// Missing UUID
+	missingUUID := oscalTypes_1_1_3.Diagram{Description: "no uuid"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), missingUUID)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // Invalid UUID format
-    invalidUUID := oscalTypes_1_1_3.Diagram{UUID: "not-a-uuid", Description: "bad uuid"}
-    req = suite.createRequest(http.MethodPost,
-        fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), invalidUUID)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// Invalid UUID format
+	invalidUUID := oscalTypes_1_1_3.Diagram{UUID: "not-a-uuid", Description: "bad uuid"}
+	req = suite.createRequest(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), invalidUUID)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 }
 
 // Delete tests
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteNetworkArchitectureDiagram() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // Create SSP with NA and one diagram
-    ssp := suite.createBasicSSP()
-    na := oscalTypes_1_1_3.NetworkArchitecture{Description: "NA"}
-    ssp.SystemCharacteristics.NetworkArchitecture = &na
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// Create SSP with NA and one diagram
+	ssp := suite.createBasicSSP()
+	na := oscalTypes_1_1_3.NetworkArchitecture{Description: "NA"}
+	ssp.SystemCharacteristics.NetworkArchitecture = &na
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    diag := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "to delete"}
-    creq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diag)
-    cresp := httptest.NewRecorder()
-    server.E().ServeHTTP(cresp, creq)
-    suite.Equal(http.StatusCreated, cresp.Code)
+	diag := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "to delete"}
+	creq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams", ssp.UUID), diag)
+	cresp := httptest.NewRecorder()
+	server.E().ServeHTTP(cresp, creq)
+	suite.Equal(http.StatusCreated, cresp.Code)
 
-    // Delete
-    dreq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams/%s", ssp.UUID, diag.UUID), nil)
-    dresp := httptest.NewRecorder()
-    server.E().ServeHTTP(dresp, dreq)
-    suite.Equal(http.StatusNoContent, dresp.Code)
+	// Delete
+	dreq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams/%s", ssp.UUID, diag.UUID), nil)
+	dresp := httptest.NewRecorder()
+	server.E().ServeHTTP(dresp, dreq)
+	suite.Equal(http.StatusNoContent, dresp.Code)
 
-    // Verify gone
-    greq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture", ssp.UUID), nil)
-    gresp := httptest.NewRecorder()
-    server.E().ServeHTTP(gresp, greq)
-    suite.Equal(http.StatusOK, gresp.Code)
+	// Verify gone
+	greq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture", ssp.UUID), nil)
+	gresp := httptest.NewRecorder()
+	server.E().ServeHTTP(gresp, greq)
+	suite.Equal(http.StatusOK, gresp.Code)
 
-    var got handler.GenericDataResponse[*oscalTypes_1_1_3.NetworkArchitecture]
-    err = json.Unmarshal(gresp.Body.Bytes(), &got)
-    suite.Require().NoError(err)
-    if got.Data.Diagrams != nil {
-        for _, d := range *got.Data.Diagrams {
-            suite.NotEqual(diag.UUID, d.UUID, "diagram should be deleted")
-        }
-    }
+	var got handler.GenericDataResponse[*oscalTypes_1_1_3.NetworkArchitecture]
+	err = json.Unmarshal(gresp.Body.Bytes(), &got)
+	suite.Require().NoError(err)
+	if got.Data.Diagrams != nil {
+		for _, d := range *got.Data.Diagrams {
+			suite.NotEqual(diag.UUID, d.UUID, "diagram should be deleted")
+		}
+	}
 }
 
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteDataFlowDiagram() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // Create SSP with DF and one diagram
-    ssp := suite.createBasicSSP()
-    df := oscalTypes_1_1_3.DataFlow{Description: "DF"}
-    ssp.SystemCharacteristics.DataFlow = &df
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// Create SSP with DF and one diagram
+	ssp := suite.createBasicSSP()
+	df := oscalTypes_1_1_3.DataFlow{Description: "DF"}
+	ssp.SystemCharacteristics.DataFlow = &df
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    diag := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "to delete"}
-    creq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diag)
-    cresp := httptest.NewRecorder()
-    server.E().ServeHTTP(cresp, creq)
-    suite.Equal(http.StatusCreated, cresp.Code)
+	diag := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "to delete"}
+	creq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams", ssp.UUID), diag)
+	cresp := httptest.NewRecorder()
+	server.E().ServeHTTP(cresp, creq)
+	suite.Equal(http.StatusCreated, cresp.Code)
 
-    // Delete
-    dreq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams/%s", ssp.UUID, diag.UUID), nil)
-    dresp := httptest.NewRecorder()
-    server.E().ServeHTTP(dresp, dreq)
-    suite.Equal(http.StatusNoContent, dresp.Code)
+	// Delete
+	dreq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams/%s", ssp.UUID, diag.UUID), nil)
+	dresp := httptest.NewRecorder()
+	server.E().ServeHTTP(dresp, dreq)
+	suite.Equal(http.StatusNoContent, dresp.Code)
 
-    // Verify gone
-    greq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow", ssp.UUID), nil)
-    gresp := httptest.NewRecorder()
-    server.E().ServeHTTP(gresp, greq)
-    suite.Equal(http.StatusOK, gresp.Code)
+	// Verify gone
+	greq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow", ssp.UUID), nil)
+	gresp := httptest.NewRecorder()
+	server.E().ServeHTTP(gresp, greq)
+	suite.Equal(http.StatusOK, gresp.Code)
 
-    var got handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]
-    err = json.Unmarshal(gresp.Body.Bytes(), &got)
-    suite.Require().NoError(err)
-    if got.Data.Diagrams != nil {
-        for _, d := range *got.Data.Diagrams {
-            suite.NotEqual(diag.UUID, d.UUID, "diagram should be deleted")
-        }
-    }
+	var got handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]
+	err = json.Unmarshal(gresp.Body.Bytes(), &got)
+	suite.Require().NoError(err)
+	if got.Data.Diagrams != nil {
+		for _, d := range *got.Data.Diagrams {
+			suite.NotEqual(diag.UUID, d.UUID, "diagram should be deleted")
+		}
+	}
 }
 
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteAuthorizationBoundaryDiagram() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // Create SSP with AB and one diagram
-    ssp := suite.createBasicSSP()
-    ab := oscalTypes_1_1_3.AuthorizationBoundary{Description: "AB"}
-    ssp.SystemCharacteristics.AuthorizationBoundary = ab
-    req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// Create SSP with AB and one diagram
+	ssp := suite.createBasicSSP()
+	ab := oscalTypes_1_1_3.AuthorizationBoundary{Description: "AB"}
+	ssp.SystemCharacteristics.AuthorizationBoundary = ab
+	req := suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    diag := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "to delete"}
-    creq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), diag)
-    cresp := httptest.NewRecorder()
-    server.E().ServeHTTP(cresp, creq)
-    suite.Equal(http.StatusCreated, cresp.Code)
+	diag := oscalTypes_1_1_3.Diagram{UUID: uuid.New().String(), Description: "to delete"}
+	creq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams", ssp.UUID), diag)
+	cresp := httptest.NewRecorder()
+	server.E().ServeHTTP(cresp, creq)
+	suite.Equal(http.StatusCreated, cresp.Code)
 
-    // Delete
-    dreq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams/%s", ssp.UUID, diag.UUID), nil)
-    dresp := httptest.NewRecorder()
-    server.E().ServeHTTP(dresp, dreq)
-    suite.Equal(http.StatusNoContent, dresp.Code)
+	// Delete
+	dreq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams/%s", ssp.UUID, diag.UUID), nil)
+	dresp := httptest.NewRecorder()
+	server.E().ServeHTTP(dresp, dreq)
+	suite.Equal(http.StatusNoContent, dresp.Code)
 
-    // Verify gone
-    greq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary", ssp.UUID), nil)
-    gresp := httptest.NewRecorder()
-    server.E().ServeHTTP(gresp, greq)
-    suite.Equal(http.StatusOK, gresp.Code)
+	// Verify gone
+	greq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary", ssp.UUID), nil)
+	gresp := httptest.NewRecorder()
+	server.E().ServeHTTP(gresp, greq)
+	suite.Equal(http.StatusOK, gresp.Code)
 
-    var got handler.GenericDataResponse[*oscalTypes_1_1_3.AuthorizationBoundary]
-    err = json.Unmarshal(gresp.Body.Bytes(), &got)
-    suite.Require().NoError(err)
-    if got.Data.Diagrams != nil {
-        for _, d := range *got.Data.Diagrams {
-            suite.NotEqual(diag.UUID, d.UUID, "diagram should be deleted")
-        }
-    }
+	var got handler.GenericDataResponse[*oscalTypes_1_1_3.AuthorizationBoundary]
+	err = json.Unmarshal(gresp.Body.Bytes(), &got)
+	suite.Require().NoError(err)
+	if got.Data.Diagrams != nil {
+		for _, d := range *got.Data.Diagrams {
+			suite.NotEqual(diag.UUID, d.UUID, "diagram should be deleted")
+		}
+	}
 }
 
 // Negative deletes
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteNetworkArchitectureDiagram_Negative() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // invalid SSP id
-    req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/network-architecture/diagrams/not-a-uuid", nil)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// invalid SSP id
+	req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/network-architecture/diagrams/not-a-uuid", nil)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // valid SSP with NA, invalid diagram id
-    ssp := suite.createBasicSSP()
-    na := oscalTypes_1_1_3.NetworkArchitecture{Description: "NA"}
-    ssp.SystemCharacteristics.NetworkArchitecture = &na
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// valid SSP with NA, invalid diagram id
+	ssp := suite.createBasicSSP()
+	na := oscalTypes_1_1_3.NetworkArchitecture{Description: "NA"}
+	ssp.SystemCharacteristics.NetworkArchitecture = &na
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams/not-a-uuid", ssp.UUID), nil)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams/not-a-uuid", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // non-existent diagram id
-    req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams/%s", ssp.UUID, uuid.New().String()), nil)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusNotFound, resp.Code)
+	// non-existent diagram id
+	req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/network-architecture/diagrams/%s", ssp.UUID, uuid.New().String()), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
 }
 
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteDataFlowDiagram_Negative() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // invalid SSP id
-    req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/data-flow/diagrams/not-a-uuid", nil)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// invalid SSP id
+	req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/data-flow/diagrams/not-a-uuid", nil)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // valid SSP with DF, invalid diagram id
-    ssp := suite.createBasicSSP()
-    df := oscalTypes_1_1_3.DataFlow{Description: "DF"}
-    ssp.SystemCharacteristics.DataFlow = &df
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// valid SSP with DF, invalid diagram id
+	ssp := suite.createBasicSSP()
+	df := oscalTypes_1_1_3.DataFlow{Description: "DF"}
+	ssp.SystemCharacteristics.DataFlow = &df
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams/not-a-uuid", ssp.UUID), nil)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams/not-a-uuid", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // non-existent diagram id
-    req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams/%s", ssp.UUID, uuid.New().String()), nil)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusNotFound, resp.Code)
+	// non-existent diagram id
+	req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/data-flow/diagrams/%s", ssp.UUID, uuid.New().String()), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
 }
 
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteAuthorizationBoundaryDiagram_Negative() {
-    logConf := zap.NewDevelopmentConfig()
-    logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-    logger, _ := logConf.Build()
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
 
-    err := suite.Migrator.Refresh()
-    suite.Require().NoError(err)
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
 
-    metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-    server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-    RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-    // invalid SSP id
-    req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/authorization-boundary/diagrams/not-a-uuid", nil)
-    resp := httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	// invalid SSP id
+	req := suite.createRequest(http.MethodDelete, "/api/oscal/system-security-plans/not-a-uuid/system-characteristics/authorization-boundary/diagrams/not-a-uuid", nil)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // valid SSP with AB, invalid diagram id
-    ssp := suite.createBasicSSP()
-    ab := oscalTypes_1_1_3.AuthorizationBoundary{Description: "AB"}
-    ssp.SystemCharacteristics.AuthorizationBoundary = ab
-    req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusCreated, resp.Code)
+	// valid SSP with AB, invalid diagram id
+	ssp := suite.createBasicSSP()
+	ab := oscalTypes_1_1_3.AuthorizationBoundary{Description: "AB"}
+	ssp.SystemCharacteristics.AuthorizationBoundary = ab
+	req = suite.createRequest(http.MethodPost, "/api/oscal/system-security-plans", ssp)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
 
-    req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams/not-a-uuid", ssp.UUID), nil)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusBadRequest, resp.Code)
+	req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams/not-a-uuid", ssp.UUID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusBadRequest, resp.Code)
 
-    // non-existent diagram id
-    req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams/%s", ssp.UUID, uuid.New().String()), nil)
-    resp = httptest.NewRecorder()
-    server.E().ServeHTTP(resp, req)
-    suite.Equal(http.StatusNotFound, resp.Code)
+	// non-existent diagram id
+	req = suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/system-characteristics/authorization-boundary/diagrams/%s", ssp.UUID, uuid.New().String()), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusNotFound, resp.Code)
 }
