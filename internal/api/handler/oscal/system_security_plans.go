@@ -124,8 +124,10 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.POST("/:id/system-characteristics/network-architecture/diagrams", h.CreateCharacteristicsNetworkArchitectureDiagram)
 	api.PUT("/:id/system-characteristics/network-architecture/diagrams/:diagram", h.UpdateCharacteristicsNetworkArchitectureDiagram)
 	api.GET("/:id/system-characteristics/data-flow", h.GetCharacteristicsDataFlow)
+	api.POST("/:id/system-characteristics/data-flow/diagrams", h.CreateCharacteristicsDataFlowDiagram)
 	api.PUT("/:id/system-characteristics/data-flow/diagrams/:diagram", h.UpdateCharacteristicsDataFlowDiagram)
 	api.GET("/:id/system-characteristics/authorization-boundary", h.GetCharacteristicsAuthorizationBoundary)
+	api.POST("/:id/system-characteristics/authorization-boundary/diagrams", h.CreateCharacteristicsAuthorizationBoundaryDiagram)
 	api.PUT("/:id/system-characteristics/authorization-boundary/diagrams/:diagram", h.UpdateCharacteristicsAuthorizationBoundaryDiagram)
 	api.GET("/:id/system-implementation", h.GetSystemImplementation)
 	api.PUT("/:id/system-implementation", h.UpdateSystemImplementation)
@@ -543,6 +545,74 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context)
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]{Data: na.MarshalOscal()})
 }
 
+// CreateCharacteristicsDataFlowDiagram godoc
+//
+//	@Summary		Create a Data Flow Diagram
+//	@Description	Creates a new Diagram under the Data Flow of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"System Security Plan ID"
+//	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Diagram object to create"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams [post]
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsDataFlowDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Load SSP with Data Flow
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.DataFlow").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	df := ssp.SystemCharacteristics.DataFlow
+	if df == nil || df.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no data flow for system security plan %s", idParam)))
+	}
+
+	var oscalDiag oscalTypes_1_1_3.Diagram
+	if err := ctx.Bind(&oscalDiag); err != nil {
+		h.sugar.Warnw("Invalid create diagram request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if oscalDiag.UUID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	}
+	if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	}
+
+	relDiag := &relational.Diagram{}
+	relDiag.UnmarshalOscal(oscalDiag)
+	parentID := df.ID.String()
+	parentType := "data_flows"
+	relDiag.ParentID = &parentID
+	relDiag.ParentType = &parentType
+
+	if err := h.db.Create(relDiag).Error; err != nil {
+		h.sugar.Errorf("Failed to create data flow diagram: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
+}
+
 // UpdateCharacteristicsDataFlowDiagram godoc
 //
 //	@Summary		Update a Data Flow Diagram
@@ -654,6 +724,74 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx 
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no authorization boundary for system security plan %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AuthorizationBoundary]{Data: ab.MarshalOscal()})
+}
+
+// CreateCharacteristicsAuthorizationBoundaryDiagram godoc
+//
+//	@Summary		Create an Authorization Boundary Diagram
+//	@Description	Creates a new Diagram under the Authorization Boundary of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"System Security Plan ID"
+//	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Diagram object to create"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams [post]
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Load SSP with Authorization Boundary
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.AuthorizationBoundary").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	ab := ssp.SystemCharacteristics.AuthorizationBoundary
+	if ab == nil || ab.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no authorization boundary for system security plan %s", idParam)))
+	}
+
+	var oscalDiag oscalTypes_1_1_3.Diagram
+	if err := ctx.Bind(&oscalDiag); err != nil {
+		h.sugar.Warnw("Invalid create diagram request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if oscalDiag.UUID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	}
+	if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	}
+
+	relDiag := &relational.Diagram{}
+	relDiag.UnmarshalOscal(oscalDiag)
+	parentID := ab.ID.String()
+	parentType := "authorization_boundaries"
+	relDiag.ParentID = &parentID
+	relDiag.ParentType = &parentType
+
+	if err := h.db.Create(relDiag).Error; err != nil {
+		h.sugar.Errorf("Failed to create authorization boundary diagram: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
 }
 
 // UpdateCharacteristicsAuthorizationBoundaryDiagram godoc

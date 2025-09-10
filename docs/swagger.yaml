@@ -14302,6 +14302,52 @@ paths:
       summary: Get Authorization Boundary
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new Diagram under the Authorization Boundary of a System
+        Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Diagram object to create
+        in: body
+        name: diagram
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create an Authorization Boundary Diagram
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram}:
     put:
       consumes:
@@ -14388,6 +14434,52 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get Data Flow
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new Diagram under the Data Flow of a System Security
+        Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Diagram object to create
+        in: body
+        name: diagram
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a Data Flow Diagram
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram}:
@@ -14479,6 +14571,52 @@ paths:
       summary: Get Network Architecture
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new Diagram under the Network Architecture of a System
+        Security Plan.
+      parameters:
+      - description: System Security Plan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Diagram object to create
+        in: body
+        name: diagram
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a Network Architecture Diagram
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram}:
     put:
       consumes:
@@ -14528,52 +14666,6 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update a Network Architecture Diagram
-      tags:
-      - System Security Plans
-  /oscal/system-security-plans/{id}/system-characteristics/network-architecture/new:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new Diagram under the Network Architecture of a System
-        Security Plan.
-      parameters:
-      - description: System Security Plan ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Diagram object to create
-        in: body
-        name: diagram
-        required: true
-        schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.Diagram'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Diagram'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create a Network Architecture Diagram
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/system-implementation:
