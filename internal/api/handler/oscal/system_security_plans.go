@@ -3559,7 +3559,6 @@ func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByCompo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 
 	}
-
     return ctx.NoContent(http.StatusNoContent)
 }
 
