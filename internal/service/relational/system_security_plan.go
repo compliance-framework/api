@@ -1329,7 +1329,7 @@ func (bc *ByComponent) UnmarshalOscal(obc oscalTypes_1_1_3.ByComponent) *ByCompo
 	}
 
 	if obc.ImplementationStatus != nil {
-		bc.ImplementationStatus =  ConvertOscalToImplementationStatus(obc.ImplementationStatus)
+		bc.ImplementationStatus = ConvertOscalToImplementationStatus(obc.ImplementationStatus)
 	}
 
 	return bc
