@@ -1375,7 +1375,6 @@ func (bc *ByComponent) MarshalOscal() *oscalTypes_1_1_3.ByComponent {
 	if bc.ImplementationStatus != (datatypes.JSONType[ImplementationStatus]{}) {
 		ret.ImplementationStatus = ConvertImplementationStatusToOscal(bc.ImplementationStatus)
 	}
-	
 
 	if len(bc.Satisfied) > 0 {
 		satisfied := make([]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility, len(bc.Inherited))
