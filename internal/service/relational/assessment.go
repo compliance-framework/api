@@ -1,7 +1,6 @@
 package relational
 
 import (
-	"fmt"
 	"time"
 
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
