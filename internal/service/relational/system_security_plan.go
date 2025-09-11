@@ -1401,7 +1401,7 @@ func (is *ImplementationStatus) MarshalOscal() *oscalTypes_1_1_3.ImplementationS
 func ConvertOscalToImplementationStatus(oscal *oscalTypes_1_1_3.ImplementationStatus) datatypes.JSONType[ImplementationStatus] {
     impStatus := ImplementationStatus{
         State: oscal.State,
-		Remarks: oscal.Remarks,
+        Remarks: oscal.Remarks,
     }
 	return datatypes.NewJSONType(impStatus)
 }
