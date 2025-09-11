@@ -1408,9 +1408,9 @@ func ConvertOscalToImplementationStatus(oscal *oscalTypes_1_1_3.ImplementationSt
 
 func ConvertImplementationStatusToOscal(data datatypes.JSONType[ImplementationStatus]) *oscalTypes_1_1_3.ImplementationStatus  {
     impStatus := oscalTypes_1_1_3.ImplementationStatus{
-        State: data.Data().State,
+		State: data.Data().State,
 		Remarks: data.Data().Remarks,
-    }
+	}
 	return &impStatus
 }
 
