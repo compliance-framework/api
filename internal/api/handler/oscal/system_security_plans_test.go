@@ -858,7 +858,6 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequire
 	resp = httptest.NewRecorder()
 	server.E().ServeHTTP(resp, req)
 
-	fmt.Printf("response: %s", resp.Body.String())
 
 	suite.Equal(http.StatusNotFound, resp.Code)
 }

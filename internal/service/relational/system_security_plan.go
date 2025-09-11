@@ -1329,7 +1329,7 @@ func (bc *ByComponent) UnmarshalOscal(obc oscalTypes_1_1_3.ByComponent) *ByCompo
 	}
 
 	if obc.ImplementationStatus != nil {
-		bc.ImplementationStatus =  ConvertOscalToImplementationStatus(obc.ImplementationStatus)
+		bc.ImplementationStatus = ConvertOscalToImplementationStatus(obc.ImplementationStatus)
 	}
 
 	return bc
@@ -1375,7 +1375,6 @@ func (bc *ByComponent) MarshalOscal() *oscalTypes_1_1_3.ByComponent {
 	if bc.ImplementationStatus != (datatypes.JSONType[ImplementationStatus]{}) {
 		ret.ImplementationStatus = ConvertImplementationStatusToOscal(bc.ImplementationStatus)
 	}
-	
 
 	if len(bc.Satisfied) > 0 {
 		satisfied := make([]oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility, len(bc.Inherited))
@@ -1402,16 +1401,16 @@ func (is *ImplementationStatus) MarshalOscal() *oscalTypes_1_1_3.ImplementationS
 func ConvertOscalToImplementationStatus(oscal *oscalTypes_1_1_3.ImplementationStatus) datatypes.JSONType[ImplementationStatus] {
     impStatus := ImplementationStatus{
         State: oscal.State,
-		Remarks: oscal.Remarks,
+        Remarks: oscal.Remarks,
     }
 	return datatypes.NewJSONType(impStatus)
 }
 
 func ConvertImplementationStatusToOscal(data datatypes.JSONType[ImplementationStatus]) *oscalTypes_1_1_3.ImplementationStatus  {
     impStatus := oscalTypes_1_1_3.ImplementationStatus{
-        State: data.Data().State,
+		State: data.Data().State,
 		Remarks: data.Data().Remarks,
-    }
+	}
 	return &impStatus
 }
 
