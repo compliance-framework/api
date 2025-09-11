@@ -68,6 +68,8 @@ func (h *AssessmentPlanHandler) GetTasks(ctx echo.Context) error {
 		Preload("AssociatedActivities.Activity").
 		Preload("AssociatedActivities.Activity.Steps").
 		Preload("Tasks").
+		Preload("Tasks.Tasks").
+		Preload("Tasks.Tasks.Tasks"). // TODO At some point we may want and endpoint to get sub-tasks of a task
 		Preload("Dependencies").
 		Preload("Dependencies.Task").
 		Where("parent_id = ? AND parent_type = ?", id, "assessment_plans").
@@ -392,13 +394,13 @@ func (h *AssessmentPlanHandler) AssociateTaskActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	if err = h.db.Model(task).Association("AssociatedActivities").Append(&relational.AssociatedActivity{
-		Activity: relational.Activity{
-			UUIDModel: relational.UUIDModel{
-				ID: &activityId,
-			},
+	if err := h.db.Create(&relational.AssociatedActivity{
+		UUIDModel: relational.UUIDModel{
+			ID: func() *uuid.UUID { u := uuid.New(); return &u }(),
 		},
-	}); err != nil {
+		ActivityID: activityId,
+		TaskID:     taskId,
+	}).Error; err != nil {
 		h.sugar.Errorf("Failed to associate activity with task: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
