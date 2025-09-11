@@ -917,7 +917,7 @@ type Task struct {
 	Links       datatypes.JSONSlice[Link] `json:"links"`
 
 	Dependencies         []TaskDependency // Different struct, as each dependency can have additional remarks
-	Tasks                []Task           `gorm:"many2many:task_tasks"` // Sub tasks
+	Tasks                []Task           `gorm:"many2many:task_tasks;joinForeignKey:ParentTaskID;joinReferences:ChildTaskID"` // Sub tasks
 	AssociatedActivities []AssociatedActivity
 	Subjects             []AssessmentSubject `gorm:"many2many:task_subjects"`
 	ResponsibleRole      []ResponsibleRole   `gorm:"polymorphic:Parent;"`
@@ -1395,10 +1395,11 @@ func (i *AssociatedActivity) UnmarshalOscal(op oscalTypes_1_1_3.AssociatedActivi
 }
 
 func (i *AssociatedActivity) MarshalOscal() *oscalTypes_1_1_3.AssociatedActivity {
-	fmt.Println(i.Activity)
 	ret := &oscalTypes_1_1_3.AssociatedActivity{
 		ActivityUuid: i.Activity.ID.String(),
-		Remarks:      *i.Remarks,
+	}
+	if i.Remarks != nil {
+		ret.Remarks = *i.Remarks
 	}
 	if len(i.Props) > 0 {
 		ret.Props = ConvertPropsToOscal(i.Props)
