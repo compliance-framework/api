@@ -121,11 +121,17 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.GET("/:id/system-characteristics", h.GetCharacteristics)
 	api.PUT("/:id/system-characteristics", h.UpdateCharacteristics)
 	api.GET("/:id/system-characteristics/network-architecture", h.GetCharacteristicsNetworkArchitecture)
+	api.POST("/:id/system-characteristics/network-architecture/diagrams", h.CreateCharacteristicsNetworkArchitectureDiagram)
 	api.PUT("/:id/system-characteristics/network-architecture/diagrams/:diagram", h.UpdateCharacteristicsNetworkArchitectureDiagram)
+	api.DELETE("/:id/system-characteristics/network-architecture/diagrams/:diagram", h.DeleteCharacteristicsNetworkArchitectureDiagram)
 	api.GET("/:id/system-characteristics/data-flow", h.GetCharacteristicsDataFlow)
+	api.POST("/:id/system-characteristics/data-flow/diagrams", h.CreateCharacteristicsDataFlowDiagram)
 	api.PUT("/:id/system-characteristics/data-flow/diagrams/:diagram", h.UpdateCharacteristicsDataFlowDiagram)
+	api.DELETE("/:id/system-characteristics/data-flow/diagrams/:diagram", h.DeleteCharacteristicsDataFlowDiagram)
 	api.GET("/:id/system-characteristics/authorization-boundary", h.GetCharacteristicsAuthorizationBoundary)
+	api.POST("/:id/system-characteristics/authorization-boundary/diagrams", h.CreateCharacteristicsAuthorizationBoundaryDiagram)
 	api.PUT("/:id/system-characteristics/authorization-boundary/diagrams/:diagram", h.UpdateCharacteristicsAuthorizationBoundaryDiagram)
+	api.DELETE("/:id/system-characteristics/authorization-boundary/diagrams/:diagram", h.DeleteCharacteristicsAuthorizationBoundaryDiagram)
 	api.GET("/:id/system-implementation", h.GetSystemImplementation)
 	api.PUT("/:id/system-implementation", h.UpdateSystemImplementation)
 	api.GET("/:id/system-implementation/users", h.GetSystemImplementationUsers)
@@ -357,6 +363,78 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsNetworkArchitecture(ctx ec
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.NetworkArchitecture]{Data: na.MarshalOscal()})
 }
 
+// CreateCharacteristicsNetworkArchitectureDiagram godoc
+//
+//	@Summary		Create a Network Architecture Diagram
+//	@Description	Creates a new Diagram under the Network Architecture of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"System Security Plan ID"
+//	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Diagram object to create"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams [post]
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Load SSP with Network Architecture so we can attach the diagram
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.NetworkArchitecture").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	na := ssp.SystemCharacteristics.NetworkArchitecture
+	if na == nil || na.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no network architecture for system security plan %s", idParam)))
+	}
+
+	// Bind incoming diagram
+	var oscalDiag oscalTypes_1_1_3.Diagram
+	if err := ctx.Bind(&oscalDiag); err != nil {
+		h.sugar.Warnw("Invalid create diagram request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Basic UUID validation (consistent with other creates)
+	if oscalDiag.UUID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	}
+	if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	}
+
+	// Map to relational model and set polymorphic parent
+	relDiag := &relational.Diagram{}
+	relDiag.UnmarshalOscal(oscalDiag)
+	parentID := na.ID.String()
+	parentType := "network_architectures"
+	relDiag.ParentID = &parentID
+	relDiag.ParentType = &parentType
+
+	if err := h.db.Create(relDiag).Error; err != nil {
+		h.sugar.Errorf("Failed to create network architecture diagram: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
+}
+
 // UpdateCharacteristicsNetworkArchitectureDiagram godoc
 //
 //	@Summary		Update a Network Architecture Diagram
@@ -431,6 +509,59 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsNetworkArchitectureDiag
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Diagram]{Data: relDiag.MarshalOscal()})
 }
 
+// DeleteCharacteristicsNetworkArchitectureDiagram godoc
+//
+//	@Summary		Delete a Network Architecture Diagram
+//	@Description	Deletes a specific Diagram under the Network Architecture of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id		path	string	true	"System Security Plan ID"
+//	@Param			diagram	path	string	true	"Diagram ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram} [delete]
+func (h *SystemSecurityPlanHandler) DeleteCharacteristicsNetworkArchitectureDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	planID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	diagramParam := ctx.Param("diagram")
+	diagramID, err := uuid.Parse(diagramParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid diagram id", "diagram", diagramParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.NetworkArchitecture").
+		First(&ssp, "id = ?", planID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	na := ssp.SystemCharacteristics.NetworkArchitecture
+	if na == nil || na.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no network architecture for system security plan %s", idParam)))
+	}
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", diagramID, na.ID, "network_architectures").Delete(&relational.Diagram{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete network architecture diagram: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("diagram not found")))
+	}
+	return ctx.NoContent(http.StatusNoContent)
+}
+
 // GetCharacteristicsDataFlow godoc
 //
 //	@Summary		Get Data Flow
@@ -468,6 +599,74 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsDataFlow(ctx echo.Context)
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no network architecture for system security plan %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.DataFlow]{Data: na.MarshalOscal()})
+}
+
+// CreateCharacteristicsDataFlowDiagram godoc
+//
+//	@Summary		Create a Data Flow Diagram
+//	@Description	Creates a new Diagram under the Data Flow of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"System Security Plan ID"
+//	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Diagram object to create"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams [post]
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsDataFlowDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Load SSP with Data Flow
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.DataFlow").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	df := ssp.SystemCharacteristics.DataFlow
+	if df == nil || df.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no data flow for system security plan %s", idParam)))
+	}
+
+	var oscalDiag oscalTypes_1_1_3.Diagram
+	if err := ctx.Bind(&oscalDiag); err != nil {
+		h.sugar.Warnw("Invalid create diagram request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if oscalDiag.UUID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	}
+	if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	}
+
+	relDiag := &relational.Diagram{}
+	relDiag.UnmarshalOscal(oscalDiag)
+	parentID := df.ID.String()
+	parentType := "data_flows"
+	relDiag.ParentID = &parentID
+	relDiag.ParentType = &parentType
+
+	if err := h.db.Create(relDiag).Error; err != nil {
+		h.sugar.Errorf("Failed to create data flow diagram: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
 }
 
 // UpdateCharacteristicsDataFlowDiagram godoc
@@ -544,6 +743,59 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsDataFlowDiagram(ctx ech
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Diagram]{Data: relDiag.MarshalOscal()})
 }
 
+// DeleteCharacteristicsDataFlowDiagram godoc
+//
+//	@Summary		Delete a Data Flow Diagram
+//	@Description	Deletes a specific Diagram under the Data Flow of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id		path	string	true	"System Security Plan ID"
+//	@Param			diagram	path	string	true	"Diagram ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram} [delete]
+func (h *SystemSecurityPlanHandler) DeleteCharacteristicsDataFlowDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	planID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	diagramParam := ctx.Param("diagram")
+	diagramID, err := uuid.Parse(diagramParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid diagram id", "diagram", diagramParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.DataFlow").
+		First(&ssp, "id = ?", planID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	df := ssp.SystemCharacteristics.DataFlow
+	if df == nil || df.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no data flow for system security plan %s", idParam)))
+	}
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", diagramID, df.ID, "data_flows").Delete(&relational.Diagram{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete data flow diagram: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("diagram not found")))
+	}
+	return ctx.NoContent(http.StatusNoContent)
+}
+
 // GetCharacteristicsAuthorizationBoundary godoc
 //
 //	@Summary		Get Authorization Boundary
@@ -581,6 +833,74 @@ func (h *SystemSecurityPlanHandler) GetCharacteristicsAuthorizationBoundary(ctx 
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no authorization boundary for system security plan %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.AuthorizationBoundary]{Data: ab.MarshalOscal()})
+}
+
+// CreateCharacteristicsAuthorizationBoundaryDiagram godoc
+//
+//	@Summary		Create an Authorization Boundary Diagram
+//	@Description	Creates a new Diagram under the Authorization Boundary of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string						true	"System Security Plan ID"
+//	@Param			diagram	body		oscalTypes_1_1_3.Diagram	true	"Diagram object to create"
+//	@Success		201		{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams [post]
+func (h *SystemSecurityPlanHandler) CreateCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Load SSP with Authorization Boundary
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.AuthorizationBoundary").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	ab := ssp.SystemCharacteristics.AuthorizationBoundary
+	if ab == nil || ab.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no authorization boundary for system security plan %s", idParam)))
+	}
+
+	var oscalDiag oscalTypes_1_1_3.Diagram
+	if err := ctx.Bind(&oscalDiag); err != nil {
+		h.sugar.Warnw("Invalid create diagram request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if oscalDiag.UUID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	}
+	if _, err := uuid.Parse(oscalDiag.UUID); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	}
+
+	relDiag := &relational.Diagram{}
+	relDiag.UnmarshalOscal(oscalDiag)
+	parentID := ab.ID.String()
+	parentType := "authorization_boundaries"
+	relDiag.ParentID = &parentID
+	relDiag.ParentType = &parentType
+
+	if err := h.db.Create(relDiag).Error; err != nil {
+		h.sugar.Errorf("Failed to create authorization boundary diagram: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Diagram]{Data: *relDiag.MarshalOscal()})
 }
 
 // UpdateCharacteristicsAuthorizationBoundaryDiagram godoc
@@ -659,6 +979,59 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristicsAuthorizationBoundaryDi
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Diagram]{Data: relDiag.MarshalOscal()})
+}
+
+// DeleteCharacteristicsAuthorizationBoundaryDiagram godoc
+//
+//	@Summary		Delete an Authorization Boundary Diagram
+//	@Description	Deletes a specific Diagram under the Authorization Boundary of a System Security Plan.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id		path	string	true	"System Security Plan ID"
+//	@Param			diagram	path	string	true	"Diagram ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram} [delete]
+func (h *SystemSecurityPlanHandler) DeleteCharacteristicsAuthorizationBoundaryDiagram(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	planID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid system security plan id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	diagramParam := ctx.Param("diagram")
+	diagramID, err := uuid.Parse(diagramParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid diagram id", "diagram", diagramParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		Preload("SystemCharacteristics.AuthorizationBoundary").
+		First(&ssp, "id = ?", planID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	ab := ssp.SystemCharacteristics.AuthorizationBoundary
+	if ab == nil || ab.ID == nil {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no authorization boundary for system security plan %s", idParam)))
+	}
+	result := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", diagramID, ab.ID, "authorization_boundaries").Delete(&relational.Diagram{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete authorization boundary diagram: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("diagram not found")))
+	}
+	return ctx.NoContent(http.StatusNoContent)
 }
 
 // UpdateCharacteristics godoc
@@ -3029,66 +3402,66 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 	}
 
 	// Step 1: Verify SSP exists
-    var ssp relational.SystemSecurityPlan
-    if err := h.db.Preload("ControlImplementation").
-        First(&ssp, "id = ?", sspID).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 2: Verify Implemented Requirement belongs to SSP
-    var req relational.ImplementedRequirement
-    if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
-        First(&req).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 3: Verify Statement belongs to Requirement
-    var stmt relational.Statement
-    if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
-        First(&stmt).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var stmt relational.Statement
+	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
+		First(&stmt).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 4: Verify ByComponent belongs to Statement
-    var existing relational.ByComponent
-    if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?", 
-        byComponentID, stmt.ID, "statements").
-        First(&existing).Error; err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
-        }
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	var existing relational.ByComponent
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
+		byComponentID, stmt.ID, "statements").
+		First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	// Step 5: Parse request body
-    var oscalBC oscalTypes_1_1_3.ByComponent
-    if err := ctx.Bind(&oscalBC); err != nil {
-        return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-    }
+	var oscalBC oscalTypes_1_1_3.ByComponent
+	if err := ctx.Bind(&oscalBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
-    // Step 6: Map and update
-    relBC := &relational.ByComponent{}
-    relBC.UnmarshalOscal(oscalBC)
-    relBC.ID = &byComponentID
-    relBC.ParentID = stmt.ID      
+	// Step 6: Map and update
+	relBC := &relational.ByComponent{}
+	relBC.UnmarshalOscal(oscalBC)
+	relBC.ID = &byComponentID
+	relBC.ParentID = stmt.ID
 	parentType := "statements"
-    relBC.ParentType = &parentType  
+	relBC.ParentType = &parentType
 
-    if err := h.db.Save(relBC).Error; err != nil {
-        return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-    }
+	if err := h.db.Save(relBC).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
-    // Step 7: Return updated
-    return ctx.JSON(http.StatusOK,
-        handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
-    )
+	// Step 7: Return updated
+	return ctx.JSON(http.StatusOK,
+		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
+	)
 }
