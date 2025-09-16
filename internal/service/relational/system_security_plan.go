@@ -1399,21 +1399,20 @@ func (is *ImplementationStatus) MarshalOscal() *oscalTypes_1_1_3.ImplementationS
 }
 
 func ConvertOscalToImplementationStatus(oscal *oscalTypes_1_1_3.ImplementationStatus) datatypes.JSONType[ImplementationStatus] {
-    impStatus := ImplementationStatus{
-        State: oscal.State,
-        Remarks: oscal.Remarks,
-    }
+	impStatus := ImplementationStatus{
+		State:   oscal.State,
+		Remarks: oscal.Remarks,
+	}
 	return datatypes.NewJSONType(impStatus)
 }
 
-func ConvertImplementationStatusToOscal(data datatypes.JSONType[ImplementationStatus]) *oscalTypes_1_1_3.ImplementationStatus  {
-    impStatus := oscalTypes_1_1_3.ImplementationStatus{
-		State: data.Data().State,
+func ConvertImplementationStatusToOscal(data datatypes.JSONType[ImplementationStatus]) *oscalTypes_1_1_3.ImplementationStatus {
+	impStatus := oscalTypes_1_1_3.ImplementationStatus{
+		State:   data.Data().State,
 		Remarks: data.Data().Remarks,
 	}
 	return &impStatus
 }
-
 
 type Export struct {
 	UUIDModel

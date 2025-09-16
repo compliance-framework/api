@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/compliance-framework/api/cmd/dashboards"
 	"github.com/compliance-framework/api/cmd/oscal"
 	"github.com/compliance-framework/api/cmd/seed"
 	"github.com/compliance-framework/api/cmd/users"
@@ -61,6 +62,7 @@ func init() {
 	rootCmd.AddCommand(users.RootCmd)
 	rootCmd.AddCommand(seed.RootCmd)
 	rootCmd.AddCommand(newMigrateCMD())
+	rootCmd.AddCommand(dashboards.RootCmd)
 }
 
 func Execute() error {

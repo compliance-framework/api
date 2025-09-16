@@ -818,13 +818,12 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequire
 				StatementId: "ac-1_stmt.a",
 				Remarks:     "Initial statement implementation",
 				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
-			{
-				UUID: byComponentUuid,
-				Description: "Test By Component",
-				ComponentUuid: componentUuid,
-			},
-
-			},
+					{
+						UUID:          byComponentUuid,
+						Description:   "Test By Component",
+						ComponentUuid: componentUuid,
+					},
+				},
 			},
 		},
 	}
@@ -858,10 +857,8 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteImplementedRequire
 	resp = httptest.NewRecorder()
 	server.E().ServeHTTP(resp, req)
 
-
 	suite.Equal(http.StatusNotFound, resp.Code)
 }
-
 
 // Test creating a by-component within a statement within an implemented requirement
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequirementStatementByComponent() {
@@ -899,13 +896,12 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 				StatementId: "ac-1_stmt.a",
 				Remarks:     "Initial statement implementation",
 				ByComponents: &[]oscalTypes_1_1_3.ByComponent{
-			{
-				UUID: uuid.New().String(),
-				Description: "Test By Component",
-				ComponentUuid: componentUuid,
-			},
-
-			},
+					{
+						UUID:          uuid.New().String(),
+						Description:   "Test By Component",
+						ComponentUuid: componentUuid,
+					},
+				},
 			},
 		},
 	}
@@ -932,9 +928,9 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 
 	newByComponent := oscalTypes_1_1_3.ByComponent{
 		ComponentUuid: firstByComponent.ComponentUuid,
-		UUID: uuid.New().String(),
-		Description: "New ByComponent",
-		Remarks: "New by-component with new remarks",
+		UUID:          uuid.New().String(),
+		Description:   "New ByComponent",
+		Remarks:       "New by-component with new remarks",
 		Props: &[]oscalTypes_1_1_3.Property{
 			{
 				Name:  "new-prop",
@@ -955,7 +951,7 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 			},
 		},
 		ImplementationStatus: &oscalTypes_1_1_3.ImplementationStatus{
-			State: "Implemented",
+			State:   "Implemented",
 			Remarks: "Test Remarks",
 		},
 	}
@@ -971,7 +967,6 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestCreateImplementedRequire
 	err = json.Unmarshal(resp.Body.Bytes(), &createBCResponse)
 	suite.NoError(err)
 }
-
 
 // Test updating a statement with invalid IDs
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementInvalidIDs() {
