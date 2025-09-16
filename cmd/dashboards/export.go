@@ -7,27 +7,14 @@ import (
 	"os"
 
 	"github.com/compliance-framework/api/internal/config"
-	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-type controlRef struct {
-	CatalogID uuid.UUID `json:"catalog_id,omitempty"`
-	ID        string    `json:"id,omitempty"`
-}
-
-type dashboardJSON struct {
-	Name     string              `json:"name,omitempty"`
-	Filter   *labelfilter.Filter `json:"filter"`
-	Controls []controlRef        `json:"controls,omitempty"`
-}
-
-func newImportCMD() *cobra.Command {
+func newDashboardsExportCMD() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Export dashboards from the system",
