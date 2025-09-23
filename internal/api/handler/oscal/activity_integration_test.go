@@ -86,3 +86,54 @@ func (suite *ActivityApiIntegrationSuite) createTestAssessmentPlan() uuid.UUID {
 
 	return planID
 }
+
+// Test that updating steps in an activity does not currently update the database (expected to fail)
+func (suite *ActivityApiIntegrationSuite) TestUpdateActivitySteps() {
+	// Create an activity with initial steps
+	activityID := uuid.New()
+	stepId := uuid.New()
+	initialSteps := []oscalTypes_1_1_3.Step{
+		{
+			UUID:  stepId.String(),
+			Title: "Initial Step 1",
+		},
+	}
+	activity := &oscalTypes_1_1_3.Activity{
+		UUID:        activityID.String(),
+		Description: "Test Activity for Step Update",
+		Steps:       &initialSteps,
+	}
+
+	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/activities", activity)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, "Failed to create activity")
+
+	// Update the activity: change steps (replace with new steps)
+	updatedSteps := []oscalTypes_1_1_3.Step{
+		{
+			UUID:  stepId.String(),
+			Title: "Updated Step 1",
+		},
+	}
+	activity.Steps = &updatedSteps
+
+	rec, req = suite.createRequest(http.MethodPut, fmt.Sprintf("/api/oscal/activities/%s", activityID.String()), activity)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, "Failed to update activity")
+
+	// Fetch the activity from the API
+	rec, req = suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/activities/%s", activityID.String()), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, "Failed to get activity after update")
+
+	var resp struct {
+		Data *oscalTypes_1_1_3.Activity `json:"data"`
+	}
+	err := json.Unmarshal(rec.Body.Bytes(), &resp)
+	suite.Require().NoError(err, "Failed to unmarshal get activity response")
+
+	// The steps should match the updated steps, but currently they do not (expected to fail)
+	suite.Require().NotNil(resp.Data, "No activity returned from get")
+	fmt.Println((*resp.Data.Steps)[0])
+	suite.Equal("Updated Step 1", (*resp.Data.Steps)[0].Title)
+}
