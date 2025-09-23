@@ -159,6 +159,8 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements", h.CreateImplementedRequirementStatement)
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId", h.UpdateImplementedRequirementStatement)
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.UpdateImplementedRequirementStatementByComponent)
+	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.DeleteImplementedRequirementStatementByComponent)
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components", h.CreateImplementedRequirementStatementByComponent)
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId", h.DeleteImplementedRequirement)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.PUT("/:id/back-matter", h.UpdateBackMatter)
@@ -1076,7 +1078,7 @@ func (h *SystemSecurityPlanHandler) UpdateCharacteristics(ctx echo.Context) erro
 	}
 	sc := &relational.SystemCharacteristics{}
 	sc.UnmarshalOscal(oscalSC)
-	fmt.Println(oscalSC.Description)
+
 	sc.SystemSecurityPlanId = *ssp.ID
 	sc.ID = ssp.SystemCharacteristics.ID
 
@@ -1407,8 +1409,57 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 	if err := h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
+		Preload("Metadata.Roles").
+		Preload("Metadata.Parties").
+		Preload("Metadata.Parties.Locations").
+		Preload("Metadata.Parties.MemberOfOrganizations").
+		Preload("Metadata.ResponsibleParties").
+		Preload("Metadata.ResponsibleParties.Parties").
+		Preload("Metadata.Locations").
+		Preload("Metadata.Actions").
+		Preload("Metadata.Actions.ResponsibleParties").
+		Preload("Metadata.Actions.ResponsibleParties.Parties").
 		Preload("BackMatter").
 		Preload("BackMatter.Resources").
+		Preload("ControlImplementation").
+		Preload("ControlImplementation.ImplementedRequirements").
+		Preload("ControlImplementation.ImplementedRequirements.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Provided").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Provided.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Provided.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Responsibilities").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Responsibilities.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Responsibilities.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Inherited").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Inherited.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Inherited.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Satisfied").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Satisfied.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Satisfied.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.Statements").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Provided").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Provided.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Provided.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Responsibilities").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Responsibilities.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Responsibilities.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Inherited").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Inherited.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Inherited.ResponsibleRoles.Parties").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Satisfied").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Satisfied.ResponsibleRoles").
+		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Satisfied.ResponsibleRoles.Parties").
 		Preload("SystemCharacteristics").
 		Preload("SystemCharacteristics.AuthorizationBoundary").
 		Preload("SystemCharacteristics.AuthorizationBoundary.Diagrams").
@@ -1421,6 +1472,8 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 		Preload("SystemImplementation.Users.AuthorizedPrivileges").
 		Preload("SystemImplementation.LeveragedAuthorizations").
 		Preload("SystemImplementation.Components").
+		Preload("SystemImplementation.Components.ResponsibleRoles").
+		Preload("SystemImplementation.Components.ResponsibleRoles.Parties").
 		Preload("SystemImplementation.InventoryItems").
 		Preload("SystemImplementation.InventoryItems.ImplementedComponents").
 		First(&ssp, "id = ?", id.String()).Error; err != nil {
@@ -3464,4 +3517,188 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementStatementByCompo
 	return ctx.JSON(http.StatusOK,
 		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
 	)
+}
+
+// DeleteImplementedRequirementStatementByComponent godoc
+//
+//	@Summary		Delete a by-component within a statement (within an implemented requirement)
+//	@Description	Deletes a by-component within an existing statement within an implemented requirement for a given SSP.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string	true	"SSP ID"
+//	@Param			reqId			path		string	true	"Requirement ID"
+//	@Param			stmtId			path		string	true	"Statement ID"
+//	@Param			byComponentId	path		string	true	"By-Component ID"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components/{byComponentId} [delete]
+func (h *SystemSecurityPlanHandler) DeleteImplementedRequirementStatementByComponent(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	reqIdParam := ctx.Param("reqId")
+	reqID, err := uuid.Parse(reqIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid requirement id", "reqId", reqIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	stmtIdParam := ctx.Param("stmtId")
+	stmtID, err := uuid.Parse(stmtIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid statement id", "stmtId", stmtIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	byComponentIdParam := ctx.Param("byComponentId")
+	byComponentID, err := uuid.Parse(byComponentIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Step 1: Verify SSP exists
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 2: Verify Implemented Requirement belongs to SSP
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 3: Verify Statement belongs to Requirement
+	var stmt relational.Statement
+	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
+		First(&stmt).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 4: Verify ByComponent belongs to Statement
+	var existing relational.ByComponent
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
+		byComponentID, stmt.ID, "statements").
+		First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	if err := h.db.Delete(&existing).Error; err != nil {
+		h.sugar.Errorf("Failed to delete by-component: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+
+	}
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// CreateImplementedRequirementStatementByComponent godoc
+//
+//	@Summary		Create a by-component within a statement (within an implemented requirement)
+//	@Description	Create a by-component within an existing statement within an implemented requirement for a given SSP.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string							true	"SSP ID"
+//	@Param			reqId			path		string							true	"Requirement ID"
+//	@Param			stmtId			path		string							true	"Statement ID"
+//	@Param			by-component	body		oscalTypes_1_1_3.ByComponent	true	"By-Component data"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components [post]
+func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByComponent(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	reqIdParam := ctx.Param("reqId")
+	reqID, err := uuid.Parse(reqIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid requirement id", "reqId", reqIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	stmtIdParam := ctx.Param("stmtId")
+	stmtID, err := uuid.Parse(stmtIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid statement id", "stmtId", stmtIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Step 1: Verify SSP exists
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 2: Verify Implemented Requirement belongs to SSP
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 3: Verify Statement belongs to Requirement
+	var stmt relational.Statement
+	if err := h.db.Where("id = ? AND implemented_requirement_id = ?", stmtID, req.ID).
+		First(&stmt).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("statement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 5: Parse request body
+	var oscalBC oscalTypes_1_1_3.ByComponent
+	if err := ctx.Bind(&oscalBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Step 6: Map and update
+	relBC := &relational.ByComponent{}
+	relBC.UnmarshalOscal(oscalBC)
+	relBC.ParentID = stmt.ID
+	parentType := "statements"
+
+	relBC.ParentType = &parentType
+
+	if err := h.db.Create(relBC).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Step 7: Return updated
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()})
 }
