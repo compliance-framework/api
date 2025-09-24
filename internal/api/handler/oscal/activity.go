@@ -2,8 +2,9 @@ package oscal
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
+
+	"go.uber.org/zap"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -155,25 +156,42 @@ func (h *ActivityHandler) UpdateActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Convert to relational model
-	relationalActivity := &relational.Activity{}
-	relationalActivity.UnmarshalOscal(activity)
-	relationalActivity.ID = &id
-
-	// Update in database and check if resource exists
-	result := h.db.Where("id = ?", id).Updates(relationalActivity)
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to update activity: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
-	}
-
-	// Check if the activity was found and updated
-	if result.RowsAffected == 0 {
+	// Load the existing activity (with steps)
+	var dbActivity relational.Activity
+	if err := h.db.Preload("Steps").First(&dbActivity, "id = ?", id).Error; err != nil {
 		h.sugar.Warnw("Activity not found for update", "activityId", id)
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("activity with id %s not found", id)))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: relationalActivity.MarshalOscal()})
+	// Update main fields (excluding steps)
+	relationalActivity := &relational.Activity{}
+	relationalActivity.UnmarshalOscal(activity)
+	relationalActivity.ID = &id
+	if err := h.db.Model(&dbActivity).Updates(relationalActivity).Error; err != nil {
+		h.sugar.Errorf("Failed to update activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Use GORM Association mode to replace steps
+	if err := h.db.Model(&dbActivity).Association("Steps").Unscoped().Clear(); err != nil {
+		h.sugar.Errorf("Failed to clear old steps: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Use GORM Association mode to replace steps
+	if err := h.db.Model(&dbActivity).Association("Steps").Append(relationalActivity.Steps); err != nil {
+		h.sugar.Errorf("Failed to replace steps: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Reload the updated activity with steps
+	var updated relational.Activity
+	if err := h.db.Preload("Steps").Preload("RelatedControls").First(&updated, "id = ?", id).Error; err != nil {
+		h.sugar.Errorf("Failed to reload updated activity: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Activity]{Data: updated.MarshalOscal()})
 }
 
 // DeleteActivity godoc
