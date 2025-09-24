@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
+	"gorm.io/gorm/clause"
 )
 
 func newDashboardsImportCMD() *cobra.Command {
@@ -66,6 +67,9 @@ func importDashboards(cmd *cobra.Command, args []string) {
 		rec := relational.Filter{
 			Name: in.Name,
 		}
+		if in.ID != nil {
+			rec.ID = in.ID
+		}
 
 		// Build filter JSON if provided
 		if in.Filter != nil {
@@ -73,7 +77,7 @@ func importDashboards(cmd *cobra.Command, args []string) {
 			rec.Filter = datatypes.NewJSONType(lf)
 		}
 
-		if err := db.Create(&rec).Error; err != nil {
+		if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rec).Error; err != nil {
 			sugar.Fatalf("failed to create filter '%s': %v", in.Name, err)
 		}
 
