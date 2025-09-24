@@ -13817,6 +13817,56 @@ paths:
       summary: Update an implemented requirement for a SSP
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}:
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing by-component that belongs to an implemented
+        requirement for a given SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: By-Component ID
+        in: path
+        name: byComponentId
+        required: true
+        type: string
+      - description: By-Component data
+        in: body
+        name: by-component
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.ByComponent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ByComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update a by-component within an implemented requirement
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements:
     post:
       consumes:
