@@ -158,6 +158,7 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId", h.UpdateImplementedRequirement)
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements", h.CreateImplementedRequirementStatement)
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId", h.UpdateImplementedRequirementStatement)
+	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/by-components/:byComponentId", h.UpdateImplementedRequirementByComponent)
 	api.PUT("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.UpdateImplementedRequirementStatementByComponent)
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.DeleteImplementedRequirementStatementByComponent)
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components", h.CreateImplementedRequirementStatementByComponent)
@@ -2903,6 +2904,93 @@ func (h *SystemSecurityPlanHandler) UpdateImplementedRequirement(ctx echo.Contex
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]{Data: *relReq.MarshalOscal()})
+}
+
+// UpdateImplementedRequirementByComponent godoc
+//
+//	@Summary		Update a by-component within an implemented requirement
+//	@Description	Updates an existing by-component that belongs to an implemented requirement for a given SSP.
+//	@Tags			System Security Plans
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		string							true	"SSP ID"
+//	@Param			reqId			path		string							true	"Requirement ID"
+//	@Param			byComponentId	path		string							true	"By-Component ID"
+//	@Param			by-component	body		oscalTypes_1_1_3.ByComponent	true	"By-Component data"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId} [put]
+func (h *SystemSecurityPlanHandler) UpdateImplementedRequirementByComponent(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	reqIdParam := ctx.Param("reqId")
+	reqID, err := uuid.Parse(reqIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid requirement id", "reqId", reqIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	byComponentIdParam := ctx.Param("byComponentId")
+	byComponentID, err := uuid.Parse(byComponentIdParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid component id", "byComponentId", byComponentIdParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var ssp relational.SystemSecurityPlan
+	if err := h.db.Preload("ControlImplementation").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var req relational.ImplementedRequirement
+	if err := h.db.Where("id = ? AND control_implementation_id = ?", reqID, ssp.ControlImplementation.ID).
+		First(&req).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("requirement not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var existing relational.ByComponent
+	if err := h.db.Where("id = ? AND parent_id = ? AND parent_type = ?",
+		byComponentID, req.ID, "implemented_requirements").
+		First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("by-component not found")))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var oscalBC oscalTypes_1_1_3.ByComponent
+	if err := ctx.Bind(&oscalBC); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	relBC := &relational.ByComponent{}
+	relBC.UnmarshalOscal(oscalBC)
+	relBC.ID = &byComponentID
+	relBC.ParentID = req.ID
+	parentType := "implemented_requirements"
+	relBC.ParentType = &parentType
+
+	if err := h.db.Save(relBC).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK,
+		handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()},
+	)
 }
 
 // DeleteImplementedRequirement godoc

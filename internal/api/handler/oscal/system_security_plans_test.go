@@ -660,6 +660,109 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequire
 	suite.Equal("updated-role", (*updateResponse.Data.ResponsibleRoles)[0].RoleId)
 }
 
+// Test updating a by-component within an implemented requirement (requirement-level)
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementByComponent() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	ssp := suite.createBasicSSP()
+	componentUuid := ssp.SystemImplementation.Components[0].UUID
+
+	// Remove statements to keep setup minimal for requirement-level by-components
+	ssp.ControlImplementation.ImplementedRequirements[0].Statements = nil
+
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", ssp)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	implementedReq := oscalTypes_1_1_3.ImplementedRequirement{
+		UUID:      uuid.New().String(),
+		ControlId: "ac-1",
+		ByComponents: &[]oscalTypes_1_1_3.ByComponent{
+			{
+				UUID:          uuid.New().String(),
+				ComponentUuid: componentUuid,
+				Description:   "Test requirement-level by component",
+			},
+		},
+	}
+
+	req = suite.createRequest("POST", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", ssp.UUID), implementedReq)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var createResponse handler.GenericDataResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	err = json.Unmarshal(resp.Body.Bytes(), &createResponse)
+	suite.NoError(err)
+
+	requirement := createResponse.Data
+	suite.Require().NotNil(requirement.ByComponents)
+	suite.Require().NotEmpty(*requirement.ByComponents)
+	firstByComponent := (*requirement.ByComponents)[0]
+
+	updatedByComponent := oscalTypes_1_1_3.ByComponent{
+		UUID:          firstByComponent.UUID,
+		ComponentUuid: firstByComponent.ComponentUuid,
+		Description:   "Updated requirement-level by component",
+		Remarks:       "Updated requirement-level remarks",
+		Props: &[]oscalTypes_1_1_3.Property{
+			{
+				Name:  "updated-prop",
+				Value: "updated-value",
+			},
+		},
+		Links: &[]oscalTypes_1_1_3.Link{
+			{
+				Href:      "https://updated-link.com",
+				MediaType: "application/json",
+				Text:      "Updated Link",
+			},
+		},
+		ResponsibleRoles: &[]oscalTypes_1_1_3.ResponsibleRole{
+			{
+				RoleId:  "updated-role",
+				Remarks: "Updated role remarks",
+			},
+		},
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/by-components/%s",
+		ssp.UUID, requirement.UUID, updatedByComponent.UUID), updatedByComponent)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var updateResponse handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]
+	err = json.Unmarshal(resp.Body.Bytes(), &updateResponse)
+	suite.NoError(err)
+
+	suite.Equal(updatedByComponent.UUID, updateResponse.Data.UUID)
+	suite.Equal(updatedByComponent.ComponentUuid, updateResponse.Data.ComponentUuid)
+	suite.Equal("Updated requirement-level by component", updateResponse.Data.Description)
+	suite.Equal("Updated requirement-level remarks", updateResponse.Data.Remarks)
+	suite.Require().NotNil(updateResponse.Data.Props)
+	suite.Len(*updateResponse.Data.Props, 1)
+	suite.Equal("updated-prop", (*updateResponse.Data.Props)[0].Name)
+	suite.Equal("updated-value", (*updateResponse.Data.Props)[0].Value)
+	suite.Require().NotNil(updateResponse.Data.Links)
+	suite.Len(*updateResponse.Data.Links, 1)
+	suite.Equal("https://updated-link.com", (*updateResponse.Data.Links)[0].Href)
+	suite.Require().NotNil(updateResponse.Data.ResponsibleRoles)
+	suite.Len(*updateResponse.Data.ResponsibleRoles, 1)
+	suite.Equal("updated-role", (*updateResponse.Data.ResponsibleRoles)[0].RoleId)
+}
+
 // Test updating a by-component within a statement within an implemented requirement
 func (suite *SystemSecurityPlanApiIntegrationSuite) TestUpdateImplementedRequirementStatementByComponent() {
 	logConf := zap.NewDevelopmentConfig()
