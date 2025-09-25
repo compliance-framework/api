@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/go-playground/validator/v10"
 
@@ -52,18 +51,16 @@ func NotFound() Error {
 	return e
 }
 
-func NotFoundError(err error) *echo.HTTPError {
-	return &echo.HTTPError{
-		Code:     http.StatusNotFound,
-		Message:  "resource not found",
-		Internal: err,
-	}
+func NotFoundCustomMsg(msg string) Error {
+	e := Error{}
+	e.Errors = make(map[string]any)
+	e.Errors["body"] = msg
+	return e
 }
 
-func InvalidUUIDError(err error) *echo.HTTPError {
-	return &echo.HTTPError{
-		Code:     http.StatusBadRequest,
-		Message:  fmt.Sprintf("invalid UUID: %v", err),
-		Internal: err,
-	}
+func InvalidUUID() Error {
+	e := Error{}
+	e.Errors = make(map[string]any)
+	e.Errors["body"] = "invalid UUID"
+	return e
 }
