@@ -14,7 +14,7 @@ type User struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"` // Soft delete
 
-	Email        string `json:"email" gorm:"uniqueIndex;not null"`
+	Email        string `json:"email" gorm:"uniqueIndex:idx_ccf_users_email,WHERE:deleted_at IS NULL;not null"`
 	PasswordHash string `gorm:"not null" json:"-"`
 
 	FirstName string `json:"firstName"`
