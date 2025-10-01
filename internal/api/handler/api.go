@@ -9,6 +9,9 @@ import (
 )
 
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) {
+	healthHandler := NewHealthHandler(logger, db)
+	healthHandler.Register(server.API().Group("/health"))
+
 	filterHandler := NewFilterHandler(logger, db)
 	filterHandler.Register(server.API().Group("/filters"))
 
