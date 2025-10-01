@@ -135,7 +135,6 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
 		First(&plan, id).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return api.NotFoundError(fmt.Errorf("assessment plan not found: %w", err))
@@ -474,7 +473,8 @@ func (h *AssessmentPlanHandler) Full(ctx echo.Context) error {
 		Preload("Tasks.Dependencies").
 		Preload("Tasks.Tasks").
 		Preload("Tasks.AssociatedActivities").
-		Preload("Tasks.AssociatedActivities.Steps").
+		Preload("Tasks.AssociatedActivities.Subjects").
+		Preload("Tasks.AssociatedActivities.Activity").
 		Preload("Tasks.Subjects").
 		Preload("Tasks.ResponsibleRole").
 		Preload("AssessmentAssets").
