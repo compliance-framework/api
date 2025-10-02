@@ -1789,13 +1789,13 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 //	@Tags			Component Definitions
 //	@Accept			json
 //	@Produce		json
-//	@Param			id				path		string							true	"Component Definition ID"
-//	@Param			capability		body		oscalTypes_1_1_3.Capability	true	"Capability"
-//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Capability]
-//	@Failure		400				{object}	api.Error
-//	@Failure		401				{object}	api.Error
-//	@Failure		404				{object}	api.Error
-//	@Failure		500				{object}	api.Error
+//	@Param			id			path		string						true	"Component Definition ID"
+//	@Param			capability	body		oscalTypes_1_1_3.Capability	true	"Capability"
+//	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Capability]
+//	@Failure		400			{object}	api.Error
+//	@Failure		401			{object}	api.Error
+//	@Failure		404			{object}	api.Error
+//	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capability [post]
 func (h *ComponentDefinitionHandler) CreateCapability(ctx echo.Context) error {

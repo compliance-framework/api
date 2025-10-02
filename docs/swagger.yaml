@@ -10420,6 +10420,96 @@ paths:
       summary: Create incorporates components for a component definition
       tags:
       - Component Definitions
+  /oscal/component-definitions/{id}/capability:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new capability for a given component definition.
+      parameters:
+      - description: Component Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Capability
+        in: body
+        name: capability
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Capability'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a capability for a component definition
+      tags:
+      - Component Definitions
+  /oscal/component-definitions/{id}/component:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new component for a given component definition.
+      parameters:
+      - description: Component definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Component to create
+        in: body
+        name: component
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_DefinedComponent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a component for a component definition
+      tags:
+      - Component Definitions
   /oscal/component-definitions/{id}/components:
     get:
       description: Retrieves all components for a given component definition.
