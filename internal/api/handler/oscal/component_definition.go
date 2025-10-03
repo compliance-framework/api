@@ -1763,7 +1763,7 @@ func (h *ComponentDefinitionHandler) CreateCapability(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Capability]{
-		Data: capability,
+		Data: *relationalCapability.MarshalOscal(),
 	})
 }
 
