@@ -42,7 +42,7 @@ func (h *ComponentDefinitionHandler) getExistingComponentDefinition(ctx echo.Con
 		return nil, &httpErr
 	}
 	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", componentDefinitionId).Error; err != nil {
+	if err := h.db.Preload("Metadata").First(&componentDefinition, "id = ?", componentDefinitionId).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			httpError := api.NewHTTPError(404, err)
 			return nil, &httpError
@@ -746,7 +746,7 @@ func (h *ComponentDefinitionHandler) CreateComponent(ctx echo.Context) error {
 	now := time.Now()
 	metadataUpdates := &relational.Metadata{
 		LastModified: &now,
-		OscalVersion: "test oscal version",
+		OscalVersion: versioning.GetLatestSupportedVersion(),
 	}
 
 	if err := tx.Model(&relational.Metadata{}).Where("id = ?", componentDefinition.Metadata.ID).Updates(metadataUpdates).Error; err != nil {

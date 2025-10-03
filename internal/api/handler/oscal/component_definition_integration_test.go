@@ -14,6 +14,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -472,6 +473,71 @@ func (suite *ComponentDefinitionApiIntegrationSuite) TestCreateComponent() {
 		suite.server.E().ServeHTTP(rec, req)
 
 		suite.Equal(http.StatusBadRequest, rec.Code, "Expected 400 for invalid component data")
+	})
+
+	suite.Run("Successfully updates the metadata of a component definition on component creation", func() {
+		// First create a base component definition to add components to
+		componentDefID := suite.createBaseComponentDefinition()
+
+		var def relational.ComponentDefinition
+		err := suite.DB.Preload("Metadata").First(&def, "id = ?", componentDefID).Error
+		suite.Require().NoError(err, "failed to get component definition")
+		var md relational.Metadata
+		err = suite.DB.First(&md, "id = ?", def.Metadata.ID).Error
+		suite.Require().NoError(err, "failed to get metadata for component definition")
+		firstModified := def.Metadata.LastModified
+
+		// Create test components
+		component := oscaltypes.DefinedComponent{
+			UUID:        uuid.New().String(),
+			Type:        "software",
+			Title:       "Web Server Component",
+			Description: "A web server component for testing",
+			Purpose:     "Web serving",
+			Protocols: &[]oscaltypes.Protocol{
+				{
+					UUID:  uuid.New().String(),
+					Name:  "https",
+					Title: "HTTPS Protocol",
+					PortRanges: &[]oscaltypes.PortRange{
+						{
+							Start:     443,
+							End:       443,
+							Transport: "TCP",
+						},
+					},
+				},
+			},
+		}
+
+		// Send POST request to create components
+		rec, req := suite.createRequest(
+			http.MethodPost,
+			fmt.Sprintf("/api/oscal/component-definitions/%s/component", componentDefID),
+			component,
+		)
+		suite.server.E().ServeHTTP(rec, req)
+
+		// Check response
+		suite.Equal(http.StatusOK, rec.Code, "Failed to create component")
+
+		// Unmarshal and verify response
+		componentResponse := &handler.GenericDataResponse[oscaltypes.DefinedComponent]{}
+		err = json.Unmarshal(rec.Body.Bytes(), componentResponse)
+		suite.Require().NoError(err, "Failed to unmarshal components response")
+
+		// Check last modified metadata is updated
+
+		var newDef relational.ComponentDefinition
+		err = suite.DB.Preload("Metadata").First(&newDef, "id = ?", componentDefID).Error
+		suite.Require().NoError(err, "failed to get component definition")
+		var newMd relational.Metadata
+		err = suite.DB.First(&newMd, "id = ?", newDef.Metadata.ID).Error
+		suite.Require().NoError(err, "failed to get metadata for component definition")
+		recentLastModified := newDef.Metadata.LastModified
+
+		suite.NotEqual(*firstModified, *recentLastModified)
+		suite.Less(*firstModified, *recentLastModified)
 	})
 }
 
