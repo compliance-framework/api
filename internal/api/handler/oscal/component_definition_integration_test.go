@@ -373,7 +373,6 @@ func (suite *ComponentDefinitionApiIntegrationSuite) TestCreateComponent() {
 	suite.Run("Successfully creates a component for a component definition", func() {
 		// First create a base component definition to add components to
 		componentDefID := suite.createBaseComponentDefinition()
-		fmt.Println("Component def id:", componentDefID)
 
 		// Create test components
 		component := oscaltypes.DefinedComponent{
@@ -414,10 +413,10 @@ func (suite *ComponentDefinitionApiIntegrationSuite) TestCreateComponent() {
 		suite.Require().NoError(err, "Failed to unmarshal components response")
 
 		// Verify each component
-		suite.Equal(componentResponse.Data.Type, component.Type, "Component type doesn't match")
-		suite.Equal(componentResponse.Data.Title, component.Title, "Component title doesn't match")
-		suite.Equal(componentResponse.Data.Description, component.Description, "Component description doesn't match")
-		suite.Equal(componentResponse.Data.Purpose, component.Purpose, "Component purpose doesn't match")
+		suite.Equal(component.Type, componentResponse.Data.Type, "Component type doesn't match")
+		suite.Equal(component.Title, componentResponse.Data.Title, "Component title doesn't match")
+		suite.Equal(component.Description, componentResponse.Data.Description, "Component description doesn't match")
+		suite.Equal(component.Purpose, componentResponse.Data.Purpose, "Component purpose doesn't match")
 
 		fmt.Printf("Successfully created component for component definition %s\n", componentDefID)
 
@@ -1340,14 +1339,14 @@ func (suite *ComponentDefinitionApiIntegrationSuite) TestCreateCapability() {
 
 		// Verify each capability was created correctly
 
-		suite.Equal(response.Data.UUID, capability.UUID, "Capability UUID doesn't match")
-		suite.Equal(response.Data.Name, capability.Name, "Capability name doesn't match")
-		suite.Equal(response.Data.Description, capability.Description, "Capability description doesn't match")
+		suite.Equal(capability.UUID, response.Data.UUID, "Capability UUID doesn't match")
+		suite.Equal(capability.Name, response.Data.Name, "Capability name doesn't match")
+		suite.Equal(capability.Description, response.Data.Description, "Capability description doesn't match")
 		suite.Require().NotNil(response.Data.ControlImplementations, "Control implementations should not be nil")
-		suite.Equal(len(*response.Data.ControlImplementations), len(*capability.ControlImplementations), "Number of control implementations doesn't match")
-		suite.Equal((*response.Data.ControlImplementations)[0].Description, (*capability.ControlImplementations)[0].Description, "Control implementation description doesn't match")
-		suite.Equal((*response.Data.ControlImplementations)[0].ImplementedRequirements[0].ControlId, (*capability.ControlImplementations)[0].ImplementedRequirements[0].ControlId, "Control ID doesn't match")
-		suite.Equal((*response.Data.ControlImplementations)[0].ImplementedRequirements[0].Remarks, (*capability.ControlImplementations)[0].ImplementedRequirements[0].Remarks, "Remarks don't match")
+		suite.Equal(len(*capability.ControlImplementations), len(*response.Data.ControlImplementations), "Number of control implementations doesn't match")
+		suite.Equal((*capability.ControlImplementations)[0].Description, (*response.Data.ControlImplementations)[0].Description, "Control implementation description doesn't match")
+		suite.Equal((*capability.ControlImplementations)[0].ImplementedRequirements[0].ControlId, (*response.Data.ControlImplementations)[0].ImplementedRequirements[0].ControlId, "Control ID doesn't match")
+		suite.Equal((*capability.ControlImplementations)[0].ImplementedRequirements[0].Remarks, (*response.Data.ControlImplementations)[0].ImplementedRequirements[0].Remarks, "Remarks don't match")
 
 		fmt.Printf("Successfully created capabilities for component definition %s\n", componentDefID)
 

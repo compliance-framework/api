@@ -12,6 +12,17 @@ import (
 type Error struct {
 	Errors map[string]any `json:"errors" yaml:"errors"`
 }
+type HTTPError struct {
+	StatusCode int
+	Err        error
+}
+
+func NewHTTPError(status int, err error) HTTPError {
+	return HTTPError{
+		StatusCode: status,
+		Err:        err,
+	}
+}
 
 func NewError(err error) Error {
 	e := Error{}

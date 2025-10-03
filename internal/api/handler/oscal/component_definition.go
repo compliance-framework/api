@@ -32,6 +32,28 @@ func NewComponentDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *Compo
 	}
 }
 
+func (h *ComponentDefinitionHandler) getExistingComponentDefinition(ctx echo.Context) (*relational.ComponentDefinition, *api.HTTPError) {
+	// Utility function for grabbing an existing component definition
+	idParam := ctx.Param("id")
+	componentDefinitionId, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
+		httpErr := api.NewHTTPError(http.StatusBadRequest, err)
+		return nil, &httpErr
+	}
+	var componentDefinition relational.ComponentDefinition
+	if err := h.db.First(&componentDefinition, "id = ?", componentDefinitionId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			httpError := api.NewHTTPError(404, err)
+			return nil, &httpError
+		}
+		h.sugar.Warnw("Failed to load component definition", "id", componentDefinitionId.String(), "error", err)
+		httpErr := api.NewHTTPError(http.StatusBadRequest, err)
+		return nil, &httpErr
+	}
+	return &componentDefinition, nil
+}
+
 func (h *ComponentDefinitionHandler) Register(api *echo.Group) {
 	api.GET("", h.List)                                                                                                                // manually tested
 	api.POST("", h.Create)                                                                                                             // manually tested
@@ -352,22 +374,10 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [get]
 func (h *ComponentDefinitionHandler) GetImportComponentDefinitions(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var oscalImportComponentDefinitions []oscalTypes_1_1_3.ImportComponentDefinition
 	for _, importComponentDefinition := range componentDefinition.ImportComponentDefinitions {
 		oscalImportComponentDefinitions = append(oscalImportComponentDefinitions, *importComponentDefinition.MarshalOscal())
@@ -478,22 +488,10 @@ func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.C
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/import-component-definitions [put]
 func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var importComponentDefinitions []oscalTypes_1_1_3.ImportComponentDefinition
 	if err := ctx.Bind(&importComponentDefinitions); err != nil {
 		h.sugar.Warnw("Failed to bind import component definitions", "error", err)
@@ -605,22 +603,10 @@ func (h *ComponentDefinitionHandler) GetComponents(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [post]
 func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var components []oscalTypes_1_1_3.DefinedComponent
 	if err := ctx.Bind(&components); err != nil {
 		h.sugar.Warnw("Failed to bind components", "error", err)
@@ -655,7 +641,7 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 	for _, component := range components {
 		relationalComponent := relational.DefinedComponent{}
 		relationalComponent.UnmarshalOscal(component)
-		relationalComponent.ComponentDefinitionID = &id
+		relationalComponent.ComponentDefinitionID = componentDefinition.ID
 		newComponents = append(newComponents, relationalComponent)
 	}
 
@@ -708,20 +694,9 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/component [post]
 func (h *ComponentDefinitionHandler) CreateComponent(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
 
 	var component oscalTypes_1_1_3.DefinedComponent
@@ -758,7 +733,7 @@ func (h *ComponentDefinitionHandler) CreateComponent(ctx echo.Context) error {
 	// Convert to relational model
 	newComponent := relational.DefinedComponent{}
 	newComponent.UnmarshalOscal(component)
-	newComponent.ComponentDefinitionID = &id
+	newComponent.ComponentDefinitionID = componentDefinition.ID
 
 	// Create component
 	if err := tx.Create(&newComponent).Error; err != nil {
@@ -771,8 +746,9 @@ func (h *ComponentDefinitionHandler) CreateComponent(ctx echo.Context) error {
 	now := time.Now()
 	metadataUpdates := &relational.Metadata{
 		LastModified: &now,
-		OscalVersion: versioning.GetLatestSupportedVersion(),
+		OscalVersion: "test oscal version",
 	}
+
 	if err := tx.Model(&relational.Metadata{}).Where("id = ?", componentDefinition.Metadata.ID).Updates(metadataUpdates).Error; err != nil {
 		tx.Rollback()
 		h.sugar.Errorf("Failed to update metadata: %v", err)
@@ -784,9 +760,9 @@ func (h *ComponentDefinitionHandler) CreateComponent(ctx echo.Context) error {
 		h.sugar.Errorf("Failed to commit transaction: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	fmt.Println("Returning data: ", component)
+
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.DefinedComponent]{
-		Data: component,
+		Data: *newComponent.MarshalOscal(),
 	})
 }
 
@@ -807,22 +783,10 @@ func (h *ComponentDefinitionHandler) CreateComponent(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components [put]
 func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var oscalComponents []oscalTypes_1_1_3.DefinedComponent
 	if err := ctx.Bind(&oscalComponents); err != nil {
 		h.sugar.Warnw("Failed to bind components", "error", err)
@@ -840,7 +804,7 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 	for _, oscalComponent := range oscalComponents {
 		relationalComponent := relational.DefinedComponent{}
 		relationalComponent.UnmarshalOscal(oscalComponent)
-		relationalComponent.ComponentDefinitionID = &id
+		relationalComponent.ComponentDefinitionID = componentDefinition.ID
 
 		// Check if the component exists first
 		var existingComponent relational.DefinedComponent
@@ -862,7 +826,7 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 		} else {
 			// Component exists, update it using a map instead of struct to handle zero values
 			updateFields := map[string]any{
-				"component_definition_id": id,
+				"component_definition_id": componentDefinition.ID,
 				"title":                   relationalComponent.Title,
 				"description":             relationalComponent.Description,
 				"purpose":                 relationalComponent.Purpose,
@@ -981,22 +945,10 @@ func (h *ComponentDefinitionHandler) GetDefinedComponent(ctx echo.Context) error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [post]
 func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var oscalDefinedComponent oscalTypes_1_1_3.DefinedComponent
 	if err := ctx.Bind(&oscalDefinedComponent); err != nil {
 		h.sugar.Warnw("Failed to bind defined component", "error", err)
@@ -1068,22 +1020,10 @@ func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) er
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component} [put]
 func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	definedComponentID := ctx.Param("defined-component")
 	var definedComponent relational.DefinedComponent
 	if err := h.db.First(&definedComponent, "id = ?", definedComponentID).Error; err != nil {
@@ -1109,11 +1049,11 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 
 	// Update only the fields that are provided in the request
 	definedComponent.UnmarshalOscal(oscalDefinedComponent)
-	definedComponent.ComponentDefinitionID = &id // Ensure proper association
+	definedComponent.ComponentDefinitionID = componentDefinition.ID // Ensure proper association
 
 	// Convert struct to map for updates to properly handle zero values
 	updateFields := map[string]any{
-		"component_definition_id": id,
+		"component_definition_id": componentDefinition.ID,
 		"title":                   definedComponent.Title,
 		"description":             definedComponent.Description,
 		"purpose":                 definedComponent.Purpose,
@@ -1266,22 +1206,10 @@ func (h *ComponentDefinitionHandler) GetControlImplementations(ctx echo.Context)
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [post]
 func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	_, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	definedComponentID := ctx.Param("defined-component")
 	var definedComponent relational.DefinedComponent
 	if err := h.db.First(&definedComponent, "id = ?", definedComponentID).Error; err != nil {
@@ -1347,22 +1275,10 @@ func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Conte
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements [get]
 func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	_, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	definedComponentID := ctx.Param("defined-component")
 	var definedComponent relational.DefinedComponent
 	if err := h.db.
@@ -1486,22 +1402,10 @@ func (h *ComponentDefinitionHandler) GetImplementedRequirements(ctx echo.Context
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements/statements [get]
 func (h *ComponentDefinitionHandler) GetStatements(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	_, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	definedComponentID := ctx.Param("defined-component")
 	var definedComponent relational.DefinedComponent
 	if err := h.db.
@@ -1692,22 +1596,10 @@ func (h *ComponentDefinitionHandler) GetCapabilities(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities [post]
 func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var capabilities []oscalTypes_1_1_3.Capability
 	if err := ctx.Bind(&capabilities); err != nil {
 		h.sugar.Warnw("Failed to bind capabilities", "error", err)
@@ -1758,7 +1650,7 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 	for _, capability := range capabilities {
 		relationalCapability := relational.Capability{}
 		relationalCapability.UnmarshalOscal(capability)
-		relationalCapability.ComponentDefinitionId = id
+		relationalCapability.ComponentDefinitionId = *componentDefinition.ID
 		newCapabilities = append(newCapabilities, relationalCapability)
 	}
 
@@ -1799,22 +1691,10 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capability [post]
 func (h *ComponentDefinitionHandler) CreateCapability(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var capability oscalTypes_1_1_3.Capability
 	if err := ctx.Bind(&capability); err != nil {
 		h.sugar.Warnw("Failed to bind capabilities", "error", err)
@@ -1866,7 +1746,7 @@ func (h *ComponentDefinitionHandler) CreateCapability(ctx echo.Context) error {
 
 	relationalCapability := relational.Capability{}
 	relationalCapability.UnmarshalOscal(capability)
-	relationalCapability.ComponentDefinitionId = id
+	relationalCapability.ComponentDefinitionId = *componentDefinition.ID
 	newCapabilities = append(newCapabilities, relationalCapability)
 
 	// Create the capabilities
@@ -1961,22 +1841,10 @@ func (h *ComponentDefinitionHandler) GetIncorporatesComponents(ctx echo.Context)
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/capabilities/incorporates-components [post]
 func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	_, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var incorporatesComponents []oscalTypes_1_1_3.IncorporatesComponent
 	if err := ctx.Bind(&incorporatesComponents); err != nil {
 		h.sugar.Warnw("Failed to bind incorporates components", "error", err)
@@ -2076,22 +1944,10 @@ func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/back-matter [post]
 func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	var backMatter oscalTypes_1_1_3.BackMatter
 	if err := ctx.Bind(&backMatter); err != nil {
 		h.sugar.Warnw("Failed to bind back-matter", "error", err)
@@ -2174,22 +2030,10 @@ func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations [put]
 func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	definedComponentID := ctx.Param("defined-component")
 	var definedComponent relational.DefinedComponent
 	if err := h.db.First(&definedComponent, "id = ?", definedComponentID).Error; err != nil {
@@ -2276,22 +2120,10 @@ func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Conte
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/{control-implementation} [put]
 func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid component definition id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	componentDefinition, httpErr := h.getExistingComponentDefinition(ctx)
+	if httpErr != nil {
+		return ctx.JSON(httpErr.StatusCode, api.NewError(httpErr.Err))
 	}
-
-	var componentDefinition relational.ComponentDefinition
-	if err := h.db.First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
 	definedComponentID := ctx.Param("defined-component")
 	var definedComponent relational.DefinedComponent
 	if err := h.db.First(&definedComponent, "id = ?", definedComponentID).Error; err != nil {
