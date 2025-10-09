@@ -1,14 +1,15 @@
 package handler
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"net/http"
-	"time"
 )
 
 type HeartbeatHandler struct {
@@ -54,7 +55,7 @@ func (h *HeartbeatHandler) Create(ctx echo.Context) error {
 
 	err := ctx.Validate(heartbeat)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err, heartbeat))
 	}
 
 	if err := h.db.Create(&service.Heartbeat{
@@ -78,7 +79,6 @@ func (h *HeartbeatHandler) Create(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Router			/agent/heartbeat/over-time [get]
 func (h *HeartbeatHandler) OverTime(ctx echo.Context) error {
-
 	type HeartbeatInterval struct {
 		Interval time.Time `json:"interval"`
 		Total    int64     `json:"total"`

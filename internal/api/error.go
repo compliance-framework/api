@@ -3,6 +3,8 @@ package api
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 
@@ -26,13 +28,36 @@ func NewError(err error) Error {
 	return e
 }
 
-func Validator(err error) Error {
+func Validator(err error, invalidObj any) Error {
 	e := Error{}
-	e.Errors = make(map[string]any)
+	e.Errors = make(map[string]interface{})
 	var errs validator.ValidationErrors
-	errors.As(err, &errs)
+
+	if !errors.As(err, &errs) {
+		return e
+	}
+
+	invalidObjType := reflect.TypeOf(invalidObj)
+
+	if invalidObjType.Kind() == reflect.Ptr {
+		invalidObjType = invalidObjType.Elem()
+	}
+
 	for _, v := range errs {
-		e.Errors[v.Field()] = fmt.Sprintf("%v", v.Tag())
+		fieldName := v.StructField()
+		jsonTag := fieldName
+		if f, ok := invalidObjType.FieldByName(fieldName); ok {
+			tag := f.Tag.Get("json")
+			if tag != "" && tag != "-" {
+				jsonTag = strings.Split(tag, ",")[0]
+			}
+		}
+		msg := fmt.Sprintf("validation failed on '%s'", v.Tag())
+		if errList, ok := e.Errors[jsonTag].([]string); ok {
+			e.Errors[jsonTag] = append(errList, msg)
+		} else {
+			e.Errors[jsonTag] = []string{msg}
+		}
 	}
 	return e
 }

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"errors"
+	"net/http"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -10,7 +12,6 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"net/http"
 )
 
 // FilterHandler handles CRUD operations for filters.
@@ -136,7 +137,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := ctx.Validate(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err, req))
 	}
 
 	filter := relational.Filter{
@@ -190,7 +191,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := ctx.Validate(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
+		return ctx.JSON(http.StatusBadRequest, api.Validator(err, req))
 	}
 
 	var filter relational.Filter

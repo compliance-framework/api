@@ -161,6 +161,27 @@ func (suite *UserApiIntegrationSuite) TestCreateUser() {
 		suite.Equal(409, rec.Code, "Expected Conflict response for CreateUser with existing email")
 		suite.Contains(rec.Body.String(), "email already exists", "Expected error message for existing email in CreateUser response")
 	})
+
+	suite.Run("CreateUserWithInvalidEmail", func() {
+		existingUser := createUserRequest{
+			Email:     "",
+			Password:  "password123",
+			FirstName: "Existing",
+			LastName:  "User",
+		}
+
+		existingUserJSON, err := json.Marshal(existingUser)
+		suite.Require().NoError(err, "Failed to marshal existing user request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/users", bytes.NewReader(existingUserJSON))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(400, rec.Code, "Expected error response for CreateUser with invalid email")
+		suite.Contains(rec.Body.String(), "{\"errors\":{\"email\":[\"validation failed on 'email'\"]}}\n", "Expected error message for invalid email in CreateUser response")
+	})
 }
 
 func (suite *UserApiIntegrationSuite) ModifyUser() {

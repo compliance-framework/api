@@ -156,6 +156,11 @@ func (h *UserHandler) CreateUser(ctx echo.Context) error {
 		return ctx.JSON(400, api.NewError(err))
 	}
 
+	err := ctx.Validate(req)
+	if err != nil {
+		return ctx.JSON(400, api.Validator(err, req))
+	}
+
 	user := &relational.User{
 		Email:     req.Email,
 		FirstName: req.FirstName,
