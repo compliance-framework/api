@@ -15,6 +15,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -114,29 +115,6 @@ func (h *AssessmentResultsHandler) Register(api *echo.Group) {
 	api.POST("/:id/back-matter/resources", h.CreateBackMatterResource)
 	api.PUT("/:id/back-matter/resources/:resourceId", h.UpdateBackMatterResource)
 	api.DELETE("/:id/back-matter/resources/:resourceId", h.DeleteBackMatterResource)
-}
-
-// validateAssessmentResultsInput validates Assessment Results input following OSCAL requirements
-func (h *AssessmentResultsHandler) validateAssessmentResultsInput(ar *oscalTypes_1_1_3.AssessmentResults) error {
-	if ar.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(ar.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if ar.Metadata.Title == "" {
-		return fmt.Errorf("metadata.title is required")
-	}
-	if ar.Metadata.Version == "" {
-		return fmt.Errorf("metadata.version is required")
-	}
-	if ar.ImportAp.Href == "" {
-		return fmt.Errorf("import-ap.href is required")
-	}
-	if len(ar.Results) == 0 {
-		return fmt.Errorf("at least one result is required")
-	}
-	return nil
 }
 
 // validateResultInput validates Result input
@@ -359,17 +337,21 @@ func (h *AssessmentResultsHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateAssessmentResultsInput(&oscalAR); err != nil {
-		h.sugar.Warnw("Invalid assessment results input", "error", err)
+	now := time.Now()
+
+	oscalAR.Metadata.LastModified = now
+	oscalAR.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalAR, "oscal-complete-oscal-ar", "assessment-results")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
 
-	now := time.Now()
 	relAR := &relational.AssessmentResult{}
 	relAR.UnmarshalOscal(oscalAR)
-	relAR.Metadata.LastModified = &now
-	relAR.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
 
 	if err := h.db.Create(relAR).Error; err != nil {
 		h.sugar.Errorf("Failed to create assessment results: %v", err)
@@ -408,10 +390,12 @@ func (h *AssessmentResultsHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate required fields
-	if err := h.validateAssessmentResultsInput(&oscalAR); err != nil {
-		h.sugar.Warnw("Invalid assessment results input", "error", err)
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalAR, "oscal-complete-oscal-ar", "assessment-results")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Begin a transaction

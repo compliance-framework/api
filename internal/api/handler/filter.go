@@ -137,7 +137,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := ctx.Validate(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err, req))
+		return ctx.JSON(http.StatusBadRequest, api.FormatTagValidationError(err, req))
 	}
 
 	filter := relational.Filter{
@@ -191,7 +191,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := ctx.Validate(req); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err, req))
+		return ctx.JSON(http.StatusBadRequest, api.FormatTagValidationError(err, req))
 	}
 
 	var filter relational.Filter

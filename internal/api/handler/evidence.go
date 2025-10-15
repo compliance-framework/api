@@ -179,7 +179,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 
 	err := ctx.Validate(input)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err, input))
+		return ctx.JSON(http.StatusBadRequest, api.FormatTagValidationError(err, input))
 	}
 
 	components := []relational.SystemComponent{}

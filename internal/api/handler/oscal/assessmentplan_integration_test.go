@@ -63,6 +63,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanCreate() {
 			ImportSsp: oscalTypes_1_1_3.ImportSsp{
 				Href: "test-ssp-reference",
 			},
+			ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 		},
 	)
 	suite.server.E().ServeHTTP(rec, req)
@@ -113,6 +114,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanList() {
 			ImportSsp: oscalTypes_1_1_3.ImportSsp{
 				Href: "test-ssp-reference",
 			},
+			ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 		}
 
 		createRec, createReq := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
@@ -138,12 +140,14 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanUpdate() {
 	testPlan := &oscalTypes_1_1_3.AssessmentPlan{
 		UUID: planID.String(),
 		Metadata: oscalTypes_1_1_3.Metadata{
-			Title:   "Original Title",
-			Version: "1.0.0",
+			Title:        "Original Title",
+			Version:      "1.0.0",
+			OscalVersion: "1.1.3",
 		},
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
 			Href: "test-ssp-reference",
 		},
+		ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 	}
 
 	// Create the plan
@@ -176,6 +180,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanDelete() {
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
 			Href: "test-ssp-reference",
 		},
+		ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 	}
 
 	// Create the plan
@@ -206,6 +211,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanGetFull() {
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
 			Href: "test-ssp-reference",
 		},
+		ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 	}
 
 	// Create the plan
@@ -323,6 +329,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) TestAssessmentPlanSubResourceEnd
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
 			Href: "test-ssp-reference",
 		},
+		ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 	}
 
 	// Create the plan

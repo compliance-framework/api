@@ -12,6 +12,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -36,20 +37,6 @@ func (h *ActivityHandler) Register(api *echo.Group) {
 	api.DELETE("/:id", h.DeleteActivity)
 }
 
-// validateActivityInput validates activity input
-func (h *ActivityHandler) validateActivityInput(activity *oscalTypes_1_1_3.Activity) error {
-	if activity.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(activity.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if activity.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	return nil
-}
-
 // CreateActivity godoc
 //
 //	@Summary		Create an Activity
@@ -70,9 +57,12 @@ func (h *ActivityHandler) CreateActivity(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateActivityInput(&activity); err != nil {
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(activity, "oscal-complete-oscal-assessment-common", "activity")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Convert to relational model
@@ -148,11 +138,6 @@ func (h *ActivityHandler) UpdateActivity(ctx echo.Context) error {
 
 	var activity oscalTypes_1_1_3.Activity
 	if err := ctx.Bind(&activity); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	// Validate input
-	if err := h.validateActivityInput(&activity); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 

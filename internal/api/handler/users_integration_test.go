@@ -164,7 +164,7 @@ func (suite *UserApiIntegrationSuite) TestCreateUser() {
 
 	suite.Run("CreateUserWithInvalidEmail", func() {
 		existingUser := createUserRequest{
-			Email:     "",
+			Email:     "wrong",
 			Password:  "password123",
 			FirstName: "Existing",
 			LastName:  "User",

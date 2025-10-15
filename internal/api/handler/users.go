@@ -158,7 +158,7 @@ func (h *UserHandler) CreateUser(ctx echo.Context) error {
 
 	err := ctx.Validate(req)
 	if err != nil {
-		return ctx.JSON(400, api.Validator(err, req))
+		return ctx.JSON(400, api.FormatTagValidationError(err, req))
 	}
 
 	user := &relational.User{

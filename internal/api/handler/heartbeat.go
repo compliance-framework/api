@@ -55,7 +55,7 @@ func (h *HeartbeatHandler) Create(ctx echo.Context) error {
 
 	err := ctx.Validate(heartbeat)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.Validator(err, heartbeat))
+		return ctx.JSON(http.StatusBadRequest, api.FormatTagValidationError(err, heartbeat))
 	}
 
 	if err := h.db.Create(&service.Heartbeat{

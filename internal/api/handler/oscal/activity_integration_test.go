@@ -189,3 +189,15 @@ func (suite *ActivityApiIntegrationSuite) TestUpdateActivityRemovesSteps() {
 	suite.Require().NotNil(resp.Data, "No activity returned from get")
 	suite.Require().Len(*resp.Data.Steps, 1)
 }
+
+// Test that updating steps in an activity does not currently update the database (expected to fail)
+func (suite *ActivityApiIntegrationSuite) TestCreateInvalidActivity() {
+	// Create an activity with initial steps
+	activity := &oscalTypes_1_1_3.Activity{
+		UUID: "bad",
+	}
+
+	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/activities", activity)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusBadRequest, rec.Code, "Failed to create activity")
+}

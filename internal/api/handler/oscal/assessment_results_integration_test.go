@@ -109,8 +109,10 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestCreateAssessmentResults()
 	testAR := oscaltypes.AssessmentResults{
 		UUID: uuid.New().String(),
 		Metadata: oscaltypes.Metadata{
-			Title:   "Test Assessment Results",
-			Version: "1.0.0",
+			Title:        "Test Assessment Results",
+			Version:      "1.0.0",
+			LastModified: time.Now(),
+			OscalVersion: "1.1.3",
 		},
 		ImportAp: oscaltypes.ImportAp{
 			Href: "https://example.com/assessment-plan.json",
@@ -122,7 +124,8 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestCreateAssessmentResults()
 				Description: "Test result description",
 				Start:       time.Now(),
 				ReviewedControls: oscaltypes.ReviewedControls{
-					Description: "Controls reviewed",
+					Description:       "Controls reviewed",
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
 				},
 			},
 		},

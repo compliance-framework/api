@@ -28,7 +28,7 @@ func NewError(err error) Error {
 	return e
 }
 
-func Validator(err error, invalidObj any) Error {
+func FormatTagValidationError(err error, invalidObj any) Error {
 	e := Error{}
 	e.Errors = make(map[string]interface{})
 	var errs validator.ValidationErrors
@@ -60,6 +60,10 @@ func Validator(err error, invalidObj any) Error {
 		}
 	}
 	return e
+}
+
+func FormatOscalValidatorError(errors map[string]any) Error {
+	return Error{Errors: errors}
 }
 
 func AccessForbidden() Error {

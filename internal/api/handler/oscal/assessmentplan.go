@@ -13,6 +13,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -160,25 +161,27 @@ func (h *AssessmentPlanHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans [post]
 func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
-	var request AssessmentPlanCreateRequest
-	err := ctx.Bind(&request.Data)
+	var oscalAP oscalTypes_1_1_3.AssessmentPlan
+	err := ctx.Bind(&oscalAP)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	errs := request.Validate()
-	if len(errs) > 0 {
-		return NewValidationErrorResponse(errs)
-	}
-
 	// Set metadata timestamps
 	now := time.Now()
-	request.Data.Metadata.LastModified = now
-	request.Data.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+	oscalAP.Metadata.LastModified = now
+	oscalAP.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalAP, "oscal-complete-oscal-ap", "assessment-plan")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
 	// Convert to a relational model
 	relationalPlan := &relational.AssessmentPlan{}
-	relationalPlan.UnmarshalOscal(*request.Data)
+	relationalPlan.UnmarshalOscal(oscalAP)
 
 	// Save to the database
 	if err := h.db.Create(relationalPlan).Error; err != nil {
@@ -205,6 +208,7 @@ func (h *AssessmentPlanHandler) Create(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/assessment-plans/{id} [put]
 func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
+	var oscalAP oscalTypes_1_1_3.AssessmentPlan
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
@@ -214,23 +218,25 @@ func (h *AssessmentPlanHandler) Update(ctx echo.Context) error {
 		return err
 	}
 
-	var request AssessmentPlanUpdateRequest
-	if err := ctx.Bind(&request.Data); err != nil {
+	if err := ctx.Bind(&oscalAP); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	errs := request.Validate()
-	if len(errs) > 0 {
-		return NewValidationErrorResponse(errs)
 	}
 
 	// Update metadata
 	now := time.Now()
-	request.Data.Metadata.LastModified = now
+	oscalAP.Metadata.LastModified = now
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalAP, "oscal-complete-oscal-ap", "assessment-plan")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
 
 	// Convert to a relational model
 	relationalPlan := &relational.AssessmentPlan{}
-	relationalPlan.UnmarshalOscal(*request.Data)
+	relationalPlan.UnmarshalOscal(oscalAP)
 
 	// Update in database
 	relationalPlan.ID = &id
