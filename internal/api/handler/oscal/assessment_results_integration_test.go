@@ -91,7 +91,8 @@ func (suite *AssessmentResultsApiIntegrationSuite) createBasicAssessmentResults(
 				Description: "Test result description",
 				Start:       time.Now(),
 				ReviewedControls: oscaltypes.ReviewedControls{
-					Description: "Controls reviewed",
+					Description:       "Controls reviewed",
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
 				},
 			},
 		},
@@ -459,7 +460,18 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestCreateAssessmentResultsWi
 		ImportAp: oscaltypes.ImportAp{
 			Href: "https://example.com/ap.json",
 		},
-		Results: []oscaltypes.Result{},
+		Results: []oscaltypes.Result{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Test Result",
+				Description: "Test result description",
+				Start:       time.Now(),
+				ReviewedControls: oscaltypes.ReviewedControls{
+					Description:       "Controls reviewed",
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
+				},
+			},
+		},
 	}
 	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/assessment-results", invalidAR)
 	suite.server.E().ServeHTTP(rec, req)
@@ -507,7 +519,8 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestUpdateNonExistentAssessme
 				Description: "Test result description",
 				Start:       time.Now(),
 				ReviewedControls: oscaltypes.ReviewedControls{
-					Description: "Controls reviewed",
+					Description:       "Controls reviewed",
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
 				},
 			},
 		},
@@ -1184,7 +1197,7 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestResultAssociationEndpoint
 				Description: "Initial result for testing",
 				Start:       time.Now().Add(-2 * time.Hour),
 				ReviewedControls: oscaltypes.ReviewedControls{
-					ControlSelections: []oscaltypes.AssessedControls{},
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
 				},
 			},
 		},
@@ -1410,7 +1423,7 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestGetAllObservationsRisksFi
 				Description: "First result with observations",
 				Start:       time.Now().Add(-2 * time.Hour),
 				ReviewedControls: oscaltypes.ReviewedControls{
-					ControlSelections: []oscaltypes.AssessedControls{},
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
 				},
 			},
 			{
@@ -1419,7 +1432,7 @@ func (suite *AssessmentResultsApiIntegrationSuite) TestGetAllObservationsRisksFi
 				Description: "Second result with risks",
 				Start:       time.Now().Add(-1 * time.Hour),
 				ReviewedControls: oscaltypes.ReviewedControls{
-					ControlSelections: []oscaltypes.AssessedControls{},
+					ControlSelections: []oscaltypes.AssessedControls{{Description: "Test assessed control"}},
 				},
 			},
 		},
