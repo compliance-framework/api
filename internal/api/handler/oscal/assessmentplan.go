@@ -472,7 +472,8 @@ func (h *AssessmentPlanHandler) Full(ctx echo.Context) error {
 		Preload("Tasks.Dependencies").
 		Preload("Tasks.Tasks").
 		Preload("Tasks.AssociatedActivities").
-		Preload("Tasks.AssociatedActivities.Steps").
+		Preload("Tasks.AssociatedActivities.Subjects").
+		Preload("Tasks.AssociatedActivities.Activity").
 		Preload("Tasks.Subjects").
 		Preload("Tasks.ResponsibleRole").
 		Preload("AssessmentAssets").
