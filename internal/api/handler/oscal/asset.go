@@ -9,18 +9,10 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
-
-// validateAssessmentAssetInput validates assessment asset input
-func (h *AssessmentPlanHandler) validateAssessmentAssetInput(asset *oscalTypes_1_1_3.AssessmentAssets) error {
-	// Basic validation - at least one assessment platform should be provided
-	if len(asset.AssessmentPlatforms) == 0 {
-		return fmt.Errorf("at least one assessment platform is required")
-	}
-	return nil
-}
 
 // GetAssessmentAssets godoc
 //
@@ -95,9 +87,12 @@ func (h *AssessmentPlanHandler) CreateAssessmentAsset(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateAssessmentAssetInput(&asset); err != nil {
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(asset, "oscal-complete-oscal-assessment-common", "assessment-assets")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Convert to relational model
@@ -165,9 +160,12 @@ func (h *AssessmentPlanHandler) UpdateAssessmentAsset(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateAssessmentAssetInput(&asset); err != nil {
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(asset, "oscal-complete-oscal-assessment-common", "assessment-assets")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Convert to relational model

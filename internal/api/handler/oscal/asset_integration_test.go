@@ -81,9 +81,11 @@ func (suite *AssetApiIntegrationSuite) createTestAssessmentPlan() uuid.UUID {
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
 			Href: "test-ssp-reference",
 		},
+		ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test assessed controls"}}},
 	}
 
 	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
+
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Require().Equal(http.StatusCreated, rec.Code, "Failed to create test assessment plan")
 
