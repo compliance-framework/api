@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
@@ -149,10 +150,21 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 		h.sugar.Warnw("Invalid create catalog request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+
+	oscalCat.Metadata.LastModified = now
+	oscalCat.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalCat, "oscal-complete-oscal-catalog", "catalog")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	relCat := &relational.Catalog{}
 	relCat.UnmarshalOscal(oscalCat)
-	relCat.Metadata.LastModified = &now
-	relCat.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
 	if err := h.db.Create(relCat).Error; err != nil {
 		h.sugar.Errorf("Failed to create catalog: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -176,6 +188,7 @@ func (h *CatalogHandler) Create(ctx echo.Context) error {
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs/{id} [put]
 func (h *CatalogHandler) Update(ctx echo.Context) error {
+	now := time.Now()
 	idParam := ctx.Param("id")
 	catalogID, err := uuid.Parse(idParam)
 	if err != nil {
@@ -189,12 +202,21 @@ func (h *CatalogHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	now := time.Now()
+	oscalCat.Metadata.LastModified = now
+	oscalCat.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalCat, "oscal-complete-oscal-catalog", "catalog")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	relCat := &relational.Catalog{}
 	relCat.UnmarshalOscal(oscalCat)
 	relCat.ID = &catalogID
-	relCat.Metadata.LastModified = &now
-	relCat.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
 	if err := h.db.Model(relCat).Updates(relCat).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
@@ -239,7 +261,7 @@ func (h *CatalogHandler) GetBackMatter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	//handler.GenericDataResponse[struct {
+	// handler.GenericDataResponse[struct {
 	//			UUID     uuid.UUID           `json:"uuid"`
 	//			Metadata relational.Metadata `json:"metadata"`
 	//		}]{}
@@ -427,6 +449,14 @@ func (h *CatalogHandler) CreateGroup(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalGroup, "oscal-complete-oscal-catalog", "group")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	var catalog relational.Catalog
 	if err := h.db.
 		First(&catalog, "id = ?", catalogID).Error; err != nil {
@@ -479,6 +509,14 @@ func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalGroup, "oscal-complete-oscal-catalog", "group")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	relGroup := &relational.Group{}
 	relGroup.UnmarshalOscal(oscalGroup, catalogID)
 	relGroup.ID = groupID
@@ -519,6 +557,14 @@ func (h *CatalogHandler) CreateGroupSubGroup(ctx echo.Context) error {
 	if err := ctx.Bind(&oscalGroup); err != nil {
 		h.sugar.Warnw("Invalid create sub-group request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalGroup, "oscal-complete-oscal-catalog", "group")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	parentGroupID := ctx.Param("group")
@@ -571,6 +617,14 @@ func (h *CatalogHandler) CreateGroupControl(ctx echo.Context) error {
 	if err := ctx.Bind(&oscalControl); err != nil {
 		h.sugar.Warnw("Invalid create group control request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalControl, "oscal-complete-oscal-catalog", "control")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	parentGroupID := ctx.Param("group")
@@ -738,6 +792,14 @@ func (h *CatalogHandler) CreateControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalControl, "oscal-complete-oscal-catalog", "control")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	var catalog relational.Catalog
 	if err := h.db.
 		First(&catalog, "id = ?", catalogID).Error; err != nil {
@@ -789,6 +851,14 @@ func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalControl, "oscal-complete-oscal-catalog", "control")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	relCtl := &relational.Control{}
 	relCtl.UnmarshalOscal(oscalControl, catalogID)
 	relCtl.ID = controlID
@@ -829,6 +899,14 @@ func (h *CatalogHandler) CreateControlSubControl(ctx echo.Context) error {
 	if err := ctx.Bind(&oscalControl); err != nil {
 		h.sugar.Warnw("Invalid create sub-control request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalControl, "oscal-complete-oscal-catalog", "control")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	parentControlID := ctx.Param("control")

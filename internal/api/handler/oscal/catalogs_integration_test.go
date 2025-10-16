@@ -51,7 +51,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 		{
 			UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
 			Metadata: oscaltypes.Metadata{
-				Title: "Catalog 1",
+				Title:   "Catalog 1",
+				Version: "1.0.0",
 			},
 			Groups: &[]oscaltypes.Group{
 				{
@@ -69,7 +70,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 		{
 			UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B32",
 			Metadata: oscaltypes.Metadata{
-				Title: "Catalog 2",
+				Title:   "Catalog 2",
+				Version: "1.0.0",
 			},
 			Groups: &[]oscaltypes.Group{
 				{
@@ -148,7 +150,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 		{
 			UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
 			Metadata: oscaltypes.Metadata{
-				Title: "Catalog 1",
+				Title:   "Catalog 1",
+				Version: "1.0.0",
 			},
 			Groups: &[]oscaltypes.Group{
 				{
@@ -166,7 +169,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 		{
 			UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B32",
 			Metadata: oscaltypes.Metadata{
-				Title: "Catalog 2",
+				Title:   "Catalog 2",
+				Version: "1.0.0",
 			},
 			Groups: &[]oscaltypes.Group{
 				{
@@ -244,7 +248,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 		{
 			UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
 			Metadata: oscaltypes.Metadata{
-				Title: "Catalog 1",
+				Title:   "Catalog 1",
+				Version: "1.0.0",
 			},
 			Controls: &[]oscaltypes.Control{
 				{
@@ -262,7 +267,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 		{
 			UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B32",
 			Metadata: oscaltypes.Metadata{
-				Title: "Catalog 2",
+				Title:   "Catalog 2",
+				Version: "1.0.0",
 			},
 			Controls: &[]oscaltypes.Control{
 				{
@@ -337,7 +343,8 @@ func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
 	catalog := oscaltypes.Catalog{
 		UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
 		Metadata: oscaltypes.Metadata{
-			Title: "Catalog 1",
+			Title:   "Catalog 1",
+			Version: "1.0.0",
 		},
 		Groups: &[]oscaltypes.Group{
 			{
@@ -398,7 +405,8 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 	catalog := oscaltypes.Catalog{
 		UUID: "D20DB907-B87D-4D12-8760-D36FDB7A1B31",
 		Metadata: oscaltypes.Metadata{
-			Title: "Catalog 1",
+			Title:   "Catalog 1",
+			Version: "1.0.0",
 		},
 		Controls: &[]oscaltypes.Control{
 			{
