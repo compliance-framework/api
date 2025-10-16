@@ -305,6 +305,8 @@ func (h *AssessmentResultsHandler) Full(ctx echo.Context) error {
 		Preload("Results.Observations").
 		Preload("Results.Risks").
 		Preload("Results.Findings").
+		Preload("Results.ReviewedControls").
+		Preload("Results.ReviewedControls.ControlSelections").
 		Preload("BackMatter").
 		Preload("BackMatter.Resources").
 		First(&ar, "id = ?", id).Error; err != nil {
