@@ -392,6 +392,11 @@ func (h *AssessmentResultsHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	now := time.Now()
+
+	oscalAR.Metadata.LastModified = now
+	oscalAR.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
 	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalAR, "oscal-complete-oscal-ar", "assessment-results")
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -419,7 +424,6 @@ func (h *AssessmentResultsHandler) Update(ctx echo.Context) error {
 	}
 
 	// Update assessment results
-	now := time.Now()
 	relAR := &relational.AssessmentResult{}
 	relAR.UnmarshalOscal(oscalAR)
 	relAR.ID = &id // Ensure ID is set correctly
