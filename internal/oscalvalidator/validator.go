@@ -44,7 +44,6 @@ func ValidateOscalAgainstSchema(obj any, componentCategory string, componentName
 	jsonObj, err := json.Marshal(obj)
 
 	// Validate the marshalled oscal object
-	fmt.Println("Validating ", obj)
 	if err := schema.Validate(bytes.NewReader(jsonObj)); err != nil {
 		if ve, ok := err.(*jsonschema.ValidationError); ok {
 			extractedErrors := extractValidationErrors(ve)
