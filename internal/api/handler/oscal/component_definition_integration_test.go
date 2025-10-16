@@ -1524,9 +1524,7 @@ func (suite *ComponentDefinitionApiIntegrationSuite) TestCreateBackMatter() {
 		invalidBackMatter := oscaltypes.BackMatter{
 			Resources: &[]oscaltypes.Resource{
 				{
-					UUID:        uuid.New().String(),
-					Title:       "", // Empty title should be invalid
-					Description: "", // Empty description should be invalid
+					UUID: "invalid-uuid",
 				},
 			},
 		}

@@ -2,11 +2,11 @@ package oscal
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
@@ -166,15 +166,26 @@ func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
 func (h *ComponentDefinitionHandler) Create(ctx echo.Context) error {
 	now := time.Now()
 
-	var oscalCat oscalTypes_1_1_3.ComponentDefinition
-	if err := ctx.Bind(&oscalCat); err != nil {
+	var oscalCD oscalTypes_1_1_3.ComponentDefinition
+	if err := ctx.Bind(&oscalCD); err != nil {
 		h.sugar.Warnw("Invalid create component definition request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+
+	oscalCD.Metadata.LastModified = now
+	oscalCD.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalCD, "oscal-complete-oscal-component-definition", "component-definition")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	relCat := &relational.ComponentDefinition{}
-	relCat.UnmarshalOscal(oscalCat)
-	relCat.Metadata.LastModified = &now
-	relCat.Metadata.OscalVersion = versioning.GetLatestSupportedVersion()
+	relCat.UnmarshalOscal(oscalCD)
+
 	if err := h.db.Create(relCat).Error; err != nil {
 		h.sugar.Errorf("Failed to create component definition: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -206,16 +217,18 @@ func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var oscalCat oscalTypes_1_1_3.ComponentDefinition
-	if err := ctx.Bind(&oscalCat); err != nil {
+	var oscalCD oscalTypes_1_1_3.ComponentDefinition
+	if err := ctx.Bind(&oscalCD); err != nil {
 		h.sugar.Warnw("Invalid update component definition request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate required fields
-	if oscalCat.UUID == "" {
-		h.sugar.Warnw("Missing required field: UUID")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("UUID is required")))
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalCD, "oscal-complete-oscal-component-definition", "component-definition")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Begin a transaction
@@ -239,15 +252,8 @@ func (h *ComponentDefinitionHandler) Update(ctx echo.Context) error {
 	// Update component definition
 	now := time.Now()
 	relCat := &relational.ComponentDefinition{}
-	relCat.UnmarshalOscal(oscalCat)
+	relCat.UnmarshalOscal(oscalCD)
 	relCat.ID = &id // Ensure ID is set correctly
-
-	// Validate the unmarshaled data
-	if relCat.Metadata.Title == "" {
-		tx.Rollback()
-		h.sugar.Warnw("Missing required field: Metadata.Title")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("Metadata.Title is required")))
-	}
 
 	// Update component definition with import_component_definitions
 	if err := tx.Model(&existingComponent).Where("id = ?", id).Update("import_component_definitions", relCat.ImportComponentDefinitions).Error; err != nil {
@@ -411,6 +417,14 @@ func (h *ComponentDefinitionHandler) CreateImportComponentDefinitions(ctx echo.C
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(importComponentDefinitions, "oscal-complete-oscal-component-definition", "import-component-definition")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	// Begin a transaction
 	tx := h.db.Begin()
 	if tx.Error != nil {
@@ -496,6 +510,14 @@ func (h *ComponentDefinitionHandler) UpdateImportComponentDefinitions(ctx echo.C
 	if err := ctx.Bind(&importComponentDefinitions); err != nil {
 		h.sugar.Warnw("Failed to bind import component definitions", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(importComponentDefinitions, "oscal-complete-oscal-component-definition", "import-component-definition")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Begin a transaction
@@ -627,17 +649,12 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 
 	// Validate required fields for each component
 	for _, component := range components {
-		if component.Type == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component type is required")))
+		errMap, err := oscalvalidator.ValidateOscalAgainstSchema(component, "oscal-complete-oscal-component-definition", "defined-component")
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 		}
-		if component.Title == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component title is required")))
-		}
-		if component.Description == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component description is required")))
-		}
-		if component.Purpose == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component purpose is required")))
+		if errMap != nil {
+			return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 		}
 	}
 
@@ -737,6 +754,16 @@ func (h *ComponentDefinitionHandler) UpdateComponents(ctx echo.Context) error {
 
 	// Update each component individually to preserve existing data
 	for _, oscalComponent := range oscalComponents {
+
+		// Validate the component
+		errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalComponent, "oscal-complete-oscal-component-definition", "defined-component")
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if errMap != nil {
+			return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+		}
+
 		relationalComponent := relational.DefinedComponent{}
 		relationalComponent.UnmarshalOscal(oscalComponent)
 		relationalComponent.ComponentDefinitionID = &id
@@ -902,10 +929,12 @@ func (h *ComponentDefinitionHandler) CreateDefinedComponent(ctx echo.Context) er
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate required fields
-	if oscalDefinedComponent.Type == "" || oscalDefinedComponent.Title == "" {
-		h.sugar.Warnw("Missing required fields in defined component", "component", oscalDefinedComponent)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("type and title are required fields")))
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalDefinedComponent, "oscal-complete-oscal-component-definition", "defined-component")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Begin transaction
@@ -997,6 +1026,14 @@ func (h *ComponentDefinitionHandler) UpdateDefinedComponent(ctx echo.Context) er
 	if err := ctx.Bind(&oscalDefinedComponent); err != nil {
 		h.sugar.Warnw("Failed to bind defined component", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalDefinedComponent, "oscal-complete-oscal-component-definition", "defined-component")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Begin a transaction
@@ -1195,6 +1232,16 @@ func (h *ComponentDefinitionHandler) CreateControlImplementations(ctx echo.Conte
 	if err := ctx.Bind(&controlImplementations); err != nil {
 		h.sugar.Warnw("Failed to bind control implementations", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	for _, oscalControlImplementation := range controlImplementations {
+		errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalControlImplementation, "oscal-complete-oscal-component-definition", "control-implementation")
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if errMap != nil {
+			return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+		}
 	}
 
 	// Begin a transaction
@@ -1615,33 +1662,12 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 
 	// Validate required fields
 	for _, capability := range capabilities {
-		if capability.Name == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("capability name is required")))
+		errMap, err := oscalvalidator.ValidateOscalAgainstSchema(capability, "oscal-complete-oscal-component-definition", "capability")
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 		}
-		if capability.Description == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("capability description is required")))
-		}
-		if capability.ControlImplementations != nil {
-			for _, impl := range *capability.ControlImplementations {
-				if impl.Description == "" {
-					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("control implementation description is required")))
-				}
-				for _, req := range impl.ImplementedRequirements {
-					if req.ControlId == "" {
-						return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("control ID is required")))
-					}
-				}
-			}
-		}
-		if capability.IncorporatesComponents != nil {
-			for _, component := range *capability.IncorporatesComponents {
-				if component.ComponentUuid == "" {
-					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component UUID is required for incorporates component")))
-				}
-				if component.Description == "" {
-					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("description is required for incorporates component")))
-				}
-			}
+		if errMap != nil {
+			return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 		}
 	}
 
@@ -1777,6 +1803,17 @@ func (h *ComponentDefinitionHandler) CreateIncorporatesComponents(ctx echo.Conte
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	// Validate
+	for _, incComponent := range incorporatesComponents {
+		errMap, err := oscalvalidator.ValidateOscalAgainstSchema(incComponent, "oscal-complete-oscal-component-definition", "incorporates-component")
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if errMap != nil {
+			return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+		}
+	}
+
 	// Begin a transaction
 	tx := h.db.Begin()
 	if tx.Error != nil {
@@ -1845,7 +1882,7 @@ func (h *ComponentDefinitionHandler) GetBackMatter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	//handler.GenericDataResponse[struct {
+	// handler.GenericDataResponse[struct {
 	//			UUID     uuid.UUID           `json:"uuid"`
 	//			Metadata relational.Metadata `json:"metadata"`
 	//		}]{}
@@ -1892,20 +1929,12 @@ func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate required fields for each resource
-	if backMatter.Resources != nil {
-		for i, resource := range *backMatter.Resources {
-			if resource.Title == "" {
-				errMsg := fmt.Sprintf("resource at index %d is missing required field: title", i)
-				h.sugar.Warnw(errMsg)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New(errMsg)))
-			}
-			if resource.Description == "" {
-				errMsg := fmt.Sprintf("resource at index %d is missing required field: description", i)
-				h.sugar.Warnw(errMsg)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New(errMsg)))
-			}
-		}
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(backMatter, "oscal-complete-oscal-metadata", "back-matter")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Begin a transaction
@@ -1998,6 +2027,16 @@ func (h *ComponentDefinitionHandler) UpdateControlImplementations(ctx echo.Conte
 	if err := ctx.Bind(&controlImplementations); err != nil {
 		h.sugar.Warnw("Failed to bind control implementations", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	for _, controlImpl := range controlImplementations {
+		errMap, err := oscalvalidator.ValidateOscalAgainstSchema(controlImpl, "oscal-complete-oscal-component-definition", "component-definition")
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if errMap != nil {
+			return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+		}
 	}
 
 	// Begin a transaction
@@ -2112,6 +2151,14 @@ func (h *ComponentDefinitionHandler) UpdateSingleControlImplementation(ctx echo.
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(controlImplementation, "oscal-complete-oscal-component-definition", "component-definition")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	// Begin a transaction
 	tx := h.db.Begin()
 	if tx.Error != nil {
@@ -2205,6 +2252,14 @@ func (h *ComponentDefinitionHandler) UpdateCapability(ctx echo.Context) error {
 	if err := ctx.Bind(&oscalCapability); err != nil {
 		h.sugar.Warnw("Failed to bind capability", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalCapability, "oscal-complete-oscal-component-definition", "capability")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Find the existing capability
