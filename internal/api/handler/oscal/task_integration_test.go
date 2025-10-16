@@ -81,6 +81,7 @@ func (suite *TaskApiIntegrationSuite) createTestAssessmentPlan() uuid.UUID {
 		ImportSsp: oscalTypes_1_1_3.ImportSsp{
 			Href: "test-ssp-reference",
 		},
+		ReviewedControls: oscalTypes_1_1_3.ReviewedControls{ControlSelections: []oscalTypes_1_1_3.AssessedControls{{Description: "Test"}}},
 	}
 
 	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/assessment-plans", testPlan)
