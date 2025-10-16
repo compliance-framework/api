@@ -24,6 +24,11 @@ import (
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
+// TestInventoryApiIntegration runs the integration test suite
+func TestInventoryApiIntegration(t *testing.T) {
+	suite.Run(t, new(InventoryApiIntegrationSuite))
+}
+
 type InventoryApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 	handler         *InventoryHandler
@@ -526,9 +531,4 @@ func (suite *InventoryApiIntegrationSuite) TestGetAllInventoryItems_MultipleSour
 	suite.True(sourceTypes["ssp"])
 	suite.True(sourceTypes["poam"])
 	suite.False(sourceTypes["evidence"])
-}
-
-// TestInventoryApiIntegration runs the integration test suite
-func TestInventoryApiIntegration(t *testing.T) {
-	suite.Run(t, new(InventoryApiIntegrationSuite))
 }

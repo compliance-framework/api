@@ -6,6 +6,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -462,6 +463,15 @@ func (h *InventoryHandler) CreateInventoryItem(ctx echo.Context) error {
 	// Ensure UUID is set
 	if req.InventoryItem.UUID == "" {
 		req.InventoryItem.UUID = uuid.New().String()
+	}
+
+	// Validate the inventory item
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(req.InventoryItem, "oscal-complete-oscal-implementation-common", "inventory-item")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Create the relational inventory item

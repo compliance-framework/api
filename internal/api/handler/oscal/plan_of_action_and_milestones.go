@@ -15,6 +15,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/oscalvalidator"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -93,102 +94,102 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.DELETE("/:id/poam-items/:itemId", h.DeletePoamItem)
 }
 
-// validatePoamInput validates POAM input following OSCAL requirements
-func (h *PlanOfActionAndMilestonesHandler) validatePoamInput(poam *oscalTypes_1_1_3.PlanOfActionAndMilestones) error {
-	if poam.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(poam.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if poam.Metadata.Title == "" {
-		return fmt.Errorf("metadata.title is required")
-	}
-	if poam.Metadata.Version == "" {
-		return fmt.Errorf("metadata.version is required")
-	}
-	if poam.SystemId == nil || poam.SystemId.ID == "" {
-		return fmt.Errorf("system-id is required")
-	}
-	return nil
-}
+// // validatePoamInput validates POAM input following OSCAL requirements
+// func (h *PlanOfActionAndMilestonesHandler) validatePoamInput(poam *oscalTypes_1_1_3.PlanOfActionAndMilestones) error {
+// 	if poam.UUID == "" {
+// 		return fmt.Errorf("UUID is required")
+// 	}
+// 	if _, err := uuid.Parse(poam.UUID); err != nil {
+// 		return fmt.Errorf("invalid UUID format: %v", err)
+// 	}
+// 	if poam.Metadata.Title == "" {
+// 		return fmt.Errorf("metadata.title is required")
+// 	}
+// 	if poam.Metadata.Version == "" {
+// 		return fmt.Errorf("metadata.version is required")
+// 	}
+// 	if poam.SystemId == nil || poam.SystemId.ID == "" {
+// 		return fmt.Errorf("system-id is required")
+// 	}
+// 	return nil
+// }
 
-// validateObservationInput validates observation input
-func (h *PlanOfActionAndMilestonesHandler) validateObservationInput(obs *oscalTypes_1_1_3.Observation) error {
-	if obs.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(obs.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if obs.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	if obs.Methods == nil || len(obs.Methods) == 0 {
-		return fmt.Errorf("methods are required")
-	}
-	return nil
-}
+// // validateObservationInput validates observation input
+// func (h *PlanOfActionAndMilestonesHandler) validateObservationInput(obs *oscalTypes_1_1_3.Observation) error {
+// 	if obs.UUID == "" {
+// 		return fmt.Errorf("UUID is required")
+// 	}
+// 	if _, err := uuid.Parse(obs.UUID); err != nil {
+// 		return fmt.Errorf("invalid UUID format: %v", err)
+// 	}
+// 	if obs.Description == "" {
+// 		return fmt.Errorf("description is required")
+// 	}
+// 	if obs.Methods == nil || len(obs.Methods) == 0 {
+// 		return fmt.Errorf("methods are required")
+// 	}
+// 	return nil
+// }
 
-// validateRiskInput validates risk input
-func (h *PlanOfActionAndMilestonesHandler) validateRiskInput(risk *oscalTypes_1_1_3.Risk) error {
-	if risk.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(risk.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if risk.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-	if risk.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	if risk.Statement == "" {
-		return fmt.Errorf("statement is required")
-	}
-	if risk.Status == "" {
-		return fmt.Errorf("status is required")
-	}
-	return nil
-}
+// // validateRiskInput validates risk input
+// func (h *PlanOfActionAndMilestonesHandler) validateRiskInput(risk *oscalTypes_1_1_3.Risk) error {
+// 	if risk.UUID == "" {
+// 		return fmt.Errorf("UUID is required")
+// 	}
+// 	if _, err := uuid.Parse(risk.UUID); err != nil {
+// 		return fmt.Errorf("invalid UUID format: %v", err)
+// 	}
+// 	if risk.Title == "" {
+// 		return fmt.Errorf("title is required")
+// 	}
+// 	if risk.Description == "" {
+// 		return fmt.Errorf("description is required")
+// 	}
+// 	if risk.Statement == "" {
+// 		return fmt.Errorf("statement is required")
+// 	}
+// 	if risk.Status == "" {
+// 		return fmt.Errorf("status is required")
+// 	}
+// 	return nil
+// }
 
-// validateFindingInput validates finding input
-func (h *PlanOfActionAndMilestonesHandler) validateFindingInput(finding *oscalTypes_1_1_3.Finding) error {
-	if finding.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if _, err := uuid.Parse(finding.UUID); err != nil {
-		return fmt.Errorf("invalid UUID format: %v", err)
-	}
-	if finding.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-	if finding.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	if finding.Target.Type == "" {
-		return fmt.Errorf("target.type is required")
-	}
-	if finding.Target.TargetId == "" {
-		return fmt.Errorf("target.target-id is required")
-	}
-	return nil
-}
+// // validateFindingInput validates finding input
+// func (h *PlanOfActionAndMilestonesHandler) validateFindingInput(finding *oscalTypes_1_1_3.Finding) error {
+// 	if finding.UUID == "" {
+// 		return fmt.Errorf("UUID is required")
+// 	}
+// 	if _, err := uuid.Parse(finding.UUID); err != nil {
+// 		return fmt.Errorf("invalid UUID format: %v", err)
+// 	}
+// 	if finding.Title == "" {
+// 		return fmt.Errorf("title is required")
+// 	}
+// 	if finding.Description == "" {
+// 		return fmt.Errorf("description is required")
+// 	}
+// 	if finding.Target.Type == "" {
+// 		return fmt.Errorf("target.type is required")
+// 	}
+// 	if finding.Target.TargetId == "" {
+// 		return fmt.Errorf("target.target-id is required")
+// 	}
+// 	return nil
+// }
 
-// validatePoamItemInput validates POAM item input
-func (h *PlanOfActionAndMilestonesHandler) validatePoamItemInput(item *oscalTypes_1_1_3.PoamItem) error {
-	if item.UUID == "" {
-		return fmt.Errorf("UUID is required")
-	}
-	if item.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-	if item.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-	return nil
-}
+// // validatePoamItemInput validates POAM item input
+// func (h *PlanOfActionAndMilestonesHandler) validatePoamItemInput(item *oscalTypes_1_1_3.PoamItem) error {
+// 	if item.UUID == "" {
+// 		return fmt.Errorf("UUID is required")
+// 	}
+// 	if item.Title == "" {
+// 		return fmt.Errorf("title is required")
+// 	}
+// 	if item.Description == "" {
+// 		return fmt.Errorf("description is required")
+// 	}
+// 	return nil
+// }
 
 // List godoc
 //
@@ -472,14 +473,13 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateMetadata(ctx echo.Context) erro
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate required fields
-	if oscalMetadata.Title == "" {
-		h.sugar.Warnw("Invalid metadata input", "error", "title is required")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("title is required")))
+	// Validate the inventory item
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalMetadata, "oscal-complete-oscal-metadata", "metadata")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if oscalMetadata.Version == "" {
-		h.sugar.Warnw("Invalid metadata input", "error", "version is required")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("version is required")))
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	var poam relational.PlanOfActionAndMilestones
@@ -628,10 +628,13 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateImportSsp(ctx echo.Context) err
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if oscalImportSsp.Href == "" {
-		h.sugar.Warnw("Invalid import-ssp input", "error", "href is required")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("href is required")))
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalImportSsp, "oscal-complete-oscal-assessment-common", "import-ssp")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	var poam relational.PlanOfActionAndMilestones
@@ -719,10 +722,13 @@ func (h *PlanOfActionAndMilestonesHandler) CreateSystemId(ctx echo.Context) erro
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if oscalSystemId.ID == "" {
-		h.sugar.Warnw("Invalid system-id input", "error", "id is required")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("id is required")))
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalSystemId, "oscal-complete-oscal-implementation-common", "system-id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	var poam relational.PlanOfActionAndMilestones
@@ -779,10 +785,13 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateSystemId(ctx echo.Context) erro
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if oscalSystemId.ID == "" {
-		h.sugar.Warnw("Invalid system-id input", "error", "id is required")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("id is required")))
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalSystemId, "oscal-complete-oscal-implementation-common", "system-id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	var poam relational.PlanOfActionAndMilestones
@@ -898,18 +907,16 @@ func (h *PlanOfActionAndMilestonesHandler) CreateBackMatter(ctx echo.Context) er
 		h.sugar.Warnw("Invalid create back-matter request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if oscalBackMatter.Resources != nil && len(*oscalBackMatter.Resources) > 0 {
-		for i, resource := range *oscalBackMatter.Resources {
-			if resource.UUID == "" {
-				h.sugar.Warnw("Invalid back-matter resource", "error", "resource UUID is required", "index", i)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("resource UUID is required")))
-			}
-			if _, err := uuid.Parse(resource.UUID); err != nil {
-				h.sugar.Warnw("Invalid back-matter resource UUID", "error", err, "index", i)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid resource UUID format: %v", err)))
-			}
-		}
+
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalBackMatter, "oscal-complete-oscal-metadata", "back-matter")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	backMatter := &relational.BackMatter{}
 	backMatter.UnmarshalOscal(oscalBackMatter)
 	// Ensure the BackMatter gets an ID even when created with nil resources
@@ -943,18 +950,16 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatter(ctx echo.Context) er
 		h.sugar.Warnw("Invalid update back-matter request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if oscalBackMatter.Resources != nil && len(*oscalBackMatter.Resources) > 0 {
-		for i, resource := range *oscalBackMatter.Resources {
-			if resource.UUID == "" {
-				h.sugar.Warnw("Invalid back-matter resource", "error", "resource UUID is required", "index", i)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("resource UUID is required")))
-			}
-			if _, err := uuid.Parse(resource.UUID); err != nil {
-				h.sugar.Warnw("Invalid back-matter resource UUID", "error", err, "index", i)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid resource UUID format: %v", err)))
-			}
-		}
+
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalBackMatter, "oscal-complete-oscal-metadata", "back-matter")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	backMatter := &relational.BackMatter{}
 	backMatter.UnmarshalOscal(oscalBackMatter)
 	poam.BackMatter = *backMatter
@@ -1026,10 +1031,13 @@ func (h *PlanOfActionAndMilestonesHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validatePoamInput(&oscalPoam); err != nil {
-		h.sugar.Warnw("Invalid POAM input", "error", err)
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalPoam, "oscal-complete-oscal-poam", "plan-of-action-and-milestones")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	relPoam := &relational.PlanOfActionAndMilestones{}
@@ -1078,10 +1086,13 @@ func (h *PlanOfActionAndMilestonesHandler) CreateObservation(ctx echo.Context) e
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateObservationInput(&oscalObs); err != nil {
-		h.sugar.Warnw("Invalid observation input", "error", err)
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalObs, "oscal-complete-oscal-assessment-common", "observation")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	relObs := &relational.Observation{}
@@ -1131,10 +1142,13 @@ func (h *PlanOfActionAndMilestonesHandler) CreateRisk(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateRiskInput(&oscalRisk); err != nil {
-		h.sugar.Warnw("Invalid risk input", "error", err)
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalRisk, "oscal-complete-oscal-assessment-common", "risk")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	relRisk := &relational.Risk{}
@@ -1184,10 +1198,13 @@ func (h *PlanOfActionAndMilestonesHandler) CreateFinding(ctx echo.Context) error
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validateFindingInput(&oscalFinding); err != nil {
-		h.sugar.Warnw("Invalid finding input", "error", err)
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalFinding, "oscal-complete-oscal-assessment-common", "finding")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	relFinding := &relational.Finding{}
@@ -1237,10 +1254,13 @@ func (h *PlanOfActionAndMilestonesHandler) CreatePoamItem(ctx echo.Context) erro
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validatePoamItemInput(&oscalPoamItem); err != nil {
-		h.sugar.Warnw("Invalid POAM item input", "error", err)
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalPoamItem, "oscal-complete-oscal-poam", "poam-item")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	relPoamItem := &relational.PoamItem{}
@@ -1284,10 +1304,13 @@ func (h *PlanOfActionAndMilestonesHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate input
-	if err := h.validatePoamInput(&oscalPoam); err != nil {
-		h.sugar.Warnw("Invalid POAM input", "error", err)
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalPoam, "oscal-complete-oscal-poam", "plan-of-action-and-milestones")
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Check if record exists
@@ -1376,6 +1399,15 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateObservation(ctx echo.Context) e
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalObs, "oscal-complete-oscal-assessment-common", "observation")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	// Update with preserved IDs and relationships
 	relObs := &relational.Observation{}
 	relObs.UnmarshalOscal(oscalObs)
@@ -1446,6 +1478,15 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateRisk(ctx echo.Context) error {
 	if err := ctx.Bind(&oscalRisk); err != nil {
 		h.sugar.Warnw("Invalid update risk request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalRisk, "oscal-complete-oscal-assessment-common", "risk")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Update with preserved IDs and relationships
@@ -1520,6 +1561,15 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateFinding(ctx echo.Context) error
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalFinding, "oscal-complete-oscal-assessment-common", "finding")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
+	}
+
 	// Update with preserved IDs and relationships
 	relFinding := &relational.Finding{}
 	relFinding.UnmarshalOscal(oscalFinding)
@@ -1585,6 +1635,15 @@ func (h *PlanOfActionAndMilestonesHandler) UpdatePoamItem(ctx echo.Context) erro
 	if err := ctx.Bind(&oscalPoamItem); err != nil {
 		h.sugar.Warnw("Invalid update POAM item request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalPoamItem, "oscal-complete-oscal-poam", "poam-item")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	// Debug: Log the received OSCAL data
@@ -1703,7 +1762,6 @@ func (h *PlanOfActionAndMilestonesHandler) Delete(ctx echo.Context) error {
 
 		return nil
 	})
-
 	if err != nil {
 		h.sugar.Errorf("Failed to delete POAM and related entities: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -1984,14 +2042,13 @@ func (h *PlanOfActionAndMilestonesHandler) CreateBackMatterResource(ctx echo.Con
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	// Validate required fields
-	if oscalResource.UUID == "" {
-		h.sugar.Warnw("Invalid resource input", "error", "UUID is required")
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("UUID is required")))
+	// Validate (put inside back-matter for purposes of being able to use JSON schema)
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalTypes_1_1_3.BackMatter{Resources: &[]oscalTypes_1_1_3.Resource{oscalResource}}, "oscal-complete-oscal-metadata", "back-matter")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if _, err := uuid.Parse(oscalResource.UUID); err != nil {
-		h.sugar.Warnw("Invalid resource UUID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid UUID format: %v", err)))
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	var poam relational.PlanOfActionAndMilestones
@@ -2067,6 +2124,15 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateBackMatterResource(ctx echo.Con
 	if err := ctx.Bind(&oscalResource); err != nil {
 		h.sugar.Warnw("Invalid update resource request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate (put inside back-matter for purposes of being able to use JSON schema)
+	errMap, err := oscalvalidator.ValidateOscalAgainstSchema(oscalTypes_1_1_3.BackMatter{Resources: &[]oscalTypes_1_1_3.Resource{oscalResource}}, "oscal-complete-oscal-metadata", "back-matter")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if errMap != nil {
+		return ctx.JSON(http.StatusBadRequest, api.FormatOscalValidatorError(errMap))
 	}
 
 	relResource := &relational.BackMatterResource{}

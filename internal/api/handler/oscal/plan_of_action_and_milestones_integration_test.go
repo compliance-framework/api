@@ -92,6 +92,7 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) createBasicPOAM() str
 			ID:             "TEST-SYSTEM",
 			IdentifierType: "https://test.gov",
 		},
+		PoamItems: []oscaltypes.PoamItem{{Description: "test", UUID: uuid.New().String(), Title: "Test"}},
 	}
 
 	rec, req := suite.createRequest(http.MethodPost, "/api/oscal/plan-of-action-and-milestones", createPoam)
