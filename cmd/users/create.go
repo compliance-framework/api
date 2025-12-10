@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"math/big"
+
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"math/big"
 )
 
 func newUserAddCmd() *cobra.Command {

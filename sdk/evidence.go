@@ -5,8 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compliance-framework/api/sdk/types"
 	"net/http"
+
+	"github.com/compliance-framework/api/sdk/types"
 )
 
 type evidenceClient struct {

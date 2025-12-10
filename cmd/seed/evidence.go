@@ -3,6 +3,10 @@ package seed
 import (
 	"context"
 	"fmt"
+	"log"
+	"sync"
+	"time"
+
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -10,9 +14,6 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"gorm.io/datatypes"
 	"gorm.io/gorm/clause"
-	"log"
-	"sync"
-	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"

@@ -1,9 +1,10 @@
 package types
 
 import (
+	"time"
+
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
-	"time"
 )
 
 type Link oscalTypes_1_1_3.Link

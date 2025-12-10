@@ -1,12 +1,13 @@
 package handler
 
 import (
+	"strings"
+	"time"
+
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"gorm.io/datatypes"
-	"strings"
-	"time"
 )
 
 func ParseIntervalListQueryParam(intervalQuery string, def []time.Duration) ([]time.Duration, error) {

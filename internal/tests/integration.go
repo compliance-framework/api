@@ -4,6 +4,7 @@ package tests
 
 import (
 	"context"
+
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"

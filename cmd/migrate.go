@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"context"
+	"log"
+
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"log"
 )
 
 func newMigrateCMD() *cobra.Command {

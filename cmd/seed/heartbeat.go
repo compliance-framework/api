@@ -2,11 +2,12 @@ package seed
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/schollz/progressbar/v3"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/schollz/progressbar/v3"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"

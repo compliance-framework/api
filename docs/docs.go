@@ -230,11 +230,6 @@ const docTemplate = `{
         },
         "/evidence": {
             "post": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Creates a new Evidence record including activities, inventory items, components, and subjects.",
                 "consumes": [
                     "application/json"
@@ -276,7 +271,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/evidence/compliance-by-control/{id}": {
@@ -833,11 +833,6 @@ const docTemplate = `{
         },
         "/oscal/activities": {
             "post": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Creates a new activity for us in other resources.",
                 "consumes": [
                     "application/json"
@@ -885,16 +880,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/activities/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/activities/{id}": {
+            "get": {
                 "description": "Retrieves an Activity by its unique ID.",
                 "consumes": [
                     "application/json"
@@ -940,14 +935,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates properties of an existing Activity by its ID.",
                 "consumes": [
                     "application/json"
@@ -1002,14 +997,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes an activity",
                 "tags": [
                     "Activities"
@@ -1046,16 +1041,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans": {
+            "get": {
                 "description": "Retrieves all Assessment Plans.",
                 "produces": [
                     "application/json"
@@ -1083,14 +1078,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new OSCAL Assessment Plan with comprehensive validation.",
                 "consumes": [
                     "application/json"
@@ -1138,16 +1133,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}": {
+            "get": {
                 "description": "Retrieves a single Assessment Plan by its unique ID.",
                 "produces": [
                     "application/json"
@@ -1184,14 +1179,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates an existing Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -1246,14 +1241,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes an Assessment Plan by its unique ID.",
                 "tags": [
                     "Assessment Plans"
@@ -1290,16 +1285,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/assessment-assets": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/assessment-assets": {
+            "get": {
                 "description": "Retrieves all assessment assets for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -1342,14 +1337,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new assessment asset for an Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -1404,16 +1399,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/assessment-assets/{assetId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/assessment-assets/{assetId}": {
+            "put": {
                 "description": "Updates an existing assessment asset for an Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -1475,14 +1470,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes an assessment asset from an Assessment Plan.",
                 "tags": [
                     "Assessment Plans"
@@ -1526,16 +1521,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/assessment-subjects": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/assessment-subjects": {
+            "get": {
                 "description": "Retrieves all assessment subjects for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -1578,14 +1573,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new assessment subject for an Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -1640,16 +1635,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/assessment-subjects/{subjectId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/assessment-subjects/{subjectId}": {
+            "put": {
                 "description": "Updates an existing assessment subject for an Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -1711,14 +1706,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes an assessment subject from an Assessment Plan.",
                 "tags": [
                     "Assessment Plans"
@@ -1762,16 +1757,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/back-matter": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/back-matter": {
+            "get": {
                 "description": "Retrieves back matter for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -1814,16 +1809,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/full": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/full": {
+            "get": {
                 "description": "Retrieves a single Assessment Plan by its unique ID with all related data preloaded.",
                 "produces": [
                     "application/json"
@@ -1866,16 +1861,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/import-ssp": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/import-ssp": {
+            "get": {
                 "description": "Retrieves import SSP information for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -1918,16 +1913,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/local-definitions": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/local-definitions": {
+            "get": {
                 "description": "Retrieves local definitions for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -1970,16 +1965,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/metadata": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/metadata": {
+            "get": {
                 "description": "Retrieves metadata for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -2022,16 +2017,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/tasks": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/tasks": {
+            "get": {
                 "description": "Retrieves all tasks for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -2074,14 +2069,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new task for an Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -2136,16 +2131,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/tasks/{taskId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/tasks/{taskId}": {
+            "put": {
                 "description": "Updates an existing task for an Assessment Plan.",
                 "consumes": [
                     "application/json"
@@ -2207,14 +2202,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a task from an Assessment Plan.",
                 "tags": [
                     "Assessment Plans"
@@ -2258,16 +2253,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities": {
+            "get": {
                 "description": "Retrieves all Activities associated with a specific Task in an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -2317,16 +2312,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities/{activityId}": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/tasks/{taskId}/associated-activities/{activityId}": {
+            "post": {
                 "description": "Associates an existing Activity to a Task within an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -2380,14 +2375,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Removes an association of an Activity from a Task within an Assessment Plan.",
                 "tags": [
                     "Assessment Plans"
@@ -2438,16 +2433,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-plans/{id}/terms-and-conditions": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-plans/{id}/terms-and-conditions": {
+            "get": {
                 "description": "Retrieves terms and conditions for an Assessment Plan.",
                 "produces": [
                     "application/json"
@@ -2490,16 +2485,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results": {
+            "get": {
                 "description": "Retrieves all Assessment Results.",
                 "produces": [
                     "application/json"
@@ -2527,14 +2522,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates an Assessment Results from input.",
                 "consumes": [
                     "application/json"
@@ -2576,16 +2571,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}": {
+            "get": {
                 "description": "Retrieves a single Assessment Results by its unique ID.",
                 "produces": [
                     "application/json"
@@ -2628,14 +2623,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates an existing Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -2690,14 +2685,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes an Assessment Results by its ID.",
                 "tags": [
                     "Assessment Results"
@@ -2734,16 +2729,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/available-controls": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/available-controls": {
+            "get": {
                 "description": "Retrieves controls that can be referenced in findings",
                 "produces": [
                     "application/json"
@@ -2786,16 +2781,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/back-matter": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/back-matter": {
+            "get": {
                 "description": "Retrieves the back matter for an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -2838,14 +2833,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the back matter for an Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -2900,14 +2895,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates or replaces the back matter for an Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -2962,14 +2957,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes the back matter for an Assessment Results.",
                 "tags": [
                     "Assessment Results"
@@ -3006,16 +3001,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/back-matter/resources": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/back-matter/resources": {
+            "get": {
                 "description": "Retrieves all resources from the back matter for an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -3058,14 +3053,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new resource in the back matter for an Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -3120,16 +3115,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/back-matter/resources/{resourceId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/back-matter/resources/{resourceId}": {
+            "put": {
                 "description": "Updates a specific resource in the back matter for an Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -3191,14 +3186,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific resource from the back matter for an Assessment Results.",
                 "tags": [
                     "Assessment Results"
@@ -3242,16 +3237,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/control/{controlId}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/control/{controlId}": {
+            "get": {
                 "description": "Retrieves a control with all its parts for reference in findings",
                 "produces": [
                     "application/json"
@@ -3301,16 +3296,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/findings": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/findings": {
+            "get": {
                 "description": "Retrieves all findings in the system that can be associated with results.",
                 "produces": [
                     "application/json"
@@ -3353,16 +3348,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/full": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/full": {
+            "get": {
                 "description": "Retrieves a complete Assessment Results by its ID, including all metadata and related objects.",
                 "produces": [
                     "application/json"
@@ -3405,16 +3400,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/import-ap": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/import-ap": {
+            "get": {
                 "description": "Retrieves import-ap for a given Assessment Results.",
                 "produces": [
                     "application/json"
@@ -3457,14 +3452,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates import-ap for a given Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -3519,16 +3514,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/local-definitions": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/local-definitions": {
+            "get": {
                 "description": "Retrieves local-definitions for a given Assessment Results.",
                 "produces": [
                     "application/json"
@@ -3571,14 +3566,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates local-definitions for a given Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -3633,16 +3628,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/metadata": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/metadata": {
+            "get": {
                 "description": "Retrieves metadata for a given Assessment Results.",
                 "produces": [
                     "application/json"
@@ -3685,14 +3680,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates metadata for a given Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -3747,16 +3742,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/observations": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/observations": {
+            "get": {
                 "description": "Retrieves all observations in the system that can be associated with results.",
                 "produces": [
                     "application/json"
@@ -3799,16 +3794,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results": {
+            "get": {
                 "description": "Retrieves all results for a given Assessment Results.",
                 "produces": [
                     "application/json"
@@ -3851,14 +3846,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new result for a given Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -3913,16 +3908,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}": {
+            "get": {
                 "description": "Retrieves a specific result from an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -3972,14 +3967,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates a specific result in an Assessment Results.",
                 "consumes": [
                     "application/json"
@@ -4041,14 +4036,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific result from an Assessment Results.",
                 "tags": [
                     "Assessment Results"
@@ -4092,16 +4087,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/associated-findings": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/associated-findings": {
+            "get": {
                 "description": "Retrieves all Findings associated with a specific Result in an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -4151,16 +4146,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/associated-findings/{findingId}": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/associated-findings/{findingId}": {
+            "post": {
                 "description": "Associates an existing Finding to a Result within an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -4214,14 +4209,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Removes an association of a Finding from a Result within an Assessment Results.",
                 "tags": [
                     "Assessment Results"
@@ -4272,16 +4267,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/associated-observations": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/associated-observations": {
+            "get": {
                 "description": "Retrieves all Observations associated with a specific Result in an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -4331,16 +4326,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/associated-observations/{observationId}": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/associated-observations/{observationId}": {
+            "post": {
                 "description": "Associates an existing Observation to a Result within an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -4394,14 +4389,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Removes an association of an Observation from a Result within an Assessment Results.",
                 "tags": [
                     "Assessment Results"
@@ -4452,16 +4447,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/associated-risks": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/associated-risks": {
+            "get": {
                 "description": "Retrieves all Risks associated with a specific Result in an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -4511,16 +4506,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/associated-risks/{riskId}": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/associated-risks/{riskId}": {
+            "post": {
                 "description": "Associates an existing Risk to a Result within an Assessment Results.",
                 "produces": [
                     "application/json"
@@ -4574,14 +4569,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Removes an association of a Risk from a Result within an Assessment Results.",
                 "tags": [
                     "Assessment Results"
@@ -4632,16 +4627,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/attestations": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/attestations": {
+            "get": {
                 "description": "Retrieves all attestations for a given result.",
                 "produces": [
                     "application/json"
@@ -4691,14 +4686,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new attestation for a given result.",
                 "consumes": [
                     "application/json"
@@ -4760,16 +4755,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/attestations/{attestationId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/attestations/{attestationId}": {
+            "put": {
                 "description": "Updates a specific attestation in a result.",
                 "consumes": [
                     "application/json"
@@ -4838,14 +4833,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific attestation from a result.",
                 "tags": [
                     "Assessment Results"
@@ -4896,16 +4891,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/findings": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/findings": {
+            "get": {
                 "description": "Retrieves all findings for a given result.",
                 "produces": [
                     "application/json"
@@ -4955,14 +4950,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new finding for a given result.",
                 "consumes": [
                     "application/json"
@@ -5024,16 +5019,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/findings/{findingId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/findings/{findingId}": {
+            "put": {
                 "description": "Updates a specific finding in a result.",
                 "consumes": [
                     "application/json"
@@ -5102,14 +5097,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific finding from a result.",
                 "tags": [
                     "Assessment Results"
@@ -5160,16 +5155,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/observations": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/observations": {
+            "get": {
                 "description": "Retrieves all observations for a given result.",
                 "produces": [
                     "application/json"
@@ -5219,14 +5214,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new observation for a given result.",
                 "consumes": [
                     "application/json"
@@ -5288,16 +5283,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/observations/{obsId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/observations/{obsId}": {
+            "put": {
                 "description": "Updates a specific observation in a result.",
                 "consumes": [
                     "application/json"
@@ -5366,14 +5361,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific observation from a result.",
                 "tags": [
                     "Assessment Results"
@@ -5424,16 +5419,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/risks": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/risks": {
+            "get": {
                 "description": "Retrieves all risks for a given result.",
                 "produces": [
                     "application/json"
@@ -5483,14 +5478,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new risk for a given result.",
                 "consumes": [
                     "application/json"
@@ -5552,16 +5547,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/results/{resultId}/risks/{riskId}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/results/{resultId}/risks/{riskId}": {
+            "put": {
                 "description": "Updates a specific risk in a result.",
                 "consumes": [
                     "application/json"
@@ -5630,14 +5625,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific risk from a result.",
                 "tags": [
                     "Assessment Results"
@@ -5688,16 +5683,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/assessment-results/{id}/risks": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/assessment-results/{id}/risks": {
+            "get": {
                 "description": "Retrieves all risks in the system that can be associated with results.",
                 "produces": [
                     "application/json"
@@ -5740,16 +5735,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs": {
+            "get": {
                 "description": "Retrieves all catalogs.",
                 "produces": [
                     "application/json"
@@ -5777,14 +5772,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new OSCAL Catalog.",
                 "consumes": [
                     "application/json"
@@ -5826,16 +5821,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}": {
+            "get": {
                 "description": "Retrieves a single Catalog by its unique ID.",
                 "produces": [
                     "application/json"
@@ -5884,14 +5879,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates an existing OSCAL Catalog.",
                 "consumes": [
                     "application/json"
@@ -5946,16 +5941,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/back-matter": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/back-matter": {
+            "get": {
                 "description": "Retrieves the back-matter for a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6004,16 +5999,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/controls": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/controls": {
+            "get": {
                 "description": "Retrieves the top-level controls for a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6062,14 +6057,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Adds a top-level control under the specified Catalog.",
                 "consumes": [
                     "application/json"
@@ -6118,16 +6113,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/controls/{control}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/controls/{control}": {
+            "get": {
                 "description": "Retrieves a single Control by its ID for a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6177,14 +6172,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the properties of an existing Control under the specified Catalog.",
                 "consumes": [
                     "application/json"
@@ -6246,16 +6241,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/controls/{control}/controls": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/controls/{control}/controls": {
+            "get": {
                 "description": "Retrieves the controls directly under a specific Control in a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6305,14 +6300,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Adds a child control under the specified Catalog Control.",
                 "consumes": [
                     "application/json"
@@ -6368,16 +6363,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/groups": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/groups": {
+            "get": {
                 "description": "Retrieves the top-level groups for a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6426,14 +6421,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Adds a top-level group under the specified Catalog.",
                 "consumes": [
                     "application/json"
@@ -6482,16 +6477,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/groups/{group}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/groups/{group}": {
+            "get": {
                 "description": "Retrieves a single Group by its ID for a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6541,14 +6536,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the properties of an existing Group under the specified Catalog.",
                 "consumes": [
                     "application/json"
@@ -6610,16 +6605,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/groups/{group}/controls": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/groups/{group}/controls": {
+            "get": {
                 "description": "Retrieves the controls directly under a specific Group in a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6669,14 +6664,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Adds a control under the specified Catalog and Group.",
                 "consumes": [
                     "application/json"
@@ -6732,16 +6727,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/catalogs/{id}/groups/{group}/groups": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/catalogs/{id}/groups/{group}/groups": {
+            "get": {
                 "description": "Retrieves the sub-groups of a specific Group in a given Catalog.",
                 "produces": [
                     "application/json"
@@ -6791,14 +6786,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Adds a sub-group under the specified Catalog and Group.",
                 "consumes": [
                     "application/json"
@@ -6854,16 +6849,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions": {
+            "get": {
                 "description": "Retrieves all component definitions.",
                 "produces": [
                     "application/json"
@@ -6897,14 +6892,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new component definition.",
                 "consumes": [
                     "application/json"
@@ -6952,16 +6947,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}": {
+            "get": {
                 "description": "Retrieves a single component definition by its unique ID.",
                 "produces": [
                     "application/json"
@@ -7010,14 +7005,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates an existing component definition.",
                 "consumes": [
                     "application/json"
@@ -7078,16 +7073,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/back-matter": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/back-matter": {
+            "get": {
                 "description": "Retrieves the back-matter for a given Component Definition.",
                 "produces": [
                     "application/json"
@@ -7136,14 +7131,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates new back-matter for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7204,16 +7199,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/capabilities": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/capabilities": {
+            "get": {
                 "description": "Retrieves all capabilities for a given component definition.",
                 "produces": [
                     "application/json"
@@ -7262,14 +7257,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates new capabilities for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7333,16 +7328,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/capabilities/incorporates-components": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/capabilities/incorporates-components": {
+            "get": {
                 "description": "Retrieves all incorporates components for a given component definition.",
                 "produces": [
                     "application/json"
@@ -7391,14 +7386,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates new incorporates components for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7462,16 +7457,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/capabilities/{capability}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/capabilities/{capability}": {
+            "put": {
                 "description": "Updates a single capability for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7539,16 +7534,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/components": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/components": {
+            "get": {
                 "description": "Retrieves all components for a given component definition.",
                 "produces": [
                     "application/json"
@@ -7597,14 +7592,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the components for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7668,14 +7663,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates new components for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7739,16 +7734,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/components/{defined-component}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/components/{defined-component}": {
+            "get": {
                 "description": "Retrieves a defined component for a given component definition.",
                 "produces": [
                     "application/json"
@@ -7804,14 +7799,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates a defined component for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7879,14 +7874,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new defined component for a given component definition.",
                 "consumes": [
                     "application/json"
@@ -7947,16 +7942,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations": {
+            "get": {
                 "description": "Retrieves all control implementations for a given defined component.",
                 "produces": [
                     "application/json"
@@ -8012,14 +8007,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates control implementations for a given defined component.",
                 "consumes": [
                     "application/json"
@@ -8090,14 +8085,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates new control implementations for a given defined component.",
                 "consumes": [
                     "application/json"
@@ -8168,16 +8163,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements": {
+            "get": {
                 "description": "Retrieves all implemented requirements for a given defined component.",
                 "produces": [
                     "application/json"
@@ -8233,16 +8228,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements/statements": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/implemented-requirements/statements": {
+            "get": {
                 "description": "Retrieves all statements for a given defined component.",
                 "produces": [
                     "application/json"
@@ -8298,16 +8293,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/{control-implementation}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/components/{defined-component}/control-implementations/{control-implementation}": {
+            "put": {
                 "description": "Updates a specific control implementation for a given defined component.",
                 "consumes": [
                     "application/json"
@@ -8382,16 +8377,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/full": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/full": {
+            "get": {
                 "description": "Retrieves a complete Component Definition by its ID, including all metadata and revisions.",
                 "produces": [
                     "application/json"
@@ -8440,16 +8435,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/component-definitions/{id}/import-component-definitions": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/component-definitions/{id}/import-component-definitions": {
+            "get": {
                 "description": "Retrieves all import component definitions for a given defined component.",
                 "produces": [
                     "application/json"
@@ -8505,14 +8500,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the import component definitions for a given component definition.",
                 "produces": [
                     "application/json"
@@ -8573,14 +8568,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates new import component definitions for a given component definition.",
                 "produces": [
                     "application/json"
@@ -8641,16 +8636,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/inventory": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/inventory": {
+            "get": {
                 "description": "Retrieves all inventory items from all sources (SSP, Evidence, POAM, AP, AR)",
                 "produces": [
                     "application/json"
@@ -8728,14 +8723,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new inventory item with optional attachment to SSP or POAM",
                 "consumes": [
                     "application/json"
@@ -8783,16 +8778,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/inventory/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/inventory/{id}": {
+            "get": {
                 "description": "Retrieves a specific inventory item by its ID",
                 "produces": [
                     "application/json"
@@ -8841,16 +8836,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/parties": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/parties": {
+            "get": {
                 "description": "Retrieves all parties.",
                 "produces": [
                     "application/json"
@@ -8884,16 +8879,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/parties/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/parties/{id}": {
+            "get": {
                 "description": "Retrieves a single Party by its unique ID.",
                 "produces": [
                     "application/json"
@@ -8942,7 +8937,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/plan-of-action-and-milestones": {
@@ -10813,11 +10813,6 @@ const docTemplate = `{
         },
         "/oscal/profiles": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves all OSCAL profiles",
                 "produces": [
                     "application/json"
@@ -10851,14 +10846,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new OSCAL Profile.",
                 "consumes": [
                     "application/json"
@@ -10906,16 +10901,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}": {
+            "get": {
                 "description": "Get an OSCAL profile with the uuid provided",
                 "produces": [
                     "application/json"
@@ -10964,16 +10959,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/back-matter": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/back-matter": {
+            "get": {
                 "description": "Get the BackMatter for a specific profile",
                 "produces": [
                     "application/json"
@@ -11022,16 +11017,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/full": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/full": {
+            "get": {
                 "description": "Retrieves the full OSCAL Profile, including all nested content.",
                 "produces": [
                     "application/json"
@@ -11080,16 +11075,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/imports": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/imports": {
+            "get": {
                 "description": "List imports for a specific profile",
                 "produces": [
                     "application/json"
@@ -11138,16 +11133,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/imports/add": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/imports/add": {
+            "post": {
                 "description": "Adds an import to a profile by its UUID and type (catalog/profile). Only catalogs are currently supported currently",
                 "consumes": [
                     "application/json"
@@ -11214,16 +11209,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/imports/{href}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/imports/{href}": {
+            "get": {
                 "description": "Retrieves a specific import from a profile by its backmatter href",
                 "produces": [
                     "application/json"
@@ -11279,14 +11274,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates an existing import in a profile by its href",
                 "consumes": [
                     "application/json"
@@ -11354,14 +11349,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes an import from a profile by its href",
                 "produces": [
                     "application/json"
@@ -11414,16 +11409,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/merge": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/merge": {
+            "get": {
                 "description": "Retrieves the merge section for a specific profile.",
                 "produces": [
                     "application/json"
@@ -11472,14 +11467,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the merge information for a specific profile",
                 "consumes": [
                     "application/json"
@@ -11540,16 +11535,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/modify": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/modify": {
+            "get": {
                 "description": "Retrieves the modify section for a specific profile.",
                 "produces": [
                     "application/json"
@@ -11592,16 +11587,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/resolve": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/resolve": {
+            "post": {
                 "description": "Resolves a Profiled identified by the \"profile ID\" param and stores a new catalog in the database",
                 "produces": [
                     "application/json"
@@ -11644,16 +11639,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/profiles/{id}/resolved": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/profiles/{id}/resolved": {
+            "get": {
                 "description": "Returns a resolved OSCAL catalog based on a given Profile ID, applying all imports and modifications.",
                 "produces": [
                     "application/json"
@@ -11702,16 +11697,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/roles": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/roles": {
+            "get": {
                 "description": "Retrieves all roles.",
                 "produces": [
                     "application/json"
@@ -11745,16 +11740,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/roles/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/roles/{id}": {
+            "get": {
                 "description": "Retrieves a single Role by its unique ID.",
                 "produces": [
                     "application/json"
@@ -11803,16 +11798,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans": {
+            "get": {
                 "description": "Retrieves all System Security Plans.",
                 "produces": [
                     "application/json"
@@ -11846,14 +11841,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a System Security Plan from input.",
                 "consumes": [
                     "application/json"
@@ -11907,16 +11902,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}": {
+            "get": {
                 "description": "Retrieves a single System Security Plan by its unique ID.",
                 "produces": [
                     "application/json"
@@ -11965,7 +11960,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "put": {
                 "description": "Updates an existing System Security Plan.",
@@ -12386,11 +12386,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/control-implementation": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves the Control Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -12439,7 +12434,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "put": {
                 "description": "Updates the Control Implementation for a given System Security Plan.",
@@ -13359,11 +13359,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/profile": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves the Profile attached to the specified System Security Plan.",
                 "produces": [
                     "application/json"
@@ -13412,7 +13407,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "put": {
                 "description": "Associates a given Profile with a System Security Plan.",
@@ -13474,11 +13474,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-characteristics": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves the System Characteristics for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -13527,14 +13522,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the System Characteristics for a given System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -13595,16 +13590,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary": {
+            "get": {
                 "description": "Retrieves the Authorization Boundary for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -13653,16 +13648,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams": {
+            "post": {
                 "description": "Creates a new Diagram under the Authorization Boundary of a System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -13723,16 +13718,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/authorization-boundary/diagrams/{diagram}": {
+            "put": {
                 "description": "Updates a specific Diagram under the Authorization Boundary of a System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -13800,14 +13795,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific Diagram under the Authorization Boundary of a System Security Plan.",
                 "produces": [
                     "application/json"
@@ -13860,16 +13855,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/data-flow": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/data-flow": {
+            "get": {
                 "description": "Retrieves the Data Flow for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -13918,16 +13913,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams": {
+            "post": {
                 "description": "Creates a new Diagram under the Data Flow of a System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -13988,16 +13983,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/data-flow/diagrams/{diagram}": {
+            "put": {
                 "description": "Updates a specific Diagram under the Data Flow of a System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -14065,14 +14060,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific Diagram under the Data Flow of a System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14125,16 +14120,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/network-architecture": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/network-architecture": {
+            "get": {
                 "description": "Retrieves the Network Architecture for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14183,16 +14178,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams": {
+            "post": {
                 "description": "Creates a new Diagram under the Network Architecture of a System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -14253,16 +14248,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram}": {
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-characteristics/network-architecture/diagrams/{diagram}": {
+            "put": {
                 "description": "Updates a specific Diagram under the Network Architecture of a System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -14330,14 +14325,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a specific Diagram under the Network Architecture of a System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14390,16 +14385,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-implementation": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-implementation": {
+            "get": {
                 "description": "Retrieves the System Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14448,14 +14443,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the System Implementation for a given System Security Plan.",
                 "consumes": [
                     "application/json"
@@ -14516,16 +14511,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/oscal/system-security-plans/{id}/system-implementation/components": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/system-implementation/components": {
+            "get": {
                 "description": "Retrieves components in the System Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14574,7 +14569,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates a new system component for a given SSP.",
@@ -14636,11 +14636,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-implementation/components/{componentId}": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves component in the System Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14696,7 +14691,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "put": {
                 "description": "Updates an existing system component for a given SSP.",
@@ -14811,11 +14811,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-implementation/inventory-items": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves inventory items in the System Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -14864,7 +14859,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates a new inventory item for a given SSP.",
@@ -15038,11 +15038,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-implementation/leveraged-authorizations": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves leveraged authorizations in the System Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -15091,7 +15086,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates a new leveraged authorization for a given SSP.",
@@ -15265,11 +15265,6 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/system-implementation/users": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Retrieves users in the System Implementation for a given System Security Plan.",
                 "produces": [
                     "application/json"
@@ -15318,7 +15313,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates a new system user for a given SSP.",
@@ -15492,11 +15492,6 @@ const docTemplate = `{
         },
         "/users": {
             "get": {
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ],
                 "description": "Lists all users in the system",
                 "produces": [
                     "application/json"
@@ -15524,14 +15519,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "post": {
                 "description": "Creates a new user in the system",
                 "consumes": [
                     "application/json"
@@ -15585,16 +15580,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/users/me": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/users/me": {
+            "get": {
                 "description": "Retrieves the details of the currently logged-in user",
                 "produces": [
                     "application/json"
@@ -15628,16 +15623,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/users/me/change-password": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/users/me/change-password": {
+            "post": {
                 "description": "Changes the password for the currently logged-in user",
                 "consumes": [
                     "application/json"
@@ -15682,16 +15677,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/users/{id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/users/{id}": {
+            "get": {
                 "description": "Get user details by user ID",
                 "produces": [
                     "application/json"
@@ -15740,14 +15735,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "put": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "put": {
                 "description": "Updates the details of an existing user",
                 "consumes": [
                     "application/json"
@@ -15808,14 +15803,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            },
-            "delete": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            },
+            "delete": {
                 "description": "Deletes a user from the system",
                 "tags": [
                     "Users"
@@ -15858,16 +15853,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
-            }
-        },
-        "/users/{id}/change-password": {
-            "post": {
+                },
                 "security": [
                     {
                         "OAuth2Password": []
                     }
-                ],
+                ]
+            }
+        },
+        "/users/{id}/change-password": {
+            "post": {
                 "description": "Changes the password for a user by ID",
                 "consumes": [
                     "application/json"
@@ -15925,7 +15920,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         }
     },

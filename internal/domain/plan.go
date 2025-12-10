@@ -3,9 +3,7 @@ package domain
 import (
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/google/uuid"
-)
 
-import (
 	oscaltypes113 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
 
