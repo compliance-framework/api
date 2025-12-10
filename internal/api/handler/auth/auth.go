@@ -103,7 +103,7 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 	cookie.HttpOnly = true
 	cookie.Path = "/"
 
-	if h.config.Environment == "local" || h.config.Environment == "dev" || h.config.Environment == "development" {
+	if isDevelopmentEnvironment(h.config.Environment) {
 		cookie.Secure = false
 		cookie.SameSite = http.SameSiteLaxMode
 	} else {
@@ -114,6 +114,10 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 	ctx.SetCookie(cookie)
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[response]{Data: ret})
+}
+
+func isDevelopmentEnvironment(env string) bool {
+	return env == string(config.EnvironmentLocal) || env == string(config.EnvironmentDevelopment)
 }
 
 // GetOAuth2Token godoc
