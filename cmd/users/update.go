@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"

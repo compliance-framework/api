@@ -4,6 +4,7 @@ package tests
 
 import (
 	"context"
+
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -25,13 +26,14 @@ type IntegrationTestSuite struct {
 
 func (suite *IntegrationTestSuite) SetupSuite() {
 	ctx := context.Background()
-
 	cfg := &config.Config{}
 	privKey, pubKey, err := config.GenerateKeyPair(2048)
 	suite.NoError(err, "failed to generate RSA key pair")
 
 	cfg.JWTPrivateKey = privKey
 	cfg.JWTPublicKey = pubKey
+	// Only testing production environment here
+	cfg.Environment = "production"
 	suite.Config = cfg
 
 	postgresContainer, err := postgresContainers.Run(ctx,

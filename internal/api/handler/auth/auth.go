@@ -101,11 +101,23 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 	cookie.Value = *token
 	cookie.Expires = time.Now().Add(time.Hour * 24)
 	cookie.HttpOnly = true
-	cookie.Secure = true
 	cookie.Path = "/"
+
+	if isDevelopmentEnvironment(h.config.Environment) {
+		cookie.Secure = false
+		cookie.SameSite = http.SameSiteLaxMode
+	} else {
+		cookie.Secure = true
+		cookie.SameSite = http.SameSiteStrictMode
+	}
+
 	ctx.SetCookie(cookie)
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[response]{Data: ret})
+}
+
+func isDevelopmentEnvironment(env string) bool {
+	return env == string(config.EnvironmentLocal) || env == string(config.EnvironmentDevelopment)
 }
 
 // GetOAuth2Token godoc

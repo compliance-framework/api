@@ -2,11 +2,12 @@ package internal
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"hash/crc64"
 	"math/rand"
 	"slices"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 func Pointer[K any](value K) *K {

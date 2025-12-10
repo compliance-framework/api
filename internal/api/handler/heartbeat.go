@@ -1,14 +1,15 @@
 package handler
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"net/http"
-	"time"
 )
 
 type HeartbeatHandler struct {

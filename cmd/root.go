@@ -32,6 +32,7 @@ func configEnvKeys() {
 	viper.SetEnvPrefix("ccf")
 	viper.BindEnv("app_port", "APP_PORT")
 	viper.BindEnv("db_driver")
+	viper.BindEnv("environment")
 	viper.BindEnv("db_connection")
 	viper.BindEnv("db_debug")
 	viper.BindEnv("jwt_secret")

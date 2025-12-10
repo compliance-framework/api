@@ -13,7 +13,7 @@ type controlRef struct {
 }
 
 type dashboardJSON struct {
-	ID       *uuid.UUID             `json:"id,omitempty"`
+	ID       *uuid.UUID          `json:"id,omitempty"`
 	Name     string              `json:"name,omitempty"`
 	Filter   *labelfilter.Filter `json:"filter"`
 	Controls []controlRef        `json:"controls,omitempty"`

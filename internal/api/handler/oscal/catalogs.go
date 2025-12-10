@@ -88,18 +88,19 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 }
 
 // Get godoc
-// @Summary		Get a Catalog
-// @Description	Retrieves a single Catalog by its unique ID.
-// @Tags			Catalog
-// @Produce		json
-// @Param			id	path		string	true	"Catalog ID"
-// @Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseCatalog]
-// @Failure		400	{object}	api.Error
-// @Failure		404	{object}	api.Error
-// @Failure		401	{object}	api.Error
-// @Failure		500	{object}	api.Error
-// @Security		OAuth2Password
-// @Router			/oscal/catalogs/{id} [get]
+//
+//	@Summary		Get a Catalog
+//	@Description	Retrieves a single Catalog by its unique ID.
+//	@Tags			Catalog
+//	@Produce		json
+//	@Param			id	path		string	true	"Catalog ID"
+//	@Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseCatalog]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/catalogs/{id} [get]
 func (h *CatalogHandler) Get(ctx echo.Context) error {
 	type responseCatalog struct {
 		UUID     uuid.UUID                 `json:"uuid"`
