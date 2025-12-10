@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"slices"
+	"strings"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
@@ -24,7 +26,6 @@ func newExportCMD() *cobra.Command {
 
 	cmd.Flags().StringP("output", "o", "oscal_export.json", "Output file for exported objects")
 	cmd.Flags().StringP("type", "t", "", "Type of OSCAL object to export (ssp, ap, catalog, profile)")
-	cmd.MarkFlagRequired("output")
 	cmd.MarkFlagRequired("type")
 
 	return cmd
@@ -42,17 +43,20 @@ func exportOscal(cmd *cobra.Command, args []string) {
 
 	outputFile, err := cmd.Flags().GetString("output")
 	if err != nil {
-		panic(err)
+		sugar.Fatalf("failed to get output flag: %v", err)
 	}
 
 	exportType, err := cmd.Flags().GetString("type")
 	if err != nil {
-		panic(err)
+		sugar.Fatalf("failed to get type flag: %v", err)
 	}
-
+	validTypes := []string{"ssp", "ap", "catalog", "profile"}
+	if !slices.Contains(validTypes, exportType) {
+		sugar.Fatalf("Unknown export type: %s. Valid types are: %s", exportType, strings.Join(validTypes, ", "))
+	}
 	db, err := service.ConnectSQLDb(context.Background(), config, sugar)
 	if err != nil {
-		panic("failed to connect database")
+		sugar.Fatalf("failed to connect database: %v", err)
 	}
 
 	file, err := os.Create(outputFile)
