@@ -20,6 +20,7 @@ var (
 
 type Config struct {
 	AppPort            string
+	Environment        string
 	DBDriver           string
 	DBConnectionString string
 	DBDebug            bool
@@ -37,6 +38,11 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 			"CCF_DB_DRIVER is not set. Please set it in the environment or .env file. Expected values: ",
 			strings.Join(DriverOptions, ", "),
 		)
+	}
+
+	environment := strings.ToLower(viper.GetString("environment"))
+	if environment == "" {
+		environment = "production"
 	}
 
 	dbDriver := stripQuotes(strings.ToLower(viper.GetString("db_driver")))
@@ -114,6 +120,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 
 	return &Config{
 		AppPort:            appPort,
+		Environment:        environment,
 		DBDriver:           dbDriver,
 		DBConnectionString: stripQuotes(viper.GetString("db_connection")),
 		DBDebug:            viper.GetBool("db_debug"),
