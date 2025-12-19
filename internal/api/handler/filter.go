@@ -151,6 +151,9 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 			control := relational.Control{}
 			err := searchDB.First(&control, "id = ?", controlId).Error
 			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ctx.JSON(http.StatusNotFound, api.NewError(err))
+				}
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
 			filter.Controls = append(filter.Controls, control)
@@ -217,6 +220,9 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 			control := relational.Control{}
 			err := searchDB.First(&control, "id = ?", controlId).Error
 			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ctx.JSON(http.StatusNotFound, api.NewError(err))
+				}
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
 			filter.Controls = append(filter.Controls, control)
