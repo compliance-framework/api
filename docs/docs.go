@@ -340,6 +340,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
                         }
                     },
+                    "400": {
+                        "description": "Invalid UUID",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
