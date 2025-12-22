@@ -37,10 +37,9 @@ func RequireAdminGroups(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogg
 				// Password (or other non-OIDC) users bypass group enforcement.
 				return next(c)
 			}
-
 			if cfg == nil || cfg.OIDC == nil || !cfg.OIDC.Enabled {
-				// Without OIDC config we cannot enforce provider-based admin groups.
-				return echo.NewHTTPError(http.StatusForbidden, "oidc admin enforcement disabled")
+				// Without OIDC config we cannot enforce provider-based admin groups; allow request.
+				return next(c)
 			}
 
 			var link relational.OIDCUserLink
@@ -55,6 +54,7 @@ func RequireAdminGroups(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogg
 			providerConfig := cfg.OIDC.GetProvider(link.Provider)
 			if providerConfig == nil {
 				logger.Warnw("Provider config not found for admin enforcement", "provider", link.Provider)
+				// OIDC IS enabled and this provider is unknown - we should fail.
 				return echo.NewHTTPError(http.StatusForbidden, "provider configuration not found")
 			}
 

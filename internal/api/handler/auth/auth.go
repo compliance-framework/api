@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -195,6 +196,12 @@ func (h *AuthHandler) CheckUser(username, password string) (*relational.User, bo
 		h.sugar.Errorw("Failed to query user", "error", err)
 		h.metrics.Counters.BadLogins.WithLabelValues("unknown").Inc()
 		return nil, false, err
+	}
+
+	if strings.TrimSpace(user.PasswordHash) == "" {
+		h.sugar.Warnw("Password login attempted for user without password hash", "username", username)
+		h.metrics.Counters.BadLogins.WithLabelValues("missing_hash").Inc()
+		return nil, true, invalidError
 	}
 
 	if !user.CheckPassword(password) {

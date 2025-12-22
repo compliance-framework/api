@@ -25,7 +25,7 @@ providers:
     group_mapping:
       "hd:container-solutions.com":
         - "ccf-authorized-users"
-      "email:gustavo.carvalho@container-solutions.com":
+      "email:admin@example.com":
         - "ccf-admins"
       # Add additional group mappings as needed
 
@@ -51,7 +51,7 @@ providers:
     group_mapping:
       "github-organization:compliance-framework":
         - "ccf-authorized-users"
-      # Map GitHub org/team memberships to user attributes (requires future enhancement)
+      ## No mapping to ccf-admins --> no admins from github SSO.
 
   # - name: "oidc"
   #   display_name: "SSO"

@@ -113,7 +113,7 @@ func (h *OIDCHandler) InitiateLogin(ctx echo.Context) error {
 		cookie.SameSite = http.SameSiteLaxMode
 	} else {
 		cookie.Secure = true
-		cookie.SameSite = http.SameSiteLaxMode
+		cookie.SameSite = http.SameSiteStrictMode
 	}
 
 	ctx.SetCookie(cookie)

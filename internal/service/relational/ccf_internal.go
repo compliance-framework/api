@@ -28,7 +28,7 @@ type User struct {
 	ResetToken       *string    `json:"-"`
 	ResetTokenExpiry *time.Time `json:"-"`
 
-	AuthMethod     string `json:"authMethod" gorm:"default:oidc"`
+	AuthMethod     string `json:"authMethod"`
 	UserAttributes string `json:"userAttributes"`
 }
 

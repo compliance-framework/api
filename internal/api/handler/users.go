@@ -200,9 +200,10 @@ func (h *UserHandler) CreateUser(ctx echo.Context) error {
 	}
 
 	user := &relational.User{
-		Email:     req.Email,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
+		Email:      req.Email,
+		FirstName:  req.FirstName,
+		LastName:   req.LastName,
+		AuthMethod: "password",
 	}
 	if err := user.SetPassword(req.Password); err != nil {
 		h.sugar.Errorw("Failed to set user password", "error", err)

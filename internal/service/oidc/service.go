@@ -719,10 +719,8 @@ func (s *Service) augmentUserGroups(providerConfig config.OIDCProviderConfig, us
 		return
 	}
 
-	claimDerivedGroups := buildClaimGroups(userInfo.Claims)
-	userInfo.Groups = append(userInfo.Groups, claimDerivedGroups...)
-
 	normalized := make(map[string]struct{})
+	deduped := make([]string, 0, len(userInfo.Groups))
 	addGroup := func(group string) {
 		group = strings.TrimSpace(group)
 		if group == "" {
@@ -732,15 +730,16 @@ func (s *Service) augmentUserGroups(providerConfig config.OIDCProviderConfig, us
 		if _, exists := normalized[key]; exists {
 			return
 		}
-		userInfo.Groups = append(userInfo.Groups, group)
 		normalized[key] = struct{}{}
+		deduped = append(deduped, group)
 	}
 
 	for _, g := range userInfo.Groups {
-		key := strings.ToLower(strings.TrimSpace(g))
-		if key != "" {
-			normalized[key] = struct{}{}
-		}
+		addGroup(g)
+	}
+
+	for _, g := range buildClaimGroups(userInfo.Claims) {
+		addGroup(g)
 	}
 
 	domain := strings.ToLower(strings.TrimSpace(userInfo.HostedDomain))
@@ -777,6 +776,8 @@ func (s *Service) augmentUserGroups(providerConfig config.OIDCProviderConfig, us
 			addGroup(target)
 		}
 	}
+
+	userInfo.Groups = deduped
 }
 
 func extractDomain(email string) string {
