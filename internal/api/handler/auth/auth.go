@@ -205,6 +205,19 @@ func (h *AuthHandler) CheckUser(username, password string) (*relational.User, bo
 
 	h.metrics.Counters.TotalLogins.Inc()
 
+	now := time.Now()
+	if user.ID != nil {
+		if err := h.db.Model(&relational.User{}).
+			Where("id = ?", user.ID.String()).
+			Update("last_login", now).Error; err != nil {
+			h.sugar.Warnw("Failed to update last login", "username", username, "error", err)
+		} else {
+			user.LastLogin = &now
+		}
+	} else {
+		h.sugar.Warnw("User ID missing; cannot update last login", "username", username)
+	}
+
 	return &user, false, nil
 }
 

@@ -18,6 +18,11 @@ type UserHandler struct {
 	db    *gorm.DB
 }
 
+type userResponse struct {
+	relational.User
+	AuthProvider *string `json:"authProvider,omitempty"`
+}
+
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 	return &UserHandler{
 		sugar: sugar,
@@ -31,9 +36,12 @@ func (h *UserHandler) Register(api *echo.Group) {
 	api.POST("", h.CreateUser)
 	api.PUT("/:id", h.UpdateUser)
 	api.DELETE("/:id", h.DeleteUser)
-	api.POST("/me/change-password", h.ChangeLoggedInUserPassword)
 	api.POST("/:id/change-password", h.ChangePassword)
+}
+
+func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
 	api.GET("/me", h.GetMe)
+	api.POST("/me/change-password", h.ChangeLoggedInUserPassword)
 }
 
 // ListUsers godoc
@@ -46,7 +54,7 @@ func (h *UserHandler) Register(api *echo.Group) {
 //	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users [get]
+//	@Router			/admin/users [get]
 func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	var users []relational.User
 
@@ -73,7 +81,7 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users/{id} [get]
+//	@Router			/admin/users/{id} [get]
 func (h *UserHandler) GetUser(ctx echo.Context) error {
 	userID := ctx.Param("id")
 
@@ -92,9 +100,38 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	return ctx.JSON(200, GenericDataResponse[relational.User]{
-		Data: user,
+	response := userResponse{
+		User: user,
+	}
+
+	h.attachAuthProvider(&response)
+
+	return ctx.JSON(200, GenericDataResponse[userResponse]{
+		Data: response,
 	})
+}
+
+func (h *UserHandler) attachAuthProvider(resp *userResponse) {
+	if resp == nil || resp.User.ID == nil {
+		return
+	}
+
+	if resp.User.AuthMethod != "oidc" {
+		return
+	}
+
+	var link relational.OIDCUserLink
+	if err := h.db.
+		Where("user_id = ? AND deleted_at IS NULL", resp.User.ID.String()).
+		Order("last_sync DESC").
+		First(&link).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			h.sugar.Warnw("Failed to load OIDC provider for user", "userID", resp.User.ID.String(), "error", err)
+		}
+		return
+	}
+
+	resp.AuthProvider = &link.Provider
 }
 
 // GetMe godoc
@@ -122,8 +159,14 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	return ctx.JSON(200, GenericDataResponse[relational.User]{
-		Data: user,
+	response := userResponse{
+		User: user,
+	}
+
+	h.attachAuthProvider(&response)
+
+	return ctx.JSON(200, GenericDataResponse[userResponse]{
+		Data: response,
 	})
 }
 
@@ -141,7 +184,7 @@ func (h *UserHandler) GetMe(ctx echo.Context) error {
 //	@Failure		409		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users [post]
+//	@Router			/admin/users [post]
 func (h *UserHandler) CreateUser(ctx echo.Context) error {
 	type createUserRequest struct {
 		Email     string `json:"email" validate:"required,email"`
@@ -194,7 +237,7 @@ func (h *UserHandler) CreateUser(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users/{id} [put]
+//	@Router			/admin/users/{id} [put]
 func (h *UserHandler) UpdateUser(ctx echo.Context) error {
 	type updateUserRequest struct {
 		FirstName    *string `json:"firstName"`
@@ -262,7 +305,7 @@ func (h *UserHandler) UpdateUser(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users/{id} [delete]
+//	@Router			/admin/users/{id} [delete]
 func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 	userID := ctx.Param("id")
 	userUUID, err := uuid.Parse(userID)
@@ -277,6 +320,12 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 		}
 		h.sugar.Errorw("Failed to delete user", "error", err)
 		return ctx.JSON(500, api.NewError(err))
+	}
+
+	if err := h.db.Unscoped().
+		Where("user_id = ?", userUUID.String()).
+		Delete(&relational.OIDCUserLink{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove OIDC bindings for deleted user", "userID", userUUID.String(), "error", err)
 	}
 
 	return ctx.NoContent(204)

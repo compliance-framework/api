@@ -841,16 +841,16 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 
 // ComplianceByFilter godoc
 //
-//		@Summary		Get compliance status counts by filter/dashboard ID
-//		@Description	Retrieves the count of evidence statuses for a specific filter/dashboard.
-//		@Tags			Evidence
-//		@Produce		json
-//		@Param			id	path		string	true	"Filter/Dashboard ID (UUID)"
-//		@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
-//	 @Failure        400 {object}    api.Error  "Invalid UUID"
-//		@Failure		404	{object}	api.Error
-//		@Failure		500	{object}	api.Error
-//		@Router			/evidence/compliance-by-filter/{id} [get]
+//	@Summary		Get compliance status counts by filter/dashboard ID
+//	@Description	Retrieves the count of evidence statuses for a specific filter/dashboard.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Filter/Dashboard ID (UUID)"
+//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Failure		400	{object}	api.Error	"Invalid UUID"
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/compliance-by-filter/{id} [get]
 func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
