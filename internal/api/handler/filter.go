@@ -151,6 +151,9 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 			control := relational.Control{}
 			err := searchDB.First(&control, "id = ?", controlId).Error
 			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ctx.JSON(http.StatusNotFound, api.NewError(err))
+				}
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
 			filter.Controls = append(filter.Controls, control)
@@ -204,6 +207,27 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 
 	filter.Name = req.Name
 	filter.Filter = datatypes.NewJSONType(req.Filter)
+
+	// Update controls if provided
+	if req.Controls != nil {
+		// Clear existing controls association
+		if err := h.db.Model(&filter).Association("Controls").Clear(); err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		// Add new controls
+		for _, controlId := range *req.Controls {
+			searchDB := h.db.Session(&gorm.Session{})
+			control := relational.Control{}
+			err := searchDB.First(&control, "id = ?", controlId).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ctx.JSON(http.StatusNotFound, api.NewError(err))
+				}
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
+			filter.Controls = append(filter.Controls, control)
+		}
+	}
 
 	if err := h.db.Save(&filter).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

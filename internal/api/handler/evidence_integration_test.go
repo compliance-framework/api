@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -602,4 +603,125 @@ func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	counts = toMap(response.Data[3].Statuses)
 	suite.Equal(int64(0), counts["satisfied"])
 	suite.Equal(int64(1), counts["not-satisfied"])
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
+	suite.Run("Returns status counts for a filter", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+
+		// Create a filter
+		filter := relational.Filter{
+			Name: "Test Filter",
+			Filter: datatypes.NewJSONType(labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "provider",
+						Operator: "=",
+						Value:    "aws",
+					},
+				},
+			}),
+		}
+		suite.NoError(suite.DB.Create(&filter).Error)
+
+		// Create evidence matching the filter
+		evidence := []relational.Evidence{
+			{
+				UUID:   uuid.New(),
+				Title:  "Satisfied Evidence",
+				Start:  time.Now().Add(-time.Hour),
+				End:    time.Now().Add(-time.Hour).Add(time.Minute),
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+				Labels: []relational.Labels{
+					{Name: "provider", Value: "aws"},
+				},
+			},
+			{
+				UUID:   uuid.New(),
+				Title:  "Not Satisfied Evidence",
+				Start:  time.Now().Add(-time.Hour),
+				End:    time.Now().Add(-time.Hour).Add(time.Minute),
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+				Labels: []relational.Labels{
+					{Name: "provider", Value: "aws"},
+				},
+			},
+			{
+				UUID:   uuid.New(),
+				Title:  "Another Satisfied",
+				Start:  time.Now().Add(-time.Hour),
+				End:    time.Now().Add(-time.Hour).Add(time.Minute),
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+				Labels: []relational.Labels{
+					{Name: "provider", Value: "aws"},
+				},
+			},
+			{
+				UUID:   uuid.New(),
+				Title:  "Non-matching Evidence",
+				Start:  time.Now().Add(-time.Hour),
+				End:    time.Now().Add(-time.Hour).Add(time.Minute),
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+				Labels: []relational.Labels{
+					{Name: "provider", Value: "github"},
+				},
+			},
+		}
+		suite.NoError(suite.DB.Create(&evidence).Error)
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/compliance-by-filter/%s", filter.ID), nil)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusOK, rec.Code)
+
+		response := struct {
+			Data []struct {
+				Count  int64  `json:"count"`
+				Status string `json:"status"`
+			} `json:"data"`
+		}{}
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		suite.Require().NoError(err)
+
+		// Should have 2 satisfied and 1 not-satisfied (excluding the github one)
+		statusCounts := make(map[string]int64)
+		for _, s := range response.Data {
+			statusCounts[s.Status] = s.Count
+		}
+		suite.Equal(int64(2), statusCounts["satisfied"])
+		suite.Equal(int64(1), statusCounts["not-satisfied"])
+	})
+
+	suite.Run("Returns 404 for non-existent filter", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/compliance-by-filter/%s", uuid.New()), nil)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+	})
+
+	suite.Run("Returns 400 for invalid UUID", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/evidence/compliance-by-filter/invalid-uuid", nil)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusBadRequest, rec.Code)
+	})
 }

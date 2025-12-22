@@ -39,6 +39,7 @@ func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID)
 	api.POST("/status-over-time", h.StatusOverTime)
 	api.GET("/compliance-by-control/:id", h.ComplianceByControl)
+	api.GET("/compliance-by-filter/:id", h.ComplianceByFilter)
 }
 
 type EvidenceActivityStep struct {
@@ -823,6 +824,56 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 	latestQuery := h.db.Session(&gorm.Session{})
 	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
 	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filters...)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	rows := []StatusCount{}
+	if err := q.Model(&relational.Evidence{}).
+		Select("count(*) as count, status->>'state' as status").
+		Group("status->>'state'").
+		Scan(&rows).Error; err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: rows})
+}
+
+// ComplianceByFilter godoc
+//
+//	@Summary		Get compliance status counts by filter/dashboard ID
+//	@Description	Retrieves the count of evidence statuses for a specific filter/dashboard.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Filter/Dashboard ID (UUID)"
+//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Failure		400	{object}	api.Error	"Invalid UUID"
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/compliance-by-filter/{id} [get]
+func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	filter := &relational.Filter{}
+	if err := h.db.First(filter, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	type StatusCount struct {
+		Count  int64  `json:"count"`
+		Status string `json:"status"`
+	}
+
+	latestQuery := h.db.Session(&gorm.Session{})
+	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
+	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filter.Filter.Data())
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

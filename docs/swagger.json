@@ -308,6 +308,53 @@
                 }
             }
         },
+        "/evidence/compliance-by-filter/{id}": {
+            "get": {
+                "description": "Retrieves the count of evidence statuses for a specific filter/dashboard.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get compliance status counts by filter/dashboard ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter/Dashboard ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/evidence/for-control/{id}": {
             "get": {
                 "description": "Retrieves Evidence records associated with a specific Control ID, including related activities, inventory items, components, subjects, and labels.",

@@ -5763,6 +5763,37 @@ paths:
       summary: Get compliance counts by control
       tags:
       - Evidence
+  /evidence/compliance-by-filter/{id}:
+    get:
+      description: Retrieves the count of evidence statuses for a specific filter/dashboard.
+      parameters:
+      - description: Filter/Dashboard ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
+        "400":
+          description: Invalid UUID
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get compliance status counts by filter/dashboard ID
+      tags:
+      - Evidence
   /evidence/for-control/{id}:
     get:
       description: Retrieves Evidence records associated with a specific Control ID,
