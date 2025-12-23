@@ -80,10 +80,11 @@ func (c *SSOConfig) validate() error {
 }
 
 func (c *SSOConfig) GetProvider(name string) *SSOProviderConfig {
-	for _, v := range c.Providers {
-		if v.Name == name {
-			return &v
-		}
+	if c == nil {
+		return nil
+	}
+	if p, ok := c.Providers[name]; ok {
+		return &p
 	}
 	return nil
 }
