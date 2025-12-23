@@ -30,7 +30,7 @@ type Config struct {
 	APIAllowedOrigins  []string
 	MetricsEnabled     bool
 	MetricsPort        string
-	OIDC               *OIDCConfig
+	SSO                *SSOConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -119,14 +119,14 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	metricsEnabled := viper.GetBool("metrics_enabled")
 	metricsPort := viper.GetString("metrics_port")
 
-	oidcConfigPath := viper.GetString("oidc_config")
-	if oidcConfigPath == "" {
-		oidcConfigPath = "oidc.yaml"
+	ssoConfigPath := viper.GetString("sso_config")
+	if ssoConfigPath == "" {
+		ssoConfigPath = "sso.yaml"
 	}
-	oidcConfig, err := LoadOIDCConfig(oidcConfigPath)
+	ssoConfig, err := LoadSSOConfig(ssoConfigPath)
 	if err != nil {
-		logger.Warnw("Failed to load OIDC config, OIDC will be disabled", "error", err, "path", oidcConfigPath)
-		oidcConfig = &OIDCConfig{Enabled: false}
+		logger.Warnw("Failed to load OIDC config, OIDC will be disabled", "error", err, "path", ssoConfigPath)
+		ssoConfig = &SSOConfig{Enabled: false}
 	}
 
 	return &Config{
@@ -141,7 +141,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		APIAllowedOrigins:  allowedOrigins,
 		MetricsEnabled:     metricsEnabled,
 		MetricsPort:        metricsPort,
-		OIDC:               oidcConfig,
+		SSO:                ssoConfig,
 	}
 
 }

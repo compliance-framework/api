@@ -96,7 +96,7 @@ lint.check: ## Check install of golanci-lint
 lint.install: ## Install golangci-lint to the go bin dir
 	@if ! golangci-lint --version  2>&1 >> /dev/null; then \
 		$(INFO) "Installing golangci-lint"; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/main/install.sh | sh -s -- -b $(GOBIN) v2.1.1; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/main/install.sh | sh -s -- -b $(GOBIN) v2.7.2; \
 	fi
 
 .PHONY: lint

@@ -103,7 +103,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Attestation{},
 
 		// Compliance-Framework - not related to OSCAL
-		&relational.OIDCUserLink{},
+		&relational.SSOUserLink{},
 		&relational.User{},
 		&Heartbeat{},
 		&relational.Evidence{},

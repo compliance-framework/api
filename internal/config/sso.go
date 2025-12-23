@@ -11,10 +11,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-type OIDCProviderConfig struct {
+type SSOProviderConfig struct {
 	Name                string              `yaml:"name" json:"name" mapstructure:"name"`
 	DisplayName         string              `yaml:"display_name" json:"displayName" mapstructure:"display_name"`
-	Type                string              `yaml:"type" json:"type" mapstructure:"type"` // oidc (default) or oauth
+	Provider            string              `yaml:"provider" json:"provider" mapstructure:"provider"` // google, github, generic
+	Protocol            string              `yaml:"protocol" json:"protocol" mapstructure:"protocol"` // oidc or oauth
 	IconURL             string              `yaml:"icon_url" json:"iconUrl" mapstructure:"icon_url"`
 	RequiredLoginGroups []string            `yaml:"required_login_groups" json:"requiredLoginGroups" mapstructure:"required_login_groups"`
 	RequiredAdminGroups []string            `yaml:"required_admin_groups" json:"requiredAdminGroups" mapstructure:"required_admin_groups"`
@@ -30,36 +31,36 @@ type OIDCProviderConfig struct {
 	GroupMapping        map[string][]string `yaml:"group_mapping" json:"groupMapping" mapstructure:"group_mapping"`
 }
 
-type OIDCConfig struct {
-	Enabled     bool                 `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
-	BaseURL     string               `yaml:"base_url" json:"base_url" mapstructure:"base_url"`
-	CallbackURL string               `yaml:"callback_url" json:"callback_url" mapstructure:"callback_url"`
-	Providers   []OIDCProviderConfig `yaml:"providers" json:"providers" mapstructure:"providers"`
+type SSOConfig struct {
+	Enabled     bool                `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
+	BaseURL     string              `yaml:"base_url" json:"base_url" mapstructure:"base_url"`
+	CallbackURL string              `yaml:"callback_url" json:"callback_url" mapstructure:"callback_url"`
+	Providers   []SSOProviderConfig `yaml:"providers" json:"providers" mapstructure:"providers"`
 }
 
-func LoadOIDCConfig(path string) (*OIDCConfig, error) {
+func LoadSSOConfig(path string) (*SSOConfig, error) {
 	if path == "" {
-		return &OIDCConfig{Enabled: false}, nil
+		return &SSOConfig{Enabled: false}, nil
 	}
 
 	v := viper.New()
 	v.SetConfigFile(path)
 	v.SetConfigType("yaml")
-	v.SetEnvPrefix("CCF_OIDC")
+	v.SetEnvPrefix("CCF_SSO")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
 		if errors.As(err, &notFound) {
-			return &OIDCConfig{Enabled: false}, nil
+			return &SSOConfig{Enabled: false}, nil
 		}
-		return nil, fmt.Errorf("failed to read OIDC config file: %w", err)
+		return nil, fmt.Errorf("failed to read SSO config file: %w", err)
 	}
 
-	var config OIDCConfig
+	var config SSOConfig
 	if err := v.Unmarshal(&config); err != nil {
-		return nil, fmt.Errorf("failed to parse OIDC config file: %w", err)
+		return nil, fmt.Errorf("failed to parse SSO config file: %w", err)
 	}
 
 	if err := config.expandEnvVars(); err != nil {
@@ -73,7 +74,7 @@ func LoadOIDCConfig(path string) (*OIDCConfig, error) {
 	return &config, nil
 }
 
-func (c *OIDCConfig) expandEnvVars() error {
+func (c *SSOConfig) expandEnvVars() error {
 	var errs []string
 
 	var err error
@@ -126,13 +127,13 @@ func (c *OIDCConfig) expandEnvVars() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to expand environment variables in OIDC config: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("failed to expand environment variables in SSO config: %s", strings.Join(errs, "; "))
 	}
 
 	return nil
 }
 
-func (c *OIDCConfig) validate() error {
+func (c *SSOConfig) validate() error {
 	for _, p := range c.Providers {
 		if !p.Enabled {
 			continue
@@ -196,7 +197,7 @@ func lookupEnvWithPrefix(key string) (string, bool) {
 	return "", false
 }
 
-func (c *OIDCConfig) GetProvider(name string) *OIDCProviderConfig {
+func (c *SSOConfig) GetProvider(name string) *SSOProviderConfig {
 	for i := range c.Providers {
 		if c.Providers[i].Name == name {
 			return &c.Providers[i]
@@ -205,8 +206,8 @@ func (c *OIDCConfig) GetProvider(name string) *OIDCProviderConfig {
 	return nil
 }
 
-func (c *OIDCConfig) GetEnabledProviders() []OIDCProviderConfig {
-	var enabled []OIDCProviderConfig
+func (c *SSOConfig) GetEnabledProviders() []SSOProviderConfig {
+	var enabled []SSOProviderConfig
 	for _, p := range c.Providers {
 		if p.Enabled {
 			enabled = append(enabled, p)

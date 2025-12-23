@@ -7,14 +7,14 @@ import (
 
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
-	"github.com/compliance-framework/api/internal/service/oidc"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// RequireAdminGroups enforces that OIDC-authenticated users belong to the provider's configured
+// RequireAdminGroups enforces that SSO-authenticated users belong to the provider's configured
 // admin groups. Password-based logins bypass this middleware (treated as super admins).
 func RequireAdminGroups(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -33,28 +33,28 @@ func RequireAdminGroups(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogg
 				return echo.NewHTTPError(http.StatusInternalServerError, "failed to load user")
 			}
 
-			if strings.ToLower(user.AuthMethod) != "oidc" {
-				// Password (or other non-OIDC) users bypass group enforcement.
+			if strings.ToLower(user.AuthMethod) != "sso" {
+				// Password (or other non-SSO) users bypass group enforcement.
 				return next(c)
 			}
-			if cfg == nil || cfg.OIDC == nil || !cfg.OIDC.Enabled {
-				// Without OIDC config we cannot enforce provider-based admin groups; allow request.
+			if cfg == nil || cfg.SSO == nil || !cfg.SSO.Enabled {
+				// Without SSO config we cannot enforce provider-based admin groups; allow request.
 				return next(c)
 			}
 
-			var link relational.OIDCUserLink
+			var link relational.SSOUserLink
 			if err := db.
 				Where("user_id = ? AND deleted_at IS NULL", user.ID.String()).
 				Order("last_sync DESC").
 				First(&link).Error; err != nil {
-				logger.Warnw("Missing OIDC link for admin enforcement", "userID", user.ID.String(), "error", err)
-				return echo.NewHTTPError(http.StatusForbidden, "missing OIDC link for user")
+				logger.Warnw("Missing SSO link for admin enforcement", "userID", user.ID.String(), "error", err)
+				return echo.NewHTTPError(http.StatusForbidden, "missing SSO link for user")
 			}
 
-			providerConfig := cfg.OIDC.GetProvider(link.Provider)
+			providerConfig := cfg.SSO.GetProvider(link.Provider)
 			if providerConfig == nil {
 				logger.Warnw("Provider config not found for admin enforcement", "provider", link.Provider)
-				// OIDC IS enabled and this provider is unknown - we should fail.
+				// SSO IS enabled and this provider is unknown - we should fail.
 				return echo.NewHTTPError(http.StatusForbidden, "provider configuration not found")
 			}
 
@@ -63,7 +63,7 @@ func RequireAdminGroups(db *gorm.DB, cfg *config.Config, logger *zap.SugaredLogg
 			}
 
 			groupSet := make(map[string]struct{})
-			for _, g := range oidc.DeserializeStringArray(link.Groups) {
+			for _, g := range sso.DeserializeStringArray(link.Groups) {
 				normalized := strings.TrimSpace(strings.ToLower(g))
 				if normalized != "" {
 					groupSet[normalized] = struct{}{}

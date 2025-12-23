@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type OIDCUserLink struct {
+type SSOUserLink struct {
 	UUIDModel
 
 	CreatedAt time.Time      `json:"createdAt"`
@@ -23,8 +23,8 @@ type OIDCUserLink struct {
 	User User `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID"`
 }
 
-func (OIDCUserLink) TableName() string {
-	return "ccf_oidc_user_links"
+func (SSOUserLink) TableName() string {
+	return "ccf_sso_user_links"
 }
 
-// TODO: Database OIDCProvider model (future) - eventually move provider config from YAML to database
+// TODO: Database SSOProvider model (future) - eventually move provider config from YAML to database

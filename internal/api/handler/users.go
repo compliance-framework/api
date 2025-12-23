@@ -63,8 +63,15 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	return ctx.JSON(200, GenericDataListResponse[relational.User]{
-		Data: users,
+	// Convert to userResponse and attach auth providers
+	responses := make([]userResponse, len(users))
+	for i, user := range users {
+		responses[i] = userResponse{User: user}
+		h.attachAuthProvider(&responses[i])
+	}
+
+	return ctx.JSON(200, GenericDataListResponse[userResponse]{
+		Data: responses,
 	})
 }
 
@@ -116,17 +123,17 @@ func (h *UserHandler) attachAuthProvider(resp *userResponse) {
 		return
 	}
 
-	if resp.User.AuthMethod != "oidc" {
+	if resp.User.AuthMethod != "sso" {
 		return
 	}
 
-	var link relational.OIDCUserLink
+	var link relational.SSOUserLink
 	if err := h.db.
 		Where("user_id = ? AND deleted_at IS NULL", resp.User.ID.String()).
 		Order("last_sync DESC").
 		First(&link).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			h.sugar.Warnw("Failed to load OIDC provider for user", "userID", resp.User.ID.String(), "error", err)
+			h.sugar.Warnw("Failed to load SSO provider for user", "userID", resp.User.ID.String(), "error", err)
 		}
 		return
 	}
@@ -325,8 +332,8 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 
 	if err := h.db.Unscoped().
 		Where("user_id = ?", userUUID.String()).
-		Delete(&relational.OIDCUserLink{}).Error; err != nil {
-		h.sugar.Warnw("Failed to remove OIDC bindings for deleted user", "userID", userUUID.String(), "error", err)
+		Delete(&relational.SSOUserLink{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove SSO bindings for deleted user", "userID", userUUID.String(), "error", err)
 	}
 
 	return ctx.NoContent(204)

@@ -3,7 +3,7 @@ package auth
 import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/config"
-	"github.com/compliance-framework/api/internal/service/oidc"
+	"github.com/compliance-framework/api/internal/service/sso"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -14,11 +14,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	authHandler := NewAuthHandler(logger, db, cfg, metrics)
 	authHandler.Register(authGroup)
 
-	oidcService, err := oidc.NewService(cfg.OIDC, logger)
+	ssoService, err := sso.NewService(cfg.SSO, logger)
 	if err != nil {
-		logger.Warnw("Failed to initialize OIDC service", "error", err)
+		logger.Warnw("Failed to initialize SSO service", "error", err)
 	} else {
-		oidcHandler := NewOIDCHandler(logger, db, cfg, oidcService, metrics)
-		oidcHandler.Register(authGroup)
+		ssoHandler := NewSSOHandler(logger, db, cfg, ssoService, metrics)
+		ssoHandler.Register(authGroup)
 	}
 }
