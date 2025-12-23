@@ -53,7 +53,6 @@ func LoadSSOConfig(path string) (*SSOConfig, error) {
 		}
 		return nil, fmt.Errorf("failed to read SSO config file: %w", err)
 	}
-	bindSSOEnvVars(v)
 	var config SSOConfig
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to parse SSO config file: %w", err)
@@ -97,38 +96,4 @@ func (c *SSOConfig) GetEnabledProviders() []SSOProviderConfig {
 		}
 	}
 	return enabled
-}
-
-func bindSSOEnvVars(v *viper.Viper) {
-	providers := v.GetStringMap("providers")
-	for name := range providers {
-		bindProviderEnvVars(v, name)
-	}
-}
-
-func bindProviderEnvVars(v *viper.Viper, name string) {
-	prefix := fmt.Sprintf("providers.%s", name)
-	fields := []string{
-		"name",
-		"display_name",
-		"provider",
-		"protocol",
-		"icon_url",
-		"required_login_groups",
-		"required_admin_groups",
-		"client_id",
-		"client_secret",
-		"issuer_url",
-		"auth_url",
-		"token_url",
-		"user_info_url",
-		"email_url",
-		"scopes",
-		"enabled",
-		"group_mapping",
-	}
-
-	for _, field := range fields {
-		v.MustBindEnv(fmt.Sprintf("%s.%s", prefix, field))
-	}
 }
