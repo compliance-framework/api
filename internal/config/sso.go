@@ -53,10 +53,6 @@ func LoadSSOConfig(path string) (*SSOConfig, error) {
 		}
 		return nil, fmt.Errorf("failed to read SSO config file: %w", err)
 	}
-<<<<<<< HEAD
-=======
-	bindSSOEnvVars(v)
->>>>>>> origin/main
 	var config SSOConfig
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to parse SSO config file: %w", err)
