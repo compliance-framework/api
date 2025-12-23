@@ -10,6 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/types"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -17,10 +18,11 @@ import (
 type BaseOAuthProvider struct {
 	config       *config.SSOProviderConfig
 	oauth2Config *oauth2.Config
+	logger       *zap.SugaredLogger
 }
 
 // NewBaseOAuthProvider creates a new generic OAuth2 provider
-func NewBaseOAuthProvider(cfg *config.SSOProviderConfig, callbackURL string) (*BaseOAuthProvider, error) {
+func NewBaseOAuthProvider(cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (*BaseOAuthProvider, error) {
 	scopes := cfg.Scopes
 	if len(scopes) == 0 {
 		scopes = []string{"user:email"}
@@ -40,6 +42,7 @@ func NewBaseOAuthProvider(cfg *config.SSOProviderConfig, callbackURL string) (*B
 	return &BaseOAuthProvider{
 		config:       cfg,
 		oauth2Config: oauth2Config,
+		logger:       logger,
 	}, nil
 }
 
@@ -58,7 +61,12 @@ func (p *BaseOAuthProvider) GetUserInfo(ctx context.Context, token *oauth2.Token
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			p.logger.Error("failed to close user info response body", "err", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -119,7 +127,12 @@ func (p *BaseOAuthProvider) fetchEmail(ctx context.Context, client *http.Client)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			p.logger.Error("failed to close email response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("email request failed with status %d", resp.StatusCode)

@@ -58,7 +58,12 @@ func generateEvidence(cmd *cobra.Command, args []string) {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			log.Println("failed to sync logger:", err)
+		}
+	}()
 
 	cmdConfig := config.NewConfig(sugar)
 	db, err := service.ConnectSQLDb(context.Background(), cmdConfig, sugar)
@@ -67,7 +72,12 @@ func generateEvidence(cmd *cobra.Command, args []string) {
 	}
 
 	bar := progressbar.Default(int64(amount * beats))
-	defer bar.Close()
+	defer func() {
+		err := bar.Close()
+		if err != nil {
+			log.Println("failed to close progress bar:", err)
+		}
+	}()
 
 	var wg sync.WaitGroup
 	for i := range amount {

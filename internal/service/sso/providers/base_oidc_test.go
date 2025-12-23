@@ -7,6 +7,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/providers/testutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -36,8 +37,8 @@ func TestBaseOIDCProvider_GetUserInfo(t *testing.T) {
 			"department:engineering": {"ccf-engineering"},
 		},
 	}
-
-	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewBaseOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := (&oauth2.Token{AccessToken: "token"}).WithExtra(map[string]any{

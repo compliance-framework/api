@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/types"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -22,8 +23,8 @@ type GitHubOAuthProvider struct {
 }
 
 // NewGitHubOAuthProvider creates a new GitHub OAuth provider
-func NewGitHubOAuthProvider(cfg *config.SSOProviderConfig, callbackURL string) (*GitHubOAuthProvider, error) {
-	base, err := NewBaseOAuthProvider(cfg, callbackURL)
+func NewGitHubOAuthProvider(cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (*GitHubOAuthProvider, error) {
+	base, err := NewBaseOAuthProvider(cfg, callbackURL, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,12 @@ func (p *GitHubOAuthProvider) fetchGitHubOrganizations(ctx context.Context, toke
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch GitHub organizations: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			p.logger.Error("failed to close GitHub organizations response body", "err", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("organizations request failed with status %d", resp.StatusCode)
@@ -117,7 +123,12 @@ func (p *GitHubOAuthProvider) fetchGitHubTeams(ctx context.Context, token *oauth
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch GitHub teams: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			p.logger.Error("failed to close GitHub teams response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil

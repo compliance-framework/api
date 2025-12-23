@@ -26,7 +26,7 @@ func newExportCMD() *cobra.Command {
 
 	cmd.Flags().StringP("output", "o", "oscal_export.json", "Output file for exported objects")
 	cmd.Flags().StringP("type", "t", "", "Type of OSCAL object to export (ssp, ap, catalog, profile)")
-	cmd.MarkFlagRequired("type")
+	failOnError(cmd.MarkFlagRequired("type"))
 
 	return cmd
 }
@@ -37,7 +37,12 @@ func exportOscal(cmd *cobra.Command, args []string) {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			log.Println("failed to sync logger:", err)
+		}
+	}()
 
 	config := config.NewConfig(sugar)
 
@@ -63,7 +68,12 @@ func exportOscal(cmd *cobra.Command, args []string) {
 	if err != nil {
 		sugar.Fatalf("failed to create output file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			sugar.Errorw("failed to close output file", "error", err)
+		}
+	}()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")

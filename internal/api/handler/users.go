@@ -119,11 +119,11 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 }
 
 func (h *UserHandler) attachAuthProvider(resp *userResponse) {
-	if resp == nil || resp.User.ID == nil {
+	if resp == nil || resp.ID == nil {
 		return
 	}
 
-	if resp.User.AuthMethod != "sso" {
+	if resp.AuthMethod != "sso" {
 		return
 	}
 
@@ -133,7 +133,7 @@ func (h *UserHandler) attachAuthProvider(resp *userResponse) {
 		Order("last_sync DESC").
 		First(&link).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			h.sugar.Warnw("Failed to load SSO provider for user", "userID", resp.User.ID.String(), "error", err)
+			h.sugar.Warnw("Failed to load SSO provider for user", "userID", resp.ID.String(), "error", err)
 		}
 		return
 	}

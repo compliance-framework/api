@@ -61,7 +61,7 @@ func (s *SystemSecurityPlan) UnmarshalOscal(os oscalTypes_1_1_3.SystemSecurityPl
 
 func (s *SystemSecurityPlan) MarshalOscal() *oscalTypes_1_1_3.SystemSecurityPlan {
 	plan := &oscalTypes_1_1_3.SystemSecurityPlan{
-		UUID:                  s.UUIDModel.ID.String(),
+		UUID:                  s.ID.String(),
 		Metadata:              *s.Metadata.MarshalOscal(),
 		ControlImplementation: *s.ControlImplementation.MarshalOscal(),
 		SystemCharacteristics: *s.SystemCharacteristics.MarshalOscal(),
@@ -362,7 +362,7 @@ func (it *InformationType) UnmarshalOscal(oit oscalTypes_1_1_3.InformationType) 
 
 func (it *InformationType) MarshalOscal() *oscalTypes_1_1_3.InformationType {
 	ret := &oscalTypes_1_1_3.InformationType{
-		UUID:        it.UUIDModel.ID.String(),
+		UUID:        it.ID.String(),
 		Title:       it.Title,
 		Description: it.Description,
 	}
@@ -636,7 +636,7 @@ func (d *Diagram) UnmarshalOscal(od oscalTypes_1_1_3.Diagram) *Diagram {
 
 func (d *Diagram) MarshalOscal() *oscalTypes_1_1_3.Diagram {
 	ret := &oscalTypes_1_1_3.Diagram{
-		UUID:        d.UUIDModel.ID.String(),
+		UUID:        d.ID.String(),
 		Description: d.Description,
 		Caption:     d.Caption,
 		Remarks:     d.Remarks,
@@ -779,7 +779,7 @@ func (u *SystemUser) UnmarshalOscal(ou oscalTypes_1_1_3.SystemUser) *SystemUser 
 
 func (u *SystemUser) MarshalOscal() *oscalTypes_1_1_3.SystemUser {
 	ret := &oscalTypes_1_1_3.SystemUser{
-		UUID:        u.UUIDModel.ID.String(),
+		UUID:        u.ID.String(),
 		Title:       u.Title,
 		ShortName:   u.ShortName,
 		Description: u.Description,
@@ -874,7 +874,7 @@ func (la *LeveragedAuthorization) UnmarshalOscal(ola oscalTypes_1_1_3.LeveragedA
 // MarshalOscal converts the LeveragedAuthorization back to an OSCAL LeveragedAuthorization
 func (la *LeveragedAuthorization) MarshalOscal() *oscalTypes_1_1_3.LeveragedAuthorization {
 	ret := &oscalTypes_1_1_3.LeveragedAuthorization{
-		UUID:           la.UUIDModel.ID.String(),
+		UUID:           la.ID.String(),
 		Title:          la.Title,
 		PartyUuid:      la.PartyUUID.String(),
 		DateAuthorized: la.DateAuthorized.Format(time.DateOnly),
@@ -955,7 +955,7 @@ func (sc *SystemComponent) UnmarshalOscal(osc oscalTypes_1_1_3.SystemComponent) 
 func (sc *SystemComponent) MarshalOscal() *oscalTypes_1_1_3.SystemComponent {
 	status := sc.Status.Data()
 	ret := &oscalTypes_1_1_3.SystemComponent{
-		UUID:        sc.UUIDModel.ID.String(),
+		UUID:        sc.ID.String(),
 		Type:        sc.Type,
 		Title:       sc.Title,
 		Description: sc.Description,
@@ -1227,7 +1227,7 @@ func (ir *ImplementedRequirement) UnmarshalOscal(oir oscalTypes_1_1_3.Implemente
 
 func (ir *ImplementedRequirement) MarshalOscal() *oscalTypes_1_1_3.ImplementedRequirement {
 	ret := &oscalTypes_1_1_3.ImplementedRequirement{
-		UUID:      ir.UUIDModel.ID.String(),
+		UUID:      ir.ID.String(),
 		ControlId: ir.ControlId,
 		Remarks:   ir.Remarks,
 	}
@@ -1337,7 +1337,7 @@ func (bc *ByComponent) UnmarshalOscal(obc oscalTypes_1_1_3.ByComponent) *ByCompo
 
 func (bc *ByComponent) MarshalOscal() *oscalTypes_1_1_3.ByComponent {
 	ret := &oscalTypes_1_1_3.ByComponent{
-		UUID:          bc.UUIDModel.ID.String(),
+		UUID:          bc.ID.String(),
 		ComponentUuid: bc.ComponentUUID.String(),
 		Description:   bc.Description,
 		Remarks:       bc.Remarks,
@@ -1507,7 +1507,7 @@ func (pci *ProvidedControlImplementation) UnmarshalOscal(opci oscalTypes_1_1_3.P
 
 func (pci *ProvidedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.ProvidedControlImplementation {
 	ret := oscalTypes_1_1_3.ProvidedControlImplementation{
-		UUID:        pci.UUIDModel.ID.String(),
+		UUID:        pci.ID.String(),
 		Description: pci.Description,
 	}
 
@@ -1576,7 +1576,7 @@ func (cir *ControlImplementationResponsibility) UnmarshalOscal(ocir oscalTypes_1
 
 func (cir *ControlImplementationResponsibility) MarshalOscal() *oscalTypes_1_1_3.ControlImplementationResponsibility {
 	ret := oscalTypes_1_1_3.ControlImplementationResponsibility{
-		UUID:        cir.UUIDModel.ID.String(),
+		UUID:        cir.ID.String(),
 		Description: cir.Description,
 	}
 
@@ -1644,7 +1644,7 @@ func (i *InheritedControlImplementation) UnmarshalOscal(oi oscalTypes_1_1_3.Inhe
 
 func (i *InheritedControlImplementation) MarshalOscal() *oscalTypes_1_1_3.InheritedControlImplementation {
 	ret := oscalTypes_1_1_3.InheritedControlImplementation{
-		UUID:        i.UUIDModel.ID.String(),
+		UUID:        i.ID.String(),
 		Description: i.Description,
 	}
 
@@ -1710,7 +1710,7 @@ func (s *SatisfiedControlImplementationResponsibility) UnmarshalOscal(os oscalTy
 
 func (s *SatisfiedControlImplementationResponsibility) MarshalOscal() *oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility {
 	ret := oscalTypes_1_1_3.SatisfiedControlImplementationResponsibility{
-		UUID:               s.UUIDModel.ID.String(),
+		UUID:               s.ID.String(),
 		ResponsibilityUuid: s.ResponsibilityUuid.String(),
 		Description:        "",
 		Remarks:            "",
@@ -1787,7 +1787,7 @@ func (s *Statement) UnmarshalOscal(os oscalTypes_1_1_3.Statement) *Statement {
 
 func (s *Statement) MarshalOscal() *oscalTypes_1_1_3.Statement {
 	ret := &oscalTypes_1_1_3.Statement{
-		UUID:        s.UUIDModel.ID.String(),
+		UUID:        s.ID.String(),
 		StatementId: s.StatementId,
 		Remarks:     s.Remarks,
 	}

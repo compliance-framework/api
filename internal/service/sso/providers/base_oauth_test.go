@@ -9,6 +9,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -38,7 +39,8 @@ func TestBaseOAuthProvider_GetUserInfo_WithExistingEmail(t *testing.T) {
 		},
 	}
 
-	provider, err := NewBaseOAuthProvider(cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewBaseOAuthProvider(cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := &oauth2.Token{AccessToken: "token"}
@@ -80,7 +82,8 @@ func TestBaseOAuthProvider_GetUserInfo_EmailFallback(t *testing.T) {
 		EmailURL:    server.URL + "/emails",
 	}
 
-	provider, err := NewBaseOAuthProvider(cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewBaseOAuthProvider(cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := &oauth2.Token{AccessToken: "token"}

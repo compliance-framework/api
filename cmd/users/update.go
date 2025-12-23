@@ -19,7 +19,7 @@ func updateUserCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringP("email", "e", "", "Email of the user (required)")
-	cmd.MarkFlagRequired("email")
+	failOnError(cmd.MarkFlagRequired("email"))
 
 	cmd.Flags().StringP("first-name", "f", "", "First name of the user")
 
@@ -38,7 +38,12 @@ func updateUser(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	logger, err := zap.NewProduction()
 	cobra.CheckErr(err)
-	defer logger.Sync() // flushes buffer, if any
+	defer func() {
+		err := logger.Sync()
+		if err != nil {
+			println("failed to sync logger:", err.Error())
+		}
+	}()
 	sugar := logger.Sugar()
 
 	config := config.NewConfig(sugar)
@@ -79,9 +84,17 @@ func updateUser(cmd *cobra.Command, args []string) {
 			sugar.Errorw("Failed to generate password", "error", err)
 			return
 		}
-		user.SetPassword(password)
+		err = user.SetPassword(password)
+		if err != nil {
+			sugar.Errorw("Failed to set password", "error", err)
+			return
+		}
 	} else if password != "" {
-		user.SetPassword(password)
+		err = user.SetPassword(password)
+		if err != nil {
+			sugar.Errorw("Failed to set password", "error", err)
+			return
+		}
 	}
 
 	if err = db.Save(&user).Error; err != nil {

@@ -19,7 +19,6 @@ type mockProvider struct {
 	authURL   string
 	token     *oauth2.Token
 	userInfo  *types.UserInfo
-	authErr   error
 	tokenErr  error
 	userErr   error
 	exchanged bool
@@ -57,7 +56,7 @@ func TestNewService_InitializesProviders(t *testing.T) {
 	defer restoreProviderFactory()
 
 	createdProviders := map[string]*mockProvider{}
-	providerFactory = func(cfg *config.SSOProviderConfig, callbackURL string) (Provider, error) {
+	providerFactory = func(cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (Provider, error) {
 		mp := &mockProvider{
 			name:     cfg.Name,
 			protocol: cfg.Protocol,
@@ -99,7 +98,7 @@ func TestService_MethodsUseRegisteredProvider(t *testing.T) {
 		userInfo: &types.UserInfo{Subject: "sub"},
 	}
 
-	providerFactory = func(cfg *config.SSOProviderConfig, callbackURL string) (Provider, error) {
+	providerFactory = func(cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (Provider, error) {
 		return mp, nil
 	}
 

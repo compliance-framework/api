@@ -6,10 +6,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 type Config struct {
 	BaseURL string
+	Logger  *zap.SugaredLogger
 }
 
 type Client struct {

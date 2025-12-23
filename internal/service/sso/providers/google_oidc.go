@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/types"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -16,17 +17,19 @@ var googleGroupsEndpoint = "https://www.googleapis.com/admin/directory/v1/groups
 // GoogleOIDCProvider extends BaseOIDCProvider with Google-specific functionality
 type GoogleOIDCProvider struct {
 	*BaseOIDCProvider
+	logger *zap.SugaredLogger
 }
 
 // NewGoogleOIDCProvider creates a new Google OIDC provider
-func NewGoogleOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, callbackURL string) (*GoogleOIDCProvider, error) {
-	base, err := NewBaseOIDCProvider(ctx, cfg, callbackURL)
+func NewGoogleOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (*GoogleOIDCProvider, error) {
+	base, err := NewBaseOIDCProvider(ctx, cfg, callbackURL, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GoogleOIDCProvider{
 		BaseOIDCProvider: base,
+		logger:           logger,
 	}, nil
 }
 
@@ -58,7 +61,12 @@ func (p *GoogleOIDCProvider) fetchGoogleGroups(ctx context.Context, token *oauth
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch Google groups: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			p.logger.Error("failed to close Google groups response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized {

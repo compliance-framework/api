@@ -25,18 +25,27 @@ func newDashboardsImportCMD() *cobra.Command {
 	}
 
 	cmd.Flags().StringP("file", "f", "", "Input JSON file containing filters")
-	cmd.MarkFlagRequired("file")
+	failOnError(cmd.MarkFlagRequired("file"))
 
 	return cmd
 }
-
+func failOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 func importDashboards(cmd *cobra.Command, args []string) {
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync()
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			sugar.Error("failed to flush sync buffer", "err", err)
+		}
+	}()
 
 	cfg := config.NewConfig(sugar)
 
@@ -55,7 +64,12 @@ func importDashboards(cmd *cobra.Command, args []string) {
 	if err != nil {
 		sugar.Fatalf("failed to open input file: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			sugar.Error("failed to close input file", "error", err)
+		}
+	}()
 
 	var inputs []dashboardJSON
 	if err := json.NewDecoder(f).Decode(&inputs); err != nil {

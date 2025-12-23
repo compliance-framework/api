@@ -27,18 +27,28 @@ func newImportCMD() *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayP("file", "f", []string{}, "File or directory to import")
-	cmd.MarkFlagRequired("file")
+	failOnError(cmd.MarkFlagRequired("file"))
 
 	return cmd
 }
 
+func failOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 func importOscal(cmd *cobra.Command, args []string) {
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			sugar.Error("failed to sync zap logger", "error", err)
+		}
+	}()
 
 	config := config.NewConfig(sugar)
 
@@ -88,7 +98,12 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			if err != nil {
 				panic(err)
 			}
-			defer systemFile.Close()
+			defer func() {
+				err := systemFile.Close()
+				if err != nil {
+					sugar.Error("failed to close system file", "err", err)
+				}
+			}()
 
 			err = importFile(db, sugar, systemFile)
 			if err != nil {
@@ -214,7 +229,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		return err
 	}
 
-	for k, _ := range *output {
+	for k := range *output {
 		sugar.Errorf("Failed to import OSCAL document. `%s` is not yet supported.", k)
 	}
 

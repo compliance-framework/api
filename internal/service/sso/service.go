@@ -47,7 +47,7 @@ func NewService(cfg *config.SSOConfig, logger *zap.SugaredLogger) (*Service, err
 			continue
 		}
 
-		provider, err := providerFactory(&providerConfig, cfg.CallbackURL)
+		provider, err := providerFactory(&providerConfig, cfg.CallbackURL, logger)
 		if err != nil {
 			logger.Errorw("Failed to initialize SSO provider",
 				"provider", providerConfig.Name,

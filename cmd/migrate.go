@@ -49,7 +49,12 @@ func migrateUp(cmd *cobra.Command, args []string) {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			sugar.Error("failed to sync zap logger", "error", err)
+		}
+	}()
 
 	cfg := config.NewConfig(sugar)
 	ctx := context.Background()
@@ -70,7 +75,12 @@ func migrateDown(cmd *cobra.Command, args []string) {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			sugar.Error("failed to sync zap logger", "error", err)
+		}
+	}()
 
 	cfg := config.NewConfig(sugar)
 	ctx := context.Background()

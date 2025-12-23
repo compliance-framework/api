@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"go.uber.org/zap"
+
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -66,7 +68,8 @@ func TestGitHubOAuthProvider_GetUserInfo_AppendsOrgAndTeamGroups(t *testing.T) {
 		},
 	}
 
-	provider, err := NewGitHubOAuthProvider(cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewGitHubOAuthProvider(cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := &oauth2.Token{AccessToken: "token"}
@@ -120,7 +123,8 @@ func TestGitHubOAuthProvider_GetUserInfo_TeamEndpointFailure(t *testing.T) {
 		},
 	}
 
-	provider, err := NewGitHubOAuthProvider(cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewGitHubOAuthProvider(cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := &oauth2.Token{AccessToken: "token"}

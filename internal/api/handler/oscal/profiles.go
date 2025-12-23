@@ -84,7 +84,7 @@ func (h *ProfileHandler) List(ctx echo.Context) error {
 	respProfiles := make([]response, len(profiles))
 	for i, profile := range profiles {
 		respProfiles[i] = response{
-			UUID:     *profile.UUIDModel.ID,
+			UUID:     *profile.ID,
 			Metadata: *profile.Metadata.MarshalOscal(),
 		}
 	}
@@ -133,7 +133,7 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 	}
 
 	responseProfile := response{
-		UUID:     *profile.UUIDModel.ID,
+		UUID:     *profile.ID,
 		Metadata: *profile.Metadata.MarshalOscal(),
 	}
 
@@ -155,9 +155,6 @@ func (h *ProfileHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/{id}/resolved [get]
 func (h *ProfileHandler) Resolved(ctx echo.Context) error {
-	type response struct {
-		ID string `json:"id"`
-	}
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -183,17 +180,6 @@ func (h *ProfileHandler) Resolved(ctx echo.Context) error {
 	catalog.ID = &newID
 	catalog.Metadata = profile.Metadata
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *catalog.MarshalOscal()})
-
-	//if err := h.db.Save(&catalog).Error; err != nil {
-	//	h.sugar.Errorw("error saving new catalog to database", "id", idParam, "error", err)
-	//	return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	//}
-	//
-	//resp := response{
-	//	ID: catalog.UUIDModel.ID.String(),
-	//}
-	//
-	//return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{Data: resp})
 }
 
 // ListImports godoc
@@ -430,7 +416,7 @@ func (h *ProfileHandler) UpdateImport(ctx echo.Context) error {
 
 	updatedImport := relational.Import{}
 	updatedImport.UnmarshalOscal(updateData)
-	updatedImport.UUIDModel.ID = profileImport.UUIDModel.ID
+	updatedImport.ID = profileImport.ID
 	updatedImport.ProfileID = profileImport.ProfileID
 
 	// Overwrite associations: update the import and remove all other associations for this import
@@ -746,7 +732,7 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 	}
 
 	resp := response{
-		ID: catalog.UUIDModel.ID.String(),
+		ID: catalog.ID.String(),
 	}
 
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{Data: resp})
@@ -944,15 +930,21 @@ func applySetParameters(ctrl relational.Control, setParams map[string]relational
 func applyAdditions(ctrl relational.Control, additions []relational.Addition) relational.Control {
 	for _, addition := range additions {
 		if ctrl.ID == addition.ByID {
-			if addition.Position == "starting" || addition.Position == "ending" {
+			switch addition.Position {
+			case "starting":
+			case "ending":
 				applyAdditionsToControl(&ctrl, addition, addition.Position)
-			} else if addition.Position == "before" || addition.Position == "after" {
+			case "before": // nolint:SA9003
+			case "after": // nolint:SA9003
 				// TODO - inject the addition either before or after the current id
 			}
 		} else if part := findPartRecursive(ctrl.Parts, addition.ByID); part != nil {
-			if addition.Position == "starting" || addition.Position == "ending" {
+			switch addition.Position {
+			case "starting":
+			case "ending":
 				applyAdditionsToPart(part, addition, addition.Position)
-			} else if addition.Position == "before" || addition.Position == "after" {
+			case "before": // nolint:SA9003
+			case "after": // nolint:SA9003
 				// TODO - inject the addition either before or after the current id
 			}
 		}
@@ -967,23 +959,26 @@ func applyAdditionsToPart(part *relational.Part, addition relational.Addition, p
 		part.Title = addition.Title
 	}
 	if addition.Props != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
 			part.Props = append(addition.Props, part.Props...)
-		} else if position == "ending" {
+		case "ending":
 			part.Props = append(part.Props, addition.Props...)
 		}
 	}
 	if addition.Links != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
 			part.Links = append(addition.Links, part.Links...)
-		} else if position == "ending" {
+		case "ending":
 			part.Links = append(part.Links, addition.Links...)
 		}
 	}
 	if addition.Parts != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
 			part.Parts = append(addition.Parts, part.Parts...)
-		} else if position == "ending" {
+		case "ending":
 			part.Parts = append(part.Parts, addition.Parts...)
 		}
 	}
@@ -996,31 +991,31 @@ func applyAdditionsToControl(ctrl *relational.Control, addition relational.Addit
 		ctrl.Title = addition.Title
 	}
 	if addition.Props != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
+		case "ending":
 			ctrl.Props = append(addition.Props, ctrl.Props...)
-		} else if position == "ending" {
-			ctrl.Props = append(ctrl.Props, addition.Props...)
 		}
 	}
 	if addition.Params != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
+		case "ending":
 			ctrl.Params = append(addition.Params, ctrl.Params...)
-		} else if position == "ending" {
-			ctrl.Params = append(ctrl.Params, addition.Params...)
 		}
 	}
 	if addition.Links != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
+		case "ending":
 			ctrl.Links = append(addition.Links, ctrl.Links...)
-		} else if position == "ending" {
-			ctrl.Links = append(ctrl.Links, addition.Links...)
 		}
 	}
 	if addition.Parts != nil {
-		if position == "starting" {
+		switch position {
+		case "starting":
+		case "ending":
 			ctrl.Parts = append(addition.Parts, ctrl.Parts...)
-		} else if position == "ending" {
-			ctrl.Parts = append(ctrl.Parts, addition.Parts...)
 		}
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"go.uber.org/zap"
+
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/providers/testutil"
 	"github.com/stretchr/testify/require"
@@ -54,7 +56,8 @@ func TestGoogleOIDCProvider_GetUserInfo_AppendsGoogleGroups(t *testing.T) {
 		},
 	}
 
-	provider, err := NewGoogleOIDCProvider(context.Background(), cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewGoogleOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := (&oauth2.Token{AccessToken: "token"}).WithExtra(map[string]any{
@@ -90,7 +93,8 @@ func TestGoogleOIDCProvider_GetUserInfo_GroupRequestFailure(t *testing.T) {
 		IssuerURL: mockOIDC.IssuerURL,
 	}
 
-	provider, err := NewGoogleOIDCProvider(context.Background(), cfg, "https://app.example.com/callback")
+	logger := zap.NewNop().Sugar()
+	provider, err := NewGoogleOIDCProvider(context.Background(), cfg, "https://app.example.com/callback", logger)
 	require.NoError(t, err)
 
 	token := (&oauth2.Token{AccessToken: "token"}).WithExtra(map[string]any{

@@ -23,7 +23,7 @@ func newDashboardsExportCMD() *cobra.Command {
 	}
 
 	cmd.Flags().StringP("output", "o", "dashboards_export.json", "Output file for exported dashboards")
-	cmd.MarkFlagRequired("output")
+	failOnError(cmd.MarkFlagRequired("output"))
 
 	return cmd
 }
@@ -34,7 +34,12 @@ func exportDashboards(cmd *cobra.Command, args []string) {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
 	sugar := zapLogger.Sugar()
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync() // flushes buffer, if any
+		if err != nil {
+			sugar.Error("failed to flush sync buffer", "err", err)
+		}
+	}()
 
 	config := config.NewConfig(sugar)
 
@@ -62,7 +67,12 @@ func exportDashboards(cmd *cobra.Command, args []string) {
 	if err != nil {
 		sugar.Fatalf("failed to create output file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			sugar.Errorf("failed to close output file: %v", err)
+		}
+	}()
 
 	// Map to export DTOs to omit empty/null values and Filter.ID
 	exports := make([]dashboardJSON, 0, len(dashboards))

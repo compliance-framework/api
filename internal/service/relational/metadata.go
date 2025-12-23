@@ -224,7 +224,7 @@ func (a *Action) UnmarshalOscal(action oscaltypes113.Action) *Action {
 // MarshalOscal converts the Action back to an OSCAL Action
 func (a *Action) MarshalOscal() *oscaltypes113.Action {
 	act := &oscaltypes113.Action{
-		UUID:    a.UUIDModel.ID.String(),
+		UUID:    a.ID.String(),
 		Date:    nil,
 		Type:    a.Type,
 		System:  a.System,
@@ -379,7 +379,7 @@ func (p *Party) UnmarshalOscal(oparty oscaltypes113.Party) *Party {
 // MarshalOscal converts the Party back to an OSCAL Party
 func (p *Party) MarshalOscal() *oscaltypes113.Party {
 	party := &oscaltypes113.Party{
-		UUID: p.UUIDModel.ID.String(),
+		UUID: p.ID.String(),
 		Type: string(p.Type),
 	}
 	if p.Name != nil {
@@ -630,7 +630,7 @@ func (l *Location) UnmarshalOscal(olocation oscaltypes113.Location) *Location {
 // MarshalOscal converts the Location back to an OSCAL Location
 func (l *Location) MarshalOscal() *oscaltypes113.Location {
 	loc := &oscaltypes113.Location{
-		UUID:    l.UUIDModel.ID.String(),
+		UUID:    l.ID.String(),
 		Remarks: *l.Remarks,
 		Title:   *l.Title,
 	}

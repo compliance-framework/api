@@ -184,11 +184,6 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans [get]
 func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
-	type response struct {
-		UUID     uuid.UUID                 `json:"uuid"`
-		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
-	}
-
 	var ssps []relational.SystemSecurityPlan
 
 	if err := h.db.
@@ -222,11 +217,6 @@ func (h *SystemSecurityPlanHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/system-security-plans/{id} [get]
 func (h *SystemSecurityPlanHandler) Get(ctx echo.Context) error {
-	type response struct {
-		UUID     uuid.UUID                 `json:"uuid"`
-		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
-	}
-
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -1706,7 +1696,7 @@ func (h *SystemSecurityPlanHandler) GetProfile(ctx echo.Context) error {
 	}
 
 	if ssp.Profile == nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("No profile attached")))
+		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("no profile attached")))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[*oscalTypes_1_1_3.Profile]{Data: ssp.Profile.MarshalOscal()})
@@ -1756,7 +1746,7 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	// Ensure the profile exists
 	var profile relational.Profile
 	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("Profile not found")))
+		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
 	}
 
 	ssp.Profile = &profile

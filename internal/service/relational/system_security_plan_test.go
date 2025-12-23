@@ -648,7 +648,12 @@ func TestSystemSecurityPlan_OscalMarshalling(t *testing.T) {
 		// This proves our entire schema for a Catalog works correctly.
 		f, err := os.Open("./testdata/full_ssp.json")
 		assert.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				t.Logf("failed to close SSP test file: %v", err)
+			}
+		}()
 
 		embed := struct {
 			SSP oscalTypes_1_1_3.SystemSecurityPlan `json:"system-security-plan"`

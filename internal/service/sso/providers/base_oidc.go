@@ -7,6 +7,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/sso/types"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -16,10 +17,11 @@ type BaseOIDCProvider struct {
 	oauth2Config *oauth2.Config
 	provider     *oidc.Provider
 	verifier     *oidc.IDTokenVerifier
+	logger       *zap.SugaredLogger
 }
 
 // NewBaseOIDCProvider creates a new generic OIDC provider
-func NewBaseOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, callbackURL string) (*BaseOIDCProvider, error) {
+func NewBaseOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, callbackURL string, logger *zap.SugaredLogger) (*BaseOIDCProvider, error) {
 	provider, err := oidc.NewProvider(ctx, cfg.IssuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OIDC provider: %w", err)
@@ -45,6 +47,7 @@ func NewBaseOIDCProvider(ctx context.Context, cfg *config.SSOProviderConfig, cal
 		oauth2Config: oauth2Config,
 		provider:     provider,
 		verifier:     verifier,
+		logger:       logger,
 	}, nil
 }
 

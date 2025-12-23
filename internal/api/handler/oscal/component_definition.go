@@ -72,18 +72,13 @@ func (h *ComponentDefinitionHandler) Register(api *echo.Group) {
 //	@Description	Retrieves all component definitions.
 //	@Tags			Component Definitions
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataListResponse[oscal.List.responseComponentDefinition]
+//	@Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.ComponentDefinition]
 //	@Failure		400	{object}	api.Error
 //	@Failure		401	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions [get]
 func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
-	type responseComponentDefinition struct {
-		UUID     uuid.UUID                 `json:"uuid"`
-		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
-	}
-
 	var componentDefinitions []relational.ComponentDefinition
 	if err := h.db.
 		Preload("Metadata").
@@ -108,7 +103,7 @@ func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
 //	@Tags			Component Definitions
 //	@Produce		json
 //	@Param			id	path		string	true	"Component Definition ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseComponentDefinition]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]
 //	@Failure		400	{object}	api.Error
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
@@ -116,11 +111,6 @@ func (h *ComponentDefinitionHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/component-definitions/{id} [get]
 func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
-	type responseComponentDefinition struct {
-		UUID     uuid.UUID                 `json:"uuid"`
-		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
-	}
-
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {
@@ -141,12 +131,7 @@ func (h *ComponentDefinitionHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	response := responseComponentDefinition{
-		UUID:     *componentDefinition.ID,
-		Metadata: *componentDefinition.Metadata.MarshalOscal(),
-	}
-
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[responseComponentDefinition]{Data: response})
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]{Data: *componentDefinition.MarshalOscal()})
 }
 
 // Create godoc
@@ -1920,7 +1905,7 @@ func (h *ComponentDefinitionHandler) CreateBackMatter(ctx echo.Context) error {
 	relationalBackMatter.UnmarshalOscal(backMatter)
 
 	// Set the parent relationship
-	parentID := componentDefinition.UUIDModel.ID.String()
+	parentID := componentDefinition.ID.String()
 	relationalBackMatter.ParentID = &parentID
 	parentType := "ComponentDefinition"
 	relationalBackMatter.ParentType = &parentType
@@ -2210,7 +2195,7 @@ func (h *ComponentDefinitionHandler) UpdateCapability(ctx echo.Context) error {
 	// Find the existing capability
 	found := false
 	for _, cap := range componentDefinition.Capabilities {
-		if cap.UUIDModel.ID != nil && *cap.UUIDModel.ID == capabilityID {
+		if cap.ID != nil && *cap.ID == capabilityID {
 			found = true
 			break
 		}

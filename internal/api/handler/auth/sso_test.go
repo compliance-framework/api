@@ -13,7 +13,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/compliance-framework/api/internal/service/sso/types"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -266,10 +265,5 @@ func TestSSOHandler_linkExistingUser_CreatesLink(t *testing.T) {
 	require.NoError(t, db.Where("provider = ? AND external_id = ?", "google", "sub-999").First(&link).Error)
 	require.Equal(t, user.ID.String(), link.UserID)
 	require.Equal(t, sso.SerializeStringArray(info.Groups), link.Groups)
-}
-
-func uuidPtr(t *testing.T) *uuid.UUID {
-	t.Helper()
-	id := uuid.New()
-	return &id
+	require.Equal(t, info.Email, link.Email)
 }
