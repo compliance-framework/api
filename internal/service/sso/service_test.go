@@ -71,9 +71,9 @@ func TestNewService_InitializesProviders(t *testing.T) {
 	cfg := &config.SSOConfig{
 		Enabled:     true,
 		CallbackURL: "https://app/callback",
-		Providers: []config.SSOProviderConfig{
-			{Name: "google", Protocol: "oidc", Enabled: true},
-			{Name: "github", Protocol: "oauth", Enabled: true},
+		Providers: map[string]config.SSOProviderConfig{
+			"google": {Name: "google", Protocol: "oidc", Enabled: true},
+			"github": {Name: "github", Protocol: "oauth", Enabled: true},
 		},
 	}
 
@@ -105,8 +105,8 @@ func TestService_MethodsUseRegisteredProvider(t *testing.T) {
 	cfg := &config.SSOConfig{
 		Enabled:     true,
 		CallbackURL: "https://app/callback",
-		Providers: []config.SSOProviderConfig{
-			{Name: "google", Protocol: "oidc", Enabled: true},
+		Providers: map[string]config.SSOProviderConfig{
+			"google": {Name: "google", Protocol: "oidc", Enabled: true},
 		},
 	}
 	service, err := NewService(cfg, zap.NewNop().Sugar())

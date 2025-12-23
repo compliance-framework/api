@@ -3,9 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
-	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -32,10 +29,10 @@ type SSOProviderConfig struct {
 }
 
 type SSOConfig struct {
-	Enabled     bool                `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
-	BaseURL     string              `yaml:"base_url" json:"base_url" mapstructure:"base_url"`
-	CallbackURL string              `yaml:"callback_url" json:"callback_url" mapstructure:"callback_url"`
-	Providers   []SSOProviderConfig `yaml:"providers" json:"providers" mapstructure:"providers"`
+	Enabled     bool                         `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
+	BaseURL     string                       `yaml:"base_url" json:"base_url" mapstructure:"base_url"`
+	CallbackURL string                       `yaml:"callback_url" json:"callback_url" mapstructure:"callback_url"`
+	Providers   map[string]SSOProviderConfig `yaml:"providers" json:"providers" mapstructure:"providers"`
 }
 
 func LoadSSOConfig(path string) (*SSOConfig, error) {
@@ -43,13 +40,12 @@ func LoadSSOConfig(path string) (*SSOConfig, error) {
 		return &SSOConfig{Enabled: false}, nil
 	}
 
-	v := viper.New()
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigFile(path)
 	v.SetConfigType("yaml")
 	v.SetEnvPrefix("CCF_SSO")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	v.SetEnvKeyReplacer(strings.NewReplacer("::", "_", ".", "_", "-", "_"))
 	v.AutomaticEnv()
-
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
 		if errors.As(err, &notFound) {
@@ -57,80 +53,16 @@ func LoadSSOConfig(path string) (*SSOConfig, error) {
 		}
 		return nil, fmt.Errorf("failed to read SSO config file: %w", err)
 	}
-
+	bindSSOEnvVars(v)
 	var config SSOConfig
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to parse SSO config file: %w", err)
 	}
-
-	if err := config.expandEnvVars(); err != nil {
-		return nil, err
-	}
-
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
 	return &config, nil
-}
-
-func (c *SSOConfig) expandEnvVars() error {
-	var errs []string
-
-	var err error
-	if c.BaseURL, err = expandStringWithEnv(c.BaseURL); err != nil {
-		errs = append(errs, fmt.Sprintf("base_url: %v", err))
-	}
-	if c.CallbackURL, err = expandStringWithEnv(c.CallbackURL); err != nil {
-		errs = append(errs, fmt.Sprintf("callback_url: %v", err))
-	}
-
-	for i := range c.Providers {
-		providerName := c.Providers[i].Name
-
-		if c.Providers[i].ClientID, err = expandStringWithEnv(c.Providers[i].ClientID); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.client_id: %v", providerName, err))
-		}
-		if c.Providers[i].ClientSecret, err = expandStringWithEnv(c.Providers[i].ClientSecret); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.client_secret: %v", providerName, err))
-		}
-		if c.Providers[i].IssuerURL, err = expandStringWithEnv(c.Providers[i].IssuerURL); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.issuer_url: %v", providerName, err))
-		}
-		if c.Providers[i].IconURL, err = expandStringWithEnv(c.Providers[i].IconURL); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.icon_url: %v", providerName, err))
-		}
-
-		for j := range c.Providers[i].RequiredLoginGroups {
-			if c.Providers[i].RequiredLoginGroups[j], err = expandStringWithEnv(c.Providers[i].RequiredLoginGroups[j]); err != nil {
-				errs = append(errs, fmt.Sprintf("%s.required_login_groups[%d]: %v", providerName, j, err))
-			}
-		}
-		for j := range c.Providers[i].RequiredAdminGroups {
-			if c.Providers[i].RequiredAdminGroups[j], err = expandStringWithEnv(c.Providers[i].RequiredAdminGroups[j]); err != nil {
-				errs = append(errs, fmt.Sprintf("%s.required_admin_groups[%d]: %v", providerName, j, err))
-			}
-		}
-
-		if c.Providers[i].AuthURL, err = expandStringWithEnv(c.Providers[i].AuthURL); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.auth_url: %v", providerName, err))
-		}
-		if c.Providers[i].TokenURL, err = expandStringWithEnv(c.Providers[i].TokenURL); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.token_url: %v", providerName, err))
-		}
-		if c.Providers[i].UserInfoURL, err = expandStringWithEnv(c.Providers[i].UserInfoURL); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.user_info_url: %v", providerName, err))
-		}
-		if c.Providers[i].EmailURL, err = expandStringWithEnv(c.Providers[i].EmailURL); err != nil {
-			errs = append(errs, fmt.Sprintf("%s.email_url: %v", providerName, err))
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to expand environment variables in SSO config: %s", strings.Join(errs, "; "))
-	}
-
-	return nil
 }
 
 func (c *SSOConfig) validate() error {
@@ -148,59 +80,10 @@ func (c *SSOConfig) validate() error {
 	return nil
 }
 
-var envVarPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
-
-func expandStringWithEnv(input string) (string, error) {
-	if input == "" {
-		return input, nil
-	}
-
-	matches := envVarPattern.FindAllStringSubmatch(input, -1)
-	if len(matches) == 0 {
-		return input, nil
-	}
-
-	missing := make(map[string]struct{})
-	replaced := envVarPattern.ReplaceAllStringFunc(input, func(token string) string {
-		match := envVarPattern.FindStringSubmatch(token)
-		if len(match) != 2 {
-			return ""
-		}
-		key := match[1]
-		if val, ok := lookupEnvWithPrefix(key); ok {
-			return val
-		}
-		missing[key] = struct{}{}
-		return ""
-	})
-
-	if len(missing) > 0 {
-		var names []string
-		for k := range missing {
-			names = append(names, k)
-		}
-		sort.Strings(names)
-		return "", fmt.Errorf("missing environment variables: %s", strings.Join(names, ", "))
-	}
-
-	return replaced, nil
-}
-
-func lookupEnvWithPrefix(key string) (string, bool) {
-	if val, ok := os.LookupEnv(key); ok {
-		return val, true
-	}
-	prefixed := fmt.Sprintf("CCF_%s", key)
-	if val, ok := os.LookupEnv(prefixed); ok {
-		return val, true
-	}
-	return "", false
-}
-
 func (c *SSOConfig) GetProvider(name string) *SSOProviderConfig {
-	for i := range c.Providers {
-		if c.Providers[i].Name == name {
-			return &c.Providers[i]
+	for _, v := range c.Providers {
+		if v.Name == name {
+			return &v
 		}
 	}
 	return nil
@@ -214,4 +97,38 @@ func (c *SSOConfig) GetEnabledProviders() []SSOProviderConfig {
 		}
 	}
 	return enabled
+}
+
+func bindSSOEnvVars(v *viper.Viper) {
+	providers := v.GetStringMap("providers")
+	for name := range providers {
+		bindProviderEnvVars(v, name)
+	}
+}
+
+func bindProviderEnvVars(v *viper.Viper, name string) {
+	prefix := fmt.Sprintf("providers.%s", name)
+	fields := []string{
+		"name",
+		"display_name",
+		"provider",
+		"protocol",
+		"icon_url",
+		"required_login_groups",
+		"required_admin_groups",
+		"client_id",
+		"client_secret",
+		"issuer_url",
+		"auth_url",
+		"token_url",
+		"user_info_url",
+		"email_url",
+		"scopes",
+		"enabled",
+		"group_mapping",
+	}
+
+	for _, field := range fields {
+		v.MustBindEnv(fmt.Sprintf("%s.%s", prefix, field))
+	}
 }

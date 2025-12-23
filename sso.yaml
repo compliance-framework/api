@@ -6,7 +6,8 @@ base_url: "http://localhost:8000" # Web UI base URL
 callback_url: "http://localhost:8080/api/auth/sso/callback" # API callback URL
 
 providers:
-  - name: "google"
+  google:
+    name: "google"
     display_name: "Google"
     provider: "google"
     protocol: "oidc"
@@ -26,21 +27,21 @@ providers:
     group_mapping:
       "hd:container-solutions.com":
         - "ccf-authorized-users"
-      "email:gustavo.carvalho@container-solutions.com":
+      "email:admin@example.com":
         - "ccf-admins"
       # Add additional group mappings as needed
 
-  - name: "github"
+  github:
+    name: "github"
     display_name: "GitHub"
     provider: "github"
     protocol: "oauth"
     icon_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
     required_login_groups:
       - "ccf-authorized-users"
-    # All Github Logins are admins
     required_admin_groups: []
-    client_id: change-me
-    client_secret: change-me
+    client_id: "change-me"
+    client_secret: "change-me"
     auth_url: "https://github.com/login/oauth/authorize"
     token_url: "https://github.com/login/oauth/access_token"
     user_info_url: "https://api.github.com/user"
