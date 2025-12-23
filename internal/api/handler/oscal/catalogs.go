@@ -90,7 +90,7 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id	path		string	true	"Catalog ID"
 //
-// @Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
 //
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error

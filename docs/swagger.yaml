@@ -365,22 +365,6 @@ definitions:
           $ref: '#/definitions/oscal.InventoryItemWithSource'
         type: array
     type: object
-  handler.GenericDataListResponse-oscal_List_responseCatalog:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/oscal.List.responseCatalog'
-        type: array
-    type: object
-  handler.GenericDataListResponse-oscal_List_responseComponentDefinition:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/oscal.List.responseComponentDefinition'
-        type: array
-    type: object
   handler.GenericDataListResponse-oscal_ProfileHandler:
     properties:
       data:
@@ -427,6 +411,22 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Capability'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_Catalog:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Catalog'
+        type: array
+    type: object
+  handler.GenericDataListResponse-oscalTypes_1_1_3_ComponentDefinition:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ComponentDefinition'
         type: array
     type: object
   handler.GenericDataListResponse-oscalTypes_1_1_3_Control:
@@ -680,20 +680,6 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
-        description: Items from the list response
-    type: object
-  handler.GenericDataResponse-oscal_Get_responseCatalog:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/oscal.Get.responseCatalog'
-        description: Items from the list response
-    type: object
-  handler.GenericDataResponse-oscal_Get_responseComponentDefinition:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/oscal.Get.responseComponentDefinition'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_InventoryItemWithSource:
@@ -1244,20 +1230,6 @@ definitions:
       inventory_item:
         $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
     type: object
-  oscal.Get.responseCatalog:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      uuid:
-        type: string
-    type: object
-  oscal.Get.responseComponentDefinition:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      uuid:
-        type: string
-    type: object
   oscal.InventoryItemWithSource:
     properties:
       description:
@@ -1286,20 +1258,6 @@ definitions:
         type: string
       source_type:
         type: string
-      uuid:
-        type: string
-    type: object
-  oscal.List.responseCatalog:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
-      uuid:
-        type: string
-    type: object
-  oscal.List.responseComponentDefinition:
-    properties:
-      metadata:
-        $ref: '#/definitions/oscalTypes_1_1_3.Metadata'
       uuid:
         type: string
     type: object
@@ -9478,7 +9436,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-oscal_List_responseCatalog'
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Catalog'
         "400":
           description: Bad Request
           schema:
@@ -9538,7 +9496,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscal_Get_responseCatalog'
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Catalog'
         "400":
           description: Bad Request
           schema:
@@ -10199,7 +10157,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-oscal_List_responseComponentDefinition'
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ComponentDefinition'
         "400":
           description: Bad Request
           schema:
@@ -10267,7 +10225,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscal_Get_responseComponentDefinition'
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition'
         "400":
           description: Bad Request
           schema:

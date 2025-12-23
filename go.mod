@@ -28,6 +28,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
+	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.5
 )
 
@@ -157,7 +158,6 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
-	gorm.io/driver/sqlite v1.6.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 

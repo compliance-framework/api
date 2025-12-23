@@ -6078,7 +6078,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_List_responseCatalog"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Catalog"
                         }
                     },
                     "400": {
@@ -6173,7 +6173,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_Get_responseCatalog"
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Catalog"
                         }
                     },
                     "400": {
@@ -7192,7 +7192,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_List_responseComponentDefinition"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_ComponentDefinition"
                         }
                     },
                     "400": {
@@ -7299,7 +7299,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_Get_responseComponentDefinition"
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_ComponentDefinition"
                         }
                     },
                     "400": {
@@ -16514,6 +16514,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_Catalog": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Catalog"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-oscalTypes_1_1_3_ComponentDefinition": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ComponentDefinition"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_Control": {
             "type": "object",
             "properties": {
@@ -16810,30 +16834,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/oscal.InventoryItemWithSource"
-                    }
-                }
-            }
-        },
-        "handler.GenericDataListResponse-oscal_List_responseCatalog": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscal.List.responseCatalog"
-                    }
-                }
-            }
-        },
-        "handler.GenericDataListResponse-oscal_List_responseComponentDefinition": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/oscal.List.responseComponentDefinition"
                     }
                 }
             }
@@ -17612,32 +17612,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-oscal_Get_responseCatalog": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/oscal.Get.responseCatalog"
-                        }
-                    ]
-                }
-            }
-        },
-        "handler.GenericDataResponse-oscal_Get_responseComponentDefinition": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/oscal.Get.responseComponentDefinition"
-                        }
-                    ]
-                }
-            }
-        },
         "handler.GenericDataResponse-oscal_InventoryItemWithSource": {
             "type": "object",
             "properties": {
@@ -17931,28 +17905,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oscal.Get.responseCatalog": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscal.Get.responseComponentDefinition": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
         "oscal.InventoryItemWithSource": {
             "type": "object",
             "properties": {
@@ -17994,28 +17946,6 @@ const docTemplate = `{
                 },
                 "source_type": {
                     "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscal.List.responseCatalog": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "oscal.List.responseComponentDefinition": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/oscalTypes_1_1_3.Metadata"
                 },
                 "uuid": {
                     "type": "string"
