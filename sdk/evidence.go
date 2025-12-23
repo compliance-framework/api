@@ -27,7 +27,14 @@ func (r *evidenceClient) Create(ctx context.Context, evidence ...types.Evidence)
 		if err != nil {
 			return err
 		}
-		defer response.Body.Close()
+		defer func() {
+			err := response.Body.Close()
+			if err != nil {
+				if r.config.Logger != nil {
+					r.config.Logger.Error("failed to close response body", "err", err)
+				}
+			}
+		}()
 
 		if response.StatusCode != http.StatusCreated {
 			return fmt.Errorf("unexpected api response status code: %d", response.StatusCode)

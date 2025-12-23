@@ -114,7 +114,7 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 // MarshalOscal converts the relational PlanOfActionAndMilestones back into an OSCAL PlanOfActionAndMilestones structure.
 func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActionAndMilestones {
 	opam := oscalTypes_1_1_3.PlanOfActionAndMilestones{
-		UUID: p.UUIDModel.ID.String(),
+		UUID: p.ID.String(),
 	}
 
 	opam.Metadata = *p.Metadata.MarshalOscal()
@@ -264,7 +264,7 @@ func (r *Risk) UnmarshalOscal(or oscalTypes_1_1_3.Risk) *Risk {
 // MarshalOscal converts the relational Risk back into an OSCAL Risk structure.
 func (r *Risk) MarshalOscal() *oscalTypes_1_1_3.Risk {
 	ret := oscalTypes_1_1_3.Risk{
-		UUID:        r.UUIDModel.ID.String(),
+		UUID:        r.ID.String(),
 		Title:       r.Title,
 		Description: r.Description,
 		Statement:   r.Statement,
@@ -675,7 +675,7 @@ func (o *Observation) MarshalOscal() *oscalTypes_1_1_3.Observation {
 	copy(methods, o.Methods)
 
 	ret := oscalTypes_1_1_3.Observation{
-		UUID:        o.UUIDModel.ID.String(),
+		UUID:        o.ID.String(),
 		Collected:   o.Collected,
 		Description: o.Description,
 		Methods:     methods,
@@ -799,7 +799,7 @@ func (f *Finding) UnmarshalOscal(of oscalTypes_1_1_3.Finding) *Finding {
 
 func (f *Finding) MarshalOscal() *oscalTypes_1_1_3.Finding {
 	ret := oscalTypes_1_1_3.Finding{
-		UUID:        f.UUIDModel.ID.String(),
+		UUID:        f.ID.String(),
 		Description: f.Description,
 		Title:       f.Title,
 		Target:      f.Target.Data(),

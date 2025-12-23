@@ -1,0 +1,76 @@
+# SSO Configuration for CCF
+# Environment variables can be used with ${VAR_NAME} syntax
+
+enabled: true
+base_url: "http://localhost:8000" # Web UI base URL
+callback_url: "http://localhost:8080/api/auth/sso/callback" # API callback URL
+
+providers:
+  - name: "google"
+    display_name: "Google"
+    provider: "google"
+    protocol: "oidc"
+    icon_url: "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+    required_login_groups:
+      - "ccf-authorized-users"
+    required_admin_groups:
+      - "ccf-admins"
+    client_id: "change-me"
+    client_secret: "change-me"
+    issuer_url: "https://accounts.google.com"
+    scopes:
+      - "openid"
+      - "email"
+      - "profile"
+    enabled: true
+    group_mapping:
+      "hd:container-solutions.com":
+        - "ccf-authorized-users"
+      "email:gustavo.carvalho@container-solutions.com":
+        - "ccf-admins"
+      # Add additional group mappings as needed
+
+  - name: "github"
+    display_name: "GitHub"
+    provider: "github"
+    protocol: "oauth"
+    icon_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+    required_login_groups:
+      - "ccf-authorized-users"
+    # All Github Logins are admins
+    required_admin_groups: []
+    client_id: change-me
+    client_secret: change-me
+    auth_url: "https://github.com/login/oauth/authorize"
+    token_url: "https://github.com/login/oauth/access_token"
+    user_info_url: "https://api.github.com/user"
+    email_url: "https://api.github.com/user/emails"
+    scopes:
+      - "read:user"
+      - "user:email"
+      - "read:org"
+    enabled: true
+    group_mapping:
+      "github-organization:compliance-framework":
+        - "ccf-authorized-users"
+      ## No mapping to ccf-admins --> no admins from github SSO.
+
+  # - name: "generic-oidc"
+  #   display_name: "SSO"
+  #   provider: "generic"
+  #   protocol: "oidc"
+  #   client_id: "${OIDC_CLIENT_ID}"
+  #   client_secret: "${OIDC_CLIENT_SECRET}"
+  #   issuer_url: "${OIDC_ISSUER_URL}"
+  #   scopes:
+  #     - "openid"
+  #     - "email"
+  #     - "profile"
+  #     - "groups"
+  #   enabled: false
+  #   group_mapping:
+  #     # Map SSO groups to user attributes for JIT registration
+  #     # Users must belong to at least one mapped group to be auto-registered
+  #     # "admin": ["admin", "super_admin"]
+  #     # "developers": ["developer"]
+  #     # "viewers": ["viewer"]

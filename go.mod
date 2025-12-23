@@ -3,7 +3,9 @@ module github.com/compliance-framework/api
 go 1.25.4
 
 require (
+	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/defenseunicorns/go-oscal v0.7.0
+	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-playground/validator/v10 v10.28.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
@@ -22,10 +24,12 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.46.0
+	golang.org/x/oauth2 v0.32.0
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/driver/sqlite v1.6.0
+	gorm.io/gorm v1.30.5
 )
 
 require (
@@ -58,6 +62,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -93,6 +98,7 @@ require (
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect

@@ -170,7 +170,7 @@ func (h *AssessmentResultsHandler) validateObservationInput(obs *oscalTypes_1_1_
 	if obs.Description == "" {
 		return fmt.Errorf("description is required")
 	}
-	if obs.Methods == nil || len(obs.Methods) == 0 {
+	if len(obs.Methods) == 0 {
 		return fmt.Errorf("methods are required")
 	}
 	return nil
@@ -224,7 +224,7 @@ func (h *AssessmentResultsHandler) validateFindingInput(finding *oscalTypes_1_1_
 
 // validateAttestationInput validates attestation input
 func (h *AssessmentResultsHandler) validateAttestationInput(attestation *oscalTypes_1_1_3.AttestationStatements) error {
-	if attestation.Parts == nil || len(attestation.Parts) == 0 {
+	if len(attestation.Parts) == 0 {
 		return fmt.Errorf("parts are required")
 	}
 	// Validate each part

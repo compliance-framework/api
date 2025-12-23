@@ -29,7 +29,12 @@ func RunServer(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("Can't initialize zap logger: %v", err)
 	}
-	defer zapLogger.Sync() // flushes buffer, if any
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			log.Printf("failed to sync zap logger: %v", err)
+		}
+	}()
 	sugar := zapLogger.Sugar()
 
 	config := config.NewConfig(sugar)

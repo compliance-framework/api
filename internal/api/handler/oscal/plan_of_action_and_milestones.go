@@ -124,7 +124,7 @@ func (h *PlanOfActionAndMilestonesHandler) validateObservationInput(obs *oscalTy
 	if obs.Description == "" {
 		return fmt.Errorf("description is required")
 	}
-	if obs.Methods == nil || len(obs.Methods) == 0 {
+	if len(obs.Methods) == 0 {
 		return fmt.Errorf("methods are required")
 	}
 	return nil

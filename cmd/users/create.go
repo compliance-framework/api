@@ -22,24 +22,33 @@ func newUserAddCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringP("email", "e", "", "Email of the user (required)")
-	cmd.MarkFlagRequired("email")
+	failOnError(cmd.MarkFlagRequired("email"))
 
 	cmd.Flags().StringP("first-name", "f", "", "First name of the user (required)")
-	cmd.MarkFlagRequired("first-name")
+	failOnError(cmd.MarkFlagRequired("first-name"))
 
 	cmd.Flags().StringP("last-name", "l", "", "Last name of the user (required)")
-	cmd.MarkFlagRequired("last-name")
+	failOnError(cmd.MarkFlagRequired("last-name"))
 
 	cmd.Flags().StringP("password", "p", "", "Password of the user")
 
 	return cmd
 }
-
+func failOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 func addUser(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	logger, err := zap.NewProduction()
 	cobra.CheckErr(err)
-	defer logger.Sync() // flushes buffer, if any
+	defer func() {
+		err := logger.Sync()
+		if err != nil {
+			println("failed to sync logger:", err.Error())
+		}
+	}()
 	sugar := logger.Sugar()
 
 	config := config.NewConfig(sugar)
@@ -87,7 +96,11 @@ func addUser(cmd *cobra.Command, args []string) {
 		LastName:  lastName,
 	}
 
-	newUser.SetPassword(password)
+	err = newUser.SetPassword(password)
+	if err != nil {
+		sugar.Errorw("Failed to set password", "error", err)
+		return
+	}
 	if err = db.Create(&newUser).Error; err != nil {
 		sugar.Errorw("Failed to create user", "error", err)
 		return
@@ -108,7 +121,7 @@ func generatePassword(length int) (string, error) {
 		"!@#$%^&*()-_=+[]{}<>?/"
 
 	if length <= 0 {
-		return "", errors.New("Length cannot be less than or equal to zero")
+		return "", errors.New("ength cannot be less than or equal to zero")
 	}
 
 	result := make([]byte, length)

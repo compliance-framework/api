@@ -650,7 +650,12 @@ func TestFileComponentDefinition_MarshalUnmarshalOscal(t *testing.T) {
 		// This proves our entire schema for a Component Definition works correctly.
 		f, err := os.Open("../../../testdata/sp800-53-component-aws.json")
 		assert.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				t.Logf("failed to close file: %v", err)
+			}
+		}()
 
 		// Decode the JSON into a ComponentDefinition
 		embed := struct {

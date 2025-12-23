@@ -196,9 +196,9 @@ type ResponsibleParty struct {
 
 func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *ResponsibleParty {
 	// Ensure we have an ID before processing parties
-	if r.UUIDModel.ID == nil {
+	if r.ID == nil {
 		newID := uuid.New()
-		r.UUIDModel.ID = &newID
+		r.ID = &newID
 	}
 
 	*r = ResponsibleParty{
@@ -226,7 +226,7 @@ func (r *ResponsibleParty) UnmarshalOscal(or oscaltypes113.ResponsibleParty) *Re
 				return ResponsiblePartyParties{}
 			}
 			return ResponsiblePartyParties{
-				ResponsiblePartyID: r.UUIDModel.ID,
+				ResponsiblePartyID: r.ID,
 				PartyID:            &id,
 			}
 		}),
@@ -333,7 +333,7 @@ func (rr *ResponsibleRole) MarshalOscal() *oscaltypes113.ResponsibleRole {
 	if len(rr.Parties) > 0 {
 		uuids := make([]string, len(rr.Parties))
 		for i, p := range rr.Parties {
-			uuids[i] = p.UUIDModel.ID.String()
+			uuids[i] = p.ID.String()
 		}
 		ret.PartyUuids = &uuids
 	}

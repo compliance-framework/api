@@ -334,9 +334,9 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 		assert.True(t, scope.IsCondition())
 		assert.False(t, scope.IsQuery())
-		assert.True(t, scope.Condition.Label == "foo")
+		assert.True(t, scope.Label == "foo")
 		assert.True(t, scope.Condition.Operator == "=")
-		assert.True(t, scope.Condition.Value == "bar")
+		assert.True(t, scope.Value == "bar")
 	})
 
 	t.Run("Simple Query", func(t *testing.T) {
@@ -361,11 +361,11 @@ func TestScopeUnmarshalling(t *testing.T) {
 		assert.False(t, scope.IsCondition())
 		assert.True(t, scope.IsQuery())
 
-		assert.True(t, len(scope.Query.Scopes) == 2)
-		assert.True(t, scope.Query.Scopes[0].IsCondition())
-		assert.True(t, scope.Query.Scopes[1].IsCondition())
-		assert.False(t, scope.Query.Scopes[0].IsQuery())
-		assert.False(t, scope.Query.Scopes[1].IsQuery())
+		assert.True(t, len(scope.Scopes) == 2)
+		assert.True(t, scope.Scopes[0].IsCondition())
+		assert.True(t, scope.Scopes[1].IsCondition())
+		assert.False(t, scope.Scopes[0].IsQuery())
+		assert.False(t, scope.Scopes[1].IsQuery())
 
 		// We'll check the baz condition
 		spotCondition := scope.Query.Scopes[0].Condition
@@ -415,15 +415,15 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 		assert.False(t, scope.IsCondition())
 		assert.True(t, scope.IsQuery())
-		assert.True(t, len(scope.Query.Scopes) == 2)
+		assert.True(t, len(scope.Scopes) == 2)
 
-		condition := scope.Query.Scopes[0]
-		query := scope.Query.Scopes[1]
+		condition := scope.Scopes[0]
+		query := scope.Scopes[1]
 
-		if scope.Query.Scopes[1].IsCondition() {
+		if scope.Scopes[1].IsCondition() {
 			// Flip it
-			condition = scope.Query.Scopes[1]
-			query = scope.Query.Scopes[0]
+			condition = scope.Scopes[1]
+			query = scope.Scopes[0]
 		}
 
 		assert.True(t, condition.IsCondition())
@@ -467,7 +467,7 @@ func TestScopeUnmarshalling(t *testing.T) {
 
 		assert.False(t, scope.IsCondition())
 		assert.True(t, scope.IsQuery())
-		assert.True(t, len(scope.Query.Scopes) == 2)
+		assert.True(t, len(scope.Scopes) == 2)
 		assert.True(t, scope.Scopes[0].IsQuery())
 		assert.True(t, scope.Scopes[1].IsQuery())
 	})

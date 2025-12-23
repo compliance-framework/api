@@ -15,7 +15,7 @@ type User struct {
 	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"` // Soft delete
 
 	Email        string `json:"email" gorm:"uniqueIndex:idx_ccf_users_email,WHERE:deleted_at IS NULL;not null"`
-	PasswordHash string `gorm:"not null" json:"-"`
+	PasswordHash string `gorm:"" json:"-"`
 
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
@@ -27,6 +27,9 @@ type User struct {
 
 	ResetToken       *string    `json:"-"`
 	ResetTokenExpiry *time.Time `json:"-"`
+
+	AuthMethod     string `json:"authMethod"`
+	UserAttributes string `json:"userAttributes"`
 }
 
 func (User) TableName() string {

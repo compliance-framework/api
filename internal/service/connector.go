@@ -45,7 +45,7 @@ func ConnectSQLDb(ctx context.Context, config *config.Config, sugar *zap.Sugared
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
 
-		for true {
+		for {
 			err = pdb.Ping()
 			if err == nil {
 				sugar.Warn("Connected to database")

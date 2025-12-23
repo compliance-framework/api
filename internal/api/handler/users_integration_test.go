@@ -46,7 +46,7 @@ func (suite *UserApiIntegrationSuite) TestUserList() {
 	suite.Require().NoError(err)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/users", nil)
+	req := httptest.NewRequest("GET", "/api/admin/users", nil)
 	req.Header.Set("Authorization", "Bearer "+*token)
 
 	suite.server.E().ServeHTTP(rec, req)
@@ -69,7 +69,7 @@ func (suite *UserApiIntegrationSuite) TestGetUser() {
 	suite.Require().NoError(err)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/users/"+existingUser.UUIDModel.ID.String(), nil)
+	req := httptest.NewRequest("GET", "/api/admin/users/"+existingUser.UUIDModel.ID.String(), nil)
 	req.Header.Set("Authorization", "Bearer "+*token)
 
 	suite.server.E().ServeHTTP(rec, req)
@@ -125,7 +125,7 @@ func (suite *UserApiIntegrationSuite) TestCreateUser() {
 		suite.Require().NoError(err, "Failed to marshal new user request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/api/users", bytes.NewReader(newUserJSON))
+		req := httptest.NewRequest("POST", "/api/admin/users", bytes.NewReader(newUserJSON))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+*token)
 
@@ -153,7 +153,7 @@ func (suite *UserApiIntegrationSuite) TestCreateUser() {
 		suite.Require().NoError(err, "Failed to marshal existing user request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/api/users", bytes.NewReader(existingUserJSON))
+		req := httptest.NewRequest("POST", "/api/admin/users", bytes.NewReader(existingUserJSON))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+*token)
 
@@ -195,7 +195,7 @@ func (suite *UserApiIntegrationSuite) ModifyUser() {
 		suite.Require().NoError(err, "Failed to marshal modify user request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/api/users/"+userId, bytes.NewReader(modifyRequestJSON))
+		req := httptest.NewRequest("PUT", "/api/admin/users/"+userId, bytes.NewReader(modifyRequestJSON))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+*token)
 
@@ -223,7 +223,7 @@ func (suite *UserApiIntegrationSuite) ModifyUser() {
 		suite.Require().NoError(err, "Failed to marshal modify user request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/api/users/"+userId, bytes.NewReader(modifyRequestJSON))
+		req := httptest.NewRequest("PUT", "/api/admin/users/"+userId, bytes.NewReader(modifyRequestJSON))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+*token)
 
@@ -249,7 +249,7 @@ func (suite *UserApiIntegrationSuite) ModifyUser() {
 		suite.Require().NoError(err, "Failed to marshal empty modify user request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/api/users/"+userId, bytes.NewReader(modifyRequestJSON))
+		req := httptest.NewRequest("PUT", "/api/admin/users/"+userId, bytes.NewReader(modifyRequestJSON))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+*token)
 
@@ -279,7 +279,7 @@ func (suite *UserApiIntegrationSuite) TestDeleteUser() {
 	suite.Require().NoError(err)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("DELETE", "/api/users/"+userId, nil)
+	req := httptest.NewRequest("DELETE", "/api/admin/users/"+userId, nil)
 	req.Header.Set("Authorization", "Bearer "+*token)
 
 	suite.server.E().ServeHTTP(rec, req)
@@ -369,7 +369,7 @@ func (suite *UserApiIntegrationSuite) TestChangePassword() {
 		suite.Require().NoError(err, "Failed to marshal change password request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/api/users/"+userId+"/change-password", bytes.NewReader(payloadJSON))
+		req := httptest.NewRequest("POST", "/api/admin/users/"+userId+"/change-password", bytes.NewReader(payloadJSON))
 		req.Header.Set("Authorization", "Bearer "+*token)
 		req.Header.Set("Content-Type", "application/json")
 

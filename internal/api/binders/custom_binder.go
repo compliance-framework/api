@@ -18,17 +18,17 @@ type CustomBinder struct{}
 func (cb *CustomBinder) Bind(i any, c echo.Context) error {
 	req := c.Request()
 	contentType := req.Header.Get(echo.HeaderContentType)
-
-	if contentType == MIMEApplicationYAML {
+	switch contentType {
+	case MIMEApplicationYAML:
 		if err := yaml.NewDecoder(req.Body).Decode(i); err != nil && err != io.EOF {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error()).SetInternal(err)
 		}
-	} else if contentType == MIMEApplicationJSON {
+	case MIMEApplicationJSON:
 		defaultBinder := new(echo.DefaultBinder)
 		if err := defaultBinder.Bind(i, c); err != nil {
 			return err
 		}
-	} else {
+	default:
 		return echo.NewHTTPError(http.StatusUnsupportedMediaType, "Unsupported Media Type")
 	}
 	return nil

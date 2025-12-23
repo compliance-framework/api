@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -197,6 +198,12 @@ func (h *AuthHandler) CheckUser(username, password string) (*relational.User, bo
 		return nil, false, err
 	}
 
+	if strings.TrimSpace(user.PasswordHash) == "" {
+		h.sugar.Warnw("Password login attempted for user without password hash", "username", username)
+		h.metrics.Counters.BadLogins.WithLabelValues("missing_hash").Inc()
+		return nil, true, invalidError
+	}
+
 	if !user.CheckPassword(password) {
 		h.sugar.Warnw("Invalid password attempt", "username", username)
 		h.metrics.Counters.BadLogins.WithLabelValues("invalid_password").Inc()
@@ -204,6 +211,19 @@ func (h *AuthHandler) CheckUser(username, password string) (*relational.User, bo
 	}
 
 	h.metrics.Counters.TotalLogins.Inc()
+
+	now := time.Now()
+	if user.ID != nil {
+		if err := h.db.Model(&relational.User{}).
+			Where("id = ?", user.ID.String()).
+			Update("last_login", now).Error; err != nil {
+			h.sugar.Warnw("Failed to update last login", "username", username, "error", err)
+		} else {
+			user.LastLogin = &now
+		}
+	} else {
+		h.sugar.Warnw("User ID missing; cannot update last login", "username", username)
+	}
 
 	return &user, false, nil
 }

@@ -99,17 +99,18 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Result{},
 		&relational.AssessmentLog{},
 		&relational.AssessmentLogEntry{},
-		&relational.User{},
+		&relational.TermsAndConditions{},
+		&relational.Attestation{},
 
+		// Compliance-Framework - not related to OSCAL
+		&relational.SSOUserLink{},
+		&relational.User{},
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
 		&relational.Step{},
-
-		&relational.TermsAndConditions{},
-		&relational.Attestation{},
 	)
 	return err
 }

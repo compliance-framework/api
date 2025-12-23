@@ -69,7 +69,7 @@ func (c *Catalog) UnmarshalOscal(ocatalog oscalTypes_1_1_3.Catalog) *Catalog {
 // MarshalOscal converts the Catalog back to an OSCAL Catalog
 func (c *Catalog) MarshalOscal() *oscalTypes_1_1_3.Catalog {
 	cat := &oscalTypes_1_1_3.Catalog{
-		UUID:     c.UUIDModel.ID.String(),
+		UUID:     c.ID.String(),
 		Metadata: *c.Metadata.MarshalOscal(),
 	}
 	if len(c.Params) > 0 {

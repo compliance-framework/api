@@ -336,7 +336,12 @@ func TestCatalog_OscalMarshalling(t *testing.T) {
 		// This proves our entire schema for a Catalog works correctly.
 		f, err := os.Open("./testdata/full_catalog.json")
 		assert.NoError(t, err)
-		defer f.Close()
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				t.Logf("failed to close file: %v", err)
+			}
+		}()
 
 		embed := struct {
 			Catalog oscaltypes113.Catalog `json:"catalog"`

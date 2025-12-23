@@ -59,17 +59,12 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 // @Description	Retrieves all catalogs.
 // @Tags			Catalog
 // @Produce		json
-// @Success		200	{object}	handler.GenericDataListResponse[oscal.List.responseCatalog]
+// @Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Catalog]
 // @Failure		400	{object}	api.Error
 // @Failure		500	{object}	api.Error
 // @Security		OAuth2Password
 // @Router			/oscal/catalogs [get]
 func (h *CatalogHandler) List(ctx echo.Context) error {
-	type responseCatalog struct {
-		UUID     uuid.UUID                 `json:"uuid"`
-		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
-	}
-
 	var catalogs []relational.Catalog
 	if err := h.db.
 		Preload("Metadata").
@@ -94,7 +89,9 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 //	@Tags			Catalog
 //	@Produce		json
 //	@Param			id	path		string	true	"Catalog ID"
-//	@Success		200	{object}	handler.GenericDataResponse[oscal.Get.responseCatalog]
+//
+//	@Success		200	{object}	handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
+//
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		401	{object}	api.Error
@@ -102,11 +99,6 @@ func (h *CatalogHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/oscal/catalogs/{id} [get]
 func (h *CatalogHandler) Get(ctx echo.Context) error {
-	type responseCatalog struct {
-		UUID     uuid.UUID                 `json:"uuid"`
-		Metadata oscalTypes_1_1_3.Metadata `json:"metadata"`
-	}
-
 	idParam := ctx.Param("id")
 	id, err := uuid.Parse(idParam)
 	if err != nil {

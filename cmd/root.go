@@ -27,20 +27,25 @@ func configSetDefaults() {
 	viper.SetDefault("metrics_enabled", "true")
 	viper.SetDefault("metrics_port", ":9090")
 }
+func failIfError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 
 func configEnvKeys() {
 	viper.SetEnvPrefix("ccf")
-	viper.BindEnv("app_port", "APP_PORT")
-	viper.BindEnv("db_driver")
-	viper.BindEnv("environment")
-	viper.BindEnv("db_connection")
-	viper.BindEnv("db_debug")
-	viper.BindEnv("jwt_secret")
-	viper.BindEnv("jwt_private_key")
-	viper.BindEnv("jwt_public_key")
-	viper.BindEnv("api_allowed_origins")
-	viper.BindEnv("metrics_enabled")
-	viper.BindEnv("metrics_port")
+	failIfError(viper.BindEnv("app_port", "APP_PORT"))
+	failIfError(viper.BindEnv("db_driver"))
+	failIfError(viper.BindEnv("environment"))
+	failIfError(viper.BindEnv("db_connection"))
+	failIfError(viper.BindEnv("db_debug"))
+	failIfError(viper.BindEnv("jwt_secret"))
+	failIfError(viper.BindEnv("jwt_private_key"))
+	failIfError(viper.BindEnv("jwt_public_key"))
+	failIfError(viper.BindEnv("api_allowed_origins"))
+	failIfError(viper.BindEnv("metrics_enabled"))
+	failIfError(viper.BindEnv("metrics_port"))
 }
 
 func init() {
@@ -55,7 +60,7 @@ func init() {
 
 	// Global persistent flags
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug mode for the database connection")
-	viper.BindPFlag("db_debug", rootCmd.PersistentFlags().Lookup("debug"))
+	failIfError(viper.BindPFlag("db_debug", rootCmd.PersistentFlags().Lookup("debug")))
 
 	// Subcommands
 	rootCmd.AddCommand(RunCmd)

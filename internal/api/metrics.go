@@ -81,6 +81,9 @@ func (m *PrometheusMetrics) StartMetricsServer(port string) {
 			return
 		}
 		<-m.ctx.Done()
-		metrics.Shutdown(m.ctx)
+		err := metrics.Shutdown(m.ctx)
+		if err != nil {
+			m.logger.Error("failed to shutdown metrics server", "err", err)
+		}
 	}()
 }

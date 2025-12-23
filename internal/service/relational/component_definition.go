@@ -64,7 +64,7 @@ func (c *ComponentDefinition) UnmarshalOscal(ocd oscalTypes_1_1_3.ComponentDefin
 // MarshalOscal converts the relational ComponentDefinition back into an OSCAL ComponentDefinition structure.
 func (c *ComponentDefinition) MarshalOscal() *oscalTypes_1_1_3.ComponentDefinition {
 	ret := oscalTypes_1_1_3.ComponentDefinition{
-		UUID: c.UUIDModel.ID.String(),
+		UUID: c.ID.String(),
 	}
 
 	ret.Metadata = *c.Metadata.MarshalOscal()
@@ -172,7 +172,7 @@ func (dc *DefinedComponent) UnmarshalOscal(odc oscalTypes_1_1_3.DefinedComponent
 // It includes protocols, control implementations, responsible roles, links, and props.
 func (dc *DefinedComponent) MarshalOscal() *oscalTypes_1_1_3.DefinedComponent {
 	ret := oscalTypes_1_1_3.DefinedComponent{
-		UUID:        dc.UUIDModel.ID.String(),
+		UUID:        dc.ID.String(),
 		Type:        dc.Type,
 		Title:       dc.Title,
 		Description: dc.Description,
@@ -274,7 +274,7 @@ func (ci *ControlImplementationSet) UnmarshalOscal(oci oscalTypes_1_1_3.ControlI
 // MarshalOscal converts the relational ControlImplementationSet back into an OSCAL ControlImplementationSet structure.
 func (ci *ControlImplementationSet) MarshalOscal() *oscalTypes_1_1_3.ControlImplementationSet {
 	ret := oscalTypes_1_1_3.ControlImplementationSet{
-		UUID:        ci.UUIDModel.ID.String(),
+		UUID:        ci.ID.String(),
 		Source:      ci.Source,
 		Description: ci.Description,
 	}
@@ -365,7 +365,7 @@ func (irci *ImplementedRequirementControlImplementation) UnmarshalOscal(oirci os
 // MarshalOscal converts the relational ImplementedRequirementControlImplementation back into an OSCAL ImplementedRequirementControlImplementation structure.
 func (irci *ImplementedRequirementControlImplementation) MarshalOscal() *oscalTypes_1_1_3.ImplementedRequirementControlImplementation {
 	ret := oscalTypes_1_1_3.ImplementedRequirementControlImplementation{
-		UUID:        irci.UUIDModel.ID.String(),
+		UUID:        irci.ID.String(),
 		ControlId:   irci.ControlId,
 		Description: irci.Description,
 	}
@@ -453,7 +453,7 @@ func (s *ControlStatementImplementation) UnmarshalOscal(oci oscalTypes_1_1_3.Con
 // MarshalOscal converts the relational ControlStatementImplementation back into an OSCAL ControlStatementImplementation structure.
 func (s *ControlStatementImplementation) MarshalOscal() *oscalTypes_1_1_3.ControlStatementImplementation {
 	ret := oscalTypes_1_1_3.ControlStatementImplementation{
-		UUID:        s.UUIDModel.ID.String(),
+		UUID:        s.ID.String(),
 		StatementId: s.StatementId,
 		Description: s.Description,
 	}
@@ -552,7 +552,7 @@ func (c *Capability) UnmarshalOscal(oc oscalTypes_1_1_3.Capability) *Capability 
 // MarshalOscal converts the relational Capability back into an OSCAL Capability structure.
 func (c *Capability) MarshalOscal() *oscalTypes_1_1_3.Capability {
 	ret := oscalTypes_1_1_3.Capability{
-		UUID:        c.UUIDModel.ID.String(),
+		UUID:        c.ID.String(),
 		Description: c.Description,
 		Name:        c.Name,
 	}

@@ -232,9 +232,12 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			Remarks:     i.Remarks,
 		}
 		for _, k := range i.ImplementedComponents {
-			id, err = internal.SeededUUID(map[string]string{
+			id, err := internal.SeededUUID(map[string]string{
 				"identifier": k.Identifier,
 			})
+			if err != nil {
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
 			model.ImplementedComponents = append(model.ImplementedComponents, relational.ImplementedComponent{
 				ComponentID: id,
 			})
@@ -385,8 +388,7 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 	}
 
 	results := []relational.Evidence{}
-	query := h.db.Session(&gorm.Session{})
-	query, err = relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(h.db), h.db, *filter)
+	query, err := relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(h.db), h.db, *filter)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

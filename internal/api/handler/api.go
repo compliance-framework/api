@@ -21,9 +21,15 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceHandler := NewEvidenceHandler(logger, db)
 	evidenceHandler.Register(server.API().Group("/evidence"))
 
+	userHandler := NewUserHandler(logger, db)
+
+	adminGroup := server.API().Group("/admin/users")
+	adminGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	adminGroup.Use(middleware.RequireAdminGroups(db, config, logger))
+	userHandler.Register(adminGroup)
+
 	userGroup := server.API().Group("/users")
 	userGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
-	userHandler := NewUserHandler(logger, db)
-	userHandler.Register(userGroup)
+	userHandler.RegisterSelfRoutes(userGroup)
 
 }
