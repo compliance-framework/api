@@ -93,8 +93,19 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 //	@Failure		500	{object}	api.Error
 //	@Router			/filters [get]
 func (h *FilterHandler) List(ctx echo.Context) error {
+	controlID := ctx.QueryParam("controlId")
+
+	query := h.db.Model(&relational.Filter{}).Preload("Controls")
+	if controlID != "" {
+		query = query.
+			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
+			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
+			Where("controls.id = ?", controlID).
+			Distinct()
+	}
+
 	var filters []relational.Filter
-	if err := h.db.Preload("Controls").Find(&filters).Error; err != nil {
+	if err := query.Find(&filters).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 

@@ -105,6 +105,86 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 	})
 }
 
+func (suite *FilterApiIntegrationSuite) TestList() {
+	suite.Run("Filters by control ID", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+
+		// Seed catalog and controls
+		suite.DB.Create(&relational.Catalog{
+			Metadata: relational.Metadata{
+				Title: "Some Catalog",
+			},
+			Controls: []relational.Control{
+				{ID: "AC-1", Title: "Access Control 1"},
+				{ID: "AC-2", Title: "Access Control 2"},
+			},
+		})
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+		// Create filter linked to AC-1
+		withControlReq := createFilterRequest{
+			Name: "Linked Filter",
+			Filter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "provider",
+						Operator: "=",
+						Value:    "aws",
+					},
+				},
+			},
+			Controls: &[]string{"AC-1"},
+		}
+		body, _ := json.Marshal(withControlReq)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+		// Create filter without controls
+		withoutControlReq := createFilterRequest{
+			Name: "Unlinked Filter",
+			Filter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "provider",
+						Operator: "=",
+						Value:    "github",
+					},
+				},
+			},
+		}
+		body, _ = json.Marshal(withoutControlReq)
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+		// Fetch filters linked to AC-1
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodGet, "/api/filters?controlId=AC-1", nil)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusOK, rec.Code)
+
+		var listResponse GenericDataListResponse[FilterWithControlsResponse]
+		err = json.Unmarshal(rec.Body.Bytes(), &listResponse)
+		suite.Require().NoError(err)
+
+		assert.Len(suite.T(), listResponse.Data, 1)
+		assert.Equal(suite.T(), "Linked Filter", listResponse.Data[0].Name)
+		if assert.Len(suite.T(), listResponse.Data[0].Controls, 1) {
+			assert.Equal(suite.T(), "AC-1", listResponse.Data[0].Controls[0].ID)
+		}
+	})
+}
+
 func (suite *FilterApiIntegrationSuite) TestUpdate() {
 	suite.Run("Update filter name and filter", func() {
 		err := suite.Migrator.Refresh()
