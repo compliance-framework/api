@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/smtp"
 	"strings"
 	"time"
@@ -13,9 +14,26 @@ import (
 	"go.uber.org/zap"
 )
 
+type smtpClient interface {
+	StartTLS(*tls.Config) error
+	Auth(smtp.Auth) error
+	Mail(string) error
+	Rcpt(string) error
+	Data() (smtpDataCloser, error)
+	Quit() error
+}
+
+type smtpDataCloser interface {
+	Write([]byte) (int, error)
+	Close() error
+}
+
+type smtpClientDialer func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error)
+
 type smtpProvider struct {
 	config *config.EmailProviderConfig
 	logger *zap.SugaredLogger
+	dialer smtpClientDialer
 }
 
 // NewSMTPProvider creates a new SMTP email provider
@@ -27,6 +45,7 @@ func NewSMTPProvider(ctx context.Context, cfg *config.EmailProviderConfig, logge
 	provider := &smtpProvider{
 		config: cfg,
 		logger: logger,
+		dialer: defaultSMTPDialer,
 	}
 
 	// Test connection during initialization
@@ -229,48 +248,14 @@ func (p *smtpProvider) buildEmailMessage(from, fromName string, message *types.M
 }
 
 func (p *smtpProvider) sendEmail(ctx context.Context, from string, to []string, msg string) error {
-	address := fmt.Sprintf("%s:%d", p.config.Host, p.config.Port)
-
 	var auth smtp.Auth
 	if p.config.Username != "" && p.config.Password != "" {
 		auth = smtp.PlainAuth("", p.config.Username, p.config.Password, p.config.Host)
 	}
 
-	var (
-		client *smtp.Client
-		err    error
-	)
-
-	if p.config.UseSSL {
-		tlsConfig := &tls.Config{
-			ServerName:         p.config.Host,
-			InsecureSkipVerify: false,
-		}
-
-		conn, err := tls.Dial("tcp", address, tlsConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create SSL connection: %w", err)
-		}
-
-		client, err = smtp.NewClient(conn, p.config.Host)
-		if err != nil {
-			return fmt.Errorf("failed to create SMTP client: %w", err)
-		}
-	} else {
-		client, err = smtp.Dial(address)
-		if err != nil {
-			return fmt.Errorf("failed to connect to SMTP server: %w", err)
-		}
-
-		if p.config.UseTLS {
-			tlsConfig := &tls.Config{
-				ServerName:         p.config.Host,
-				InsecureSkipVerify: false,
-			}
-			if err := client.StartTLS(tlsConfig); err != nil {
-				return fmt.Errorf("failed to start TLS: %w", err)
-			}
-		}
+	client, err := p.dialer(ctx, p.config)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -278,6 +263,16 @@ func (p *smtpProvider) sendEmail(ctx context.Context, from string, to []string, 
 			p.logger.Errorw("Failed to quit SMTP client", "error", err)
 		}
 	}()
+
+	if !p.config.UseSSL && p.config.UseTLS {
+		tlsConfig := &tls.Config{
+			ServerName:         p.config.Host,
+			InsecureSkipVerify: false,
+		}
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("failed to start TLS: %w", err)
+		}
+	}
 
 	if auth != nil {
 		if err := client.Auth(auth); err != nil {
@@ -288,7 +283,7 @@ func (p *smtpProvider) sendEmail(ctx context.Context, from string, to []string, 
 	return p.writeMessage(client, from, to, msg)
 }
 
-func (p *smtpProvider) writeMessage(client *smtp.Client, from string, to []string, msg string) error {
+func (p *smtpProvider) writeMessage(client smtpClient, from string, to []string, msg string) error {
 	if err := client.Mail(from); err != nil {
 		return fmt.Errorf("failed to set sender: %w", err)
 	}
@@ -311,4 +306,73 @@ func (p *smtpProvider) writeMessage(client *smtp.Client, from string, to []strin
 
 	_, err = wc.Write([]byte(msg))
 	return err
+}
+
+func defaultSMTPDialer(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	if cfg.UseSSL {
+		tlsConfig := &tls.Config{
+			ServerName:         cfg.Host,
+			InsecureSkipVerify: false,
+		}
+		conn, err := tls.Dial("tcp", address, tlsConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SSL connection: %w", err)
+		}
+		client, err := smtp.NewClient(conn, cfg.Host)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SMTP client: %w", err)
+		}
+		return &realSMTPClient{client: client}, nil
+	}
+
+	client, err := smtp.Dial(address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+
+	return &realSMTPClient{client: client}, nil
+}
+
+type realSMTPClient struct {
+	client *smtp.Client
+}
+
+func (c *realSMTPClient) StartTLS(cfg *tls.Config) error {
+	return c.client.StartTLS(cfg)
+}
+
+func (c *realSMTPClient) Auth(auth smtp.Auth) error {
+	if auth == nil {
+		return nil
+	}
+	return c.client.Auth(auth)
+}
+
+func (c *realSMTPClient) Mail(from string) error {
+	return c.client.Mail(from)
+}
+
+func (c *realSMTPClient) Rcpt(to string) error {
+	return c.client.Rcpt(to)
+}
+
+func (c *realSMTPClient) Data() (smtpDataCloser, error) {
+	wc, err := c.client.Data()
+	if err != nil {
+		return nil, err
+	}
+	return &realSMTPDataCloser{WriteCloser: wc}, nil
+}
+
+func (c *realSMTPClient) Quit() error {
+	return c.client.Quit()
+}
+
+type realSMTPDataCloser struct {
+	io.WriteCloser
+}
+
+func (d *realSMTPDataCloser) Write(p []byte) (int, error) {
+	return d.WriteCloser.Write(p)
 }

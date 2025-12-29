@@ -15,10 +15,27 @@ import (
 	"go.uber.org/zap"
 )
 
+type sesClient interface {
+	SendEmail(context.Context, *sesv2.SendEmailInput, ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
+	GetAccount(context.Context, *sesv2.GetAccountInput, ...func(*sesv2.Options)) (*sesv2.GetAccountOutput, error)
+}
+
+type realSESClient struct {
+	client *sesv2.Client
+}
+
+func (r *realSESClient) SendEmail(ctx context.Context, input *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error) {
+	return r.client.SendEmail(ctx, input, optFns...)
+}
+
+func (r *realSESClient) GetAccount(ctx context.Context, input *sesv2.GetAccountInput, optFns ...func(*sesv2.Options)) (*sesv2.GetAccountOutput, error) {
+	return r.client.GetAccount(ctx, input, optFns...)
+}
+
 type sesProvider struct {
 	config *config.EmailProviderConfig
 	logger *zap.SugaredLogger
-	client *sesv2.Client
+	client sesClient
 }
 
 // NewSESProvider creates a new AWS SES email provider
@@ -39,7 +56,7 @@ func NewSESProvider(ctx context.Context, cfg *config.EmailProviderConfig, logger
 	provider := &sesProvider{
 		config: cfg,
 		logger: logger,
-		client: client,
+		client: &realSESClient{client: client},
 	}
 
 	// Test connection during initialization

@@ -15,18 +15,6 @@ providers:
     use_tls: false
 
   # # AWS SES Configuration
-  # ses:
-  #   name: "AWS SES"
-  #   provider: "ses"
-  #   enabled: false
-  #   host: "YOUR_AWS_REGION"  # AWS region, e.g., us-east-1
-  #   port: 0
-  #   username: "YOUR_ACCESS_KEY_ID"  # AWS Access Key ID
-  #   password: "YOUR_SECRET_ACCESS_KEY"  # AWS Secret Access Key
-  #   from: "noreply@yourdomain.com"
-  #   from_name: "Compliance Framework"
-  #   use_tls: false
-  #   use_ssl: false
 
   # Example for SendGrid (not implemented yet)
   # sendgrid:
@@ -37,7 +25,5 @@ providers:
   #   port: 0
   #   username: ""
   #   password: ""
-  #   from: "noreply@yourdomain.com"
-  #   from_name: "Compliance Framework"
   #   use_tls: false
   #   use_ssl: false

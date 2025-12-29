@@ -23,9 +23,6 @@ func CreateProvider(cfg *config.EmailProviderConfig, logger *zap.SugaredLogger) 
 	case "smtp":
 		return providers.NewSMTPProvider(ctx, cfg, logger)
 
-	case "sendgrid":
-		return providers.NewSendgridProvider(ctx, cfg, logger)
-
 	case "ses":
 		return providers.NewSESProvider(ctx, cfg, logger)
 

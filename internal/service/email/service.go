@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var createProviderByNameFn = CreateProviderByName
+
 // Service provides email functionality
 type Service struct {
 	config          *config.EmailConfig
@@ -84,7 +86,7 @@ func (s *Service) SendWithProvider(ctx context.Context, providerName string, mes
 		}, err
 	}
 
-	provider, err := CreateProviderByName(s.config, providerName, s.logger)
+	provider, err := createProviderByNameFn(s.config, providerName, s.logger)
 	if err != nil {
 		return &types.SendResult{
 			Success: false,

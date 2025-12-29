@@ -11,7 +11,7 @@ import (
 
 type EmailProviderConfig struct {
 	Name     string `yaml:"name" json:"name" mapstructure:"name"`
-	Provider string `yaml:"provider" json:"provider" mapstructure:"provider"` // smtp, sendgrid, ses, etc
+	Provider string `yaml:"provider" json:"provider" mapstructure:"provider"` // smtp, ses, etc
 	Enabled  bool   `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
 
 	// SMTP Configuration
