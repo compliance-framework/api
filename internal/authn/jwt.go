@@ -73,7 +73,7 @@ func VerifyJWTToken(tokenString string, publicKey *rsa.PublicKey) (*UserClaims, 
 	if claims, ok := token.Claims.(*UserClaims); ok && token.Valid {
 		return claims, nil
 	}
-	return nil, jwt.ErrInvalidKey
+	return nil, jwt.ErrTokenMalformed
 }
 
 func VerifyPasswordResetToken(tokenString string, publicKey *rsa.PublicKey) (*PasswordResetClaims, error) {
@@ -89,5 +89,5 @@ func VerifyPasswordResetToken(tokenString string, publicKey *rsa.PublicKey) (*Pa
 	if claims, ok := token.Claims.(*PasswordResetClaims); ok && token.Valid {
 		return claims, nil
 	}
-	return nil, jwt.ErrInvalidKey
+	return nil, jwt.ErrTokenMalformed
 }

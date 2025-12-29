@@ -99,26 +99,11 @@ func (ts *TemplateService) renderText(templateName string, data TemplateData) (s
 	return buf.String(), nil
 }
 
-// title converts a string to title case (first letter of each word capitalized)
-func title(s string) string {
-	if len(s) == 0 {
-		return s
-	}
-	words := strings.Fields(s)
-	for i, word := range words {
-		if len(word) > 0 {
-			words[i] = strings.ToUpper(word[:1]) + strings.ToLower(word[1:])
-		}
-	}
-	return strings.Join(words, " ")
-}
-
 // loadHTMLTemplates loads all HTML templates from the embedded filesystem
 func loadHTMLTemplates() (*htmltpl.Template, error) {
 	templates := htmltpl.New("").Funcs(htmltpl.FuncMap{
 		"toUpper": strings.ToUpper,
 		"toLower": strings.ToLower,
-		"title":   title,
 	})
 
 	entries, err := templateFS.ReadDir("templates")
@@ -156,7 +141,6 @@ func loadTextTemplates() (*texttpl.Template, error) {
 	templates := texttpl.New("").Funcs(texttpl.FuncMap{
 		"toUpper": strings.ToUpper,
 		"toLower": strings.ToLower,
-		"title":   title,
 	})
 
 	entries, err := templateFS.ReadDir("templates")

@@ -307,7 +307,9 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 	}
 
 	// Check if user has password auth method
-	if user.AuthMethod != "password" && user.AuthMethod != "" && user.PasswordHash == "" {
+	// Check if user uses password-based authentication
+	usesPasswordAuth := user.AuthMethod == "" || user.AuthMethod == "password"
+	if !usesPasswordAuth {
 		h.sugar.Warnw("Password reset attempted for non-password user", "email", req.Email, "authMethod", user.AuthMethod)
 		// Don't reveal if email exists or not for security
 		return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
@@ -355,7 +357,7 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 	} else {
 		// Log that email service is not available
 		h.sugar.Warnw("Email service not available, password reset token generated but not sent",
-			"email", user.Email, "token", *resetToken)
+			"email", user.Email)
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
@@ -409,7 +411,8 @@ func (h *AuthHandler) PasswordReset(ctx echo.Context) error {
 	}
 
 	// Check if user has password auth method
-	if user.AuthMethod != "password" && user.AuthMethod != "" && user.PasswordHash == "" {
+	usesPasswordAuth := user.AuthMethod == "" || user.AuthMethod == "password"
+	if !usesPasswordAuth {
 		h.sugar.Warnw("Password reset attempted for non-password user", "email", email, "authMethod", user.AuthMethod)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("password reset not available for this account")))
 	}

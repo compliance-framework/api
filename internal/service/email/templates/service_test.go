@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -24,10 +25,10 @@ func TestTemplateService_Use(t *testing.T) {
 	if html == "" {
 		t.Error("HTML content should not be empty")
 	}
-	if !contains(html, "Hello John") {
+	if !strings.Contains(html, "Hello John") {
 		t.Error("HTML should contain 'Hello John'")
 	}
-	if !contains(html, "http://localhost:8000/auth/password-reset?token=abc123") {
+	if !strings.Contains(html, "http://localhost:8000/auth/password-reset?token=abc123") {
 		t.Error("HTML should contain the reset URL")
 	}
 
@@ -35,10 +36,10 @@ func TestTemplateService_Use(t *testing.T) {
 	if text == "" {
 		t.Error("Text content should not be empty")
 	}
-	if !contains(text, "Hello John") {
+	if !strings.Contains(text, "Hello John") {
 		t.Error("Text should contain 'Hello John'")
 	}
-	if !contains(text, "http://localhost:8000/auth/password-reset?token=abc123") {
+	if !strings.Contains(text, "http://localhost:8000/auth/password-reset?token=abc123") {
 		t.Error("Text should contain the reset URL")
 	}
 }
@@ -64,17 +65,4 @@ func TestTemplateService_ListTemplates(t *testing.T) {
 	if !found {
 		t.Error("Should contain 'forgot-password' template")
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			func() bool {
-				for i := 0; i <= len(s)-len(substr); i++ {
-					if s[i:i+len(substr)] == substr {
-						return true
-					}
-				}
-				return false
-			}()))
 }

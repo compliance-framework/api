@@ -15,7 +15,7 @@ The forgot password flow consists of two endpoints:
 - **Auth method validation**: Only users with `authMethod=password` can reset passwords
 - **Email enumeration protection**: Same response is returned regardless of whether email exists
 - **JWT token validation**: Tokens are cryptographically signed and verified
-- **Email-token matching**: Token email must match request email
+- **Token-bound email**: Password reset is performed for the email encoded in the JWT token; no separate email is accepted in the request
 
 ## Configuration
 
@@ -96,7 +96,6 @@ providers:
 ```json
 {
   "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "email": "user@example.com",
   "password": "newSecurePassword123"
 }
 ```
@@ -110,7 +109,7 @@ providers:
 
 **Behavior:**
 - Validates JWT token signature and expiry
-- Verifies token email matches request email
+- Uses email encoded in JWT token (no email field in request)
 - Updates user password with bcrypt hashing
 - Clears any existing reset tokens
 - Requires minimum 8 character password

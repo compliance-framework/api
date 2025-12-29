@@ -264,7 +264,28 @@ func (p *smtpProvider) sendEmail(ctx context.Context, from string, to []string, 
 			}
 		}
 
-		return smtp.SendMail(address, auth, from, to, []byte(msg))
+		if err := client.Mail(from); err != nil {
+			return fmt.Errorf("failed to set sender: %w", err)
+		}
+
+		for _, recipient := range to {
+			if err := client.Rcpt(recipient); err != nil {
+				return fmt.Errorf("failed to add recipient %s: %w", recipient, err)
+			}
+		}
+
+		wc, err := client.Data()
+		if err != nil {
+			return fmt.Errorf("failed to send data: %w", err)
+		}
+		defer func() {
+			if err := wc.Close(); err != nil {
+				p.logger.Errorw("Failed to close write closer", "error", err)
+			}
+		}()
+
+		_, err = wc.Write([]byte(msg))
+		return err
 	} else {
 		// Use regular SMTP
 		if p.config.UseTLS {
