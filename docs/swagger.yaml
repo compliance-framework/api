@@ -1074,6 +1074,12 @@ definitions:
         - $ref: '#/definitions/relational.User'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-string:
+    properties:
+      data:
+        description: Items from the list response
+        type: string
+    type: object
   handler.HeartbeatCreateRequest:
     properties:
       created_at:
@@ -5720,6 +5726,40 @@ paths:
       summary: Get Heartbeat Metrics Over Time
       tags:
       - Heartbeat
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Sends a password reset email to users with authMethod=password
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.AuthHandler'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-string'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Forgot password
+      tags:
+      - Auth
   /auth/login:
     post:
       consumes:
@@ -5752,6 +5792,40 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Login user
+      tags:
+      - Auth
+  /auth/password-reset:
+    post:
+      consumes:
+      - application/json
+      description: Resets password using a valid JWT token
+      parameters:
+      - description: Reset data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.AuthHandler'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-string'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Reset password
       tags:
       - Auth
   /auth/publickey:

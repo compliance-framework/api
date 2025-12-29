@@ -1,0 +1,43 @@
+enabled: true
+provider: "smtp"
+providers:
+  smtp:
+    name: SMTP
+    provider: "smtp"
+    enabled: true
+    host: "localhost"
+    port: 2525
+    username: "testuser"
+    password: "testpass"
+    from: "noreply@compliance-framework.local"
+    from_name: "Compliance Framework"
+    use_ssl: false
+    use_tls: false
+
+  # # AWS SES Configuration
+  # ses:
+  #   name: "AWS SES"
+  #   provider: "ses"
+  #   enabled: false
+  #   host: "us-east-1"  # AWS region
+  #   port: 0
+  #   username: "AKIAIOSFODNN7EXAMPLE"  # AWS Access Key ID
+  #   password: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # AWS Secret Access Key
+  #   from: "noreply@yourdomain.com"
+  #   from_name: "Compliance Framework"
+  #   use_tls: false
+  #   use_ssl: false
+
+  # Example for SendGrid (not implemented yet)
+  # sendgrid:
+  #   name: "SendGrid"
+  #   provider: "sendgrid"
+  #   enabled: false
+  #   host: ""  # API key would be configured here
+  #   port: 0
+  #   username: ""
+  #   password: ""
+  #   from: "noreply@yourdomain.com"
+  #   from_name: "Compliance Framework"
+  #   use_tls: false
+  #   use_ssl: false
