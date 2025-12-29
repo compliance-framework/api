@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -33,15 +32,15 @@ func (r *realSESClient) GetAccount(ctx context.Context, input *sesv2.GetAccountI
 }
 
 type sesProvider struct {
-	config *config.EmailProviderConfig
+	config *config.SESConfig
 	logger *zap.SugaredLogger
 	client sesClient
 }
 
 // NewSESProvider creates a new AWS SES email provider
-func NewSESProvider(ctx context.Context, cfg *config.EmailProviderConfig, logger *zap.SugaredLogger) (emailtypes.Provider, error) {
-	if strings.ToLower(cfg.Provider) != "ses" {
-		return nil, fmt.Errorf("invalid provider type for SES: %s", cfg.Provider)
+func NewSESProvider(ctx context.Context, cfg *config.SESConfig, logger *zap.SugaredLogger) (emailtypes.Provider, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("SES configuration is required")
 	}
 
 	// Create AWS session
@@ -64,7 +63,7 @@ func NewSESProvider(ctx context.Context, cfg *config.EmailProviderConfig, logger
 		return nil, fmt.Errorf("SES connection test failed: %w", err)
 	}
 
-	logger.Infow("SES provider initialized", "region", cfg.Host, "from", cfg.From)
+	logger.Infow("SES provider initialized", "region", cfg.Region, "from", cfg.From)
 	return provider, nil
 }
 
@@ -134,7 +133,7 @@ func (p *sesProvider) SendTemplate(ctx context.Context, template string, data in
 	return p.Send(ctx, message)
 }
 
-func (p *sesProvider) GetProviderConfig() *config.EmailProviderConfig {
+func (p *sesProvider) GetProviderConfig() config.EmailProviderSettings {
 	return p.config
 }
 
@@ -219,17 +218,16 @@ func (p *sesProvider) buildEmailContent(message *emailtypes.Message) *types.Emai
 }
 
 // createAWSConfig creates an AWS config with the provided configuration
-func createAWSConfig(ctx context.Context, cfg *config.EmailProviderConfig) (aws.Config, error) {
+func createAWSConfig(ctx context.Context, cfg *config.SESConfig) (aws.Config, error) {
 	// Load default AWS config
-	cfgAWS, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Host)) // Using Host field to store AWS region
+	cfgAWS, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region))
 	if err != nil {
 		return aws.Config{}, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
 	// Override credentials if provided
-	if cfg.Username != "" && cfg.Password != "" {
-		// Using Username for AccessKeyID and Password for SecretAccessKey
-		cfgAWS.Credentials = credentials.NewStaticCredentialsProvider(cfg.Username, cfg.Password, "")
+	if cfg.AccessKeyID != "" && cfg.SecretAccessKey != "" {
+		cfgAWS.Credentials = credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
 	}
 
 	return cfgAWS, nil

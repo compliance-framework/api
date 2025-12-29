@@ -28,20 +28,16 @@ type smtpDataCloser interface {
 	Close() error
 }
 
-type smtpClientDialer func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error)
+type smtpClientDialer func(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error)
 
 type smtpProvider struct {
-	config *config.EmailProviderConfig
+	config *config.SMTPConfig
 	logger *zap.SugaredLogger
 	dialer smtpClientDialer
 }
 
 // NewSMTPProvider creates a new SMTP email provider
-func NewSMTPProvider(ctx context.Context, cfg *config.EmailProviderConfig, logger *zap.SugaredLogger) (types.Provider, error) {
-	if strings.ToLower(cfg.Provider) != "smtp" {
-		return nil, fmt.Errorf("invalid provider type for SMTP: %s", cfg.Provider)
-	}
-
+func NewSMTPProvider(ctx context.Context, cfg *config.SMTPConfig, logger *zap.SugaredLogger) (types.Provider, error) {
 	provider := &smtpProvider{
 		config: cfg,
 		logger: logger,
@@ -107,7 +103,7 @@ func (p *smtpProvider) SendTemplate(ctx context.Context, template string, data i
 	return p.Send(ctx, message)
 }
 
-func (p *smtpProvider) GetProviderConfig() *config.EmailProviderConfig {
+func (p *smtpProvider) GetProviderConfig() config.EmailProviderSettings {
 	return p.config
 }
 
@@ -308,7 +304,7 @@ func (p *smtpProvider) writeMessage(client smtpClient, from string, to []string,
 	return err
 }
 
-func defaultSMTPDialer(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+func defaultSMTPDialer(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error) {
 	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	if cfg.UseSSL {
 		tlsConfig := &tls.Config{

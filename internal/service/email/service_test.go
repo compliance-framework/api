@@ -25,11 +25,13 @@ func (f *fakeProvider) SendTemplate(ctx context.Context, template string, data i
 	return f.sendResult, f.sendError
 }
 
-func (f *fakeProvider) GetProviderConfig() *config.EmailProviderConfig { return nil }
-func (f *fakeProvider) GetName() string                                { return "fake" }
-func (f *fakeProvider) GetType() string                                { return "fake" }
-func (f *fakeProvider) IsHealthy(ctx context.Context) error            { return nil }
-func (f *fakeProvider) Close() error                                   { return nil }
+func (f *fakeProvider) GetProviderConfig() config.EmailProviderSettings {
+	return &config.SESConfig{}
+}
+func (f *fakeProvider) GetName() string                     { return "fake" }
+func (f *fakeProvider) GetType() string                     { return "fake" }
+func (f *fakeProvider) IsHealthy(ctx context.Context) error { return nil }
+func (f *fakeProvider) Close() error                        { return nil }
 
 func TestServiceSend_Disabled(t *testing.T) {
 	svc := &Service{

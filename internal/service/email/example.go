@@ -140,6 +140,5 @@ func ExampleHealthCheck() {
 	logger.Infow("Email configuration",
 		"enabled", config.Enabled,
 		"default_provider", config.Provider,
-		"total_providers", len(config.Providers),
 	)
 }

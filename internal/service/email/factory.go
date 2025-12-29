@@ -3,7 +3,6 @@ package email
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -13,21 +12,17 @@ import (
 )
 
 // CreateProvider creates an email provider instance based on the configuration
-func CreateProvider(cfg *config.EmailProviderConfig, logger *zap.SugaredLogger) (types.Provider, error) {
+func CreateProvider(cfg config.EmailProviderSettings, logger *zap.SugaredLogger) (types.Provider, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	provider := strings.ToLower(cfg.Provider)
-
-	switch provider {
-	case "smtp":
-		return providers.NewSMTPProvider(ctx, cfg, logger)
-
-	case "ses":
-		return providers.NewSESProvider(ctx, cfg, logger)
-
+	switch provider := cfg.(type) {
+	case *config.SMTPConfig:
+		return providers.NewSMTPProvider(ctx, provider, logger)
+	case *config.SESConfig:
+		return providers.NewSESProvider(ctx, provider, logger)
 	default:
-		return nil, fmt.Errorf("unsupported email provider: %s", provider)
+		return nil, fmt.Errorf("unsupported email provider type: %T", cfg)
 	}
 }
 
@@ -56,7 +51,7 @@ func CreateProviderByName(cfg *config.EmailConfig, name string, logger *zap.Suga
 		return nil, fmt.Errorf("email provider %q not found", name)
 	}
 
-	if !providerCfg.Enabled {
+	if !providerCfg.IsEnabled() {
 		return nil, fmt.Errorf("email provider %q is not enabled", name)
 	}
 

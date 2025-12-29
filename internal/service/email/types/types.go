@@ -44,7 +44,7 @@ type Provider interface {
 	SendTemplate(ctx context.Context, template string, data interface{}, message *Message) (*SendResult, error)
 
 	// GetProviderConfig returns the provider configuration
-	GetProviderConfig() *config.EmailProviderConfig
+	GetProviderConfig() config.EmailProviderSettings
 
 	// GetName returns the provider name
 	GetName() string

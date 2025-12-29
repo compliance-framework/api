@@ -87,7 +87,7 @@ func (f *fakeSMTPDataCloser) Close() error {
 	return nil
 }
 
-func newTestSMTPProvider(cfg *config.EmailProviderConfig, dialer smtpClientDialer) *smtpProvider {
+func newTestSMTPProvider(cfg *config.SMTPConfig, dialer smtpClientDialer) *smtpProvider {
 	return &smtpProvider{
 		config: cfg,
 		logger: zap.NewNop().Sugar(),
@@ -96,17 +96,16 @@ func newTestSMTPProvider(cfg *config.EmailProviderConfig, dialer smtpClientDiale
 }
 
 func TestSMTPProviderSend_Success(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
-		Name:     "SMTP",
-		Provider: "smtp",
-		Enabled:  true,
-		Host:     "smtp.example.com",
-		Port:     587,
-		From:     "noreply@example.com",
+	cfg := &config.SMTPConfig{
+		Name:    "SMTP",
+		Enabled: true,
+		Host:    "smtp.example.com",
+		Port:    587,
+		From:    "noreply@example.com",
 	}
 
 	fakeClient := &fakeSMTPClient{dataBuffer: &bytes.Buffer{}}
-	dialer := func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+	dialer := func(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error) {
 		return fakeClient, nil
 	}
 	provider := newTestSMTPProvider(cfg, dialer)
@@ -127,21 +126,20 @@ func TestSMTPProviderSend_Success(t *testing.T) {
 }
 
 func TestSMTPProviderSend_StartTLSError(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
-		Name:     "SMTP",
-		Provider: "smtp",
-		Enabled:  true,
-		Host:     "smtp.example.com",
-		Port:     587,
-		From:     "noreply@example.com",
-		UseTLS:   true,
+	cfg := &config.SMTPConfig{
+		Name:    "SMTP",
+		Enabled: true,
+		Host:    "smtp.example.com",
+		Port:    587,
+		From:    "noreply@example.com",
+		UseTLS:  true,
 	}
 
 	fakeClient := &fakeSMTPClient{
 		startTLSError: errors.New("start tls failure"),
 		dataBuffer:    &bytes.Buffer{},
 	}
-	dialer := func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+	dialer := func(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error) {
 		return fakeClient, nil
 	}
 
@@ -160,9 +158,8 @@ func TestSMTPProviderSend_StartTLSError(t *testing.T) {
 }
 
 func TestSMTPProviderSend_AuthError(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
+	cfg := &config.SMTPConfig{
 		Name:     "SMTP",
-		Provider: "smtp",
 		Enabled:  true,
 		Host:     "smtp.example.com",
 		Port:     587,
@@ -175,7 +172,7 @@ func TestSMTPProviderSend_AuthError(t *testing.T) {
 		authError:  errors.New("auth failed"),
 		dataBuffer: &bytes.Buffer{},
 	}
-	dialer := func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+	dialer := func(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error) {
 		return fakeClient, nil
 	}
 
@@ -194,16 +191,15 @@ func TestSMTPProviderSend_AuthError(t *testing.T) {
 }
 
 func TestSMTPProviderSend_DialerError(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
-		Name:     "SMTP",
-		Provider: "smtp",
-		Enabled:  true,
-		Host:     "smtp.example.com",
-		Port:     587,
-		From:     "noreply@example.com",
+	cfg := &config.SMTPConfig{
+		Name:    "SMTP",
+		Enabled: true,
+		Host:    "smtp.example.com",
+		Port:    587,
+		From:    "noreply@example.com",
 	}
 
-	provider := newTestSMTPProvider(cfg, func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+	provider := newTestSMTPProvider(cfg, func(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error) {
 		return nil, errors.New("dial failed")
 	})
 
@@ -219,16 +215,15 @@ func TestSMTPProviderSend_DialerError(t *testing.T) {
 }
 
 func TestSMTPProviderSend_NoRecipients(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
-		Name:     "SMTP",
-		Provider: "smtp",
-		Enabled:  true,
-		Host:     "smtp.example.com",
-		Port:     587,
-		From:     "noreply@example.com",
+	cfg := &config.SMTPConfig{
+		Name:    "SMTP",
+		Enabled: true,
+		Host:    "smtp.example.com",
+		Port:    587,
+		From:    "noreply@example.com",
 	}
 
-	provider := newTestSMTPProvider(cfg, func(ctx context.Context, cfg *config.EmailProviderConfig) (smtpClient, error) {
+	provider := newTestSMTPProvider(cfg, func(ctx context.Context, cfg *config.SMTPConfig) (smtpClient, error) {
 		return &fakeSMTPClient{dataBuffer: &bytes.Buffer{}}, nil
 	})
 

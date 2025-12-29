@@ -39,7 +39,7 @@ func (f *fakeSESClient) GetAccount(ctx context.Context, input *sesv2.GetAccountI
 	return &sesv2.GetAccountOutput{}, nil
 }
 
-func newSESProviderWithClient(cfg *config.EmailProviderConfig, client sesClient) *sesProvider {
+func newSESProviderWithClient(cfg *config.SESConfig, client sesClient) *sesProvider {
 	return &sesProvider{
 		config: cfg,
 		logger: zap.NewNop().Sugar(),
@@ -48,12 +48,11 @@ func newSESProviderWithClient(cfg *config.EmailProviderConfig, client sesClient)
 }
 
 func TestSESProviderSend_Success(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
-		Name:     "AWS SES",
-		Provider: "ses",
-		Enabled:  true,
-		Host:     "us-east-1",
-		From:     "noreply@example.com",
+	cfg := &config.SESConfig{
+		Name:    "AWS SES",
+		Enabled: true,
+		Region:  "us-east-1",
+		From:    "noreply@example.com",
 	}
 	fakeClient := &fakeSESClient{
 		sendOutput: &sesv2.SendEmailOutput{
@@ -78,9 +77,8 @@ func TestSESProviderSend_Success(t *testing.T) {
 }
 
 func TestSESProviderSend_Error(t *testing.T) {
-	cfg := &config.EmailProviderConfig{
-		Provider: "ses",
-		From:     "noreply@example.com",
+	cfg := &config.SESConfig{
+		From: "noreply@example.com",
 	}
 
 	fakeClient := &fakeSESClient{
@@ -101,7 +99,7 @@ func TestSESProviderSend_Error(t *testing.T) {
 }
 
 func TestSESProviderSend_NoRecipients(t *testing.T) {
-	cfg := &config.EmailProviderConfig{Provider: "ses", From: "noreply@example.com"}
+	cfg := &config.SESConfig{From: "noreply@example.com"}
 	provider := newSESProviderWithClient(cfg, &fakeSESClient{})
 
 	msg := &emailtypes.Message{
@@ -114,7 +112,7 @@ func TestSESProviderSend_NoRecipients(t *testing.T) {
 }
 
 func TestSESProviderIsHealthy(t *testing.T) {
-	cfg := &config.EmailProviderConfig{Provider: "ses"}
+	cfg := &config.SESConfig{}
 	client := &fakeSESClient{}
 	provider := newSESProviderWithClient(cfg, client)
 
