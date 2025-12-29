@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/service/email"
+	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -17,18 +20,20 @@ import (
 )
 
 type AuthHandler struct {
-	sugar   *zap.SugaredLogger
-	db      *gorm.DB
-	config  *config.Config
-	metrics *api.PrometheusMetrics
+	sugar        *zap.SugaredLogger
+	db           *gorm.DB
+	config       *config.Config
+	metrics      *api.PrometheusMetrics
+	emailService *email.Service
 }
 
-func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, metrics *api.PrometheusMetrics) *AuthHandler {
+func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, metrics *api.PrometheusMetrics, emailService *email.Service) *AuthHandler {
 	return &AuthHandler{
-		sugar:   logger,
-		db:      db,
-		config:  config,
-		metrics: metrics,
+		sugar:        logger,
+		db:           db,
+		config:       config,
+		metrics:      metrics,
+		emailService: emailService,
 	}
 }
 
@@ -37,6 +42,10 @@ func (h *AuthHandler) Register(api *echo.Group) {
 	api.POST("/token", h.GetOAuth2Token)
 	api.GET("/publickey.pub", h.GetPublicKeyPEM)
 	api.GET("/publickey", h.GetJWK)
+
+	// Password reset endpoints
+	api.POST("/forgot-password", h.ForgotPassword)
+	api.POST("/password-reset", h.PasswordReset)
 }
 
 // LoginUser godoc
@@ -258,4 +267,170 @@ func (h *AuthHandler) GetJWK(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, jwk)
+}
+
+// ForgotPassword godoc
+//
+//	@Summary		Forgot password
+//	@Description	Sends a password reset email to users with authMethod=password
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		auth.AuthHandler.ForgotPassword.request	true	"Email"
+//	@Success		200		{object}	handler.GenericDataResponse[string]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/auth/forgot-password [post]
+func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
+	type request struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	var req request
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind forgot password request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Find user by email
+	var user relational.User
+	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Don't reveal if email exists or not for security
+			return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
+				Data: "If an account with this email exists, a password reset link has been sent.",
+			})
+		}
+		h.sugar.Errorw("Failed to find user", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Check if user uses password-based authentication
+	usesPasswordAuth := user.AuthMethod == "" || user.AuthMethod == "password"
+	if !usesPasswordAuth {
+		h.sugar.Warnw("Password reset attempted for non-password user", "email", req.Email, "authMethod", user.AuthMethod)
+		// Don't reveal if email exists or not for security
+		return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
+			Data: "If an account with this email exists, a password reset link has been sent.",
+		})
+	}
+
+	if h.emailService == nil || !h.emailService.IsEnabled() {
+		h.sugar.Warnw("Password reset attempted while email service is disabled")
+		return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
+			Data: "If an account with this email exists, a password reset link has been sent.",
+		})
+	}
+
+	// Send password reset email
+	resetToken, err := authn.GeneratePasswordResetToken(user.Email, h.config.JWTPrivateKey)
+	if err != nil {
+		h.sugar.Errorw("Failed to generate password reset token", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	resetURL := fmt.Sprintf("%s/auth/password-reset?token=%s", h.config.WebBaseURL, *resetToken)
+
+	// Use template service to render email content
+	htmlBody, textBody, err := h.emailService.UseTemplate("forgot-password", map[string]interface{}{
+		"FirstName": user.FirstName,
+		"ResetURL":  resetURL,
+	})
+	if err != nil {
+		h.sugar.Errorw("Failed to render email template", "error", err)
+		// Fallback to basic message if template fails
+		htmlBody = fmt.Sprintf(`<p>Hello %s,</p><p>Click <a href="%s">here</a> to reset your password.</p>`, user.FirstName, resetURL)
+		textBody = fmt.Sprintf("Hello %s,\nVisit %s to reset your password.", user.FirstName, resetURL)
+	}
+
+	message := &emailtypes.Message{
+		To:       []string{user.Email},
+		Subject:  "Password Reset Request",
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = h.emailService.Send(ctx.Request().Context(), message)
+	if err != nil {
+		h.sugar.Errorw("Failed to send password reset email", "error", err, "email", user.Email)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	h.sugar.Infow("Password reset email sent", "email", user.Email)
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
+		Data: "If an account with this email exists, a password reset link has been sent.",
+	})
+}
+
+// PasswordReset godoc
+//
+//	@Summary		Reset password
+//	@Description	Resets password using a valid JWT token
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		auth.AuthHandler.PasswordReset.request	true	"Reset data"
+//	@Success		200		{object}	handler.GenericDataResponse[string]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/auth/password-reset [post]
+func (h *AuthHandler) PasswordReset(ctx echo.Context) error {
+	type request struct {
+		Token    string `json:"token" validate:"required"`
+		Password string `json:"password" validate:"required,min=8"`
+	}
+
+	var req request
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind password reset request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify the password reset token
+	claims, err := authn.VerifyPasswordResetToken(req.Token, h.config.JWTPublicKey)
+	if err != nil {
+		h.sugar.Warnw("Invalid password reset token", "error", err)
+		return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("invalid or expired token")))
+	}
+
+	// Use email from token
+	email := claims.Email
+
+	// Find user by email
+	var user relational.User
+	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("user not found")))
+		}
+		h.sugar.Errorw("Failed to find user", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Check if user has password auth method
+	usesPasswordAuth := user.AuthMethod == "" || user.AuthMethod == "password"
+	if !usesPasswordAuth {
+		h.sugar.Warnw("Password reset attempted for non-password user", "email", email, "authMethod", user.AuthMethod)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("password reset not available for this account")))
+	}
+
+	// Update user password
+	if err := user.SetPassword(req.Password); err != nil {
+		h.sugar.Errorw("Failed to set new password", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Save user to database
+	if err := h.db.Save(&user).Error; err != nil {
+		h.sugar.Errorw("Failed to save user with new password", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	h.sugar.Infow("Password reset successful", "email", email)
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
+		Data: "Password has been reset successfully",
+	})
 }

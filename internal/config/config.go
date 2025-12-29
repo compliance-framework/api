@@ -30,7 +30,9 @@ type Config struct {
 	APIAllowedOrigins  []string
 	MetricsEnabled     bool
 	MetricsPort        string
+	WebBaseURL         string
 	SSO                *SSOConfig
+	Email              *EmailConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -119,6 +121,11 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	metricsEnabled := viper.GetBool("metrics_enabled")
 	metricsPort := viper.GetString("metrics_port")
 
+	webBaseURL := viper.GetString("web_base_url")
+	if webBaseURL == "" {
+		webBaseURL = "http://localhost:8000" // Default fallback
+	}
+
 	ssoConfigPath := viper.GetString("sso_config")
 	if ssoConfigPath == "" {
 		ssoConfigPath = "sso.yaml"
@@ -127,6 +134,16 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	if err != nil {
 		logger.Warnw("Failed to load OIDC config, OIDC will be disabled", "error", err, "path", ssoConfigPath)
 		ssoConfig = &SSOConfig{Enabled: false}
+	}
+
+	emailConfigPath := viper.GetString("email_config")
+	if emailConfigPath == "" {
+		emailConfigPath = "email.yaml"
+	}
+	emailConfig, err := LoadEmailConfig(emailConfigPath)
+	if err != nil {
+		logger.Warnw("Failed to load email config, email will be disabled", "error", err, "path", emailConfigPath)
+		emailConfig = &EmailConfig{Enabled: false}
 	}
 
 	return &Config{
@@ -141,7 +158,9 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		APIAllowedOrigins:  allowedOrigins,
 		MetricsEnabled:     metricsEnabled,
 		MetricsPort:        metricsPort,
+		WebBaseURL:         webBaseURL,
 		SSO:                ssoConfig,
+		Email:              emailConfig,
 	}
 
 }

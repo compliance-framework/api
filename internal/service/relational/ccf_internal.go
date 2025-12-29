@@ -25,9 +25,6 @@ type User struct {
 	IsLocked     bool       `json:"isLocked" gorm:"default:false"`
 	FailedLogins int        `json:"failedLogins" gorm:"default:0"`
 
-	ResetToken       *string    `json:"-"`
-	ResetTokenExpiry *time.Time `json:"-"`
-
 	AuthMethod     string `json:"authMethod"`
 	UserAttributes string `json:"userAttributes"`
 }

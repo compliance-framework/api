@@ -91,9 +91,10 @@ func addUser(cmd *cobra.Command, args []string) {
 	}
 
 	newUser := relational.User{
-		Email:     email,
-		FirstName: firstName,
-		LastName:  lastName,
+		Email:      email,
+		FirstName:  firstName,
+		LastName:   lastName,
+		AuthMethod: "password",
 	}
 
 	err = newUser.SetPassword(password)
