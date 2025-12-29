@@ -19,10 +19,10 @@ providers:
   #   name: "AWS SES"
   #   provider: "ses"
   #   enabled: false
-  #   host: "us-east-1"  # AWS region
+  #   host: "YOUR_AWS_REGION"  # AWS region, e.g., us-east-1
   #   port: 0
-  #   username: "AKIAIOSFODNN7EXAMPLE"  # AWS Access Key ID
-  #   password: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # AWS Secret Access Key
+  #   username: "YOUR_ACCESS_KEY_ID"  # AWS Access Key ID
+  #   password: "YOUR_SECRET_ACCESS_KEY"  # AWS Secret Access Key
   #   from: "noreply@yourdomain.com"
   #   from_name: "Compliance Framework"
   #   use_tls: false

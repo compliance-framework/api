@@ -236,8 +236,12 @@ func (p *smtpProvider) sendEmail(ctx context.Context, from string, to []string, 
 		auth = smtp.PlainAuth("", p.config.Username, p.config.Password, p.config.Host)
 	}
 
+	var (
+		client *smtp.Client
+		err    error
+	)
+
 	if p.config.UseSSL {
-		// Use SSL connection
 		tlsConfig := &tls.Config{
 			ServerName:         p.config.Host,
 			InsecureSkipVerify: false,
@@ -248,88 +252,63 @@ func (p *smtpProvider) sendEmail(ctx context.Context, from string, to []string, 
 			return fmt.Errorf("failed to create SSL connection: %w", err)
 		}
 
-		client, err := smtp.NewClient(conn, p.config.Host)
+		client, err = smtp.NewClient(conn, p.config.Host)
 		if err != nil {
 			return fmt.Errorf("failed to create SMTP client: %w", err)
 		}
-		defer func() {
-			if err := client.Quit(); err != nil {
-				p.logger.Errorw("Failed to quit SMTP client", "error", err)
-			}
-		}()
-
-		if auth != nil {
-			if err := client.Auth(auth); err != nil {
-				return fmt.Errorf("SMTP authentication failed: %w", err)
-			}
-		}
-
-		if err := client.Mail(from); err != nil {
-			return fmt.Errorf("failed to set sender: %w", err)
-		}
-
-		for _, recipient := range to {
-			if err := client.Rcpt(recipient); err != nil {
-				return fmt.Errorf("failed to add recipient %s: %w", recipient, err)
-			}
-		}
-
-		wc, err := client.Data()
-		if err != nil {
-			return fmt.Errorf("failed to send data: %w", err)
-		}
-		defer func() {
-			if err := wc.Close(); err != nil {
-				p.logger.Errorw("Failed to close write closer", "error", err)
-			}
-		}()
-
-		_, err = wc.Write([]byte(msg))
-		return err
 	} else {
-		// Use regular SMTP
+		client, err = smtp.Dial(address)
+		if err != nil {
+			return fmt.Errorf("failed to connect to SMTP server: %w", err)
+		}
+
 		if p.config.UseTLS {
-			return smtp.SendMail(address, auth, from, to, []byte(msg))
-		} else {
-			// For non-TLS connections, we need to handle it differently
-			client, err := smtp.Dial(address)
-			if err != nil {
-				return fmt.Errorf("failed to connect to SMTP server: %w", err)
+			tlsConfig := &tls.Config{
+				ServerName:         p.config.Host,
+				InsecureSkipVerify: false,
 			}
-			defer func() {
-				if err := client.Quit(); err != nil {
-					p.logger.Errorw("Failed to quit SMTP client", "error", err)
-				}
-			}()
-
-			if auth != nil {
-				if err := client.Auth(auth); err != nil {
-					return fmt.Errorf("SMTP authentication failed: %w", err)
-				}
+			if err := client.StartTLS(tlsConfig); err != nil {
+				return fmt.Errorf("failed to start TLS: %w", err)
 			}
-
-			if err := client.Mail(from); err != nil {
-				return fmt.Errorf("failed to set sender: %w", err)
-			}
-
-			for _, recipient := range to {
-				if err := client.Rcpt(recipient); err != nil {
-					return fmt.Errorf("failed to add recipient %s: %w", recipient, err)
-				}
-			}
-
-			wc, err := client.Data()
-			if err != nil {
-				return fmt.Errorf("failed to send data: %w", err)
-			}
-			defer func() {
-				if err := wc.Close(); err != nil {
-					p.logger.Errorw("Failed to close write closer", "error", err)
-				}
-			}()
-
-			_, err = wc.Write([]byte(msg))
-			return err
 		}
 	}
+
+	defer func() {
+		if err := client.Quit(); err != nil {
+			p.logger.Errorw("Failed to quit SMTP client", "error", err)
+		}
+	}()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP authentication failed: %w", err)
+		}
+	}
+
+	return p.writeMessage(client, from, to, msg)
+}
+
+func (p *smtpProvider) writeMessage(client *smtp.Client, from string, to []string, msg string) error {
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("failed to set sender: %w", err)
+	}
+
+	for _, recipient := range to {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("failed to add recipient %s: %w", recipient, err)
+		}
+	}
+
+	wc, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to send data: %w", err)
+	}
+	defer func() {
+		if err := wc.Close(); err != nil {
+			p.logger.Errorw("Failed to close write closer", "error", err)
+		}
+	}()
+
+	_, err = wc.Write([]byte(msg))
+	return err
 }

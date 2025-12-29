@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -50,10 +51,11 @@ func NewService(cfg *config.EmailConfig, logger *zap.SugaredLogger) (*Service, e
 // Send sends an email using the default provider
 func (s *Service) Send(ctx context.Context, message *types.Message) (*types.SendResult, error) {
 	if s.provider == nil {
+		err := errors.New("email service is not enabled or no provider configured")
 		return &types.SendResult{
 			Success: false,
-			Error:   "email service is not enabled or no provider configured",
-		}, nil
+			Error:   err.Error(),
+		}, err
 	}
 
 	return s.provider.Send(ctx, message)
@@ -62,10 +64,11 @@ func (s *Service) Send(ctx context.Context, message *types.Message) (*types.Send
 // SendTemplate sends an email using a template
 func (s *Service) SendTemplate(ctx context.Context, template string, data interface{}, message *types.Message) (*types.SendResult, error) {
 	if s.provider == nil {
+		err := errors.New("email service is not enabled or no provider configured")
 		return &types.SendResult{
 			Success: false,
-			Error:   "email service is not enabled or no provider configured",
-		}, nil
+			Error:   err.Error(),
+		}, err
 	}
 
 	return s.provider.SendTemplate(ctx, template, data, message)
@@ -74,10 +77,11 @@ func (s *Service) SendTemplate(ctx context.Context, template string, data interf
 // SendWithProvider sends an email using a specific provider
 func (s *Service) SendWithProvider(ctx context.Context, providerName string, message *types.Message) (*types.SendResult, error) {
 	if s.config == nil || !s.config.Enabled {
+		err := errors.New("email service is not enabled")
 		return &types.SendResult{
 			Success: false,
-			Error:   "email service is not enabled",
-		}, nil
+			Error:   err.Error(),
+		}, err
 	}
 
 	provider, err := CreateProviderByName(s.config, providerName, s.logger)

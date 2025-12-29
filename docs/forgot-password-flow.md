@@ -111,7 +111,6 @@ providers:
 - Validates JWT token signature and expiry
 - Uses email encoded in JWT token (no email field in request)
 - Updates user password with bcrypt hashing
-- Clears any existing reset tokens
 - Requires minimum 8 character password
 
 ## Email Templates
@@ -156,8 +155,8 @@ Your frontend should:
 2. Call `POST /auth/forgot-password`
 3. Show success message regardless of result
 4. When user clicks email link, extract token from URL query parameter
-5. Show password reset form with token and email fields
-6. Call `POST /auth/password-reset` with new password
+5. Show password reset form with the token pre-filled (no email input needed)
+6. Call `POST /auth/password-reset` with the token and new password
 7. Redirect to login on success
 
 ### Example URL Format

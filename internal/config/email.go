@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -14,6 +15,7 @@ type EmailProviderConfig struct {
 	Enabled  bool   `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
 
 	// SMTP Configuration
+	// For SES providers, Host stores the AWS region and Username/Password store the AWS access/secret keys.
 	Host     string `yaml:"host" json:"host" mapstructure:"host"`
 	Port     int    `yaml:"port" json:"port" mapstructure:"port"`
 	Username string `yaml:"username" json:"username" mapstructure:"username"`
@@ -123,8 +125,19 @@ func (c *EmailConfig) GetDefaultProvider() *EmailProviderConfig {
 		}
 	}
 
-	// Otherwise, return the first enabled provider
-	for _, p := range c.Providers {
+	// Otherwise, return the first enabled provider in deterministic order
+	if len(c.Providers) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(c.Providers))
+	for name := range c.Providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		p := c.Providers[name]
 		if p.Enabled {
 			return &p
 		}

@@ -144,12 +144,12 @@ func (p *sesProvider) Close() error {
 }
 
 func (p *sesProvider) buildEmailContent(message *emailtypes.Message) *types.EmailContent {
-	var subject types.Content
-	subject.Data = aws.String(message.Subject)
-	if message.HTMLBody != "" && message.TextBody != "" {
-		// Multipart message
-		subject.Charset = aws.String("UTF-8")
+	subject := types.Content{
+		Data:    aws.String(message.Subject),
+		Charset: aws.String("UTF-8"),
+	}
 
+	if message.HTMLBody != "" && message.TextBody != "" {
 		var htmlBody types.Content
 		htmlBody.Data = aws.String(message.HTMLBody)
 		htmlBody.Charset = aws.String("UTF-8")
@@ -170,8 +170,6 @@ func (p *sesProvider) buildEmailContent(message *emailtypes.Message) *types.Emai
 		}
 	} else if message.HTMLBody != "" {
 		// HTML only
-		subject.Charset = aws.String("UTF-8")
-
 		var htmlBody types.Content
 		htmlBody.Data = aws.String(message.HTMLBody)
 		htmlBody.Charset = aws.String("UTF-8")
@@ -187,8 +185,6 @@ func (p *sesProvider) buildEmailContent(message *emailtypes.Message) *types.Emai
 		}
 	} else {
 		// Text only
-		subject.Charset = aws.String("UTF-8")
-
 		var textBody types.Content
 		textBody.Data = aws.String(message.TextBody)
 		textBody.Charset = aws.String("UTF-8")

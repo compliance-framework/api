@@ -306,7 +306,6 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Check if user has password auth method
 	// Check if user uses password-based authentication
 	usesPasswordAuth := user.AuthMethod == "" || user.AuthMethod == "password"
 	if !usesPasswordAuth {
@@ -317,48 +316,48 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 		})
 	}
 
-	// Generate password reset token
+	if h.emailService == nil || !h.emailService.IsEnabled() {
+		h.sugar.Warnw("Password reset attempted while email service is disabled")
+		return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
+			Data: "If an account with this email exists, a password reset link has been sent.",
+		})
+	}
+
+	// Send password reset email
 	resetToken, err := authn.GeneratePasswordResetToken(user.Email, h.config.JWTPrivateKey)
 	if err != nil {
 		h.sugar.Errorw("Failed to generate password reset token", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Send password reset email if email service is enabled
-	if h.emailService != nil && h.emailService.IsEnabled() {
-		resetURL := fmt.Sprintf("%s/auth/password-reset?token=%s", h.config.WebBaseURL, *resetToken)
+	resetURL := fmt.Sprintf("%s/auth/password-reset?token=%s", h.config.WebBaseURL, *resetToken)
 
-		// Use template service to render email content
-		htmlBody, textBody, err := h.emailService.UseTemplate("forgot-password", map[string]interface{}{
-			"FirstName": user.FirstName,
-			"ResetURL":  resetURL,
-		})
-		if err != nil {
-			h.sugar.Errorw("Failed to render email template", "error", err)
-			// Fallback to basic message if template fails
-			htmlBody = fmt.Sprintf(`<p>Hello %s,</p><p>Click <a href="%s">here</a> to reset your password.</p>`, user.FirstName, resetURL)
-			textBody = fmt.Sprintf("Hello %s,\nVisit %s to reset your password.", user.FirstName, resetURL)
-		}
-
-		message := &emailtypes.Message{
-			To:       []string{user.Email},
-			Subject:  "Password Reset Request",
-			HTMLBody: htmlBody,
-			TextBody: textBody,
-		}
-
-		_, err = h.emailService.Send(ctx.Request().Context(), message)
-		if err != nil {
-			h.sugar.Errorw("Failed to send password reset email", "error", err, "email", user.Email)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
-
-		h.sugar.Infow("Password reset email sent", "email", user.Email)
-	} else {
-		// Log that email service is not available
-		h.sugar.Warnw("Email service not available, password reset token generated but not sent",
-			"email", user.Email)
+	// Use template service to render email content
+	htmlBody, textBody, err := h.emailService.UseTemplate("forgot-password", map[string]interface{}{
+		"FirstName": user.FirstName,
+		"ResetURL":  resetURL,
+	})
+	if err != nil {
+		h.sugar.Errorw("Failed to render email template", "error", err)
+		// Fallback to basic message if template fails
+		htmlBody = fmt.Sprintf(`<p>Hello %s,</p><p>Click <a href="%s">here</a> to reset your password.</p>`, user.FirstName, resetURL)
+		textBody = fmt.Sprintf("Hello %s,\nVisit %s to reset your password.", user.FirstName, resetURL)
 	}
+
+	message := &emailtypes.Message{
+		To:       []string{user.Email},
+		Subject:  "Password Reset Request",
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+
+	_, err = h.emailService.Send(ctx.Request().Context(), message)
+	if err != nil {
+		h.sugar.Errorw("Failed to send password reset email", "error", err, "email", user.Email)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	h.sugar.Infow("Password reset email sent", "email", user.Email)
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
 		Data: "If an account with this email exists, a password reset link has been sent.",
@@ -422,10 +421,6 @@ func (h *AuthHandler) PasswordReset(ctx echo.Context) error {
 		h.sugar.Errorw("Failed to set new password", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-
-	// Clear any existing reset tokens
-	user.ResetToken = nil
-	user.ResetTokenExpiry = nil
 
 	// Save user to database
 	if err := h.db.Save(&user).Error; err != nil {
