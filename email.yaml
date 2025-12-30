@@ -21,6 +21,7 @@ providers:
     region: "us-east-1"
     access_key_id: "your-access-key"
     secret_access_key: "your-secret-key"
+    session_token: "your-session-token"
     from: "noreply@compliance-framework.local"
     from_name: "Compliance Framework"
 

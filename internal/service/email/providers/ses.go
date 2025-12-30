@@ -227,7 +227,7 @@ func createAWSConfig(ctx context.Context, cfg *config.SESConfig) (aws.Config, er
 
 	// Override credentials if provided
 	if cfg.AccessKeyID != "" && cfg.SecretAccessKey != "" {
-		cfgAWS.Credentials = credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
+		cfgAWS.Credentials = credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken)
 	}
 
 	return cfgAWS, nil
