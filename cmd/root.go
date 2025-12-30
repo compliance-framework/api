@@ -44,6 +44,8 @@ func configEnvKeys() {
 	failIfError(viper.BindEnv("jwt_private_key"))
 	failIfError(viper.BindEnv("jwt_public_key"))
 	failIfError(viper.BindEnv("api_allowed_origins"))
+	failIfError(viper.BindEnv("sso_config"))
+	failIfError(viper.BindEnv("email_config"))
 	failIfError(viper.BindEnv("metrics_enabled"))
 	failIfError(viper.BindEnv("metrics_port"))
 }
