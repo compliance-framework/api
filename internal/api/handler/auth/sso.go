@@ -217,13 +217,12 @@ func (h *SSOHandler) Callback(ctx echo.Context) error {
 	authCookie.Expires = time.Now().Add(time.Hour * 24)
 	authCookie.HttpOnly = true
 	authCookie.Path = "/"
+	authCookie.SameSite = http.SameSiteStrictMode
 
 	if isDevelopmentEnvironment(h.config.Environment) {
 		authCookie.Secure = false
-		authCookie.SameSite = http.SameSiteLaxMode
 	} else {
 		authCookie.Secure = true
-		authCookie.SameSite = http.SameSiteLaxMode
 	}
 
 	ctx.SetCookie(authCookie)
