@@ -81,6 +81,18 @@ func (p *sesProvider) Send(ctx context.Context, message *emailtypes.Message) (*e
 		return nil, fmt.Errorf("no from address specified")
 	}
 
+	// Set default from name if not provided
+	fromName := message.FromName
+	if fromName == "" {
+		fromName = p.config.FromName
+	}
+
+	// Format From address if name is provided
+	fromAddress := from
+	if fromName != "" {
+		fromAddress = fmt.Sprintf("%s <%s>", fromName, from)
+	}
+
 	// Validate recipients
 	if len(message.To) == 0 {
 		return nil, fmt.Errorf("no recipients specified")
@@ -88,7 +100,7 @@ func (p *sesProvider) Send(ctx context.Context, message *emailtypes.Message) (*e
 
 	// Build SES input
 	input := &sesv2.SendEmailInput{
-		FromEmailAddress: aws.String(from),
+		FromEmailAddress: aws.String(fromAddress),
 		Destination: &types.Destination{
 			ToAddresses: message.To,
 		},
@@ -108,7 +120,7 @@ func (p *sesProvider) Send(ctx context.Context, message *emailtypes.Message) (*e
 	// Send email
 	result, err := p.client.SendEmail(ctx, input)
 	if err != nil {
-		p.logger.Errorw("Failed to send email via SES", "error", err, "to", message.To)
+		p.logger.Errorw("Failed to send email via SES", "error", err, "from", fromAddress, "to", message.To)
 		return &emailtypes.SendResult{
 			Success: false,
 			Error:   err.Error(),
