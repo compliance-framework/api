@@ -46,6 +46,7 @@ type SESConfig struct {
 	Region          string `yaml:"region" json:"region" mapstructure:"region"`
 	AccessKeyID     string `yaml:"access_key_id" json:"accessKeyId" mapstructure:"access_key_id"`
 	SecretAccessKey string `yaml:"secret_access_key" json:"secretAccessKey" mapstructure:"secret_access_key"`
+	SessionToken    string `yaml:"session_token" json:"sessionToken" mapstructure:"session_token"`
 	From            string `yaml:"from" json:"from" mapstructure:"from"`
 	FromName        string `yaml:"from_name" json:"fromName" mapstructure:"from_name"`
 }
