@@ -1739,20 +1739,62 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	}
 
 	var ssp relational.SystemSecurityPlan
-	if err := h.db.First(&ssp, "id = ?", sspID).Error; err != nil {
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 	}
 
-	// Ensure the profile exists
-	var profile relational.Profile
-	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
+	// Load the profile with all required preloads for control resolution
+	profile, err := FindFullProfile(h.db, profileID)
+	if err != nil || profile.ID == nil {
 		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
 	}
 
-	ssp.Profile = &profile
+	ssp.Profile = profile
 	if err := h.db.Save(&ssp).Error; err != nil {
 		h.sugar.Errorf("Failed to attach profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Ensure ControlImplementation exists for the SSP
+	if ssp.ControlImplementation.ID == nil {
+		newID := uuid.New()
+		ssp.ControlImplementation = relational.ControlImplementation{
+			UUIDModel:            relational.UUIDModel{ID: &newID},
+			Description:          "Control implementation",
+			SystemSecurityPlanId: *ssp.ID,
+		}
+		if err := h.db.Create(&ssp.ControlImplementation).Error; err != nil {
+			h.sugar.Errorf("Failed to create ControlImplementation: %v", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	// Extract control IDs from the profile and create ImplementedRequirements
+	h.sugar.Infow("Starting control ID extraction", "sspId", ssp.ID, "profileId", profile.ID)
+	controlIDs, err := h.extractControlIDsFromProfile(profile)
+	if err != nil {
+		h.sugar.Warnw("Failed to extract control IDs from profile", "error", err)
+		// Continue without creating implementations - the profile is still attached
+	} else {
+		for _, controlID := range controlIDs {
+			// Check if an ImplementedRequirement already exists for this control
+			var existing relational.ImplementedRequirement
+			err := h.db.Where("control_implementation_id = ? AND control_id = ?",
+				ssp.ControlImplementation.ID, controlID).First(&existing).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Create new ImplementedRequirement
+				newUUID := uuid.New()
+				req := &relational.ImplementedRequirement{
+					UUIDModel:               relational.UUIDModel{ID: &newUUID},
+					ControlImplementationId: *ssp.ControlImplementation.ID,
+					ControlId:               controlID,
+				}
+				if err := h.db.Create(req).Error; err != nil {
+					h.sugar.Warnw("Failed to create ImplementedRequirement", "controlId", controlID, "error", err)
+					// Continue with other controls
+				}
+			}
+		}
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: *ssp.MarshalOscal()})
@@ -3779,4 +3821,50 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 
 	// Step 7: Return updated
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()})
+}
+
+// collectControlIDs recursively extracts control IDs from a list of controls
+func collectControlIDs(controls []relational.Control, ids *[]string) {
+	for _, ctrl := range controls {
+		*ids = append(*ids, ctrl.ID)
+		if len(ctrl.Controls) > 0 {
+			collectControlIDs(ctrl.Controls, ids)
+		}
+	}
+}
+
+// collectControlIDsFromGroups recursively extracts control IDs from groups
+func collectControlIDsFromGroups(groups []relational.Group, ids *[]string) {
+	for _, group := range groups {
+		collectControlIDs(group.Controls, ids)
+		if len(group.Groups) > 0 {
+			collectControlIDsFromGroups(group.Groups, ids)
+		}
+	}
+}
+
+// extractControlIDsFromProfile resolves a profile and extracts all control IDs
+func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relational.Profile) (controlIDs []string, err error) {
+	// Recover from panics in BuildControlCatalogForProfile
+	defer func() {
+		if r := recover(); r != nil {
+			h.sugar.Errorw("Panic in extractControlIDsFromProfile", "panic", r)
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
+	catalogId := uuid.New()
+	h.sugar.Infow("Extracting control IDs from profile", "profileId", profile.ID, "importsCount", len(profile.Imports))
+
+	catalog, err := BuildControlCatalogForProfile(profile, h.db, catalogId)
+	if err != nil {
+		h.sugar.Errorw("Failed to build control catalog from profile", "error", err)
+		return nil, err
+	}
+
+	collectControlIDs(catalog.Controls, &controlIDs)
+	collectControlIDsFromGroups(catalog.Groups, &controlIDs)
+
+	h.sugar.Infow("Extracted control IDs from profile", "count", len(controlIDs))
+	return controlIDs, nil
 }
