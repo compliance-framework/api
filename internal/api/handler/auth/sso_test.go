@@ -150,7 +150,7 @@ func TestSSOHandlerInitiateLogin_SetsStateCookie(t *testing.T) {
 	require.NotNil(t, stateCookie)
 	require.Equal(t, "state123", stateCookie.Value)
 	require.True(t, stateCookie.Secure)
-	require.Equal(t, http.SameSiteStrictMode, stateCookie.SameSite)
+	require.Equal(t, http.SameSiteLaxMode, stateCookie.SameSite)
 }
 
 func TestSSOHandlerCallback_NewUserCreated(t *testing.T) {
