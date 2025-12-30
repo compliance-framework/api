@@ -19,6 +19,14 @@ providers:
     name: "AWS SES"
     enabled: false
     region: "us-east-1"
+    ### Programmatic key support
+    ## these can be added as enviornment variables 
+    #( CCF_EMAIL_PROVIDERS_SES_ACCESS_KEY_ID, 
+    # CCF_EMAIL_PROVIDERS_SES_SECRET_ACCESS_KEY, 
+    # CCF_EMAIL_PROVIDERS_SES_SESSION_TOKEN)
+    ## Alternatively, if you are using any sort of Workload Identity (Pod Identity, IRSA)
+    ## the API will default to use those credentials instead
+    ## In that case, leave these empty
     access_key_id: "your-access-key"
     secret_access_key: "your-secret-key"
     session_token: "your-session-token"
