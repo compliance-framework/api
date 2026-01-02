@@ -19,6 +19,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -2594,4 +2595,173 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestDeleteAuthorizationBound
 	resp = httptest.NewRecorder()
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusNotFound, resp.Code)
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestAttachProfile() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// 1. Setup data: Catalog -> Controls -> Profile
+	catalog := &relational.Catalog{
+		Metadata: relational.Metadata{Title: "Test Catalog"},
+	}
+	suite.Require().NoError(suite.DB.Create(catalog).Error)
+
+	control1 := relational.Control{
+		ID:        "ac-1",
+		CatalogID: *catalog.UUIDModel.ID,
+		Title:     "Access Control 1",
+	}
+	control2 := relational.Control{
+		ID:        "ac-2",
+		CatalogID: *catalog.UUIDModel.ID,
+		Title:     "Access Control 2",
+	}
+	suite.Require().NoError(suite.DB.Create(&control1).Error)
+	suite.Require().NoError(suite.DB.Create(&control2).Error)
+
+	profile := &relational.Profile{
+		Metadata: relational.Metadata{Title: "Test Profile"},
+		Controls: []relational.Control{control1, control2},
+	}
+	suite.Require().NoError(suite.DB.Create(profile).Error)
+
+	// 2. Create SSP
+	sspData := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", sspData)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var sspResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &sspResponse))
+	sspID := sspResponse.Data.UUID
+
+	// 3. Attach Profile to SSP
+	attachInput := struct {
+		ProfileID string `json:"profileId"`
+	}{
+		ProfileID: profile.UUIDModel.ID.String(),
+	}
+
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/profile", sspID), attachInput)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+
+	suite.Equal(http.StatusOK, resp.Code)
+
+	// 4. Verify ImplementedRequirements were automatically created for the profile controls
+	// Note: createBasicSSP already creates ac-1, so only ac-2 should be newly created.
+	// Total requirements should be 2: ac-1 and ac-2.
+	var sspReloaded relational.SystemSecurityPlan
+	err = suite.DB.Preload("ControlImplementation.ImplementedRequirements").First(&sspReloaded, "id = ?", sspID).Error
+	suite.Require().NoError(err)
+
+	suite.Require().NotNil(sspReloaded.ControlImplementation.ID)
+	suite.Require().Len(sspReloaded.ControlImplementation.ImplementedRequirements, 2)
+
+	foundAC1, foundAC2 := false, false
+	for _, req := range sspReloaded.ControlImplementation.ImplementedRequirements {
+		if req.ControlId == "ac-1" {
+			foundAC1 = true
+		}
+		if req.ControlId == "ac-2" {
+			foundAC2 = true
+		}
+	}
+	suite.True(foundAC1, "ac-1 requirement should be present")
+	suite.True(foundAC2, "ac-2 requirement should be created")
+}
+
+func (suite *SystemSecurityPlanApiIntegrationSuite) TestGetImplementedRequirementsFiltering() {
+	logConf := zap.NewDevelopmentConfig()
+	logConf.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	logger, _ := logConf.Build()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// 1. Setup data: Catalog -> Controls -> Two Profiles
+	catalog := &relational.Catalog{
+		Metadata: relational.Metadata{Title: "Test Catalog"},
+	}
+	suite.Require().NoError(suite.DB.Create(catalog).Error)
+
+	control1 := relational.Control{ID: "C1", CatalogID: *catalog.UUIDModel.ID, Title: "C1"}
+	control2 := relational.Control{ID: "C2", CatalogID: *catalog.UUIDModel.ID, Title: "C2"}
+	control3 := relational.Control{ID: "C3", CatalogID: *catalog.UUIDModel.ID, Title: "C3"}
+	suite.Require().NoError(suite.DB.Create(&control1).Error)
+	suite.Require().NoError(suite.DB.Create(&control2).Error)
+	suite.Require().NoError(suite.DB.Create(&control3).Error)
+
+	profileA := &relational.Profile{
+		Metadata: relational.Metadata{Title: "Profile A"},
+		Controls: []relational.Control{control1, control2},
+	}
+	profileB := &relational.Profile{
+		Metadata: relational.Metadata{Title: "Profile B"},
+		Controls: []relational.Control{control3},
+	}
+	suite.Require().NoError(suite.DB.Create(profileA).Error)
+	suite.Require().NoError(suite.DB.Create(profileB).Error)
+
+	// 2. Create SSP and attach Profile A
+	sspData := suite.createBasicSSP()
+	req := suite.createRequest("POST", "/api/oscal/system-security-plans", sspData)
+	resp := httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusCreated, resp.Code)
+
+	var sspResponse handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &sspResponse))
+	sspID := sspResponse.Data.UUID
+
+	// Attach Profile A
+	attachInput := struct {
+		ProfileID string `json:"profileId"`
+	}{ProfileID: profileA.UUIDModel.ID.String()}
+	req = suite.createRequest("PUT", fmt.Sprintf("/api/oscal/system-security-plans/%s/profile", sspID), attachInput)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	// 3. Manually create an ImplementedRequirement for C3 (which is NOT in Profile A)
+	var ssp relational.SystemSecurityPlan
+	suite.Require().NoError(suite.DB.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error)
+
+	c3ReqID := uuid.New()
+	c3Req := relational.ImplementedRequirement{
+		UUIDModel:               relational.UUIDModel{ID: &c3ReqID},
+		ControlImplementationId: *ssp.ControlImplementation.ID,
+		ControlId:               "C3",
+	}
+	suite.Require().NoError(suite.DB.Create(&c3Req).Error)
+
+	// 4. Get ImplementedRequirements and verify filtering
+	// Since Profile A is attached, we should only see requirements for C1 and C2, NOT C3.
+	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements", sspID), nil)
+	resp = httptest.NewRecorder()
+	server.E().ServeHTTP(resp, req)
+	suite.Equal(http.StatusOK, resp.Code)
+
+	var requirementsResponse handler.GenericDataListResponse[oscalTypes_1_1_3.ImplementedRequirement]
+	suite.Require().NoError(json.Unmarshal(resp.Body.Bytes(), &requirementsResponse))
+
+	// Should have C1, C2 from AttachProfile, but C3 should be filtered out because it's not in Profile A
+	suite.Require().Len(requirementsResponse.Data, 2)
+	for _, req := range requirementsResponse.Data {
+		suite.NotEqual("C3", req.ControlId, "C3 should have been filtered out")
+	}
 }

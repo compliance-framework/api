@@ -8,8 +8,10 @@ import (
 	"os"
 	"path"
 
+	"github.com/compliance-framework/api/internal/api/handler/oscal"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -193,6 +195,14 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		if out.Error != nil {
 			panic(out.Error)
 		}
+
+		// Sync ProfileControl pivot table synchronously so errors can be reported
+		_, err := oscal.SyncProfileControls(db, uuid.MustParse(input.Profile.UUID))
+		if err != nil {
+			sugar.Errorw("Failed to sync profile controls", "error", err)
+			return err
+		}
+
 		sugar.Infow("Successfully Created Profile", "title", def.Metadata.Title, "file", f.Name())
 		return nil
 	}

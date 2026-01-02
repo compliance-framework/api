@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
@@ -21,8 +22,9 @@ import (
 )
 
 type SystemSecurityPlanHandler struct {
-	sugar *zap.SugaredLogger
-	db    *gorm.DB
+	sugar        *zap.SugaredLogger
+	db           *gorm.DB
+	profileCache sync.Map // map[uuid.UUID][]string
 }
 
 func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *SystemSecurityPlanHandler {
@@ -30,6 +32,50 @@ func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *System
 		sugar: sugar,
 		db:    db,
 	}
+}
+
+// getControlIDsForProfile returns all control IDs for a given profile, using an optimized multi-step resolution path:
+// 1. In-memory cache
+// 2. ProfileControl pivot table in the database
+// 3. Fallback to full recursive resolution (and updates the cache/pivot table)
+func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID) ([]string, error) {
+	// 1. Check in-memory cache first
+	if val, ok := h.profileCache.Load(profileID); ok {
+		if cachedControlIDs, ok := val.([]string); ok {
+			return cachedControlIDs, nil
+		}
+		h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", profileID, "actualType", fmt.Sprintf("%T", val))
+		h.profileCache.Delete(profileID)
+	}
+
+	// 2. Check the ProfileControl pivot table in DB
+	var controlIDs []string
+	if err := h.db.Table("profile_controls").
+		Distinct("control_id").
+		Where("profile_id = ?", profileID).
+		Pluck("control_id", &controlIDs).Error; err != nil {
+		h.sugar.Warnw("Failed to fetch control IDs from pivot table", "profileId", profileID, "error", err)
+	}
+
+	// 3. Fallback to full resolution if pivot table is empty or failed
+	if len(controlIDs) == 0 {
+		profile, err := FindFullProfile(h.db, profileID)
+		if err != nil {
+			return nil, err
+		}
+		if profile.ID == nil {
+			return nil, errors.New("profile ID is nil")
+		}
+		controlIDs, err = h.extractControlIDsFromProfile(profile)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Update cache if we found them in the pivot table
+		h.profileCache.Store(profileID, controlIDs)
+	}
+
+	return controlIDs, nil
 }
 
 // validateSSPInput validates SSP input following OSCAL requirements
@@ -1363,26 +1409,49 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 	var ssp relational.SystemSecurityPlan
 	if err := h.db.
 		Preload("ControlImplementation").
-		Preload("ControlImplementation.ImplementedRequirements").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Provided").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Export.Responsibilities").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Inherited").
-		Preload("ControlImplementation.ImplementedRequirements.ByComponents.Satisfied").
-		Preload("ControlImplementation.ImplementedRequirements.Statements").
-		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents").
-		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export").
-		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Provided").
-		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Export.Responsibilities").
-		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Inherited").
-		Preload("ControlImplementation.ImplementedRequirements.Statements.ByComponents.Satisfied").
 		First(&ssp, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
 		h.sugar.Warnw("Failed to load system security plan", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Determine if we need to filter by profile
+	var controlIDs []string
+	if ssp.ProfileID != nil {
+		var err error
+		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
+		if err != nil {
+			h.sugar.Warnw("Failed to resolve profile controls", "profileID", ssp.ProfileID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	query := h.db.Model(&ssp.ControlImplementation).
+		Preload("ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
+			if len(controlIDs) > 0 {
+				return db.Where("control_id IN ?", controlIDs)
+			}
+			return db
+		}).
+		Preload("ImplementedRequirements.ByComponents").
+		Preload("ImplementedRequirements.ByComponents.Export").
+		Preload("ImplementedRequirements.ByComponents.Export.Provided").
+		Preload("ImplementedRequirements.ByComponents.Export.Responsibilities").
+		Preload("ImplementedRequirements.ByComponents.Inherited").
+		Preload("ImplementedRequirements.ByComponents.Satisfied").
+		Preload("ImplementedRequirements.Statements").
+		Preload("ImplementedRequirements.Statements.ByComponents").
+		Preload("ImplementedRequirements.Statements.ByComponents.Export").
+		Preload("ImplementedRequirements.Statements.ByComponents.Export.Provided").
+		Preload("ImplementedRequirements.Statements.ByComponents.Export.Responsibilities").
+		Preload("ImplementedRequirements.Statements.ByComponents.Inherited").
+		Preload("ImplementedRequirements.Statements.ByComponents.Satisfied")
+
+	if err := query.First(&ssp.ControlImplementation).Error; err != nil {
+		h.sugar.Warnw("Failed to load control implementation", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ControlImplementation]{Data: ssp.MarshalOscal().ControlImplementation})
@@ -1397,6 +1466,29 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 	}
 
 	var ssp relational.SystemSecurityPlan
+	if err := h.db.
+		First(&ssp, "id = ?", id.String()).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load ssp", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Determine if we need to filter by profile
+	var controlIDs []string
+	if ssp.ProfileID != nil {
+		var err error
+		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
+		if err != nil {
+			h.sugar.Warnw(
+				"Failed to get control IDs for profile; returning unfiltered control implementation",
+				"profile_id", *ssp.ProfileID,
+				"error", err,
+			)
+		}
+	}
+
 	if err := h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
@@ -1413,7 +1505,12 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 		Preload("BackMatter").
 		Preload("BackMatter.Resources").
 		Preload("ControlImplementation").
-		Preload("ControlImplementation.ImplementedRequirements").
+		Preload("ControlImplementation.ImplementedRequirements", func(db *gorm.DB) *gorm.DB {
+			if len(controlIDs) > 0 {
+				return db.Where("control_id IN ?", controlIDs)
+			}
+			return db
+		}).
 		Preload("ControlImplementation.ImplementedRequirements.ResponsibleRoles").
 		Preload("ControlImplementation.ImplementedRequirements.ResponsibleRoles.Parties").
 		Preload("ControlImplementation.ImplementedRequirements.ByComponents").
@@ -1739,20 +1836,93 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	}
 
 	var ssp relational.SystemSecurityPlan
-	if err := h.db.First(&ssp, "id = ?", sspID).Error; err != nil {
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", sspID).Error; err != nil {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 	}
 
-	// Ensure the profile exists
+	// Load the profile basic info
 	var profile relational.Profile
 	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
 		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("profile not found")))
 	}
 
-	ssp.Profile = &profile
-	if err := h.db.Save(&ssp).Error; err != nil {
+	// Use the optimized resolution path
+	controlIDs, err := h.getControlIDsForProfile(profileID)
+	if err != nil {
+		h.sugar.Warnw("Failed to resolve control IDs for profile", "profileId", profileID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("failed to resolve control IDs for profile: %w", err)))
+	}
+
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		ssp.Profile = &profile
+		if err := tx.Save(&ssp).Error; err != nil {
+			return err
+		}
+
+		// Ensure ControlImplementation exists for the SSP
+		if ssp.ControlImplementation.ID == nil {
+			newID := uuid.New()
+			ssp.ControlImplementation = relational.ControlImplementation{
+				UUIDModel:            relational.UUIDModel{ID: &newID},
+				Description:          "Control implementation",
+				SystemSecurityPlanId: *ssp.ID,
+			}
+			if err := tx.Create(&ssp.ControlImplementation).Error; err != nil {
+				return err
+			}
+		}
+
+		// If no controls were resolved for the attached profile, treat this as a failure
+		// and roll back the SSP update to avoid an inconsistent state.
+		if len(controlIDs) == 0 {
+			return errors.New("no controls were resolved from the selected profile; rolling back SSP update")
+		}
+
+		if len(controlIDs) > 0 {
+			// Bulk operations for ImplementedRequirements
+			var existingControlIDs []string
+			if err := tx.Model(&relational.ImplementedRequirement{}).
+				Where("control_implementation_id = ?", ssp.ControlImplementation.ID).
+				Pluck("control_id", &existingControlIDs).Error; err != nil {
+				return err
+			}
+
+			existingMap := make(map[string]bool)
+			for _, id := range existingControlIDs {
+				existingMap[id] = true
+			}
+
+			var newReqs []relational.ImplementedRequirement
+			for _, controlID := range controlIDs {
+				if !existingMap[controlID] {
+					newUUID := uuid.New()
+					newReqs = append(newReqs, relational.ImplementedRequirement{
+						UUIDModel:               relational.UUIDModel{ID: &newUUID},
+						ControlImplementationId: *ssp.ControlImplementation.ID,
+						ControlId:               controlID,
+					})
+				}
+			}
+
+			if len(newReqs) > 0 {
+				if err := tx.Create(&newReqs).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		h.sugar.Errorf("Failed to attach profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Reload SSP to ensure the memory state matches the database (including newly created requirements)
+	if err := h.db.Preload("ControlImplementation.ImplementedRequirements").First(&ssp, "id = ?", ssp.ID).Error; err != nil {
+		h.sugar.Errorw("Failed to reload SSP after profile attachment", "id", ssp.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("failed to reload system security plan after profile attachment")))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: *ssp.MarshalOscal()})
@@ -2747,7 +2917,7 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 	}
 
 	var ssp relational.SystemSecurityPlan
-	if err := h.db.First(&ssp, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("ControlImplementation").First(&ssp, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -2755,8 +2925,24 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	// Determine if we need to filter by profile
+	var controlIDs []string
+	if ssp.ProfileID != nil {
+		var err error
+		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
+		if err != nil {
+			h.sugar.Errorw("failed to resolve control IDs for profile", "profileID", *ssp.ProfileID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
 	var implementedRequirements []relational.ImplementedRequirement
-	if err := h.db.Where("control_implementation_id = ?", ssp.ControlImplementation.ID).Find(&implementedRequirements).Error; err != nil {
+	query := h.db.Where("control_implementation_id = ?", ssp.ControlImplementation.ID)
+	if len(controlIDs) > 0 {
+		query = query.Where("control_id IN ?", controlIDs)
+	}
+
+	if err := query.Find(&implementedRequirements).Error; err != nil {
 		h.sugar.Errorw("failed to get implemented requirements", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -3770,7 +3956,6 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 	relBC.UnmarshalOscal(oscalBC)
 	relBC.ParentID = stmt.ID
 	parentType := "statements"
-
 	relBC.ParentType = &parentType
 
 	if err := h.db.Create(relBC).Error; err != nil {
@@ -3779,4 +3964,45 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 
 	// Step 7: Return updated
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()})
+}
+
+// extractControlIDsFromProfile resolves a profile and extracts all control IDs
+func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relational.Profile) (controlIDs []string, err error) {
+	if profile.ID != nil {
+		if val, ok := h.profileCache.Load(*profile.ID); ok {
+			if cachedControlIDs, ok := val.([]string); ok {
+				return cachedControlIDs, nil
+			}
+			h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", *profile.ID, "actualType", fmt.Sprintf("%T", val))
+			h.profileCache.Delete(*profile.ID)
+		}
+	}
+
+	// Recover from panics in BuildControlCatalogForProfile
+	defer func() {
+		if r := recover(); r != nil {
+			h.sugar.Errorw("Panic in extractControlIDsFromProfile", "panic", r)
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
+	h.sugar.Infow("Extracting control IDs from profile", "profileId", profile.ID, "importsCount", len(profile.Imports))
+
+	idsMap, err := GetControlIDsMapFromProfile(profile, h.db)
+	if err != nil {
+		h.sugar.Errorw("Failed to get control IDs map from profile", "error", err)
+		return nil, err
+	}
+
+	controlIDs = make([]string, 0, len(idsMap))
+	for id := range idsMap {
+		controlIDs = append(controlIDs, id)
+	}
+
+	if profile.ID != nil {
+		h.profileCache.Store(*profile.ID, controlIDs)
+	}
+
+	h.sugar.Infow("Extracted control IDs from profile", "count", len(controlIDs))
+	return controlIDs, nil
 }
