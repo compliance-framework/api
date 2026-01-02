@@ -1420,7 +1420,12 @@ func (h *SystemSecurityPlanHandler) GetControlImplementation(ctx echo.Context) e
 	// Determine if we need to filter by profile
 	var controlIDs []string
 	if ssp.ProfileID != nil {
-		controlIDs, _ = h.getControlIDsForProfile(*ssp.ProfileID)
+		var err error
+		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
+		if err != nil {
+			h.sugar.Warnw("Failed to resolve profile controls", "profileID", ssp.ProfileID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
 	}
 
 	query := h.db.Model(&ssp.ControlImplementation).
@@ -2923,7 +2928,12 @@ func (h *SystemSecurityPlanHandler) GetImplementedRequirements(ctx echo.Context)
 	// Determine if we need to filter by profile
 	var controlIDs []string
 	if ssp.ProfileID != nil {
-		controlIDs, _ = h.getControlIDsForProfile(*ssp.ProfileID)
+		var err error
+		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
+		if err != nil {
+			h.sugar.Errorw("failed to resolve control IDs for profile", "profileID", *ssp.ProfileID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
 	}
 
 	var implementedRequirements []relational.ImplementedRequirement

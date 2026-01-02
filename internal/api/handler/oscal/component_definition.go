@@ -298,21 +298,27 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	// Load Components and their nested relationships dynamically
-	h.db.Preload("Components.ResponsibleRoles").
+	if err := h.db.Preload("Components.ResponsibleRoles").
 		Preload("Components.ControlImplementations").
 		Preload("Components.ControlImplementations.ImplementedRequirements").
 		Preload("Components.ControlImplementations.ImplementedRequirements.ResponsibleRoles").
 		Preload("Components.ControlImplementations.ImplementedRequirements.Statements").
 		Preload("Components.ControlImplementations.ImplementedRequirements.Statements.ResponsibleRoles").
-		Find(&componentDefinition.Components)
+		Find(&componentDefinition.Components).Error; err != nil {
+		h.sugar.Warnw("Failed to load component definition components", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
 	// Load Capabilities and their nested relationships dynamically
-	h.db.Preload("Capabilities.ControlImplementations").
+	if err := h.db.Preload("Capabilities.ControlImplementations").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements.ResponsibleRoles").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements.Statements").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements.Statements.ResponsibleRoles").
-		Find(&componentDefinition.Capabilities)
+		Find(&componentDefinition.Capabilities).Error; err != nil {
+		h.sugar.Warnw("Failed to load component definition capabilities", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ComponentDefinition]{Data: *componentDefinition.MarshalOscal()})
 }

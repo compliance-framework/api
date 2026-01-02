@@ -624,12 +624,11 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Sync ProfileControl pivot table
-	go func() {
-		if _, err := SyncProfileControls(h.db, id); err != nil {
-			h.sugar.Warnw("Failed to sync profile controls after merge update", "profileId", id, "error", err)
-		}
-	}()
+	// Sync ProfileControl pivot table synchronously to ensure completion before responding
+	if _, err := SyncProfileControls(h.db, id); err != nil {
+		h.sugar.Warnw("Failed to sync profile controls after merge update", "profileId", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	outputOscal := relationalMerge.MarshalOscal()
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Merge]{Data: *outputOscal})
@@ -1313,7 +1312,7 @@ func GetControlCatalogFromBuiltProfile(profile *relational.Profile, db *gorm.DB)
 	}
 	var allControls []relational.Control
 	if err := q.Find(&allControls).Error; err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return rollUpControlsToCatalog(db, allControls)
