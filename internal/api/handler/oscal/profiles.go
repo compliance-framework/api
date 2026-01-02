@@ -434,12 +434,11 @@ func (h *ProfileHandler) UpdateImport(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Sync ProfileControl pivot table
-	go func() {
-		if _, err := SyncProfileControls(h.db, id); err != nil {
-			h.sugar.Warnw("Failed to sync profile controls after import update", "profileId", id, "error", err)
-		}
-	}()
+	// Sync ProfileControl pivot table synchronously so errors can be reported to the client
+	if _, err := SyncProfileControls(h.db, id); err != nil {
+		h.sugar.Errorw("Failed to sync profile controls after import update", "profileId", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	oscalImport := updatedImport.MarshalOscal()
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Import]{Data: oscalImport})
@@ -510,12 +509,11 @@ func (h *ProfileHandler) DeleteImport(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Sync ProfileControl pivot table
-	go func() {
-		if _, err := SyncProfileControls(h.db, id); err != nil {
-			h.sugar.Warnw("Failed to sync profile controls after import deletion", "profileId", id, "error", err)
-		}
-	}()
+	// Sync ProfileControl pivot table synchronously so that errors can be surfaced to the client
+	if _, err := SyncProfileControls(h.db, id); err != nil {
+		h.sugar.Errorw("Failed to sync profile controls after import deletion", "profile_id", profileId, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	return ctx.NoContent(http.StatusNoContent)
 }
@@ -722,7 +720,7 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 		h.sugar.Errorw("error resolving catalog controls", "profile", profile, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	updateCatalogId(allControls, newID)
+	updateCatalogID(allControls, newID)
 	now := time.Now()
 
 	catalog.Metadata = profile.Metadata
@@ -766,10 +764,10 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{Data: resp})
 }
 
-func updateCatalogId(controls []relational.Control, newCatalogId uuid.UUID) []relational.Control {
+func updateCatalogID(controls []relational.Control, newCatalogID uuid.UUID) []relational.Control {
 
 	for i := range controls {
-		controls[i].CatalogID = newCatalogId
+		controls[i].CatalogID = newCatalogID
 	}
 	return controls
 }
@@ -815,12 +813,11 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	// Sync ProfileControl pivot table
-	go func() {
-		if _, err := SyncProfileControls(h.db, *profileRel.ID); err != nil {
-			h.sugar.Warnw("Failed to sync profile controls after creation", "profileId", profileRel.ID, "error", err)
-		}
-	}()
+	// Sync ProfileControl pivot table synchronously so errors can be reported to the client
+	if _, err := SyncProfileControls(h.db, *profileRel.ID); err != nil {
+		h.sugar.Errorw("error syncing profile controls after creation", "profileId", profileRel.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
 
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Profile]{Data: *profileRel.MarshalOscal()})
 }
@@ -944,6 +941,20 @@ func CollectControlIDsFromGroups(groups []relational.Group, controlsMap map[stri
 	}
 }
 
+// GetControlIDsMapFromProfile resolves a profile and returns a map of control IDs to their CatalogIDs.
+func GetControlIDsMapFromProfile(profile *relational.Profile, db *gorm.DB) (map[string]uuid.UUID, error) {
+	catalog, err := BuildControlCatalogForProfile(profile, db)
+	if err != nil {
+		return nil, err
+	}
+
+	idsMap := make(map[string]uuid.UUID)
+	CollectControlIDs(catalog.Controls, idsMap)
+	CollectControlIDsFromGroups(catalog.Groups, idsMap)
+
+	return idsMap, nil
+}
+
 // SyncProfileControls resolves all controls for a profile and updates the ProfileControl pivot table.
 func SyncProfileControls(db *gorm.DB, profileID uuid.UUID) ([]string, error) {
 	profile, err := FindFullProfile(db, profileID)
@@ -954,14 +965,10 @@ func SyncProfileControls(db *gorm.DB, profileID uuid.UUID) ([]string, error) {
 	// Capture the modification time to detect concurrent changes
 	originalLastModified := profile.Metadata.LastModified
 
-	catalog, err := BuildControlCatalogForProfile(profile, db)
+	idsMap, err := GetControlIDsMapFromProfile(profile, db)
 	if err != nil {
 		return nil, err
 	}
-
-	idsMap := make(map[string]uuid.UUID)
-	CollectControlIDs(catalog.Controls, idsMap)
-	CollectControlIDsFromGroups(catalog.Groups, idsMap)
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var currentProfile relational.Profile
@@ -1290,6 +1297,11 @@ func rollUpControlsToCatalog(db *gorm.DB, allControls []relational.Control) (*re
 }
 
 func GetControlCatalogFromBuiltProfile(profile *relational.Profile, db *gorm.DB) (*relational.Catalog, error) {
+	// If profile.Controls is empty, return an empty catalog to avoid returning massive dataset
+	if len(profile.Controls) == 0 {
+		return &relational.Catalog{}, nil
+	}
+
 	q := db.Model(&relational.Control{})
 	for i, control := range profile.Controls {
 		cond := db.Where("id = ? and catalog_id = ?", control.ID, control.CatalogID)
@@ -1307,8 +1319,6 @@ func GetControlCatalogFromBuiltProfile(profile *relational.Profile, db *gorm.DB)
 	return rollUpControlsToCatalog(db, allControls)
 }
 
-// ResolveControls orchestrates control resolution for all imports in the profile,
-// returning the list of catalog UUIDs and the fully processed controls.
 // ResolveControls orchestrates control resolution for all imports in the profile,
 // returning the list of catalog UUIDs and the fully processed controls.
 func ResolveControls(profile *relational.Profile, db *gorm.DB) ([]uuid.UUID, []relational.Control, error) {

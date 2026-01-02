@@ -195,12 +195,14 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		if out.Error != nil {
 			panic(out.Error)
 		}
-		defer func() {
-			_, err := oscal.SyncProfileControls(db, uuid.MustParse(input.Profile.UUID))
-			if err != nil {
-				sugar.Errorw("Failed to sync profile controls", "error", err)
-			}
-		}()
+
+		// Sync ProfileControl pivot table synchronously so errors can be reported
+		_, err := oscal.SyncProfileControls(db, uuid.MustParse(input.Profile.UUID))
+		if err != nil {
+			sugar.Errorw("Failed to sync profile controls", "error", err)
+			return err
+		}
+
 		sugar.Infow("Successfully Created Profile", "title", def.Metadata.Title, "file", f.Name())
 		return nil
 	}

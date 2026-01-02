@@ -41,7 +41,11 @@ func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *System
 func (h *SystemSecurityPlanHandler) getControlIDsForProfile(profileID uuid.UUID) ([]string, error) {
 	// 1. Check in-memory cache first
 	if val, ok := h.profileCache.Load(profileID); ok {
-		return val.([]string), nil
+		if cachedControlIDs, ok := val.([]string); ok {
+			return cachedControlIDs, nil
+		}
+		h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", profileID, "actualType", fmt.Sprintf("%T", val))
+		h.profileCache.Delete(profileID)
 	}
 
 	// 2. Check the ProfileControl pivot table in DB
@@ -1469,7 +1473,15 @@ func (h *SystemSecurityPlanHandler) Full(ctx echo.Context) error {
 	// Determine if we need to filter by profile
 	var controlIDs []string
 	if ssp.ProfileID != nil {
-		controlIDs, _ = h.getControlIDsForProfile(*ssp.ProfileID)
+		var err error
+		controlIDs, err = h.getControlIDsForProfile(*ssp.ProfileID)
+		if err != nil {
+			h.sugar.Warnw(
+				"Failed to get control IDs for profile; returning unfiltered control implementation",
+				"profile_id", *ssp.ProfileID,
+				"error", err,
+			)
+		}
 	}
 
 	if err := h.db.
@@ -1833,7 +1845,7 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	controlIDs, err := h.getControlIDsForProfile(profileID)
 	if err != nil {
 		h.sugar.Warnw("Failed to resolve control IDs for profile", "profileId", profileID, "error", err)
-		// We can still attach the profile even if control resolution fails
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("failed to resolve control IDs for profile: %w", err)))
 	}
 
 	err = h.db.Transaction(func(tx *gorm.DB) error {
@@ -1853,6 +1865,12 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 			if err := tx.Create(&ssp.ControlImplementation).Error; err != nil {
 				return err
 			}
+		}
+
+		// If no controls were resolved for the attached profile, treat this as a failure
+		// and roll back the SSP update to avoid an inconsistent state.
+		if len(controlIDs) == 0 {
+			return errors.New("no controls were resolved from the selected profile; rolling back SSP update")
 		}
 
 		if len(controlIDs) > 0 {
@@ -1898,7 +1916,8 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 
 	// Reload SSP to ensure the memory state matches the database (including newly created requirements)
 	if err := h.db.Preload("ControlImplementation.ImplementedRequirements").First(&ssp, "id = ?", ssp.ID).Error; err != nil {
-		h.sugar.Warnw("Failed to reload SSP after profile attachment", "id", ssp.ID, "error", err)
+		h.sugar.Errorw("Failed to reload SSP after profile attachment", "id", ssp.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("failed to reload system security plan after profile attachment")))
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.SystemSecurityPlan]{Data: *ssp.MarshalOscal()})
@@ -3941,7 +3960,11 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relational.Profile) (controlIDs []string, err error) {
 	if profile.ID != nil {
 		if val, ok := h.profileCache.Load(*profile.ID); ok {
-			return val.([]string), nil
+			if cachedControlIDs, ok := val.([]string); ok {
+				return cachedControlIDs, nil
+			}
+			h.sugar.Warnw("profileCache contains value of unexpected type", "profileId", *profile.ID, "actualType", fmt.Sprintf("%T", val))
+			h.profileCache.Delete(*profile.ID)
 		}
 	}
 
@@ -3955,15 +3978,11 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 
 	h.sugar.Infow("Extracting control IDs from profile", "profileId", profile.ID, "importsCount", len(profile.Imports))
 
-	catalog, err := BuildControlCatalogForProfile(profile, h.db)
+	idsMap, err := GetControlIDsMapFromProfile(profile, h.db)
 	if err != nil {
-		h.sugar.Errorw("Failed to build control catalog from profile", "error", err)
+		h.sugar.Errorw("Failed to get control IDs map from profile", "error", err)
 		return nil, err
 	}
-
-	idsMap := make(map[string]uuid.UUID)
-	CollectControlIDs(catalog.Controls, idsMap)
-	CollectControlIDsFromGroups(catalog.Groups, idsMap)
 
 	controlIDs = make([]string, 0, len(idsMap))
 	for id := range idsMap {
