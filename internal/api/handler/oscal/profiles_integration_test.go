@@ -643,3 +643,150 @@ func (suite *ProfileIntegrationSuite) TestUpdateMerge() {
 		suite.Require().Equal(http.StatusNotFound, rec.Code, "Expected status code 404 Not Found")
 	})
 }
+
+func (suite *ProfileIntegrationSuite) TestResolved() {
+	suite.IntegrationTestSuite.Migrator.Refresh()
+
+	// 1. Create a Catalog with some controls
+	catalog := &relational.Catalog{
+		Metadata: relational.Metadata{
+			Title: "Test Catalog for Resolution",
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(catalog).Error)
+
+	control1 := relational.Control{
+		ID:        "CNTL-1",
+		CatalogID: *catalog.UUIDModel.ID,
+		Title:     "Control 1",
+	}
+	control2 := relational.Control{
+		ID:        "CNTL-2",
+		CatalogID: *catalog.UUIDModel.ID,
+		Title:     "Control 2",
+	}
+	suite.Require().NoError(suite.DB.Create(&control1).Error)
+	suite.Require().NoError(suite.DB.Create(&control2).Error)
+
+	// 2. Create a Profile and link controls
+	profile := &relational.Profile{
+		Metadata: relational.Metadata{
+			Title: "Resolved Profile",
+		},
+		Controls: []relational.Control{control1, control2},
+	}
+	suite.Require().NoError(suite.DB.Create(profile).Error)
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err, "Failed to get auth token")
+
+	suite.Run("Get resolved profile as catalog", func() {
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + profile.UUIDModel.ID.String() + "/resolved"
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+
+		suite.Require().Equal(http.StatusOK, rec.Code, "Expected status code 200 OK")
+
+		var response handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		suite.Require().NoError(err, "Failed to decode response body")
+
+		suite.Require().NotNil(response.Data.Metadata, "Expected metadata in resolved catalog")
+		suite.Require().Equal("Resolved Profile", response.Data.Metadata.Title, "Expected title to match profile title")
+		suite.Require().NotNil(response.Data.Controls, "Expected controls in resolved catalog")
+		suite.Require().Len(*response.Data.Controls, 2, "Expected 2 controls in resolved catalog")
+
+		controlIDs := []string{(*response.Data.Controls)[0].ID, (*response.Data.Controls)[1].ID}
+		suite.Require().Contains(controlIDs, "CNTL-1")
+		suite.Require().Contains(controlIDs, "CNTL-2")
+	})
+
+	suite.Run("Resolved with non-existing profile", func() {
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + uuid.New().String() + "/resolved"
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusNotFound, rec.Code, "Expected status code 404 Not Found")
+	})
+
+	suite.Run("Resolved with invalid UUID", func() {
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/invalid-uuid/resolved"
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusBadRequest, rec.Code, "Expected status code 400 Bad Request")
+	})
+}
+
+func (suite *ProfileIntegrationSuite) TestGetControlCatalogFromBuiltProfile() {
+	suite.IntegrationTestSuite.Migrator.Refresh()
+
+	// 1. Setup a complex catalog structure: Group -> Subgroup -> Control -> Subcontrol
+	catalog := &relational.Catalog{
+		Metadata: relational.Metadata{Title: "Complex Catalog"},
+	}
+	suite.Require().NoError(suite.DB.Create(catalog).Error)
+
+	group := relational.Group{
+		ID:        "GRP-1",
+		CatalogID: *catalog.UUIDModel.ID,
+		Title:     "Root Group",
+	}
+	suite.Require().NoError(suite.DB.Create(&group).Error)
+
+	subgroup := relational.Group{
+		ID:         "SUBGRP-1",
+		CatalogID:  *catalog.UUIDModel.ID,
+		Title:      "Subgroup",
+		ParentID:   &group.ID,
+		ParentType: func() *string { s := "groups"; return &s }(),
+	}
+	suite.Require().NoError(suite.DB.Create(&subgroup).Error)
+
+	control := relational.Control{
+		ID:         "CTRL-1",
+		CatalogID:  *catalog.UUIDModel.ID,
+		Title:      "Parent Control",
+		ParentID:   &subgroup.ID,
+		ParentType: func() *string { s := "groups"; return &s }(),
+	}
+	suite.Require().NoError(suite.DB.Create(&control).Error)
+
+	subcontrol := relational.Control{
+		ID:         "SUBCTRL-1",
+		CatalogID:  *catalog.UUIDModel.ID,
+		Title:      "Sub-control",
+		ParentID:   &control.ID,
+		ParentType: func() *string { s := "controls"; return &s }(),
+	}
+	suite.Require().NoError(suite.DB.Create(&subcontrol).Error)
+
+	// 2. Create a Profile that only selects the subcontrol
+	profile := &relational.Profile{
+		Metadata: relational.Metadata{Title: "Profile selecting subcontrol"},
+		Controls: []relational.Control{subcontrol},
+	}
+	suite.Require().NoError(suite.DB.Create(profile).Error)
+
+	// 3. Test resolution
+	resolvedCatalog, err := GetControlCatalogFromBuiltProfile(profile, suite.DB)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(resolvedCatalog)
+
+	// Verify that the hierarchy was rolled up correctly to the root group
+	suite.Require().Len(resolvedCatalog.Groups, 1, "Should have 1 root group")
+	suite.Require().Equal("GRP-1", resolvedCatalog.Groups[0].ID)
+	suite.Require().Len(resolvedCatalog.Groups[0].Groups, 1, "Root group should contain the subgroup")
+	suite.Require().Equal("SUBGRP-1", resolvedCatalog.Groups[0].Groups[0].ID)
+	suite.Require().Len(resolvedCatalog.Groups[0].Groups[0].Controls, 1, "Subgroup should contain the parent control")
+	suite.Require().Equal("CTRL-1", resolvedCatalog.Groups[0].Groups[0].Controls[0].ID)
+	suite.Require().Len(resolvedCatalog.Groups[0].Groups[0].Controls[0].Controls, 1, "Parent control should contain the subcontrol")
+	suite.Require().Equal("SUBCTRL-1", resolvedCatalog.Groups[0].Groups[0].Controls[0].Controls[0].ID)
+}

@@ -16,6 +16,7 @@ type Profile struct {
 	Imports    []Import    `json:"imports"`
 	Merge      *Merge      `json:"merge"`
 	Modify     *Modify     `json:"modify"`
+	Controls   []Control   `json:"controls" gorm:"many2many:profile_controls;"`
 }
 
 // UnmarshalOscal take type of oscalTypes_1_1_3.Profile from go-oscal and converts it into a relational model within the struct

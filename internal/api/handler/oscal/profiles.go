@@ -171,13 +171,14 @@ func (h *ProfileHandler) Resolved(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	newID, _ := uuid.NewUUID()
-	catalog, err := BuildControlCatalogForProfile(profile, h.db, newID)
+	catalog, err := GetControlCatalogFromBuiltProfile(profile, h.db)
+	// Catalog ID just for showing - not a real catalog
+	uid := uuid.New()
+	catalog.ID = &uid
 	if err != nil {
 		h.sugar.Errorw("error building control catalog", "id", id, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	catalog.ID = &newID
 	catalog.Metadata = profile.Metadata
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *catalog.MarshalOscal()})
 }
@@ -407,8 +408,6 @@ func (h *ProfileHandler) UpdateImport(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	fmt.Printf("%+v\n", updateData)
-
 	if updateData.Href != href {
 		h.sugar.Warnw("href mismatch", "expected", href, "received", updateData.Href)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("href in request body does not match URL parameter")))
@@ -434,6 +433,13 @@ func (h *ProfileHandler) UpdateImport(ctx echo.Context) error {
 		h.sugar.Errorw("error updating import", "profile_id", profileId, "href", href, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+
+	// Sync ProfileControl pivot table
+	go func() {
+		if _, err := SyncProfileControls(h.db, id); err != nil {
+			h.sugar.Warnw("Failed to sync profile controls after import update", "profileId", id, "error", err)
+		}
+	}()
 
 	oscalImport := updatedImport.MarshalOscal()
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Import]{Data: oscalImport})
@@ -503,6 +509,13 @@ func (h *ProfileHandler) DeleteImport(ctx echo.Context) error {
 		h.sugar.Errorw("error deleting import", "profile_id", profileId, "href", href, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+
+	// Sync ProfileControl pivot table
+	go func() {
+		if _, err := SyncProfileControls(h.db, id); err != nil {
+			h.sugar.Warnw("Failed to sync profile controls after import deletion", "profileId", id, "error", err)
+		}
+	}()
 
 	return ctx.NoContent(http.StatusNoContent)
 }
@@ -613,6 +626,13 @@ func (h *ProfileHandler) UpdateMerge(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	// Sync ProfileControl pivot table
+	go func() {
+		if _, err := SyncProfileControls(h.db, id); err != nil {
+			h.sugar.Warnw("Failed to sync profile controls after merge update", "profileId", id, "error", err)
+		}
+	}()
+
 	outputOscal := relationalMerge.MarshalOscal()
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Merge]{Data: *outputOscal})
 
@@ -693,8 +713,16 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 		},
 	}
 
-	catalogUUids, allControls := ResolveControls(profile, h.db, newID)
+	// TODO[gusfcarvalho] - I don't even believe this method is needed / used everywhere.
+	// These updates are just to make sure this method still works correctly
+	// We might want to deprecate this entire method eventually
 
+	catalogUUids, allControls, err := ResolveControls(profile, h.db)
+	if err != nil {
+		h.sugar.Errorw("error resolving catalog controls", "profile", profile, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	updateCatalogId(*allControls, newID)
 	now := time.Now()
 
 	catalog.Metadata = profile.Metadata
@@ -738,6 +766,14 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{Data: resp})
 }
 
+func updateCatalogId(controls []relational.Control, newCatalogId uuid.UUID) []relational.Control {
+
+	for i := range controls {
+		controls[i].CatalogID = newCatalogId
+	}
+	return controls
+}
+
 // Create godoc
 //
 //	@Summary		Create a new OSCAL Profile
@@ -778,6 +814,13 @@ func (h *ProfileHandler) Create(ctx echo.Context) error {
 		h.sugar.Errorw("error creating profile", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+
+	// Sync ProfileControl pivot table
+	go func() {
+		if _, err := SyncProfileControls(h.db, *profileRel.ID); err != nil {
+			h.sugar.Warnw("Failed to sync profile controls after creation", "profileId", profileRel.ID, "error", err)
+		}
+	}()
 
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.Profile]{Data: *profileRel.MarshalOscal()})
 }
@@ -879,6 +922,60 @@ func GetCatalogBackmatter(db *gorm.DB, uuids []uuid.UUID) (*[]relational.BackMat
 		return nil, err
 	}
 	return backmatters, nil
+}
+
+// SyncProfileControls resolves all controls for a profile and updates the ProfileControl pivot table.
+// It includes a concurrency check to ensure stale resolutions don't overwrite newer profile states.
+func SyncProfileControls(db *gorm.DB, profileID uuid.UUID) ([]string, error) {
+	profile, err := FindFullProfile(db, profileID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Capture the modification time to detect concurrent changes
+	originalLastModified := profile.Metadata.LastModified
+
+	catalog, err := BuildControlCatalogForProfile(profile, db)
+	if err != nil {
+		return nil, err
+	}
+
+	idsMap := make(map[string]uuid.UUID)
+	collectControlIDs(catalog.Controls, idsMap)
+	collectControlIDsFromGroups(catalog.Groups, idsMap)
+
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var currentProfile relational.Profile
+		// Preload Metadata to check LastModified
+		if err := tx.Preload("Metadata").First(&currentProfile, "id = ?", profileID).Error; err != nil {
+			return err
+		}
+
+		// Safety check: If the profile has been modified since we started resolution, abort.
+		// This prevents older background resolutions from overwriting newer ones.
+		if originalLastModified != nil && currentProfile.Metadata.LastModified != nil {
+			if currentProfile.Metadata.LastModified.After(*originalLastModified) {
+				return fmt.Errorf("profile was modified during resolution; skipping stale sync")
+			}
+		}
+
+		controls := []relational.Control{}
+		for id, catalogID := range idsMap {
+			controls = append(controls, relational.Control{ID: id, CatalogID: catalogID})
+		}
+
+		// Use GORM Association API to sync the many-to-many relationship
+		if err := tx.Model(&currentProfile).Association("Controls").Replace(controls); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	controlIDs := make([]string, 0, len(idsMap))
+	for id := range idsMap {
+		controlIDs = append(controlIDs, id)
+	}
+	return controlIDs, err
 }
 
 // findPartRecursive performs a depth-first search through a slice of Parts
@@ -1022,16 +1119,16 @@ func applyAdditionsToControl(ctrl *relational.Control, addition relational.Addit
 
 // processImport loads controls of a given import from the database, applies parameter settings and additions,
 // and returns the catalog UUID along with the modified controls.
-func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Import, setParams map[string]relational.ParameterSetting, additions map[string][]relational.Addition, newCatalogId uuid.UUID) (uuid.UUID, []relational.Control) {
+func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Import, setParams map[string]relational.ParameterSetting, additions map[string][]relational.Addition) (*uuid.UUID, []relational.Control, error) {
 	ids := GatherControlIds(imp)
 	catalogID, err := FindOscalCatalogFromBackMatter(profile, imp.Href)
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 
 	var controls []relational.Control
 	if err := db.Preload("Controls").Preload("Controls.Controls").Find(&controls, "catalog_id = ? AND id IN ?", catalogID, ids).Error; err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 
 	newControls := make([]relational.Control, len(controls))
@@ -1039,7 +1136,7 @@ func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Impo
 	for i := range controls {
 		ctrl := relational.Control{}
 
-		ctrl.UnmarshalOscal(*controls[i].MarshalOscal(), newCatalogId)
+		ctrl.UnmarshalOscal(*controls[i].MarshalOscal(), controls[i].CatalogID)
 		ctrl.ParentID = controls[i].ParentID
 		ctrl.ParentType = controls[i].ParentType
 
@@ -1049,7 +1146,7 @@ func processImport(db *gorm.DB, profile *relational.Profile, imp relational.Impo
 		}
 		newControls[i] = ctrl
 	}
-	return catalogID, newControls
+	return &catalogID, newControls, nil
 }
 
 func rollUpToRootControl(db *gorm.DB, control relational.Control) (relational.Control, error) {
@@ -1124,10 +1221,71 @@ func mergeGroups(groups ...relational.Group) []relational.Group {
 	}
 	return flattened
 }
+func GetControlCatalogFromBuiltProfile(profile *relational.Profile, db *gorm.DB) (*relational.Catalog, error) {
+	q := db.Model(&relational.Control{})
+	for i, control := range profile.Controls {
+		cond := db.Where("id = ? and catalog_id = ?", control.ID, control.CatalogID)
+		if i == 0 {
+			q = q.Where(cond)
+		} else {
+			q = q.Or(cond)
+		}
+	}
+	var allControls []relational.Control
+	if err := q.Find(&allControls).Error; err != nil {
+		panic(err)
+	}
+	catalog := &relational.Catalog{
+		Controls: []relational.Control{},
+		Groups:   []relational.Group{},
+	}
+
+	// Now we have all of the controls, let's roll them up into their root controls
+	for _, control := range allControls {
+		// If it has no parent, it's already the root
+		if control.ParentType == nil {
+			catalog.Controls = append(catalog.Controls, control)
+			continue
+		}
+
+		// Roll it up all the way to the highest parenting control
+		rootControl, err := rollUpToRootControl(db, control)
+		if err != nil {
+			return &relational.Catalog{}, err
+		}
+
+		// If the root control has no parent, add it straight to the catalog
+		if rootControl.ParentType == nil {
+			catalog.Controls = append(catalog.Controls, rootControl)
+			continue
+		}
+
+		// If the control has a group as a parent, roll it up.
+		if *rootControl.ParentType == "groups" {
+			group := &relational.Group{}
+			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
+				return &relational.Catalog{}, err
+			}
+			group.Controls = append(group.Controls, rootControl)
+			rootGroup, err := rollUpToRootGroup(db, *group)
+			if err != nil {
+				return &relational.Catalog{}, err
+			}
+			catalog.Groups = append(catalog.Groups, rootGroup)
+			continue
+		}
+	}
+
+	// Merge groups and controls
+	catalog.Controls = mergeControls(catalog.Controls...)
+	catalog.Groups = mergeGroups(catalog.Groups...)
+
+	return catalog, nil
+}
 
 // ResolveControls orchestrates control resolution for all imports in the profile,
 // returning the list of catalog UUIDs and the fully processed controls.
-func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB, catalogId uuid.UUID) (*relational.Catalog, error) {
+func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB) (*relational.Catalog, error) {
 	setParams := make(map[string]relational.ParameterSetting)
 	additions := make(map[string][]relational.Addition)
 	if profile.Modify != nil {
@@ -1138,7 +1296,10 @@ func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB, cat
 	var allControls []relational.Control
 
 	for _, imp := range profile.Imports {
-		_, processed := processImport(db, profile, imp, setParams, additions, catalogId)
+		_, processed, err := processImport(db, profile, imp, setParams, additions)
+		if err != nil {
+			return nil, fmt.Errorf("fail when processing import: %w", err)
+		}
 		allControls = append(allControls, processed...)
 	}
 
@@ -1192,7 +1353,7 @@ func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB, cat
 
 // ResolveControls orchestrates control resolution for all imports in the profile,
 // returning the list of catalog UUIDs and the fully processed controls.
-func ResolveControls(profile *relational.Profile, db *gorm.DB, catalogId uuid.UUID) ([]uuid.UUID, *[]relational.Control) {
+func ResolveControls(profile *relational.Profile, db *gorm.DB) ([]uuid.UUID, *[]relational.Control, error) {
 	setParams := buildSetParams(profile.Modify.SetParameters)
 	additions := buildAdditions(profile.Modify.Alters)
 
@@ -1201,19 +1362,15 @@ func ResolveControls(profile *relational.Profile, db *gorm.DB, catalogId uuid.UU
 	uuids := make([]uuid.UUID, len(profile.Imports))
 
 	for i, imp := range profile.Imports {
-		uuid, processed := processImport(db, profile, imp, setParams, additions, catalogId)
+		uuid, processed, err := processImport(db, profile, imp, setParams, additions)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to process imports: %w", err)
+		}
 		allControls = append(allControls, processed...)
-		uuids[i] = uuid
+		uuids[i] = *uuid
 	}
 
-	for _, control := range allControls {
-		fmt.Println(control.ID)
-		fmt.Println(control.Title)
-		fmt.Println(*control.ParentType)
-		fmt.Println(*control.ParentID)
-	}
-
-	return uuids, &allControls
+	return uuids, &allControls, nil
 }
 
 // FindOscalCatalogFromBackMatter searches the profile’s BackMatter for a resource matching the reference string
@@ -1268,7 +1425,9 @@ func FindFullProfile(db *gorm.DB, id uuid.UUID) (*relational.Profile, error) {
 		Preload("Modify.Alters.Adds").
 		Preload("BackMatter").
 		Preload("BackMatter.Resources").
-		Find(&profile, "id = ?", id).Error; err != nil {
+		Preload("Controls").
+		Preload("Controls.Controls").
+		First(&profile, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 
