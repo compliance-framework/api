@@ -30,14 +30,12 @@ RUN make swag
 # Build it
 RUN GOOS=linux go build -o /api
 
-FROM golang:1.25 AS production
-WORKDIR /
+FROM gcr.io/distroless/base-debian12 AS production
 
 COPY --from=builder /api /api
 # Open port 8080 to traffic
 EXPOSE 8080
 
 # Specify the command to run on container start.
-CMD ["/api", "run"]
-
-FROM production
+ENTRYPOINT ["/api"]
+CMD ["run"]

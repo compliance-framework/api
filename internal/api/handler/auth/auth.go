@@ -112,13 +112,12 @@ func (h *AuthHandler) LoginUser(ctx echo.Context) error {
 	cookie.Expires = time.Now().Add(time.Hour * 24)
 	cookie.HttpOnly = true
 	cookie.Path = "/"
+	cookie.SameSite = http.SameSiteStrictMode
 
 	if isDevelopmentEnvironment(h.config.Environment) {
 		cookie.Secure = false
-		cookie.SameSite = http.SameSiteLaxMode
 	} else {
 		cookie.Secure = true
-		cookie.SameSite = http.SameSiteStrictMode
 	}
 
 	ctx.SetCookie(cookie)

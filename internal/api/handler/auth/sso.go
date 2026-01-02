@@ -123,13 +123,13 @@ func (h *SSOHandler) InitiateLogin(ctx echo.Context) error {
 	cookie.Expires = time.Now().Add(5 * time.Minute)
 	cookie.HttpOnly = true
 	cookie.Path = "/"
+	// Note: cannot set this to Strict as it breaks OIDC/oAuth2 flow
+	cookie.SameSite = http.SameSiteLaxMode
 
 	if isDevelopmentEnvironment(h.config.Environment) {
 		cookie.Secure = false
-		cookie.SameSite = http.SameSiteLaxMode
 	} else {
 		cookie.Secure = true
-		cookie.SameSite = http.SameSiteStrictMode
 	}
 
 	ctx.SetCookie(cookie)
@@ -217,13 +217,12 @@ func (h *SSOHandler) Callback(ctx echo.Context) error {
 	authCookie.Expires = time.Now().Add(time.Hour * 24)
 	authCookie.HttpOnly = true
 	authCookie.Path = "/"
+	authCookie.SameSite = http.SameSiteStrictMode
 
 	if isDevelopmentEnvironment(h.config.Environment) {
 		authCookie.Secure = false
-		authCookie.SameSite = http.SameSiteLaxMode
 	} else {
 		authCookie.Secure = true
-		authCookie.SameSite = http.SameSiteStrictMode
 	}
 
 	ctx.SetCookie(authCookie)
