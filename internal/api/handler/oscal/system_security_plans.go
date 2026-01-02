@@ -3927,7 +3927,6 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 	relBC.UnmarshalOscal(oscalBC)
 	relBC.ParentID = stmt.ID
 	parentType := "statements"
-
 	relBC.ParentType = &parentType
 
 	if err := h.db.Create(relBC).Error; err != nil {
@@ -3936,26 +3935,6 @@ func (h *SystemSecurityPlanHandler) CreateImplementedRequirementStatementByCompo
 
 	// Step 7: Return updated
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.ByComponent]{Data: *relBC.MarshalOscal()})
-}
-
-// collectControlIDs recursively extracts control IDs and their CatalogIDs from a list of controls
-func collectControlIDs(controls []relational.Control, controlsMap map[string]uuid.UUID) {
-	for _, ctrl := range controls {
-		controlsMap[ctrl.ID] = ctrl.CatalogID
-		if len(ctrl.Controls) > 0 {
-			collectControlIDs(ctrl.Controls, controlsMap)
-		}
-	}
-}
-
-// collectControlIDsFromGroups recursively extracts control IDs and their CatalogIDs from groups
-func collectControlIDsFromGroups(groups []relational.Group, controlsMap map[string]uuid.UUID) {
-	for _, group := range groups {
-		collectControlIDs(group.Controls, controlsMap)
-		if len(group.Groups) > 0 {
-			collectControlIDsFromGroups(group.Groups, controlsMap)
-		}
-	}
 }
 
 // extractControlIDsFromProfile resolves a profile and extracts all control IDs
@@ -3983,8 +3962,8 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 	}
 
 	idsMap := make(map[string]uuid.UUID)
-	collectControlIDs(catalog.Controls, idsMap)
-	collectControlIDsFromGroups(catalog.Groups, idsMap)
+	CollectControlIDs(catalog.Controls, idsMap)
+	CollectControlIDsFromGroups(catalog.Groups, idsMap)
 
 	controlIDs = make([]string, 0, len(idsMap))
 	for id := range idsMap {

@@ -722,7 +722,7 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 		h.sugar.Errorw("error resolving catalog controls", "profile", profile, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	updateCatalogId(*allControls, newID)
+	updateCatalogId(allControls, newID)
 	now := time.Now()
 
 	catalog.Metadata = profile.Metadata
@@ -741,7 +741,7 @@ func (h *ProfileHandler) Resolve(ctx echo.Context) error {
 	}
 	catalog.Metadata.Props = append(catalog.Metadata.Props, generatedProps...)
 
-	catalog.Controls = append(catalog.Controls, *allControls...)
+	catalog.Controls = append(catalog.Controls, allControls...)
 
 	backmatters, err := GetCatalogBackmatter(h.db, catalogUUids)
 	if err != nil {
@@ -924,8 +924,27 @@ func GetCatalogBackmatter(db *gorm.DB, uuids []uuid.UUID) (*[]relational.BackMat
 	return backmatters, nil
 }
 
+// CollectControlIDs recursively extracts control IDs and their CatalogIDs from a list of controls
+func CollectControlIDs(controls []relational.Control, controlsMap map[string]uuid.UUID) {
+	for _, ctrl := range controls {
+		controlsMap[ctrl.ID] = ctrl.CatalogID
+		if len(ctrl.Controls) > 0 {
+			CollectControlIDs(ctrl.Controls, controlsMap)
+		}
+	}
+}
+
+// CollectControlIDsFromGroups recursively extracts control IDs and their CatalogIDs from groups
+func CollectControlIDsFromGroups(groups []relational.Group, controlsMap map[string]uuid.UUID) {
+	for _, group := range groups {
+		CollectControlIDs(group.Controls, controlsMap)
+		if len(group.Groups) > 0 {
+			CollectControlIDsFromGroups(group.Groups, controlsMap)
+		}
+	}
+}
+
 // SyncProfileControls resolves all controls for a profile and updates the ProfileControl pivot table.
-// It includes a concurrency check to ensure stale resolutions don't overwrite newer profile states.
 func SyncProfileControls(db *gorm.DB, profileID uuid.UUID) ([]string, error) {
 	profile, err := FindFullProfile(db, profileID)
 	if err != nil {
@@ -941,8 +960,8 @@ func SyncProfileControls(db *gorm.DB, profileID uuid.UUID) ([]string, error) {
 	}
 
 	idsMap := make(map[string]uuid.UUID)
-	collectControlIDs(catalog.Controls, idsMap)
-	collectControlIDsFromGroups(catalog.Groups, idsMap)
+	CollectControlIDs(catalog.Controls, idsMap)
+	CollectControlIDsFromGroups(catalog.Groups, idsMap)
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		var currentProfile relational.Profile
@@ -1221,6 +1240,55 @@ func mergeGroups(groups ...relational.Group) []relational.Group {
 	}
 	return flattened
 }
+func rollUpControlsToCatalog(db *gorm.DB, allControls []relational.Control) (*relational.Catalog, error) {
+	catalog := &relational.Catalog{
+		Controls: []relational.Control{},
+		Groups:   []relational.Group{},
+	}
+
+	// Now we have all of the controls, let's roll them up into their root controls
+	for _, control := range allControls {
+		// If it has no parent, it's already the root
+		if control.ParentType == nil {
+			catalog.Controls = append(catalog.Controls, control)
+			continue
+		}
+
+		// Roll it up all the way to the highest parenting control
+		rootControl, err := rollUpToRootControl(db, control)
+		if err != nil {
+			return nil, err
+		}
+
+		// If the root control has no parent, add it straight to the catalog
+		if rootControl.ParentType == nil {
+			catalog.Controls = append(catalog.Controls, rootControl)
+			continue
+		}
+
+		// If the control has a group as a parent, roll it up.
+		if *rootControl.ParentType == "groups" {
+			group := &relational.Group{}
+			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
+				return nil, err
+			}
+			group.Controls = append(group.Controls, rootControl)
+			rootGroup, err := rollUpToRootGroup(db, *group)
+			if err != nil {
+				return nil, err
+			}
+			catalog.Groups = append(catalog.Groups, rootGroup)
+			continue
+		}
+	}
+
+	// Merge groups and controls
+	catalog.Controls = mergeControls(catalog.Controls...)
+	catalog.Groups = mergeGroups(catalog.Groups...)
+
+	return catalog, nil
+}
+
 func GetControlCatalogFromBuiltProfile(profile *relational.Profile, db *gorm.DB) (*relational.Catalog, error) {
 	q := db.Model(&relational.Control{})
 	for i, control := range profile.Controls {
@@ -1235,142 +1303,44 @@ func GetControlCatalogFromBuiltProfile(profile *relational.Profile, db *gorm.DB)
 	if err := q.Find(&allControls).Error; err != nil {
 		panic(err)
 	}
-	catalog := &relational.Catalog{
-		Controls: []relational.Control{},
-		Groups:   []relational.Group{},
-	}
 
-	// Now we have all of the controls, let's roll them up into their root controls
-	for _, control := range allControls {
-		// If it has no parent, it's already the root
-		if control.ParentType == nil {
-			catalog.Controls = append(catalog.Controls, control)
-			continue
-		}
-
-		// Roll it up all the way to the highest parenting control
-		rootControl, err := rollUpToRootControl(db, control)
-		if err != nil {
-			return &relational.Catalog{}, err
-		}
-
-		// If the root control has no parent, add it straight to the catalog
-		if rootControl.ParentType == nil {
-			catalog.Controls = append(catalog.Controls, rootControl)
-			continue
-		}
-
-		// If the control has a group as a parent, roll it up.
-		if *rootControl.ParentType == "groups" {
-			group := &relational.Group{}
-			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
-				return &relational.Catalog{}, err
-			}
-			group.Controls = append(group.Controls, rootControl)
-			rootGroup, err := rollUpToRootGroup(db, *group)
-			if err != nil {
-				return &relational.Catalog{}, err
-			}
-			catalog.Groups = append(catalog.Groups, rootGroup)
-			continue
-		}
-	}
-
-	// Merge groups and controls
-	catalog.Controls = mergeControls(catalog.Controls...)
-	catalog.Groups = mergeGroups(catalog.Groups...)
-
-	return catalog, nil
+	return rollUpControlsToCatalog(db, allControls)
 }
 
 // ResolveControls orchestrates control resolution for all imports in the profile,
 // returning the list of catalog UUIDs and the fully processed controls.
-func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB) (*relational.Catalog, error) {
-	setParams := make(map[string]relational.ParameterSetting)
-	additions := make(map[string][]relational.Addition)
+// ResolveControls orchestrates control resolution for all imports in the profile,
+// returning the list of catalog UUIDs and the fully processed controls.
+func ResolveControls(profile *relational.Profile, db *gorm.DB) ([]uuid.UUID, []relational.Control, error) {
+	var setParams map[string]relational.ParameterSetting
+	var additions map[string][]relational.Addition
 	if profile.Modify != nil {
 		setParams = buildSetParams(profile.Modify.SetParameters)
 		additions = buildAdditions(profile.Modify.Alters)
 	}
 
 	var allControls []relational.Control
-
-	for _, imp := range profile.Imports {
-		_, processed, err := processImport(db, profile, imp, setParams, additions)
-		if err != nil {
-			return nil, fmt.Errorf("fail when processing import: %w", err)
-		}
-		allControls = append(allControls, processed...)
-	}
-
-	catalog := &relational.Catalog{
-		Controls: []relational.Control{},
-		Groups:   []relational.Group{},
-	}
-
-	// Now we have all of the controls, let's roll them up into their root controls
-	for _, control := range allControls {
-		// If it has no parent, it's already the root
-		if control.ParentType == nil {
-			catalog.Controls = append(catalog.Controls, control)
-			continue
-		}
-
-		// Roll it up all the way to the highest parenting control
-		rootControl, err := rollUpToRootControl(db, control)
-		if err != nil {
-			return &relational.Catalog{}, err
-		}
-
-		// If the root control has no parent, add it straight to the catalog
-		if rootControl.ParentType == nil {
-			catalog.Controls = append(catalog.Controls, rootControl)
-			continue
-		}
-
-		// If the control has a group as a parent, roll it up.
-		if *rootControl.ParentType == "groups" {
-			group := &relational.Group{}
-			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
-				return &relational.Catalog{}, err
-			}
-			group.Controls = append(group.Controls, rootControl)
-			rootGroup, err := rollUpToRootGroup(db, *group)
-			if err != nil {
-				return &relational.Catalog{}, err
-			}
-			catalog.Groups = append(catalog.Groups, rootGroup)
-			continue
-		}
-	}
-
-	// Merge groups and controls
-	catalog.Controls = mergeControls(catalog.Controls...)
-	catalog.Groups = mergeGroups(catalog.Groups...)
-
-	return catalog, nil
-}
-
-// ResolveControls orchestrates control resolution for all imports in the profile,
-// returning the list of catalog UUIDs and the fully processed controls.
-func ResolveControls(profile *relational.Profile, db *gorm.DB) ([]uuid.UUID, *[]relational.Control, error) {
-	setParams := buildSetParams(profile.Modify.SetParameters)
-	additions := buildAdditions(profile.Modify.Alters)
-
-	var allControls []relational.Control
-
 	uuids := make([]uuid.UUID, len(profile.Imports))
 
 	for i, imp := range profile.Imports {
-		uuid, processed, err := processImport(db, profile, imp, setParams, additions)
+		catalogID, processed, err := processImport(db, profile, imp, setParams, additions)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to process imports: %w", err)
 		}
 		allControls = append(allControls, processed...)
-		uuids[i] = *uuid
+		uuids[i] = *catalogID
 	}
 
-	return uuids, &allControls, nil
+	return uuids, allControls, nil
+}
+
+func BuildControlCatalogForProfile(profile *relational.Profile, db *gorm.DB) (*relational.Catalog, error) {
+	_, allControls, err := ResolveControls(profile, db)
+	if err != nil {
+		return nil, err
+	}
+
+	return rollUpControlsToCatalog(db, allControls)
 }
 
 // FindOscalCatalogFromBackMatter searches the profile’s BackMatter for a resource matching the reference string
