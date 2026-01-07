@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 
@@ -62,5 +63,12 @@ func InvalidUUID() Error {
 	e := Error{}
 	e.Errors = make(map[string]any)
 	e.Errors["body"] = "invalid UUID"
+	return e
+}
+
+func InvalidFutureTime(t time.Time) Error {
+	e := Error{}
+	e.Errors = make(map[string]any)
+	e.Errors["body"] = fmt.Sprintf("time %s must not be in the future", t.Format(time.RFC3339Nano))
 	return e
 }
