@@ -183,6 +183,14 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
 	}
 
+	now := time.Now().UTC()
+	if input.Start.UTC().After(now) {
+		return ctx.JSON(http.StatusBadRequest, api.InvalidFutureTime(input.Start))
+	}
+	if input.End.UTC().After(now) {
+		return ctx.JSON(http.StatusBadRequest, api.InvalidFutureTime(input.End))
+	}
+
 	components := []relational.SystemComponent{}
 	// First, Inventory
 	for _, i := range input.Components {
