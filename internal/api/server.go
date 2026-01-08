@@ -1,7 +1,9 @@
 package api
 
 import (
+	"cmp"
 	"context"
+	"slices"
 
 	"github.com/compliance-framework/api/internal/api/binders"
 	mw "github.com/compliance-framework/api/internal/api/middleware"
@@ -26,6 +28,7 @@ type Server struct {
 func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config, metrics *PrometheusMetrics) *Server {
 	e := echo.New()
 	e.Binder = &binders.CustomBinder{}
+	e.HideBanner = true
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -70,7 +73,9 @@ func (s *Server) API() *echo.Group {
 }
 
 func (s *Server) PrintRoutes() {
-	for _, route := range s.echo.Routes() {
+	for _, route := range slices.SortedFunc(slices.Values(s.echo.Routes()), func(a, b *echo.Route) int {
+		return cmp.Compare(a.Path, b.Path)
+	}) {
 		s.sugar.Infof("%s %s", route.Method, route.Path)
 	}
 }

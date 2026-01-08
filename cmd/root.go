@@ -21,34 +21,30 @@ var (
 	}
 )
 
-func configSetDefaults() {
+func setDefaultEnvironmentVariables() {
 	viper.SetDefault("app_port", ":8080")
 	viper.SetDefault("db_debug", "false")
 	viper.SetDefault("metrics_enabled", "true")
 	viper.SetDefault("metrics_port", ":9090")
 }
-func failIfError(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
 
-func configEnvKeys() {
+func bindEnvironmentVariables() {
 	viper.SetEnvPrefix("ccf")
-	failIfError(viper.BindEnv("app_port", "APP_PORT"))
-	failIfError(viper.BindEnv("db_driver"))
-	failIfError(viper.BindEnv("environment"))
-	failIfError(viper.BindEnv("db_connection"))
-	failIfError(viper.BindEnv("db_debug"))
-	failIfError(viper.BindEnv("jwt_secret"))
-	failIfError(viper.BindEnv("jwt_private_key"))
-	failIfError(viper.BindEnv("jwt_public_key"))
-	failIfError(viper.BindEnv("api_allowed_origins"))
-	failIfError(viper.BindEnv("web_base_url"))
-	failIfError(viper.BindEnv("sso_config"))
-	failIfError(viper.BindEnv("email_config"))
-	failIfError(viper.BindEnv("metrics_enabled"))
-	failIfError(viper.BindEnv("metrics_port"))
+	viper.MustBindEnv("app_port")
+	viper.MustBindEnv("db_driver")
+	viper.MustBindEnv("environment")
+	viper.MustBindEnv("db_connection")
+	viper.MustBindEnv("db_debug")
+	viper.MustBindEnv("jwt_secret")
+	viper.MustBindEnv("jwt_private_key")
+	viper.MustBindEnv("jwt_public_key")
+	viper.MustBindEnv("api_allowed_origins")
+	viper.MustBindEnv("web_base_url")
+	viper.MustBindEnv("sso_config")
+	viper.MustBindEnv("email_config")
+	viper.MustBindEnv("metrics_enabled")
+	viper.MustBindEnv("metrics_port")
+	viper.MustBindEnv("use_dev_logger")
 }
 
 func init() {
@@ -58,12 +54,15 @@ func init() {
 			panic("Error loading .env file: " + err.Error())
 		}
 	}
-	configSetDefaults()
-	configEnvKeys()
+
+	setDefaultEnvironmentVariables()
+	bindEnvironmentVariables()
 
 	// Global persistent flags
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug mode for the database connection")
-	failIfError(viper.BindPFlag("db_debug", rootCmd.PersistentFlags().Lookup("debug")))
+	if err := viper.BindPFlag("db_debug", rootCmd.PersistentFlags().Lookup("debug")); err != nil {
+		panic(err)
+	}
 
 	// Subcommands
 	rootCmd.AddCommand(RunCmd)
