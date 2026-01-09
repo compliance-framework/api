@@ -48,7 +48,7 @@ func ConnectSQLDb(ctx context.Context, config *config.Config, sugar *zap.Sugared
 		for {
 			err = pdb.Ping()
 			if err == nil {
-				sugar.Warn("Connected to database")
+				sugar.Info("Connected to database")
 				break
 			}
 

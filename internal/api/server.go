@@ -31,6 +31,24 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 	e.HideBanner = true
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogURI:       true,
+		LogStatus:    true,
+		LogMethod:    true,
+		LogUserAgent: true,
+		LogLatency:   true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			s.Debugw("request",
+				zap.String("method", v.Method),
+				zap.String("uri", v.URI),
+				zap.Int("status", v.Status),
+				zap.String("user_agent", v.UserAgent),
+				zap.String("latency_human", v.Latency.String()),
+				zap.Int64("latency_ms", v.Latency.Milliseconds()),
+			)
+			return nil
+		},
+	}))
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     config.APIAllowedOrigins,
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
