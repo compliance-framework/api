@@ -30,6 +30,7 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 	e.Binder = &binders.CustomBinder{}
 	e.HideBanner = true
 	e.Pre(middleware.RemoveTrailingSlash())
+	e.Use(middleware.Logger())
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogURI:       true,
 		LogStatus:    true,
@@ -42,7 +43,8 @@ func NewServer(ctx context.Context, s *zap.SugaredLogger, config *config.Config,
 				zap.String("uri", v.URI),
 				zap.Int("status", v.Status),
 				zap.String("user_agent", v.UserAgent),
-				zap.Int("latency", int(v.Latency)),
+				zap.String("latency_human", v.Latency.String()),
+				zap.Int64("latency_ms", v.Latency.Milliseconds()),
 			)
 			return nil
 		},
