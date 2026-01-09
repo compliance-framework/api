@@ -72,6 +72,7 @@ func (m *PrometheusMetrics) Registry() *prometheus.Registry {
 func (m *PrometheusMetrics) StartMetricsServer(port string) {
 	go func() {
 		metrics := echo.New()
+		metrics.HideBanner = true
 		metrics.Use(middleware.Logger())
 		metrics.GET("/metrics", echoprometheus.NewHandlerWithConfig(echoprometheus.HandlerConfig{
 			Gatherer: m.registry,
@@ -83,7 +84,7 @@ func (m *PrometheusMetrics) StartMetricsServer(port string) {
 		<-m.ctx.Done()
 		err := metrics.Shutdown(m.ctx)
 		if err != nil {
-			m.logger.Error("failed to shutdown metrics server", "err", err)
+			m.logger.Errorw("failed to shutdown metrics server", "error", err)
 		}
 	}()
 }

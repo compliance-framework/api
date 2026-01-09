@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	DriverOptions = []string{"postgres"}
+	driverOptions = []string{"postgres"}
 )
 
 type Config struct {
@@ -39,7 +39,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	if !viper.IsSet("db_driver") {
 		logger.Fatal(
 			"CCF_DB_DRIVER is not set. Please set it in the environment or .env file. Expected values: ",
-			strings.Join(DriverOptions, ", "),
+			strings.Join(driverOptions, ", "),
 		)
 	}
 
@@ -50,12 +50,12 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 
 	dbDriver := stripQuotes(strings.ToLower(viper.GetString("db_driver")))
 
-	if !slices.Contains(DriverOptions, dbDriver) {
+	if !slices.Contains(driverOptions, dbDriver) {
 		logger.Fatal(
 			"CCF_DB_DRIVER is set to an unsupported value: ",
 			viper.GetString("db_driver"),
 			". Supported values are: ",
-			strings.Join(DriverOptions, ", "),
+			strings.Join(driverOptions, ", "),
 		)
 	}
 
@@ -114,7 +114,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 				allowedOrigins = origins
 			}
 		} else {
-			logger.Warn("api_allowed_origins is set but empty. Setting to the default", "origins", allowedOrigins)
+			logger.Warnw("api_allowed_origins is set but empty. Setting to the default", "origins", allowedOrigins)
 		}
 	}
 

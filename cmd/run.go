@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -25,51 +26,46 @@ var (
 func RunServer(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
-	zapLogger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatalf("Can't initialize zap logger: %v", err)
+	var sugar *zap.SugaredLogger
+	if viper.GetBool("use_dev_logger") {
+		sugar = zap.Must(zap.NewDevelopment()).Sugar()
+	} else {
+		sugar = zap.Must(zap.NewProduction()).Sugar()
 	}
+
 	defer func() {
-		err := zapLogger.Sync()
-		if err != nil {
+		if err := sugar.Sync(); err != nil {
 			log.Printf("failed to sync zap logger: %v", err)
 		}
 	}()
-	sugar := zapLogger.Sugar()
 
-	config := config.NewConfig(sugar)
+	cfg := config.NewConfig(sugar)
 
-	db, err := service.ConnectSQLDb(ctx, config, sugar)
+	db, err := service.ConnectSQLDb(ctx, cfg, sugar)
 	if err != nil {
-		sugar.Fatal("Failed to connect to SQL database", "err", err)
+		sugar.Fatalw("Failed to connect to SQL database", "error", err)
 	}
 
 	err = service.MigrateUp(db)
 	if err != nil {
-		sugar.Fatal("Failed to migrate database", "err", err)
+		sugar.Fatalw("Failed to migrate database", "error", err)
 	}
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
+	server := api.NewServer(ctx, sugar, cfg, metrics)
+	handler.RegisterHandlers(server, sugar, db, cfg)
+	oscal.RegisterHandlers(server, sugar, db, cfg)
+	auth.RegisterHandlers(server, sugar, db, cfg, metrics)
 
-	server := api.NewServer(ctx, sugar, config, metrics)
-
-	handler.RegisterHandlers(server, sugar, db, config)
-	oscal.RegisterHandlers(server, sugar, db, config)
-	auth.RegisterHandlers(server, sugar, db, config, metrics)
-
-	sugar.Infow("Allowed Origins", "origins", config.APIAllowedOrigins)
+	sugar.Infow("Allowed Origins", "origins", cfg.APIAllowedOrigins)
 	server.PrintRoutes()
 
-	if config.MetricsEnabled {
-		sugar.Infow("Starting metrics server", "port", config.MetricsPort)
-		metrics.StartMetricsServer(config.MetricsPort)
+	if cfg.MetricsEnabled {
+		sugar.Infow("Starting metrics server", "port", cfg.MetricsPort)
+		metrics.StartMetricsServer(cfg.MetricsPort)
 	}
 
-	checkErr(server.Start(config.AppPort), sugar)
-}
-
-func checkErr(err error, logger *zap.SugaredLogger) {
-	if err != nil {
-		logger.Fatalf("An error occurred: %v", err)
+	if err := server.Start(cfg.AppPort); err != nil {
+		sugar.Fatalw("Failed to start server", "error", err)
 	}
 }
