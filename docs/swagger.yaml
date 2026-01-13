@@ -9556,6 +9556,34 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}:
+    delete:
+      description: Deletes a Catalog by its unique ID.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Catalog
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Catalog by its unique ID.
       parameters:
@@ -9743,6 +9771,39 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}/controls/{control}:
+    delete:
+      description: Deletes a Control under the specified Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Control within a Catalog
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Control by its ID for a given Catalog.
       parameters:
@@ -9980,6 +10041,39 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}/groups/{group}:
+    delete:
+      description: Deletes a Group under the specified Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Group within a Catalog
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Group by its ID for a given Catalog.
       parameters:

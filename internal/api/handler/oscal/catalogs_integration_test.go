@@ -30,6 +30,47 @@ type CatalogApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 }
 
+func (suite *CatalogApiIntegrationSuite) TestCatalogDelete() {
+	logger, _ := zap.NewDevelopment()
+
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create catalog
+	catalog := oscaltypes.Catalog{
+		UUID: "C2732F9F-F254-4D4A-AD53-E3AAD9C70388",
+		Metadata: oscaltypes.Metadata{
+			Title: "Delete Me",
+		},
+	}
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(catalog)
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	// Delete catalog
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/oscal/catalogs/C2732F9F-F254-4D4A-AD53-E3AAD9C70388", nil)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+
+	// Verify 404 on get
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/C2732F9F-F254-4D4A-AD53-E3AAD9C70388", nil)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+}
 // TestDuplicateCatalogGroupID ensures that when multiple catalogs have group children with the same ID,
 // their children endpoints only returned the relevant groups.
 // This is to prevent a future regression where searching for child groups in a catalog, would return all the groups
