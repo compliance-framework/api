@@ -279,8 +279,12 @@ definitions:
           Component
         type: string
     type: object
-  handler.FilterWithControlsResponse:
+  handler.FilterWithControlsAndComponentsResponse:
     properties:
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+        type: array
       controls:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Control'
@@ -325,12 +329,12 @@ definitions:
           $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_FilterWithControlsResponse:
+  handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.FilterWithControlsResponse'
+          $ref: '#/definitions/handler.FilterWithControlsAndComponentsResponse'
         type: array
     type: object
   handler.GenericDataListResponse-handler_OscalLikeEvidence:
@@ -668,11 +672,11 @@ definitions:
         - $ref: '#/definitions/auth.AuthHandler'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_FilterWithControlsResponse:
+  handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.FilterWithControlsResponse'
+        - $ref: '#/definitions/handler.FilterWithControlsAndComponentsResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_OscalLikeEvidence:
@@ -1179,6 +1183,10 @@ definitions:
     type: object
   handler.createFilterRequest:
     properties:
+      components:
+        items:
+          type: string
+        type: array
       controls:
         items:
           type: string
@@ -4491,6 +4499,10 @@ definitions:
       description:
         description: required
         type: string
+      filters:
+        items:
+          $ref: '#/definitions/relational.Filter'
+        type: array
       id:
         type: string
       links:
@@ -4631,6 +4643,10 @@ definitions:
     type: object
   relational.Filter:
     properties:
+      components:
+        items:
+          $ref: '#/definitions/relational.DefinedComponent'
+        type: array
       controls:
         items:
           $ref: '#/definitions/relational.Control'
@@ -6183,7 +6199,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsResponse'
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -6265,7 +6281,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithControlsResponse'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse'
         "400":
           description: Bad Request
           schema:
