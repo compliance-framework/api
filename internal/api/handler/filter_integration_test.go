@@ -15,6 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -103,6 +104,47 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	})
+
+	suite.Run("With Components", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+		id := uuid.New()
+		suite.DB.Create(&relational.DefinedComponent{
+			UUIDModel: relational.UUIDModel{
+				ID: &id,
+			},
+			Type:        "service",
+			Title:       "Some Defined Component",
+			Description: "blah blah blah",
+		})
+
+		createReq := createFilterRequest{
+			Name: "Simple Filter",
+			Filter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "provider",
+						Operator: "=",
+						Value:    "aws",
+					},
+				},
+			},
+			Components: &[]string{
+				id.String(),
+			},
+		}
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+		rec := httptest.NewRecorder()
+		reqBody, _ := json.Marshal(createReq)
+		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	})
 }
 
 func (suite *FilterApiIntegrationSuite) TestList() {
@@ -173,7 +215,7 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		var listResponse GenericDataListResponse[FilterWithControlsResponse]
+		var listResponse GenericDataListResponse[FilterWithControlsAndComponentsResponse]
 		err = json.Unmarshal(rec.Body.Bytes(), &listResponse)
 		suite.Require().NoError(err)
 
@@ -181,6 +223,84 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		assert.Equal(suite.T(), "Linked Filter", listResponse.Data[0].Name)
 		if assert.Len(suite.T(), listResponse.Data[0].Controls, 1) {
 			assert.Equal(suite.T(), "AC-1", listResponse.Data[0].Controls[0].ID)
+		}
+	})
+
+	suite.Run("Filters by component ID", func() {
+		err := suite.Migrator.Refresh()
+		suite.Require().NoError(err)
+
+		// Seed component
+		id := uuid.New()
+		suite.DB.Create(&relational.DefinedComponent{
+			UUIDModel: relational.UUIDModel{
+				ID: &id,
+			},
+			Type:        "service",
+			Title:       "Some Defined Component",
+			Description: "blah blah blah",
+		})
+
+		logger, _ := zap.NewDevelopment()
+		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+		// Create filter linked to our defined component
+		withComponentReq := createFilterRequest{
+			Name: "Linked Filter",
+			Filter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "provider",
+						Operator: "=",
+						Value:    "aws",
+					},
+				},
+			},
+			Components: &[]string{id.String()},
+		}
+		body, _ := json.Marshal(withComponentReq)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+		// Create filter without component
+		withoutComponentReq := createFilterRequest{
+			Name: "Unlinked Filter",
+			Filter: labelfilter.Filter{
+				Scope: &labelfilter.Scope{
+					Condition: &labelfilter.Condition{
+						Label:    "provider",
+						Operator: "=",
+						Value:    "github",
+					},
+				},
+			},
+		}
+		body, _ = json.Marshal(withoutComponentReq)
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodPost, "/api/filters", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+		// Fetch filters linked to our component
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/filters?componentId=%s", id.String()), nil)
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusOK, rec.Code)
+
+		var listResponse GenericDataListResponse[FilterWithControlsAndComponentsResponse]
+		err = json.Unmarshal(rec.Body.Bytes(), &listResponse)
+		suite.Require().NoError(err)
+
+		assert.Len(suite.T(), listResponse.Data, 1)
+		assert.Equal(suite.T(), "Linked Filter", listResponse.Data[0].Name)
+		if assert.Len(suite.T(), listResponse.Data[0].Components, 1) {
+			assert.Equal(suite.T(), id.String(), listResponse.Data[0].Components[0].UUID)
 		}
 	})
 }
@@ -235,7 +355,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		suite.Equal("Updated Filter", updatedFilter.Name)
 	})
 
-	suite.Run("Update filter with controls", func() {
+	suite.Run("Update filter with controls and components", func() {
 		err := suite.Migrator.Refresh()
 		suite.Require().NoError(err)
 
@@ -251,9 +371,29 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 			},
 		})
 
-		// Create initial filter with AC-1
+		// Create components
+		componentAID := uuid.New()
+		componentBID := uuid.New()
+		suite.DB.Create(&relational.DefinedComponent{
+			UUIDModel: relational.UUIDModel{
+				ID: &componentAID,
+			},
+			Type:        "service",
+			Title:       "Component A",
+			Description: "blah blah blah",
+		})
+		suite.DB.Create(&relational.DefinedComponent{
+			UUIDModel: relational.UUIDModel{
+				ID: &componentBID,
+			},
+			Type:        "service",
+			Title:       "Component B",
+			Description: "blah blah blah",
+		})
+
+		// Create initial filter with AC-1 and Component A
 		filter := relational.Filter{
-			Name: "Filter With Controls",
+			Name: "Filter With Controls and Components",
 			Filter: datatypes.NewJSONType(labelfilter.Filter{
 				Scope: &labelfilter.Scope{
 					Condition: &labelfilter.Condition{
@@ -271,13 +411,20 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		suite.NoError(suite.DB.First(&control1, "id = ?", "AC-1").Error)
 		suite.NoError(suite.DB.Model(&filter).Association("Controls").Append(&control1))
 
+		// Link component A to the filter
+		var component1 relational.DefinedComponent
+		suite.NoError(suite.DB.First(&component1, "id = ?", componentAID.String()).Error)
+		suite.NoError(suite.DB.Model(&filter).Association("Components").Append(&component1))
+
 		// Verify initial state
 		var initialFilter relational.Filter
-		suite.NoError(suite.DB.Preload("Controls").First(&initialFilter, "id = ?", filter.ID).Error)
+		suite.NoError(suite.DB.Preload("Controls").Preload("Components").First(&initialFilter, "id = ?", filter.ID).Error)
 		suite.Len(initialFilter.Controls, 1)
 		suite.Equal("AC-1", initialFilter.Controls[0].ID)
+		suite.Len(initialFilter.Components, 1)
+		suite.Equal(componentAID.String(), initialFilter.Components[0].ID.String())
 
-		// Update to have AC-2 and AC-3 instead
+		// Update to have AC-2, AC-3, and component B
 		updateReq := createFilterRequest{
 			Name: "Filter With Controls",
 			Filter: labelfilter.Filter{
@@ -289,7 +436,8 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 					},
 				},
 			},
-			Controls: &[]string{"AC-2", "AC-3"},
+			Controls:   &[]string{"AC-2", "AC-3"},
+			Components: &[]string{componentBID.String()},
 		}
 
 		logger, _ := zap.NewDevelopment()
@@ -303,10 +451,11 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		// Verify the controls were updated
+		// Verify the controls and components were updated
 		var updatedFilter relational.Filter
-		suite.NoError(suite.DB.Preload("Controls").First(&updatedFilter, "id = ?", filter.ID).Error)
+		suite.NoError(suite.DB.Preload("Controls").Preload("Components").First(&updatedFilter, "id = ?", filter.ID).Error)
 		suite.Len(updatedFilter.Controls, 2)
+		suite.Len(updatedFilter.Components, 1)
 
 		controlIDs := make([]string, len(updatedFilter.Controls))
 		for i, c := range updatedFilter.Controls {
@@ -315,6 +464,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		suite.Contains(controlIDs, "AC-2")
 		suite.Contains(controlIDs, "AC-3")
 		suite.NotContains(controlIDs, "AC-1")
+		suite.Equal(componentBID.String(), updatedFilter.Components[0].ID.String())
 	})
 
 	suite.Run("Update filter without controls does not change existing controls", func() {

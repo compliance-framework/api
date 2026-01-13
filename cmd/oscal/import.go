@@ -133,6 +133,8 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		sugar.Error(err)
 	}
 
+	imported := false
+
 	if input.Catalog != nil {
 		def := &relational.Catalog{}
 		def.UnmarshalOscal(*input.Catalog)
@@ -141,7 +143,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			sugar.Error(out.Error)
 		}
 		sugar.Infow("Successfully Created Catalog", "title", def.Metadata.Title, "file", f.Name())
-		return nil
+		imported = true
 	}
 
 	if input.ComponentDefinition != nil {
@@ -152,7 +154,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			sugar.Error(out.Error)
 		}
 		sugar.Infow("Successfully Created Component Definition", "title", def.Metadata.Title, "file", f.Name())
-		return nil
+		imported = true
 	}
 
 	if input.SystemSecurityPlan != nil {
@@ -163,7 +165,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			sugar.Error(out.Error)
 		}
 		sugar.Infow("Successfully Created System Security Plan", "title", def.Metadata.Title, "file", f.Name())
-		return nil
+		imported = true
 	}
 
 	if input.AssessmentPlan != nil {
@@ -174,7 +176,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			panic(out.Error)
 		}
 		sugar.Infow("Successfully Created Assessment Plan", "title", def.Metadata.Title, "file", f.Name())
-		return nil
+		imported = true
 	}
 
 	if input.AssessmentResult != nil {
@@ -185,7 +187,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			panic(out.Error)
 		}
 		sugar.Infow("Successfully Created Assessment Result", "title", def.Metadata.Title, "file", f.Name())
-		return nil
+		imported = true
 	}
 
 	if input.Profile != nil {
@@ -204,7 +206,7 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 		}
 
 		sugar.Infow("Successfully Created Profile", "title", def.Metadata.Title, "file", f.Name())
-		return nil
+		imported = true
 	}
 
 	if input.PlanOfActionAndMilestones != nil {
@@ -222,6 +224,10 @@ func importFile(db *gorm.DB, sugar *zap.SugaredLogger, f *os.File) error {
 			return err
 		}
 		sugar.Infow("Successfully Created Plan of Action and Milestones", "title", def.Metadata.Title, "file", f.Name())
+		imported = true
+	}
+
+	if imported {
 		return nil
 	}
 

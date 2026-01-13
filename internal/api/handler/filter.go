@@ -36,9 +36,10 @@ func (h *FilterHandler) Register(api *echo.Group) {
 	api.DELETE("/:id", h.Delete)
 }
 
-type FilterWithControlsResponse struct {
+type FilterWithControlsAndComponentsResponse struct {
 	relational.Filter
-	Controls []oscalTypes_1_1_3.Control `json:"controls"`
+	Controls   []oscalTypes_1_1_3.Control          `json:"controls"`
+	Components []oscalTypes_1_1_3.DefinedComponent `json:"components"`
 }
 
 // Get godoc
@@ -48,7 +49,7 @@ type FilterWithControlsResponse struct {
 //	@Tags			Filters
 //	@Produce		json
 //	@Param			id	path		string	true	"Filter ID"
-//	@Success		200	{object}	GenericDataResponse[FilterWithControlsResponse]
+//	@Success		200	{object}	GenericDataResponse[FilterWithControlsAndComponentsResponse]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -69,7 +70,7 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	response := FilterWithControlsResponse{
+	response := FilterWithControlsAndComponentsResponse{
 		Filter: filter,
 		Controls: func() []oscalTypes_1_1_3.Control {
 			result := []oscalTypes_1_1_3.Control{}
@@ -78,9 +79,16 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 			}
 			return result
 		}(),
+		Components: func() []oscalTypes_1_1_3.DefinedComponent {
+			result := []oscalTypes_1_1_3.DefinedComponent{}
+			for _, component := range filter.Components {
+				result = append(result, *component.MarshalOscal())
+			}
+			return result
+		}(),
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataResponse[FilterWithControlsResponse]{Data: response})
+	return ctx.JSON(http.StatusOK, GenericDataResponse[FilterWithControlsAndComponentsResponse]{Data: response})
 }
 
 // List godoc
@@ -89,18 +97,34 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 //	@Description	Retrieves all filters.
 //	@Tags			Filters
 //	@Produce		json
-//	@Success		200	{object}	GenericDataListResponse[FilterWithControlsResponse]
+//	@Success		200	{object}	GenericDataListResponse[FilterWithControlsAndComponentsResponse]
 //	@Failure		500	{object}	api.Error
 //	@Router			/filters [get]
 func (h *FilterHandler) List(ctx echo.Context) error {
 	controlID := ctx.QueryParam("controlId")
+	componentID := ctx.QueryParam("componentId")
 
-	query := h.db.Model(&relational.Filter{}).Preload("Controls")
-	if controlID != "" {
+	query := h.db.Model(&relational.Filter{}).Preload("Controls").Preload("Components")
+
+	if controlID != "" && componentID == "" {
 		query = query.
 			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
 			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
 			Where("controls.id = ?", controlID).
+			Distinct()
+	} else if controlID == "" && componentID != "" {
+		query = query.
+			Joins("JOIN filter_components ON filter_components.filter_id = filters.id").
+			Joins("JOIN defined_components ON defined_components.id = filter_components.defined_component_id").
+			Where("defined_components.id = ?", componentID).
+			Distinct()
+	} else {
+		query = query.
+			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
+			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
+			Joins("JOIN filter_components ON filter_components.filter_id = filters.id").
+			Joins("JOIN defined_components ON defined_components.id = filter_components.defined_component_id").
+			Where("controls.id = ? AND defined_components.id = ?", controlID, componentID).
 			Distinct()
 	}
 
@@ -109,10 +133,10 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	response := func() []FilterWithControlsResponse {
-		result := []FilterWithControlsResponse{}
+	response := func() []FilterWithControlsAndComponentsResponse {
+		result := []FilterWithControlsAndComponentsResponse{}
 		for _, filter := range filters {
-			result = append(result, FilterWithControlsResponse{
+			result = append(result, FilterWithControlsAndComponentsResponse{
 				Filter: filter,
 				Controls: func() []oscalTypes_1_1_3.Control {
 					result := []oscalTypes_1_1_3.Control{}
@@ -121,12 +145,19 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 					}
 					return result
 				}(),
+				Components: func() []oscalTypes_1_1_3.DefinedComponent {
+					result := []oscalTypes_1_1_3.DefinedComponent{}
+					for _, component := range filter.Components {
+						result = append(result, *component.MarshalOscal())
+					}
+					return result
+				}(),
 			})
 		}
 		return result
 	}()
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[FilterWithControlsResponse]{Data: response})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[FilterWithControlsAndComponentsResponse]{Data: response})
 }
 
 // Create godoc
@@ -168,6 +199,21 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
 			filter.Controls = append(filter.Controls, control)
+		}
+	}
+
+	if req.Components != nil {
+		for _, componentId := range *req.Components {
+			searchDB := h.db.Session(&gorm.Session{})
+			component := relational.DefinedComponent{}
+			err := searchDB.First(&component, "id = ?", componentId).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ctx.JSON(http.StatusNotFound, api.NewError(err))
+				}
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
+			filter.Components = append(filter.Components, component)
 		}
 	}
 
@@ -237,6 +283,25 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 			}
 			filter.Controls = append(filter.Controls, control)
+		}
+	}
+
+	if req.Components != nil {
+		if err := h.db.Model(&filter).Association("Components").Clear(); err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+
+		for _, componentId := range *req.Components {
+			searchDB := h.db.Session(&gorm.Session{})
+			component := relational.DefinedComponent{}
+			err := searchDB.First(&component, "id = ?", componentId).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ctx.JSON(http.StatusNotFound, api.NewError(err))
+				}
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
+			filter.Components = append(filter.Components, component)
 		}
 	}
 
