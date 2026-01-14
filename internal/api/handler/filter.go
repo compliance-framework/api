@@ -112,18 +112,22 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
 			Where("controls.id = ?", controlID).
 			Distinct()
-	} else if controlID == "" && componentID != "" {
+	}
+
+	if controlID == "" && componentID != "" {
 		query = query.
-			Joins("JOIN filter_components ON filter_components.filter_id = filters.id").
-			Joins("JOIN defined_components ON defined_components.id = filter_components.defined_component_id").
+			Joins("JOIN filter_defined_components ON filter_defined_components.filter_id = filters.id").
+			Joins("JOIN defined_components ON defined_components.id = filter_defined_components.defined_component_id").
 			Where("defined_components.id = ?", componentID).
 			Distinct()
-	} else {
+	}
+
+	if controlID != "" && componentID != "" {
 		query = query.
 			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
 			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
-			Joins("JOIN filter_components ON filter_components.filter_id = filters.id").
-			Joins("JOIN defined_components ON defined_components.id = filter_components.defined_component_id").
+			Joins("JOIN filter_defined_components ON filter_defined_components.filter_id = filters.id").
+			Joins("JOIN defined_components ON defined_components.id = filter_defined_components.defined_component_id").
 			Where("controls.id = ? AND defined_components.id = ?", controlID, componentID).
 			Distinct()
 	}

@@ -11,5 +11,5 @@ type Filter struct {
 	Name       string                                 `json:"name" yaml:"name"`
 	Filter     datatypes.JSONType[labelfilter.Filter] `json:"filter" yaml:"filter"`
 	Controls   []Control                              `json:"controls" gorm:"many2many:filter_controls;"`
-	Components []DefinedComponent                     `json:"components" gorm:"many2many:filter_components;"`
+	Components []DefinedComponent                     `json:"components" gorm:"many2many:filter_defined_components;"`
 }
