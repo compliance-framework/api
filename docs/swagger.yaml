@@ -279,6 +279,32 @@ definitions:
           Component
         type: string
     type: object
+  handler.FilterImportFileResult:
+    properties:
+      count:
+        type: integer
+      filename:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  handler.FilterImportResponse:
+    properties:
+      failed_count:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/handler.FilterImportFileResult'
+        type: array
+      successful_count:
+        type: integer
+      total_dashboards:
+        type: integer
+      total_files:
+        type: integer
+    type: object
   handler.FilterWithControlsResponse:
     properties:
       controls:
@@ -668,6 +694,13 @@ definitions:
         - $ref: '#/definitions/auth.AuthHandler'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_FilterImportResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.FilterImportResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_FilterWithControlsResponse:
     properties:
       data:
@@ -680,6 +713,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscal_ImportResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.ImportResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_InventoryItemWithSource:
@@ -1235,6 +1275,32 @@ definitions:
         type: string
       inventory_item:
         $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+    type: object
+  oscal.ImportFileResult:
+    properties:
+      filename:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  oscal.ImportResponse:
+    properties:
+      failed_count:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/oscal.ImportFileResult'
+        type: array
+      successful_count:
+        type: integer
+      total_files:
+        type: integer
     type: object
   oscal.InventoryItemWithSource:
     properties:
@@ -6319,6 +6385,35 @@ paths:
       summary: Update a filter
       tags:
       - Filters
+  /filters/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Import multiple dashboard filter JSON files
+      parameters:
+      - description: Dashboard filter JSON files to import
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterImportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Import dashboard filters
+      tags:
+      - Filters
   /oscal/activities:
     post:
       consumes:
@@ -11380,6 +11475,35 @@ paths:
       summary: Update import component definitions for a component definition
       tags:
       - Component Definitions
+  /oscal/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Import multiple OSCAL JSON files (catalogs, profiles, SSPs, etc.)
+      parameters:
+      - description: OSCAL JSON files to import
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_ImportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Import OSCAL files
+      tags:
+      - OSCAL
   /oscal/inventory:
     get:
       description: Retrieves all inventory items from all sources (SSP, Evidence,

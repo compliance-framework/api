@@ -1113,6 +1113,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/filters/import": {
+            "post": {
+                "description": "Import multiple dashboard filter JSON files",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Import dashboard filters",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Dashboard filter JSON files to import",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterImportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/filters/{id}": {
             "get": {
                 "description": "Retrieves a single filter by its unique ID.",
@@ -9069,6 +9113,50 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/import": {
+            "post": {
+                "description": "Import multiple OSCAL JSON files (catalogs, profiles, SSPs, etc.)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OSCAL"
+                ],
+                "summary": "Import OSCAL files",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "OSCAL JSON files to import",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_ImportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/oscal/inventory": {
             "get": {
                 "description": "Retrieves all inventory items from all sources (SSP, Evidence, POAM, AP, AR)",
@@ -16440,6 +16528,46 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.FilterImportFileResult": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.FilterImportResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.FilterImportFileResult"
+                    }
+                },
+                "successful_count": {
+                    "type": "integer"
+                },
+                "total_dashboards": {
+                    "type": "integer"
+                },
+                "total_files": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.FilterWithControlsResponse": {
             "type": "object",
             "properties": {
@@ -17022,6 +17150,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/auth.AuthHandler"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_FilterImportResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.FilterImportResponse"
                         }
                     ]
                 }
@@ -17716,6 +17857,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_ImportResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.ImportResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_InventoryItemWithSource": {
             "type": "object",
             "properties": {
@@ -18015,6 +18169,46 @@ const docTemplate = `{
                 },
                 "inventory_item": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                }
+            }
+        },
+        "oscal.ImportFileResult": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.ImportResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ImportFileResult"
+                    }
+                },
+                "successful_count": {
+                    "type": "integer"
+                },
+                "total_files": {
+                    "type": "integer"
                 }
             }
         },

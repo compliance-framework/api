@@ -34,6 +34,7 @@ func (h *FilterHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
 	api.PUT("/:id", h.Update)
 	api.DELETE("/:id", h.Delete)
+	api.POST("/import", h.ImportFilters)
 }
 
 type FilterWithControlsResponse struct {
