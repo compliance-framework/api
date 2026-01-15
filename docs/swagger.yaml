@@ -283,7 +283,7 @@ definitions:
     properties:
       components:
         items:
-          $ref: '#/definitions/oscalTypes_1_1_3.DefinedComponent'
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
         type: array
       controls:
         items:
@@ -4499,10 +4499,6 @@ definitions:
       description:
         description: required
         type: string
-      filters:
-        items:
-          $ref: '#/definitions/relational.Filter'
-        type: array
       id:
         type: string
       links:
@@ -4645,7 +4641,7 @@ definitions:
     properties:
       components:
         items:
-          $ref: '#/definitions/relational.DefinedComponent'
+          $ref: '#/definitions/relational.SystemComponent'
         type: array
       controls:
         items:
@@ -5432,6 +5428,10 @@ definitions:
       evidence:
         items:
           $ref: '#/definitions/relational.Evidence'
+        type: array
+      filters:
+        items:
+          $ref: '#/definitions/relational.Filter'
         type: array
       id:
         type: string

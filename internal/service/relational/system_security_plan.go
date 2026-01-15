@@ -917,6 +917,7 @@ type SystemComponent struct {
 	SystemImplementationId uuid.UUID
 
 	Evidence []Evidence `gorm:"many2many:evidence_components"`
+	Filters  []Filter   `gorm:"many2many:filter_system_components;"`
 }
 
 func (sc *SystemComponent) UnmarshalOscal(osc oscalTypes_1_1_3.SystemComponent) *SystemComponent {

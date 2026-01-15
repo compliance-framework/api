@@ -109,12 +109,12 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		err := suite.Migrator.Refresh()
 		suite.Require().NoError(err)
 		id := uuid.New()
-		suite.DB.Create(&relational.DefinedComponent{
+		suite.DB.Create(&relational.SystemComponent{
 			UUIDModel: relational.UUIDModel{
 				ID: &id,
 			},
 			Type:        "service",
-			Title:       "Some Defined Component",
+			Title:       "Some System Component",
 			Description: "blah blah blah",
 		})
 
@@ -232,12 +232,12 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 
 		// Seed component
 		id := uuid.New()
-		suite.DB.Create(&relational.DefinedComponent{
+		suite.DB.Create(&relational.SystemComponent{
 			UUIDModel: relational.UUIDModel{
 				ID: &id,
 			},
 			Type:        "service",
-			Title:       "Some Defined Component",
+			Title:       "Some System Component",
 			Description: "blah blah blah",
 		})
 
@@ -246,7 +246,7 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
 
-		// Create filter linked to our defined component
+		// Create filter linked to our system component
 		withComponentReq := createFilterRequest{
 			Name: "Linked Filter",
 			Filter: labelfilter.Filter{
@@ -374,7 +374,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		// Create components
 		componentAID := uuid.New()
 		componentBID := uuid.New()
-		suite.DB.Create(&relational.DefinedComponent{
+		suite.DB.Create(&relational.SystemComponent{
 			UUIDModel: relational.UUIDModel{
 				ID: &componentAID,
 			},
@@ -382,7 +382,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 			Title:       "Component A",
 			Description: "blah blah blah",
 		})
-		suite.DB.Create(&relational.DefinedComponent{
+		suite.DB.Create(&relational.SystemComponent{
 			UUIDModel: relational.UUIDModel{
 				ID: &componentBID,
 			},
@@ -412,7 +412,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		suite.NoError(suite.DB.Model(&filter).Association("Controls").Append(&control1))
 
 		// Link component A to the filter
-		var component1 relational.DefinedComponent
+		var component1 relational.SystemComponent
 		suite.NoError(suite.DB.First(&component1, "id = ?", componentAID.String()).Error)
 		suite.NoError(suite.DB.Model(&filter).Association("Components").Append(&component1))
 

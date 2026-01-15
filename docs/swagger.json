@@ -16440,7 +16440,7 @@
                 "components": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.DefinedComponent"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
                     }
                 },
                 "controls": {
@@ -22972,12 +22972,6 @@
                     "description": "required",
                     "type": "string"
                 },
-                "filters": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/relational.Filter"
-                    }
-                },
                 "id": {
                     "type": "string"
                 },
@@ -23183,7 +23177,7 @@
                 "components": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/relational.DefinedComponent"
+                        "$ref": "#/definitions/relational.SystemComponent"
                     }
                 },
                 "controls": {
@@ -24358,6 +24352,12 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Evidence"
+                    }
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Filter"
                     }
                 },
                 "id": {

@@ -121,7 +121,6 @@ type DefinedComponent struct {
 	ComponentDefinitionID *uuid.UUID
 	ComponentDefinition   *ComponentDefinition
 
-	Filters []Filter `gorm:"many2many:filter_defined_components;"`
 	// oscalTypes113.DefinedComponent
 }
 

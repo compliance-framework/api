@@ -38,8 +38,8 @@ func (h *FilterHandler) Register(api *echo.Group) {
 
 type FilterWithControlsAndComponentsResponse struct {
 	relational.Filter
-	Controls   []oscalTypes_1_1_3.Control          `json:"controls"`
-	Components []oscalTypes_1_1_3.DefinedComponent `json:"components"`
+	Controls   []oscalTypes_1_1_3.Control         `json:"controls"`
+	Components []oscalTypes_1_1_3.SystemComponent `json:"components"`
 }
 
 // Get godoc
@@ -79,8 +79,8 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 			}
 			return result
 		}(),
-		Components: func() []oscalTypes_1_1_3.DefinedComponent {
-			result := []oscalTypes_1_1_3.DefinedComponent{}
+		Components: func() []oscalTypes_1_1_3.SystemComponent {
+			result := []oscalTypes_1_1_3.SystemComponent{}
 			for _, component := range filter.Components {
 				result = append(result, *component.MarshalOscal())
 			}
@@ -116,9 +116,9 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 
 	if controlID == "" && componentID != "" {
 		query = query.
-			Joins("JOIN filter_defined_components ON filter_defined_components.filter_id = filters.id").
-			Joins("JOIN defined_components ON defined_components.id = filter_defined_components.defined_component_id").
-			Where("defined_components.id = ?", componentID).
+			Joins("JOIN filter_system_components ON filter_system_components.filter_id = filters.id").
+			Joins("JOIN system_components ON system_components.id = filter_system_components.system_component_id").
+			Where("system_components.id = ?", componentID).
 			Distinct()
 	}
 
@@ -126,9 +126,9 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 		query = query.
 			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
 			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
-			Joins("JOIN filter_defined_components ON filter_defined_components.filter_id = filters.id").
-			Joins("JOIN defined_components ON defined_components.id = filter_defined_components.defined_component_id").
-			Where("controls.id = ? AND defined_components.id = ?", controlID, componentID).
+			Joins("JOIN filter_system_components ON filter_system_components.filter_id = filters.id").
+			Joins("JOIN system_components ON system_components.id = filter_system_components.system_component_id").
+			Where("controls.id = ? AND system_components.id = ?", controlID, componentID).
 			Distinct()
 	}
 
@@ -149,8 +149,8 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 					}
 					return result
 				}(),
-				Components: func() []oscalTypes_1_1_3.DefinedComponent {
-					result := []oscalTypes_1_1_3.DefinedComponent{}
+				Components: func() []oscalTypes_1_1_3.SystemComponent {
+					result := []oscalTypes_1_1_3.SystemComponent{}
 					for _, component := range filter.Components {
 						result = append(result, *component.MarshalOscal())
 					}
@@ -209,7 +209,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 	if req.Components != nil {
 		for _, componentId := range *req.Components {
 			searchDB := h.db.Session(&gorm.Session{})
-			component := relational.DefinedComponent{}
+			component := relational.SystemComponent{}
 			err := searchDB.First(&component, "id = ?", componentId).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -297,7 +297,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 
 		for _, componentId := range *req.Components {
 			searchDB := h.db.Session(&gorm.Session{})
-			component := relational.DefinedComponent{}
+			component := relational.SystemComponent{}
 			err := searchDB.First(&component, "id = ?", componentId).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -16446,7 +16446,7 @@ const docTemplate = `{
                 "components": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/oscalTypes_1_1_3.DefinedComponent"
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
                     }
                 },
                 "controls": {
@@ -22978,12 +22978,6 @@ const docTemplate = `{
                     "description": "required",
                     "type": "string"
                 },
-                "filters": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/relational.Filter"
-                    }
-                },
                 "id": {
                     "type": "string"
                 },
@@ -23189,7 +23183,7 @@ const docTemplate = `{
                 "components": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/relational.DefinedComponent"
+                        "$ref": "#/definitions/relational.SystemComponent"
                     }
                 },
                 "controls": {
@@ -24364,6 +24358,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Evidence"
+                    }
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Filter"
                     }
                 },
                 "id": {
