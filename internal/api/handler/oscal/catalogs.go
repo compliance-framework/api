@@ -1135,7 +1135,7 @@ func (h *CatalogHandler) CreateControlSubControl(ctx echo.Context) error {
 	}
 
 	parentControlID := ctx.Param("control")
-	var parent *relational.Control
+	var parent relational.Control
 	if err := h.db.
 		Where("id = ? AND catalog_id = ?", parentControlID, catalogID).
 		First(&parent).Error; err != nil {
