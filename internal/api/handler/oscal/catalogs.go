@@ -165,9 +165,12 @@ func (h *CatalogHandler) Delete(ctx echo.Context) error {
 	// controls cascade
 	var roots []relational.Control
 	if err := tx.Where("catalog_id = ? AND parent_id IS NULL", catalogID).Find(&roots).Error; err != nil {
-		tx.Rollback()
-		h.sugar.Errorw("failed to list root controls", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
+			h.sugar.Errorw("failed to list root controls", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		roots = []relational.Control{}
 	}
 	var deleteControlCascade func(id string) error
 	deleteControlCascade = func(id string) error {
@@ -180,7 +183,10 @@ func (h *CatalogHandler) Delete(ctx echo.Context) error {
 				return err
 			}
 		}
-		if err := tx.Exec("DELETE FROM filter_controls WHERE control_id = ?", id).Error; err != nil {
+		if err := tx.Exec(
+			"DELETE FROM filter_controls fc USING controls c WHERE fc.control_id = c.id AND c.id = ? AND c.catalog_id = ?",
+			id, catalogID,
+		).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&relational.Control{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
