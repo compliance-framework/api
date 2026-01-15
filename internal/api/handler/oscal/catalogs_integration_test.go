@@ -30,47 +30,6 @@ type CatalogApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 }
 
-func (suite *CatalogApiIntegrationSuite) TestCatalogDelete() {
-	logger, _ := zap.NewDevelopment()
-
-	err := suite.Migrator.Refresh()
-	suite.Require().NoError(err)
-	token, err := suite.GetAuthToken()
-	suite.Require().NoError(err)
-
-	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
-
-	// Create catalog
-	catalog := oscaltypes.Catalog{
-		UUID: "C2732F9F-F254-4D4A-AD53-E3AAD9C70388",
-		Metadata: oscaltypes.Metadata{
-			Title: "Delete Me",
-		},
-	}
-	rec := httptest.NewRecorder()
-	reqBody, _ := json.Marshal(catalog)
-	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
-	server.E().ServeHTTP(rec, req)
-	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-
-	// Delete catalog
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodDelete, "/api/oscal/catalogs/C2732F9F-F254-4D4A-AD53-E3AAD9C70388", nil)
-	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
-	server.E().ServeHTTP(rec, req)
-	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
-
-	// Verify 404 on get
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/C2732F9F-F254-4D4A-AD53-E3AAD9C70388", nil)
-	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
-	server.E().ServeHTTP(rec, req)
-	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
-}
 // TestDuplicateCatalogGroupID ensures that when multiple catalogs have group children with the same ID,
 // their children endpoints only returned the relevant groups.
 // This is to prevent a future regression where searching for child groups in a catalog, would return all the groups
@@ -482,4 +441,204 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 	// Make sure only one groups came back and it's the correct one.
 	suite.Len(listResponse.Data, 1)
 	suite.Equal(listResponse.Data[0].Title, "Control 1")
+}
+
+// TestCascadeDeleteGroupRemovesControls verifies that deleting a group cascades to its controls and subgroups
+func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteGroupRemovesControls() {
+	logger, _ := zap.NewDevelopment()
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	catalog := oscaltypes.Catalog{
+		UUID: "D5A6E1FF-7F21-4B3C-A2B7-998877665544",
+		Metadata: oscaltypes.Metadata{
+			Title: "Cascade Verify",
+		},
+		Groups: &[]oscaltypes.Group{
+			{
+				ID:    "G-1",
+				Title: "Group 1",
+				Controls: &[]oscaltypes.Control{
+					{
+						ID:    "C-1",
+						Title: "Control 1",
+						Controls: &[]oscaltypes.Control{
+							{
+								ID:    "C-1.1",
+								Title: "Subcontrol",
+							},
+						},
+					},
+				},
+				Groups: &[]oscaltypes.Group{
+					{
+						ID:    "G-1.1",
+						Title: "Group 1.1",
+					},
+				},
+			},
+		},
+		Controls: &[]oscaltypes.Control{
+			{
+				ID:    "X-1",
+				Title: "Top Control",
+			},
+		},
+	}
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(catalog)
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	// Delete the group and verify cascades
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/oscal/catalogs/D5A6E1FF-7F21-4B3C-A2B7-998877665544/groups/G-1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+
+	// Group gone
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D5A6E1FF-7F21-4B3C-A2B7-998877665544/groups/G-1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+
+	// Controls under group gone
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D5A6E1FF-7F21-4B3C-A2B7-998877665544/controls/C-1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/D5A6E1FF-7F21-4B3C-A2B7-998877665544/controls/C-1.1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+}
+
+// TestCascadeDeleteControlRemovesChildren verifies that deleting a control cascades to its child controls
+func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteControlRemovesChildren() {
+	logger, _ := zap.NewDevelopment()
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	catalog := oscaltypes.Catalog{
+		UUID: "A1B2C3D4-E5F6-4711-8899-112233445566",
+		Metadata: oscaltypes.Metadata{
+			Title: "Cascade Control Verify",
+		},
+		Controls: &[]oscaltypes.Control{
+			{
+				ID:    "X-1",
+				Title: "Top Control",
+				Controls: &[]oscaltypes.Control{
+					{
+						ID:    "X-1.1",
+						Title: "Child of X1",
+					},
+				},
+			},
+		},
+	}
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(catalog)
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	// Delete the control and verify cascades
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/oscal/catalogs/A1B2C3D4-E5F6-4711-8899-112233445566/controls/X-1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+
+	// Control gone
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/A1B2C3D4-E5F6-4711-8899-112233445566/controls/X-1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+
+	// Child control gone
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/A1B2C3D4-E5F6-4711-8899-112233445566/controls/X-1.1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+}
+
+// TestCascadeDeleteCatalogRemovesEverything verifies that deleting a catalog removes all associated data
+func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteCatalogRemovesEverything() {
+	logger, _ := zap.NewDevelopment()
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	catalog := oscaltypes.Catalog{
+		UUID: "F0E1D2C3-B4A5-6789-ABCD-001122334455",
+		Metadata: oscaltypes.Metadata{
+			Title: "Delete Whole Catalog",
+		},
+		Groups: &[]oscaltypes.Group{
+			{
+				ID:    "G-1",
+				Title: "Group 1",
+				Controls: &[]oscaltypes.Control{
+					{
+						ID:    "C-1",
+						Title: "Control 1",
+					},
+				},
+			},
+		},
+		Controls: &[]oscaltypes.Control{
+			{
+				ID:    "X-1",
+				Title: "Top Control",
+			},
+		},
+	}
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(catalog)
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	// Delete the catalog
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/oscal/catalogs/F0E1D2C3-B4A5-6789-ABCD-001122334455", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+
+	// Catalog gone
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/catalogs/F0E1D2C3-B4A5-6789-ABCD-001122334455", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }

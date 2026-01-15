@@ -9557,7 +9557,8 @@ paths:
       - Catalog
   /oscal/catalogs/{id}:
     delete:
-      description: Deletes a Catalog by its unique ID.
+      description: Deletes a Catalog and cascades to related groups/controls, metadata
+        and back-matter.
       parameters:
       - description: Catalog ID
         in: path
@@ -9581,7 +9582,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Delete a Catalog
+      summary: Delete a Catalog (cascade)
       tags:
       - Catalog
     get:
@@ -9772,7 +9773,8 @@ paths:
       - Catalog
   /oscal/catalogs/{id}/controls/{control}:
     delete:
-      description: Deletes a Control under the specified Catalog.
+      description: Deletes a Control and cascades to nested children; clears filter
+        associations.
       parameters:
       - description: Catalog ID
         in: path
@@ -9801,7 +9803,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Delete a Control within a Catalog
+      summary: Delete a Control (cascade)
       tags:
       - Catalog
     get:
@@ -10042,7 +10044,7 @@ paths:
       - Catalog
   /oscal/catalogs/{id}/groups/{group}:
     delete:
-      description: Deletes a Group under the specified Catalog.
+      description: Deletes a Group and cascades to nested groups and controls.
       parameters:
       - description: Catalog ID
         in: path
@@ -10071,7 +10073,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Delete a Group within a Catalog
+      summary: Delete a Group (cascade)
       tags:
       - Catalog
     get:

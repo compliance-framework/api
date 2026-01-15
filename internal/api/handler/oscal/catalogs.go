@@ -124,6 +124,313 @@ func (h *CatalogHandler) Get(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *catalog.MarshalOscal()})
 }
 
+// Delete godoc
+//
+//	@Summary		Delete a Catalog (cascade)
+//	@Description	Deletes a Catalog and cascades to related groups/controls, metadata and back-matter.
+//	@Tags			Catalog
+//	@Param			id	path	string	true	"Catalog ID"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/catalogs/{id} [delete]
+func (h *CatalogHandler) Delete(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	catalogID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
+	}
+	var catalog relational.Catalog
+	if err := h.db.
+		Preload("Metadata").
+		Preload("Metadata.Revisions").
+		Preload("BackMatter").
+		Preload("BackMatter.Resources").
+		Preload("Groups").
+		Preload("Groups.Groups").
+		Preload("Groups.Controls").
+		Preload("Controls").
+		Preload("Controls.Controls").
+		First(&catalog, "id = ?", catalogID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("catalog not found"))
+		}
+		h.sugar.Errorw("failed to retrieve catalog", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	tx := h.db.Begin()
+	// controls cascade
+	var roots []relational.Control
+	if err := tx.Where("catalog_id = ? AND parent_id IS NULL", catalogID).Find(&roots).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorw("failed to list root controls", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	var deleteControlCascade func(id string) error
+	deleteControlCascade = func(id string) error {
+		var children []relational.Control
+		if err := tx.Where("catalog_id = ? AND parent_id = ?", catalogID, id).Find(&children).Error; err != nil {
+			return err
+		}
+		for _, c := range children {
+			if err := deleteControlCascade(c.ID); err != nil {
+				return err
+			}
+		}
+		if err := tx.Exec("DELETE FROM filter_controls WHERE control_id = ?", id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&relational.Control{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	for _, r := range roots {
+		if err := deleteControlCascade(r.ID); err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to cascade delete controls", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+	// groups cascade
+	var deleteGroupCascade func(id string) error
+	deleteGroupCascade = func(id string) error {
+		var group relational.Group
+		if err := tx.
+			Preload("Groups").
+			Preload("Controls").
+			Where("id = ? AND catalog_id = ?", id, catalogID).
+			First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		for _, ctl := range group.Controls {
+			if err := deleteControlCascade(ctl.ID); err != nil {
+				return err
+			}
+		}
+		for _, child := range group.Groups {
+			if err := deleteGroupCascade(child.ID); err != nil {
+				return err
+			}
+		}
+		if err := tx.Delete(&relational.Group{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	var groups []relational.Group
+	if err := tx.Where("catalog_id = ? AND parent_id IS NULL", catalogID).Find(&groups).Error; err == nil {
+		for _, g := range groups {
+			if err := deleteGroupCascade(g.ID); err != nil {
+				tx.Rollback()
+				h.sugar.Errorw("failed to cascade delete groups", "error", err)
+				return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			}
+		}
+	}
+	// back-matter
+	if catalog.BackMatter != nil && catalog.BackMatter.ID != nil {
+		if err := tx.Where("back_matter_id = ?", catalog.BackMatter.ID).Delete(&relational.BackMatterResource{}).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to delete backmatter resources", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Delete(&relational.BackMatter{}, "id = ?", catalog.BackMatter.ID).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to delete backmatter", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+	// metadata children and joins
+	if catalog.Metadata.ID != nil {
+		if err := tx.Where("metadata_id = ?", catalog.Metadata.ID).Delete(&relational.Revision{}).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to delete revisions", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Where("metadata_id = ?", catalog.Metadata.ID).Delete(&relational.Action{}).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to delete actions", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Exec("DELETE FROM metadata_responsible_parties WHERE metadata_id = ?", catalog.Metadata.ID).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to clear metadata_responsible_parties", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Exec("DELETE FROM metadata_roles WHERE metadata_id = ?", catalog.Metadata.ID).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to clear metadata_roles", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Exec("DELETE FROM metadata_locations WHERE metadata_id = ?", catalog.Metadata.ID).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to clear metadata_locations", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Exec("DELETE FROM metadata_parties WHERE metadata_id = ?", catalog.Metadata.ID).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to clear metadata_parties", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if err := tx.Delete(&relational.Metadata{}, "id = ?", catalog.Metadata.ID).Error; err != nil {
+			tx.Rollback()
+			h.sugar.Errorw("failed to delete metadata", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+	// finally catalog
+	if err := tx.Delete(&relational.Catalog{}, "id = ?", catalogID).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorw("failed to delete catalog", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	tx.Commit()
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// DeleteGroup godoc
+//
+//	@Summary		Delete a Group (cascade)
+//	@Description	Deletes a Group and cascades to nested groups and controls.
+//	@Tags			Catalog
+//	@Param			id		path	string	true	"Catalog ID"
+//	@Param			group	path	string	true	"Group ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/catalogs/{id}/groups/{group} [delete]
+func (h *CatalogHandler) DeleteGroup(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	catalogID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
+	}
+	groupID := ctx.Param("group")
+	tx := h.db.Begin()
+	var deleteControlCascade func(id string) error
+	deleteControlCascade = func(id string) error {
+		var children []relational.Control
+		if err := tx.Where("catalog_id = ? AND parent_id = ?", catalogID, id).Find(&children).Error; err != nil {
+			return err
+		}
+		for _, c := range children {
+			if err := deleteControlCascade(c.ID); err != nil {
+				return err
+			}
+		}
+		if err := tx.Exec("DELETE FROM filter_controls WHERE control_id = ?", id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&relational.Control{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	var deleteGroupCascade func(id string) error
+	deleteGroupCascade = func(id string) error {
+		var group relational.Group
+		if err := tx.
+			Preload("Groups").
+			Preload("Controls").
+			Where("id = ? AND catalog_id = ?", id, catalogID).
+			First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		for _, ctl := range group.Controls {
+			if err := deleteControlCascade(ctl.ID); err != nil {
+				return err
+			}
+		}
+		for _, child := range group.Groups {
+			if err := deleteGroupCascade(child.ID); err != nil {
+				return err
+			}
+		}
+		if err := tx.Delete(&relational.Group{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := deleteGroupCascade(groupID); err != nil {
+		tx.Rollback()
+		h.sugar.Errorw("failed to delete group cascade", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	tx.Commit()
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// DeleteControl godoc
+//
+//	@Summary		Delete a Control (cascade)
+//	@Description	Deletes a Control and cascades to nested children; clears filter associations.
+//	@Tags			Catalog
+//	@Param			id		path	string	true	"Catalog ID"
+//	@Param			control	path	string	true	"Control ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/catalogs/{id}/controls/{control} [delete]
+func (h *CatalogHandler) DeleteControl(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	catalogID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
+	}
+	controlID := ctx.Param("control")
+	var control relational.Control
+	if err := h.db.Where("id = ? AND catalog_id = ?", controlID, catalogID).First(&control).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("control not found"))
+		}
+		h.sugar.Errorw("failed to retrieve control", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	tx := h.db.Begin()
+	var deleteCascade func(id string) error
+	deleteCascade = func(id string) error {
+		var children []relational.Control
+		if err := tx.Where("catalog_id = ? AND parent_id = ?", catalogID, id).Find(&children).Error; err != nil {
+			return err
+		}
+		for _, c := range children {
+			if err := deleteCascade(c.ID); err != nil {
+				return err
+			}
+		}
+		if err := tx.Exec("DELETE FROM filter_controls WHERE control_id = ?", id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&relational.Control{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := deleteCascade(controlID); err != nil {
+		tx.Rollback()
+		h.sugar.Errorw("failed to delete control cascade", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	tx.Commit()
+	return ctx.NoContent(http.StatusNoContent)
+}
+
 // Create godoc
 
 // @Summary		Create a new Catalog
@@ -199,42 +506,6 @@ func (h *CatalogHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *relCat.MarshalOscal()})
-}
-
-// Delete godoc
-//
-//	@Summary		Delete a Catalog
-//	@Description	Deletes a Catalog by its unique ID.
-//	@Tags			Catalog
-//	@Param			id	path	string	true	"Catalog ID"
-//	@Success		204	"No Content"
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/catalogs/{id} [delete]
-func (h *CatalogHandler) Delete(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
-	}
-	// Verify exists
-	var catalog relational.Catalog
-	if err := h.db.First(&catalog, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("catalog not found"))
-		}
-		h.sugar.Errorw("failed to retrieve catalog", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	// Delete
-	if err := h.db.Delete(&relational.Catalog{}, "id = ?", id).Error; err != nil {
-		h.sugar.Errorw("failed to delete catalog", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	return ctx.NoContent(http.StatusNoContent)
 }
 
 // GetBackMatter godoc
@@ -522,42 +793,6 @@ func (h *CatalogHandler) UpdateGroup(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Group]{Data: *relGroup.MarshalOscal()})
-}
-
-// DeleteGroup godoc
-//
-//	@Summary		Delete a Group within a Catalog
-//	@Description	Deletes a Group under the specified Catalog.
-//	@Tags			Catalog
-//	@Param			id		path	string	true	"Catalog ID"
-//	@Param			group	path	string	true	"Group ID"
-//	@Success		204		"No Content"
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/catalogs/{id}/groups/{group} [delete]
-func (h *CatalogHandler) DeleteGroup(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	catalogID, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
-	}
-	groupID := ctx.Param("group")
-	var group relational.Group
-	if err := h.db.Where("id = ? AND catalog_id = ?", groupID, catalogID).First(&group).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("group not found"))
-		}
-		h.sugar.Errorw("failed to retrieve group", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if err := h.db.Delete(&relational.Group{}, "id = ? AND catalog_id = ?", groupID, catalogID).Error; err != nil {
-		h.sugar.Errorw("failed to delete group", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	return ctx.NoContent(http.StatusNoContent)
 }
 
 // CreateGroupSubGroup godoc
@@ -868,42 +1103,6 @@ func (h *CatalogHandler) UpdateControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Control]{Data: *relCtl.MarshalOscal()})
-}
-
-// DeleteControl godoc
-//
-//	@Summary		Delete a Control within a Catalog
-//	@Description	Deletes a Control under the specified Catalog.
-//	@Tags			Catalog
-//	@Param			id		path	string	true	"Catalog ID"
-//	@Param			control	path	string	true	"Control ID"
-//	@Success		204		"No Content"
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/oscal/catalogs/{id}/controls/{control} [delete]
-func (h *CatalogHandler) DeleteControl(ctx echo.Context) error {
-	idParam := ctx.Param("id")
-	catalogID, err := uuid.Parse(idParam)
-	if err != nil {
-		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.InvalidUUID())
-	}
-	controlID := ctx.Param("control")
-	var control relational.Control
-	if err := h.db.Where("id = ? AND catalog_id = ?", controlID, catalogID).First(&control).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NotFoundCustomMsg("control not found"))
-		}
-		h.sugar.Errorw("failed to retrieve control", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if err := h.db.Delete(&relational.Control{}, "id = ? AND catalog_id = ?", controlID, catalogID).Error; err != nil {
-		h.sugar.Errorw("failed to delete control", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	return ctx.NoContent(http.StatusNoContent)
 }
 
 // CreateControlSubControl godoc

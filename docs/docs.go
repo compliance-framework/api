@@ -6374,11 +6374,11 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes a Catalog by its unique ID.",
+                "description": "Deletes a Catalog and cascades to related groups/controls, metadata and back-matter.",
                 "tags": [
                     "Catalog"
                 ],
-                "summary": "Delete a Catalog",
+                "summary": "Delete a Catalog (cascade)",
                 "parameters": [
                     {
                         "type": "string",
@@ -6718,11 +6718,11 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes a Control under the specified Catalog.",
+                "description": "Deletes a Control and cascades to nested children; clears filter associations.",
                 "tags": [
                     "Catalog"
                 ],
-                "summary": "Delete a Control within a Catalog",
+                "summary": "Delete a Control (cascade)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7133,11 +7133,11 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Deletes a Group under the specified Catalog.",
+                "description": "Deletes a Group and cascades to nested groups and controls.",
                 "tags": [
                     "Catalog"
                 ],
-                "summary": "Delete a Group within a Catalog",
+                "summary": "Delete a Group (cascade)",
                 "parameters": [
                     {
                         "type": "string",
