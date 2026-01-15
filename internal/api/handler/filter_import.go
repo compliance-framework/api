@@ -102,7 +102,11 @@ func (h *FilterHandler) processFilterFile(fileHeader *multipart.FileHeader) Filt
 		result.Message = fmt.Sprintf("Failed to open file: %v", err)
 		return result
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			h.sugar.Errorw("Failed to close file", "error", err)
+		}
+	}()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
