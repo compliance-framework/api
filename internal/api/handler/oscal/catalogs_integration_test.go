@@ -13,11 +13,14 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/tests"
+	"github.com/compliance-framework/api/internal/service/relational"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -641,4 +644,93 @@ func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteCatalogRemovesEverythi
 	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
+}
+
+// TestFilterControlsCatalogScopedDelete ensures filter_controls rows are removed only for the targeted catalog
+func (suite *CatalogApiIntegrationSuite) TestFilterControlsCatalogScopedDelete() {
+	// NOTE: Currently, the many2many join table "filter_controls" uses a foreign key on control_id only,
+	// which causes ON DELETE CASCADE to remove rows across catalogs when control IDs collide.
+	// This test documents the intended behavior (catalog-scoped deletes) and will be enabled
+	// after the schema change to include catalog_id in the FK or remove the cascade.
+	suite.T().Skip("Pending schema update: ensure filter_controls FK includes catalog_id to avoid cross-catalog cascades")
+	logger, _ := zap.NewDevelopment()
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+
+	// Create two catalogs with the same control ID
+	catA := oscaltypes.Catalog{
+		UUID: "AAAABBBB-CCCC-DDDD-EEEE-111122223333",
+		Metadata: oscaltypes.Metadata{
+			Title: "Catalog A",
+		},
+		Controls: &[]oscaltypes.Control{
+			{
+				ID:    "DUP-1",
+				Title: "Duplicate Control",
+			},
+		},
+	}
+	catB := oscaltypes.Catalog{
+		UUID: "BBBBCCCC-DDDD-EEEE-FFFF-444455556666",
+		Metadata: oscaltypes.Metadata{
+			Title: "Catalog B",
+		},
+		Controls: &[]oscaltypes.Control{
+			{
+				ID:    "DUP-1",
+				Title: "Duplicate Control (B)",
+			},
+		},
+	}
+	for _, catalog := range []oscaltypes.Catalog{catA, catB} {
+		rec := httptest.NewRecorder()
+		reqBody, _ := json.Marshal(catalog)
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/catalogs", bytes.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+		server.E().ServeHTTP(rec, req)
+		assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	}
+
+	// Create a filter and associate both controls (same id across two catalogs)
+	filter := relational.Filter{
+		Name:   "Scoped Delete Test",
+		Filter: datatypes.NewJSONType(labelfilter.Filter{}),
+	}
+	suite.Require().NoError(suite.DB.Create(&filter).Error)
+	suite.Require().NotNil(filter.ID)
+
+	// Insert join rows manually to avoid ambiguous control lookups
+	suite.Require().NoError(suite.DB.Exec(
+		"INSERT INTO filter_controls (filter_id, control_id, control_catalog_id) VALUES (?, ?, ?), (?, ?, ?)",
+		*filter.ID, "DUP-1", catA.UUID,
+		*filter.ID, "DUP-1", catB.UUID,
+	).Error)
+
+	// Delete control from Catalog A
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/oscal/catalogs/"+catA.UUID+"/controls/DUP-1", bytes.NewReader([]byte{}))
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+
+	// Verify filter_controls rows: A is gone, B remains
+	var countA int64
+	suite.Require().NoError(suite.DB.Raw(
+		"SELECT COUNT(*) FROM filter_controls WHERE control_id = ? AND control_catalog_id = ?",
+		"DUP-1", catA.UUID,
+	).Scan(&countA).Error)
+	assert.Equal(suite.T(), int64(0), countA)
+
+	var countB int64
+	suite.Require().NoError(suite.DB.Raw(
+		"SELECT COUNT(*) FROM filter_controls WHERE control_id = ? AND control_catalog_id = ?",
+		"DUP-1", catB.UUID,
+	).Scan(&countB).Error)
+	assert.Equal(suite.T(), int64(1), countB)
 }

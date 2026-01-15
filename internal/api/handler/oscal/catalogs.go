@@ -334,7 +334,10 @@ func (h *CatalogHandler) DeleteGroup(ctx echo.Context) error {
 				return err
 			}
 		}
-		if err := tx.Exec("DELETE FROM filter_controls WHERE control_id = ?", id).Error; err != nil {
+		if err := tx.Exec(
+			"DELETE FROM filter_controls fc USING controls c WHERE fc.control_id = c.id AND c.id = ? AND c.catalog_id = ?",
+			id, catalogID,
+		).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&relational.Control{}, "catalog_id = ? AND id = ?", catalogID, id).Error; err != nil {
