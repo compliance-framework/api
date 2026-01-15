@@ -44,4 +44,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	inventoryHandler := NewInventoryHandler(logger, db)
 	inventoryHandler.Register(oscalGroup.Group("/inventory"))
+
+	importHandler := NewImportHandler(logger, db)
+	importHandler.Register(oscalGroup.Group("/import"))
 }
