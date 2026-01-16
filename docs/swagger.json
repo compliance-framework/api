@@ -16562,7 +16562,6 @@
                 }
             }
         },
-        "handler.FilterWithControlsResponse": {
         "handler.FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {
@@ -17169,7 +17168,6 @@
                 }
             }
         },
-        "handler.GenericDataResponse-handler_FilterWithControlsResponse": {
         "handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {

@@ -16568,7 +16568,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.FilterWithControlsResponse": {
         "handler.FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {
@@ -17175,7 +17174,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_FilterWithControlsResponse": {
         "handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {
