@@ -1051,7 +1051,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsResponse"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse"
                         }
                     },
                     "500": {
@@ -1180,7 +1180,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithControlsResponse"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse"
                         }
                     },
                     "400": {
@@ -16568,9 +16568,15 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.FilterWithControlsResponse": {
+        "handler.FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                },
                 "controls": {
                     "type": "array",
                     "items": {
@@ -16638,14 +16644,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_FilterWithControlsResponse": {
+        "handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.FilterWithControlsResponse"
+                        "$ref": "#/definitions/handler.FilterWithControlsAndComponentsResponse"
                     }
                 }
             }
@@ -17168,14 +17174,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_FilterWithControlsResponse": {
+        "handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.FilterWithControlsResponse"
+                            "$ref": "#/definitions/handler.FilterWithControlsAndComponentsResponse"
                         }
                     ]
                 }
@@ -18091,6 +18097,12 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "controls": {
                     "type": "array",
                     "items": {
@@ -23362,6 +23374,12 @@ const docTemplate = `{
         "relational.Filter": {
             "type": "object",
             "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemComponent"
+                    }
+                },
                 "controls": {
                     "type": "array",
                     "items": {
@@ -24534,6 +24552,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Evidence"
+                    }
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Filter"
                     }
                 },
                 "id": {
