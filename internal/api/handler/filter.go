@@ -64,7 +64,7 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 	}
 
 	var filter relational.Filter
-	if err := h.db.Preload("Controls").First(&filter, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Controls").Preload("Components").First(&filter, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
