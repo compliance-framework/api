@@ -25,14 +25,14 @@ func ParseIntervalListQueryParam(intervalQuery string, def []time.Duration) ([]t
 	return intervals, nil
 }
 
-// createPlanRequest defines the request payload for method Create
+// createFilterRequest defines the request payload for method Create
 type createFilterRequest struct {
-	Name     string             `json:"name" yaml:"name" validate:"required"`
-	Filter   labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
-	Controls *[]string          `json:"controls" yaml:"controls"`
+	Name       string             `json:"name" yaml:"name" validate:"required"`
+	Filter     labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
+	Controls   *[]string          `json:"controls" yaml:"controls"`
+	Components *[]string          `json:"components" yaml:"components"`
 }
 
-// createPlanRequest defines the request payload for method Create
 // TODO: Using minimal data for now, we might need to expand it later
 type filteredSearchRequest struct {
 	Filter labelfilter.Filter `json:"filter" yaml:"filter" validate:"required"`
