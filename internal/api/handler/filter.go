@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -37,7 +38,7 @@ func (h *FilterHandler) Register(api *echo.Group) {
 	api.POST("/import", h.ImportFilters)
 }
 
-type FilterWithControlsAndComponentsResponse struct {
+type FilterWithAssociations struct {
 	relational.Filter
 	Controls   []oscalTypes_1_1_3.Control         `json:"controls"`
 	Components []oscalTypes_1_1_3.SystemComponent `json:"components"`
@@ -50,7 +51,7 @@ type FilterWithControlsAndComponentsResponse struct {
 //	@Tags			Filters
 //	@Produce		json
 //	@Param			id	path		string	true	"Filter ID"
-//	@Success		200	{object}	GenericDataResponse[FilterWithControlsAndComponentsResponse]
+//	@Success		200	{object}	GenericDataResponse[FilterWithAssociations]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -64,14 +65,14 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 	}
 
 	var filter relational.Filter
-	if err := h.db.Preload("Controls").First(&filter, "id = ?", id).Error; err != nil {
+	if err := h.db.Preload("Controls").Preload("Components").First(&filter, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	response := FilterWithControlsAndComponentsResponse{
+	response := FilterWithAssociations{
 		Filter: filter,
 		Controls: func() []oscalTypes_1_1_3.Control {
 			result := []oscalTypes_1_1_3.Control{}
@@ -89,21 +90,25 @@ func (h *FilterHandler) Get(ctx echo.Context) error {
 		}(),
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataResponse[FilterWithControlsAndComponentsResponse]{Data: response})
+	return ctx.JSON(http.StatusOK, GenericDataResponse[FilterWithAssociations]{Data: response})
 }
 
 // List godoc
 //
 //	@Summary		List filters
-//	@Description	Retrieves all filters.
+//	@Description	Retrieves all filters, optionally filtered by controlId or componentId.
 //	@Tags			Filters
 //	@Produce		json
-//	@Success		200	{object}	GenericDataListResponse[FilterWithControlsAndComponentsResponse]
+//	@Success		200	{object}	GenericDataListResponse[FilterWithAssociations]
 //	@Failure		500	{object}	api.Error
 //	@Router			/filters [get]
 func (h *FilterHandler) List(ctx echo.Context) error {
 	controlID := ctx.QueryParam("controlId")
 	componentID := ctx.QueryParam("componentId")
+
+	if controlID != "" && componentID != "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId and componentId are mutually exclusive")))
+	}
 
 	query := h.db.Model(&relational.Filter{}).Preload("Controls").Preload("Components")
 
@@ -123,25 +128,15 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 			Distinct()
 	}
 
-	if controlID != "" && componentID != "" {
-		query = query.
-			Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
-			Joins("JOIN controls ON controls.catalog_id = filter_controls.control_catalog_id::uuid AND controls.id = filter_controls.control_id").
-			Joins("JOIN filter_system_components ON filter_system_components.filter_id = filters.id").
-			Joins("JOIN system_components ON system_components.id = filter_system_components.system_component_id").
-			Where("controls.id = ? AND system_components.id = ?", controlID, componentID).
-			Distinct()
-	}
-
 	var filters []relational.Filter
 	if err := query.Find(&filters).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	response := func() []FilterWithControlsAndComponentsResponse {
-		result := []FilterWithControlsAndComponentsResponse{}
+	response := func() []FilterWithAssociations {
+		result := []FilterWithAssociations{}
 		for _, filter := range filters {
-			result = append(result, FilterWithControlsAndComponentsResponse{
+			result = append(result, FilterWithAssociations{
 				Filter: filter,
 				Controls: func() []oscalTypes_1_1_3.Control {
 					result := []oscalTypes_1_1_3.Control{}
@@ -162,7 +157,7 @@ func (h *FilterHandler) List(ctx echo.Context) error {
 		return result
 	}()
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[FilterWithControlsAndComponentsResponse]{Data: response})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[FilterWithAssociations]{Data: response})
 }
 
 // Create godoc
@@ -187,12 +182,20 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.Validator(err))
 	}
 
+	// Filters can be associated with either controls or components, but not both.
+	hasControls := req.Controls != nil && len(*req.Controls) > 0
+	hasComponents := req.Components != nil && len(*req.Components) > 0
+
+	if hasControls && hasComponents {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("Controls and Components fields are mutually exclusive")))
+	}
+
 	filter := relational.Filter{
 		Name:   req.Name,
 		Filter: datatypes.NewJSONType(req.Filter),
 	}
 
-	if req.Controls != nil {
+	if hasControls {
 		for _, controlId := range *req.Controls {
 			searchDB := h.db.Session(&gorm.Session{})
 			control := relational.Control{}
@@ -207,7 +210,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 		}
 	}
 
-	if req.Components != nil {
+	if hasComponents {
 		for _, componentId := range *req.Components {
 			searchDB := h.db.Session(&gorm.Session{})
 			component := relational.SystemComponent{}
@@ -269,6 +272,44 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 
 	filter.Name = req.Name
 	filter.Filter = datatypes.NewJSONType(req.Filter)
+
+	// Note: nil and empty slices are semantically different here.
+	// If one of controls / components is present but empty, that
+	// means clear the existing controls / components, whereas a nil
+	// slice means we should ignore it entirely. Now consider, an
+	// existing filter with controls, and a request to update it where
+	// controls is nil but components is populated. This should be
+	// invalid, as the expected update would be to ignore the controls
+	// and update the components, resulting in a filter with both.
+
+	// The request contains one or more of both Controls and Components
+	if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components != nil && len(*req.Components) > 0) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(
+			fmt.Errorf(
+				"Cannot associate a Filter with both Controls and Components.",
+			)),
+		)
+	}
+
+	// The request contains one or more Controls, with a nil slice for Components
+	if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components == nil) && len(filter.Components) > 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(
+			fmt.Errorf(
+				"Cannot link Controls to a Filter with associated Components."+
+					"To remove existing Component associations, send an empty list for the Components field.",
+			)),
+		)
+	}
+
+	// The request contains a nil slice for Controls, with one or more Components
+	if (req.Controls == nil) && (req.Components != nil && len(*req.Components) > 0) && len(filter.Controls) > 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(
+			fmt.Errorf(
+				"Cannot link Components to a Filter with associated Controls."+
+					"To remove existing Control associations, send an empty list for the Controls field.",
+			)),
+		)
+	}
 
 	// Update controls if provided
 	if req.Controls != nil {
