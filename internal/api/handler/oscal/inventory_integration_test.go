@@ -41,7 +41,7 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	suite.handler = NewInventoryHandler(logger, suite.DB)
 	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB)
 	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
-	suite.evidenceHandler = handler.NewEvidenceHandler(logger, suite.DB)
+	suite.evidenceHandler = handler.NewEvidenceHandler(logger, suite.DB, suite.Config)
 
 	// Initialize server
 	metrics := api.NewMetricsHandler(context.Background(), logger)

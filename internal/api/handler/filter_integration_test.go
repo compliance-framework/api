@@ -399,7 +399,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(updateReq)
 		req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/filters/%s", filter.ID), bytes.NewReader(reqBody))
