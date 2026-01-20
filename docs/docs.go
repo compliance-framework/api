@@ -1039,7 +1039,7 @@ const docTemplate = `{
         },
         "/filters": {
             "get": {
-                "description": "Retrieves all filters.",
+                "description": "Retrieves all filters, optionally filtered by controlId or componentId.",
                 "produces": [
                     "application/json"
                 ],
@@ -1051,7 +1051,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations"
                         }
                     },
                     "500": {
@@ -1180,7 +1180,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithAssociations"
                         }
                     },
                     "400": {
@@ -16714,7 +16714,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.FilterWithControlsAndComponentsResponse": {
+        "handler.FilterWithAssociations": {
             "type": "object",
             "properties": {
                 "components": {
@@ -16790,14 +16790,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse": {
+        "handler.GenericDataListResponse-handler_FilterWithAssociations": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.FilterWithControlsAndComponentsResponse"
+                        "$ref": "#/definitions/handler.FilterWithAssociations"
                     }
                 }
             }
@@ -17320,14 +17320,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse": {
+        "handler.GenericDataResponse-handler_FilterWithAssociations": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.FilterWithControlsAndComponentsResponse"
+                            "$ref": "#/definitions/handler.FilterWithAssociations"
                         }
                     ]
                 }

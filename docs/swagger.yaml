@@ -305,7 +305,7 @@ definitions:
       total_files:
         type: integer
     type: object
-  handler.FilterWithControlsAndComponentsResponse:
+  handler.FilterWithAssociations:
     properties:
       components:
         items:
@@ -355,12 +355,12 @@ definitions:
           $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse:
+  handler.GenericDataListResponse-handler_FilterWithAssociations:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.FilterWithControlsAndComponentsResponse'
+          $ref: '#/definitions/handler.FilterWithAssociations'
         type: array
     type: object
   handler.GenericDataListResponse-handler_OscalLikeEvidence:
@@ -705,11 +705,11 @@ definitions:
         - $ref: '#/definitions/handler.FilterImportResponse'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse:
+  handler.GenericDataResponse-handler_FilterWithAssociations:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.FilterWithControlsAndComponentsResponse'
+        - $ref: '#/definitions/handler.FilterWithAssociations'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_OscalLikeEvidence:
@@ -6258,14 +6258,14 @@ paths:
       - Evidence
   /filters:
     get:
-      description: Retrieves all filters.
+      description: Retrieves all filters, optionally filtered by controlId or componentId.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse'
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations'
         "500":
           description: Internal Server Error
           schema:
@@ -6347,7 +6347,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithAssociations'
         "400":
           description: Bad Request
           schema:
