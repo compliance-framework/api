@@ -19,7 +19,7 @@ NOT SATISFIED EVIDENCE
 * {{.Title}}
   {{if .Description}}Description: {{.Description}}{{end}}
   Status: {{.Status}}
-  View: {{$.WebBaseURL}}/evidence/{{.UUID}}
+  View: {{$.WebBaseURL}}/evidence/{{.ID}}
 
 {{end}}
 {{end}}

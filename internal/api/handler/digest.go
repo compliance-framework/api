@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -51,7 +52,7 @@ func (h *DigestHandler) TriggerDigest(ctx echo.Context) error {
 	}
 
 	if h.scheduler == nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(nil))
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("scheduler is not available")))
 	}
 
 	if err := h.scheduler.RunNow(ctx.Request().Context(), jobName); err != nil {

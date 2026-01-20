@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -80,7 +81,16 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	// Start the scheduler
 	sched.Start()
-	defer sched.Stop()
+	defer func() {
+		stopCtx := sched.Stop()
+		// Wait for jobs to finish gracefully with a 10-second timeout
+		select {
+		case <-stopCtx.Done():
+			sugar.Debug("All scheduled jobs completed gracefully")
+		case <-time.After(10 * time.Second):
+			sugar.Warn("Scheduler shutdown timeout, some jobs may not have completed")
+		}
+	}()
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
