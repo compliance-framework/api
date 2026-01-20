@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -25,41 +24,11 @@ type ProfileHandler struct {
 	db    *gorm.DB
 }
 
-type RuleOperator string
-
-const (
-	RuleOperatorEquals   RuleOperator = "equals"
-	RuleOperatorContains RuleOperator = "contains"
-	RuleOperatorRegex    RuleOperator = "regex"
-	RuleOperatorIn       RuleOperator = "in"
-)
-
-type MatchStrategy string
-
-const (
-	MatchStrategyAll MatchStrategy = "all"
-	MatchStrategyAny MatchStrategy = "any"
-)
-
 type rule struct {
-	Name     string       `json:"name" example:"class"`
-	Ns       string       `json:"ns" example:"http://csrc.nist.gov/ns/oscal"`
-	Operator RuleOperator `json:"operator" binding:"required" example:"equals"`
-	Value    string       `json:"value" binding:"required" example:"technical"`
-}
-
-type BuildByPropsRequest struct {
-	CatalogID     string        `json:"catalog-id" binding:"required" example:"9b0c9c43-2722-4bbb-b132-13d34fb94d45"`
-	MatchStrategy MatchStrategy `json:"match-strategy" binding:"required" example:"all"`
-	Rules         []rule        `json:"rules" binding:"required,min=1"`
-	Title         string        `json:"title" binding:"required" example:"My Custom Profile"`
-	Version       string        `json:"version" example:"1.0.0"`
-}
-
-type BuildByPropsResponse struct {
-	ProfileID  uuid.UUID                `json:"profile-id"`
-	ControlIDs []string                 `json:"control-ids"`
-	Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+	Name     string `json:"name"`
+	Ns       string `json:"ns"`
+	Operator string `json:"operator"` // equals | contains | regex | in
+	Value    string `json:"value"`
 }
 
 func NewProfileHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ProfileHandler {
@@ -75,7 +44,6 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 	api.POST("/build-props", h.BuildByProps)
 	api.GET("/:id", h.Get)
 	api.GET("/:id/resolved", h.Resolved)
-	api.GET("/:id/compliance-progress", h.ComplianceProgress)
 
 	api.GET("/:id/modify", h.GetModify)
 	api.GET("/:id/back-matter", h.GetBackmatter)
@@ -101,8 +69,8 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Tags			Profile
 //	@Accept			json
 //	@Produce		json
-//	@Param			request	body		oscal.BuildByPropsRequest	true	"Prop matching request"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.BuildByPropsResponse]
+//	@Param			request	body	oscal.ProfileHandler.BuildByProps.request	true	"Prop matching request"
+//	@Success		201		{object}	handler.GenericDataResponse[oscal.ProfileHandler.BuildByProps.response]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
@@ -110,193 +78,102 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/build-props [post]
 func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
-	var req BuildByPropsRequest
+	type request struct {
+		CatalogID     string `json:"catalogId"`
+		MatchStrategy string `json:"matchStrategy"` // all | any
+		Rules         []rule `json:"rules"`
+		Title         string `json:"title"`
+		Version       string `json:"version"`
+	}
+	type response struct {
+		ProfileID  uuid.UUID                `json:"profileId"`
+		ControlIDs []string                 `json:"controlIds"`
+		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+	}
+	var req request
 	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Warnw("failed to bind BuildByProps request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
 	if req.CatalogID == "" || len(req.Rules) == 0 {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalog-id and rules are required")))
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalogId and rules are required")))
 	}
-
-	// Filter out invalid rules and validate operators
-	validRules := make([]rule, 0, len(req.Rules))
-	for _, r := range req.Rules {
-		if strings.TrimSpace(string(r.Operator)) != "" && strings.TrimSpace(r.Value) != "" {
-			validRules = append(validRules, r)
-		}
-	}
-	if len(validRules) == 0 {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("rules must include non-empty operator and value")))
-	}
-
-	// Pre-compile regex patterns and validate
-	regexCache := make(map[string]*regexp.Regexp)
-	for _, r := range validRules {
-		if r.Operator == RuleOperatorRegex {
-			re, err := regexp.Compile(r.Value)
-			if err != nil {
-				h.sugar.Warnw("invalid regex pattern", "pattern", r.Value, "error", err)
-				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid regex pattern '%s': %w", r.Value, err)))
-			}
-			regexCache[r.Value] = re
-		}
-	}
-
 	catUUID, err := uuid.Parse(req.CatalogID)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
-	// Check if catalog exists
-	var catalog relational.Catalog
-	if err := h.db.Preload("Metadata").First(&catalog, "id = ?", catUUID).Error; err != nil {
+	var controls []relational.Control
+	if err := h.db.Where("catalog_id = ?", catUUID).Find(&controls).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
-		h.sugar.Errorw("failed to load catalog metadata", "catalogId", req.CatalogID, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	var controls []relational.Control
-	if err := h.db.Where("catalog_id = ?", catUUID).Find(&controls).Error; err != nil {
 		h.sugar.Errorw("failed to list catalog controls", "catalogId", req.CatalogID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-
-	// Check if controls were found
-	if len(controls) == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("no controls found in catalog")))
-	}
-
-	matchAll := req.MatchStrategy == MatchStrategyAll
+	matchAll := strings.ToLower(req.MatchStrategy) == "all"
 	matched := make([]relational.Control, 0, len(controls))
 	matchedIDs := make([]string, 0, len(controls))
 	for i := range controls {
-		if matchControlByProps(&controls[i], validRules, matchAll, regexCache) {
+		if matchControlByProps(&controls[i], req.Rules, matchAll) {
 			matched = append(matched, controls[i])
 			matchedIDs = append(matchedIDs, controls[i].ID)
 		}
 	}
-
-	// Wrap the entire build flow in a transaction
-	var profileID uuid.UUID
-	var oscalProfile *oscalTypes_1_1_3.Profile
-	err = h.db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-		resourceUUID := uuid.New()
-		title := catalog.Metadata.Title
-		resource := relational.BackMatterResource{
-			ID:    resourceUUID,
-			Title: &title,
-			RLinks: []relational.ResourceLink{
-				{
-					Href:      "#" + req.CatalogID,
-					MediaType: "application/ccf+oscal+json",
-				},
-			},
-		}
-		includeGroup := relational.SelectControlById{
-			WithChildControls: "",
-			WithIds:           datatypes.NewJSONSlice(matchedIDs),
-		}
-		newImport := relational.Import{
-			Href: "#" + resourceUUID.String(),
-		}
-		profile := &relational.Profile{
-			Metadata: relational.Metadata{
-				Title:        req.Title,
-				Version:      req.Version,
-				OscalVersion: versioning.GetLatestSupportedVersion(),
-				LastModified: &now,
-			},
-			Controls: matched,
-		}
-		if err := tx.Create(profile).Error; err != nil {
-			return fmt.Errorf("failed to create profile: %w", err)
-		}
-		profileID = *profile.ID
-
-		// Persist BackMatter and resource under this profile
-		parentID := profile.ID.String()
-		parentType := "profiles"
-		bmRecord := &relational.BackMatter{
-			ParentID:   &parentID,
-			ParentType: &parentType,
-		}
-		if err := tx.Create(bmRecord).Error; err != nil {
-			return fmt.Errorf("failed to create backmatter: %w", err)
-		}
-		if bmRecord.ID != nil {
-			resource.BackMatterID = *bmRecord.ID
-		}
-		if err := tx.Create(&resource).Error; err != nil {
-			return fmt.Errorf("failed to create backmatter resource: %w", err)
-		}
-
-		// Persist import and include-controls
-		newImport.ProfileID = *profile.ID
-		if err := tx.Create(&newImport).Error; err != nil {
-			return fmt.Errorf("failed to create import: %w", err)
-		}
-		if len(matchedIDs) > 0 && newImport.ID != nil {
-			includeGroup.ParentID = *newImport.ID
-			includeGroup.ParentType = "included"
-			if err := tx.Create(&includeGroup).Error; err != nil {
-				return fmt.Errorf("failed to create include-controls: %w", err)
-			}
-		}
-
-		if _, err := SyncProfileControls(tx, *profile.ID); err != nil {
-			return fmt.Errorf("failed to sync profile controls: %w", err)
-		}
-
-		// Reload full profile with associations for response
-		fullProfile, err := FindFullProfile(tx, *profile.ID)
-		if err != nil {
-			return fmt.Errorf("failed to reload full profile: %w", err)
-		}
-		oscalProfile = fullProfile.MarshalOscal()
-		return nil
-	})
-
-	if err != nil {
-		h.sugar.Errorw("failed to build profile by props", "error", err)
+	now := time.Now()
+	profile := &relational.Profile{
+		Metadata: relational.Metadata{
+			Title:        req.Title,
+			Version:      req.Version,
+			OscalVersion: versioning.GetLatestSupportedVersion(),
+			LastModified: &now,
+		},
+		Controls: matched,
+	}
+	if err := h.db.Create(profile).Error; err != nil {
+		h.sugar.Errorw("failed to create profile from props", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[BuildByPropsResponse]{
-		Data: BuildByPropsResponse{
-			ProfileID:  profileID,
+	if _, err := SyncProfileControls(h.db, *profile.ID); err != nil {
+		h.sugar.Errorw("failed to sync profile controls", "profileId", profile.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	oscalProfile := profile.MarshalOscal()
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{
+		Data: response{
+			ProfileID:  *profile.ID,
 			ControlIDs: matchedIDs,
 			Profile:    *oscalProfile,
 		},
 	})
 }
 
-func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool, regexCache map[string]*regexp.Regexp) bool {
+func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool) bool {
 	if len(rules) == 0 {
 		return false
 	}
 	eval := func(r rule, p relational.Prop) bool {
-		if r.Name != "" && !strings.EqualFold(r.Name, p.Name) {
+		if r.Name != "" && strings.ToLower(r.Name) != strings.ToLower(p.Name) {
 			return false
 		}
-		if r.Ns != "" && !strings.EqualFold(r.Ns, p.Ns) {
+		if r.Ns != "" && strings.ToLower(r.Ns) != strings.ToLower(p.Ns) {
 			return false
 		}
-		switch r.Operator {
-		case RuleOperatorEquals:
+		switch strings.ToLower(r.Operator) {
+		case "equals":
 			return strings.EqualFold(p.Value, r.Value)
-		case RuleOperatorContains:
+		case "contains":
 			return strings.Contains(strings.ToLower(p.Value), strings.ToLower(r.Value))
-		case RuleOperatorRegex:
-			if re, ok := regexCache[r.Value]; ok {
-				return re.MatchString(p.Value)
-			}
-			return false
-		case RuleOperatorIn:
+		case "regex":
+			m, _ := func() (bool, error) {
+				// simple regex match
+				re, err := regexp.Compile(r.Value)
+				if err != nil {
+					return false, err
+				}
+				return re.MatchString(p.Value), nil
+			}()
+			return m
+		case "in":
 			parts := strings.Split(r.Value, ",")
 			for _, v := range parts {
 				if strings.EqualFold(strings.TrimSpace(v), p.Value) {
@@ -1458,12 +1335,8 @@ func rollUpToRootControl(db *gorm.DB, control relational.Control) (relational.Co
 
 	tx := db.Session(&gorm.Session{})
 	if *control.ParentType == "controls" {
-		if control.ParentID == nil {
-			return control, fmt.Errorf("control %s has parent type %q but nil parent ID", control.ID, *control.ParentType)
-		}
-
 		parent := relational.Control{}
-		if err := tx.First(&parent, "id = ? AND catalog_id = ?", *control.ParentID, control.CatalogID).Error; err != nil {
+		if err := tx.First(&parent, "id = ?", control.ParentID).Error; err != nil {
 			return control, err
 		}
 		parent.Controls = append(parent.Controls, control)
@@ -1480,12 +1353,8 @@ func rollUpToRootGroup(db *gorm.DB, group relational.Group) (relational.Group, e
 
 	tx := db.Session(&gorm.Session{})
 	if *group.ParentType == "groups" {
-		if group.ParentID == nil {
-			return group, fmt.Errorf("group %s has parent type %q but nil parent ID", group.ID, *group.ParentType)
-		}
-
 		parent := relational.Group{}
-		if err := tx.First(&parent, "id = ? AND catalog_id = ?", *group.ParentID, group.CatalogID).Error; err != nil {
+		if err := tx.First(&parent, "id = ?", *group.ParentID).Error; err != nil {
 			return group, err
 		}
 		parent.Groups = append(parent.Groups, group)
@@ -1495,26 +1364,15 @@ func rollUpToRootGroup(db *gorm.DB, group relational.Group) (relational.Group, e
 	return group, nil
 }
 
-type controlMergeKey struct {
-	CatalogID uuid.UUID
-	ID        string
-}
-
-type groupMergeKey struct {
-	CatalogID uuid.UUID
-	ID        string
-}
-
 func mergeControls(controls ...relational.Control) []relational.Control {
-	mapped := map[controlMergeKey]relational.Control{}
+	mapped := map[string]relational.Control{}
 	for _, control := range controls {
-		key := controlMergeKey{CatalogID: control.CatalogID, ID: control.ID}
-		if sub, ok := mapped[key]; ok {
+		if sub, ok := mapped[control.ID]; ok {
 			control.Controls = append(control.Controls, sub.Controls...)
 		}
 
 		control.Controls = mergeControls(control.Controls...)
-		mapped[key] = control
+		mapped[control.ID] = control
 	}
 
 	flattened := []relational.Control{}
@@ -1525,17 +1383,16 @@ func mergeControls(controls ...relational.Control) []relational.Control {
 }
 
 func mergeGroups(groups ...relational.Group) []relational.Group {
-	mapped := map[groupMergeKey]relational.Group{}
+	mapped := map[string]relational.Group{}
 	for _, group := range groups {
-		key := groupMergeKey{CatalogID: group.CatalogID, ID: group.ID}
-		if sub, ok := mapped[key]; ok {
+		if sub, ok := mapped[group.ID]; ok {
 			group.Groups = append(group.Groups, sub.Groups...)
 			group.Controls = append(group.Controls, sub.Controls...)
 		}
 
 		group.Controls = mergeControls(group.Controls...)
 		group.Groups = mergeGroups(group.Groups...)
-		mapped[key] = group
+		mapped[group.ID] = group
 	}
 	flattened := []relational.Group{}
 	for _, group := range mapped {
@@ -1571,12 +1428,8 @@ func rollUpControlsToCatalog(db *gorm.DB, allControls []relational.Control) (*re
 
 		// If the control has a group as a parent, roll it up.
 		if *rootControl.ParentType == "groups" {
-			if rootControl.ParentID == nil {
-				return nil, fmt.Errorf("control %s has parent type %q but nil parent ID", rootControl.ID, *rootControl.ParentType)
-			}
-
 			group := &relational.Group{}
-			if err = db.First(group, "id = ? AND catalog_id = ?", *rootControl.ParentID, rootControl.CatalogID).Error; err != nil {
+			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
 				return nil, err
 			}
 			group.Controls = append(group.Controls, rootControl)
@@ -1669,7 +1522,7 @@ func FindOscalCatalogFromBackMatter(profile *relational.Profile, ref string) (uu
 			}
 		}
 	}
-	return uuid.Nil, errors.New("no valid catalog uuid was found within the backmatter. ref: " + ref)
+	return uuid.Nil, errors.New("No valid catalog UUID was found within the backmatter. Ref: " + ref)
 }
 
 // GatherControlIds extracts unique control IDs from an Import’s IncludeControls, avoiding duplicates.
