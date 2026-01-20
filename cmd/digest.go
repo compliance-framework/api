@@ -65,7 +65,10 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 		fmt.Print("This will send emails to real users. Are you sure you want to continue? (type 'yes' to confirm): ")
 
 		var response string
-		fmt.Scanln(&response)
+		_, err := fmt.Scanln(&response)
+		if err != nil {
+			sugar.Fatalw("Failed to read user input", "error", err)
+		}
 		if response != "yes" {
 			fmt.Println("Operation cancelled.")
 			return
