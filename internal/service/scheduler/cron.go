@@ -15,14 +15,19 @@ type CronScheduler struct {
 	logger *zap.SugaredLogger
 	jobs   map[string]Job
 	mu     sync.RWMutex
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewCronScheduler creates a new cron-based scheduler
 func NewCronScheduler(logger *zap.SugaredLogger) *CronScheduler {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &CronScheduler{
 		cron:   cron.New(cron.WithSeconds()),
 		logger: logger,
 		jobs:   make(map[string]Job),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -59,9 +64,8 @@ func (s *CronScheduler) ScheduleCron(cronExpr string, job Job) error {
 	}
 
 	_, err := s.cron.AddFunc(cronExpr, func() {
-		ctx := context.Background()
 		s.logger.Debugw("Starting scheduled job", "job", job.Name())
-		if err := job.Execute(ctx); err != nil {
+		if err := job.Execute(s.ctx); err != nil {
 			s.logger.Errorw("Scheduled job failed", "job", job.Name(), "error", err)
 		} else {
 			s.logger.Debugw("Scheduled job completed", "job", job.Name())
@@ -85,6 +89,11 @@ func (s *CronScheduler) Start() {
 // Stop gracefully stops the scheduler
 func (s *CronScheduler) Stop() context.Context {
 	s.logger.Debug("Stopping scheduler")
+
+	// Cancel the context to signal running jobs to stop
+	s.cancel()
+
+	// Stop the cron scheduler
 	return s.cron.Stop()
 }
 

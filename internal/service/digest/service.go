@@ -126,7 +126,7 @@ func (s *Service) GetGlobalEvidenceSummary(ctx context.Context) (*EvidenceSummar
 	if err := s.db.Table("(?) as latest", relational.GetLatestEvidenceStreamsQuery(s.db)).
 		Where("status->>'state' = ?", "not-satisfied").
 		Preload("Labels").
-		Order("\"end\" DESC").
+		Order("end DESC").
 		Limit(5).
 		Find(&notSatisfiedEvidence).Error; err != nil {
 		s.logger.Warnw("Failed to fetch top not-satisfied evidence", "error", err)

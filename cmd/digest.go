@@ -15,6 +15,8 @@ import (
 )
 
 var (
+	dryRun bool
+
 	DigestCmd = &cobra.Command{
 		Use:   "digest",
 		Short: "Digest management commands",
@@ -34,6 +36,7 @@ var (
 )
 
 func init() {
+	digestTestCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be sent without sending emails")
 	DigestCmd.AddCommand(digestTestCmd)
 	DigestCmd.AddCommand(digestPreviewCmd)
 }
@@ -56,6 +59,19 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 
 	cfg := config.NewConfig(sugar)
 
+	// Check if this is production and add confirmation if not dry-run
+	if cfg.Environment == "production" && !dryRun {
+		fmt.Print("⚠️  WARNING: You are about to send digest emails to all subscribed users in PRODUCTION!\n")
+		fmt.Print("This will send emails to real users. Are you sure you want to continue? (type 'yes' to confirm): ")
+
+		var response string
+		fmt.Scanln(&response)
+		if response != "yes" {
+			fmt.Println("Operation cancelled.")
+			return
+		}
+	}
+
 	db, err := service.ConnectSQLDb(ctx, cfg, sugar)
 	if err != nil {
 		sugar.Fatalw("Failed to connect to SQL database", "error", err)
@@ -67,6 +83,28 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 	}
 
 	digestService := digest.NewService(db, emailService, cfg, sugar)
+
+	if dryRun {
+		sugar.Info("Running digest test in DRY-RUN mode (no emails will be sent)...")
+
+		// Get the digest summary without sending
+		summary, err := digestService.GetGlobalEvidenceSummary(ctx)
+		if err != nil {
+			sugar.Fatalw("Failed to get digest summary", "error", err)
+		}
+
+		sugar.Infow("Digest summary (dry-run)",
+			"total_evidence", summary.TotalCount,
+			"satisfied", summary.SatisfiedCount,
+			"not_satisfied", summary.NotSatisfiedCount,
+			"expired", summary.ExpiredCount,
+			"top_not_satisfied_count", len(summary.TopNotSatisfied),
+			"top_expired_count", len(summary.TopExpired),
+		)
+
+		sugar.Info("Dry-run completed successfully - no emails were sent")
+		return
+	}
 
 	sugar.Info("Running digest test...")
 	if err := digestService.SendGlobalDigest(ctx); err != nil {

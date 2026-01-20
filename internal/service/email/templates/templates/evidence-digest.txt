@@ -31,7 +31,7 @@ EXPIRED EVIDENCE
 * {{.Title}}
   {{if .Description}}Description: {{.Description}}{{end}}
   Expired: {{if .ExpiresAt}}{{.ExpiresAt}}{{else}}N/A{{end}}
-  View: {{$.WebBaseURL}}/evidence/{{.UUID}}
+  View: {{$.WebBaseURL}}/evidence/{{.ID}}
 
 {{end}}
 {{end}}
