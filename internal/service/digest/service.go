@@ -33,7 +33,7 @@ type EvidenceItem struct {
 	Title       string
 	Description string
 	Status      string
-	ExpiresAt   *time.Time
+	ExpiresAt   string // Formatted expiration date string (empty if no expiration)
 	Labels      []string
 }
 
@@ -89,16 +89,23 @@ func (s *Service) GetGlobalEvidenceSummary(ctx context.Context) (*EvidenceSummar
 	}
 
 	// Count expired evidence (expires <= now)
+	// Note: Evidence without expiration dates (expires IS NULL) are treated as never expiring
+	// and are excluded from the expired count. This maintains backward compatibility with
+	// deployments that have evidence without expiration dates.
 	now := time.Now()
-	if err := s.db.Table("(?) as latest", relational.GetLatestEvidenceStreamsQuery(s.db)).
+	expiredCountQuery := s.db.Session(&gorm.Session{})
+	expiredCountQuery = relational.GetLatestEvidenceStreamsQuery(expiredCountQuery)
+	if err := expiredCountQuery.
 		Where("expires IS NOT NULL AND expires <= ?", now).
 		Count(&summary.ExpiredCount).Error; err != nil {
 		return nil, fmt.Errorf("failed to count expired evidence: %w", err)
 	}
 
-	// Get top 5 expired evidence items
+	// Get top 5 expired evidence items (only those with explicit expiration dates)
 	var expiredEvidence []relational.Evidence
-	if err := s.db.Table("(?) as latest", relational.GetLatestEvidenceStreamsQuery(s.db)).
+	expiredItemsQuery := s.db.Session(&gorm.Session{})
+	expiredItemsQuery = relational.GetLatestEvidenceStreamsQuery(expiredItemsQuery)
+	if err := expiredItemsQuery.
 		Where("expires IS NOT NULL AND expires <= ?", now).
 		Preload("Labels").
 		Order("expires ASC").
@@ -138,13 +145,19 @@ func (s *Service) convertToEvidenceItems(evidences []relational.Evidence) []Evid
 			status = statusData.State
 		}
 
+		// Format expiration date for display
+		expiresAt := ""
+		if e.Expires != nil && !e.Expires.IsZero() {
+			expiresAt = e.Expires.Format("2006-01-02 15:04 MST")
+		}
+
 		items = append(items, EvidenceItem{
 			ID:          e.ID.String(),
 			UUID:        e.UUID.String(),
 			Title:       e.Title,
 			Description: e.Description,
 			Status:      status,
-			ExpiresAt:   e.Expires,
+			ExpiresAt:   expiresAt,
 			Labels:      labels,
 		})
 	}

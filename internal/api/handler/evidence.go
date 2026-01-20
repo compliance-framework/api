@@ -7,6 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -19,14 +20,16 @@ import (
 )
 
 type EvidenceHandler struct {
-	db    *gorm.DB
-	sugar *zap.SugaredLogger
+	db     *gorm.DB
+	sugar  *zap.SugaredLogger
+	config *config.Config
 }
 
-func NewEvidenceHandler(sugar *zap.SugaredLogger, db *gorm.DB) *EvidenceHandler {
+func NewEvidenceHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *EvidenceHandler {
 	return &EvidenceHandler{
-		sugar: sugar,
-		db:    db,
+		sugar:  sugar,
+		db:     db,
+		config: cfg,
 	}
 }
 
@@ -323,6 +326,24 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		backMatter.UnmarshalOscal(*input.BackMatter)
 	}
 
+	// Auto-set expiration if not provided
+	expires := input.Expires
+	if expires == nil {
+		// Use End date if available, otherwise use current time
+		baseDate := input.End
+		if baseDate.IsZero() {
+			baseDate = time.Now().UTC()
+		}
+		// Add configured months to base date
+		expiryDate := baseDate.AddDate(0, h.config.EvidenceDefaultExpiryMonths, 0)
+		expires = &expiryDate
+		h.sugar.Debugw("Auto-set evidence expiration",
+			"uuid", input.UUID,
+			"baseDate", baseDate,
+			"expiryMonths", h.config.EvidenceDefaultExpiryMonths,
+			"expiresAt", expiryDate)
+	}
+
 	evidence := relational.Evidence{
 		UUIDModel: relational.UUIDModel{
 			ID: internal.Pointer(uuid.New()),
@@ -333,7 +354,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Remarks:     input.Remarks,
 		Start:       input.Start,
 		End:         input.End,
-		Expires:     input.Expires,
+		Expires:     expires,
 		Props:       relational.ConvertOscalToProps(&input.Props),
 		Links:       relational.ConvertOscalToLinks(&input.Links),
 		Origins: relational.ConvertList(&input.Origins, func(ol oscalTypes_1_1_3.Origin) relational.Origin {

@@ -43,6 +43,13 @@ func (s *CronScheduler) Schedule(schedule Schedule, job Job) error {
 }
 
 // ScheduleCron adds a job with a custom cron expression
+// Cron format: second minute hour day month weekday (6 fields with seconds support)
+// Examples:
+//
+//	"0 0 * * * *"     - Every hour at minute 0
+//	"0 */5 * * * *"   - Every 5 minutes
+//	"0 0 0 * * *"     - Every day at midnight
+//	"@hourly"         - Every hour (equivalent to "0 0 * * * *")
 func (s *CronScheduler) ScheduleCron(cronExpr string, job Job) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

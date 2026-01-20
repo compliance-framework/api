@@ -18,7 +18,7 @@ func TestConvertToEvidenceItems(t *testing.T) {
 			Title:       "Test Evidence",
 			Description: "Test Description",
 			Status:      "not-satisfied",
-			ExpiresAt:   &now,
+			ExpiresAt:   now.Format("2006-01-02 15:04 MST"),
 			Labels:      []string{"provider:aws", "env:prod"},
 		},
 	}
@@ -27,6 +27,7 @@ func TestConvertToEvidenceItems(t *testing.T) {
 	assert.Equal(t, "Test Evidence", items[0].Title)
 	assert.Equal(t, "not-satisfied", items[0].Status)
 	assert.Len(t, items[0].Labels, 2)
+	assert.NotEmpty(t, items[0].ExpiresAt)
 }
 
 func TestEvidenceSummaryStructure(t *testing.T) {
