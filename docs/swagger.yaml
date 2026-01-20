@@ -305,7 +305,7 @@ definitions:
       total_files:
         type: integer
     type: object
-  handler.FilterWithControlsAndComponentsResponse:
+  handler.FilterWithAssociations:
     properties:
       components:
         items:
@@ -355,12 +355,12 @@ definitions:
           $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse:
+  handler.GenericDataListResponse-handler_FilterWithAssociations:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.FilterWithControlsAndComponentsResponse'
+          $ref: '#/definitions/handler.FilterWithAssociations'
         type: array
     type: object
   handler.GenericDataListResponse-handler_OscalLikeEvidence:
@@ -705,11 +705,11 @@ definitions:
         - $ref: '#/definitions/handler.FilterImportResponse'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse:
+  handler.GenericDataResponse-handler_FilterWithAssociations:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.FilterWithControlsAndComponentsResponse'
+        - $ref: '#/definitions/handler.FilterWithAssociations'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_OscalLikeEvidence:
@@ -6258,14 +6258,14 @@ paths:
       - Evidence
   /filters:
     get:
-      description: Retrieves all filters.
+      description: Retrieves all filters, optionally filtered by controlId or componentId.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsAndComponentsResponse'
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations'
         "500":
           description: Internal Server Error
           schema:
@@ -6347,7 +6347,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithControlsAndComponentsResponse'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithAssociations'
         "400":
           description: Bad Request
           schema:
@@ -9667,6 +9667,35 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}:
+    delete:
+      description: Deletes a Catalog and cascades to related groups/controls, metadata
+        and back-matter.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Catalog (cascade)
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Catalog by its unique ID.
       parameters:
@@ -9854,6 +9883,40 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}/controls/{control}:
+    delete:
+      description: Deletes a Control and cascades to nested children; clears filter
+        associations.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Control (cascade)
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Control by its ID for a given Catalog.
       parameters:
@@ -10091,6 +10154,39 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}/groups/{group}:
+    delete:
+      description: Deletes a Group and cascades to nested groups and controls.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Group (cascade)
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Group by its ID for a given Catalog.
       parameters:
