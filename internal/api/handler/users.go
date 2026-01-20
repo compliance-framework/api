@@ -476,7 +476,7 @@ func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	h.sugar.Infow("User digest subscription updated", "email", email, "subscribed", req.Subscribed)
+	h.sugar.Debugw("User digest subscription updated", "email", email, "subscribed", req.Subscribed)
 
 	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
 		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},

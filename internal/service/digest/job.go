@@ -27,6 +27,6 @@ func (j *GlobalDigestJob) Name() string {
 
 // Execute runs the digest job
 func (j *GlobalDigestJob) Execute(ctx context.Context) error {
-	j.logger.Info("Executing global evidence digest job")
+	j.logger.Debug("Executing global evidence digest job")
 	return j.service.SendGlobalDigest(ctx)
 }

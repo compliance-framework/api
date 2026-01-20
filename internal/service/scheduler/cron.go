@@ -60,11 +60,11 @@ func (s *CronScheduler) ScheduleCron(cronExpr string, job Job) error {
 
 	_, err := s.cron.AddFunc(cronExpr, func() {
 		ctx := context.Background()
-		s.logger.Infow("Starting scheduled job", "job", job.Name())
+		s.logger.Debugw("Starting scheduled job", "job", job.Name())
 		if err := job.Execute(ctx); err != nil {
 			s.logger.Errorw("Scheduled job failed", "job", job.Name(), "error", err)
 		} else {
-			s.logger.Infow("Scheduled job completed", "job", job.Name())
+			s.logger.Debugw("Scheduled job completed", "job", job.Name())
 		}
 	})
 	if err != nil {
@@ -72,19 +72,19 @@ func (s *CronScheduler) ScheduleCron(cronExpr string, job Job) error {
 	}
 
 	s.jobs[job.Name()] = job
-	s.logger.Infow("Job scheduled", "job", job.Name(), "cron", cronExpr)
+	s.logger.Debugw("Job scheduled", "job", job.Name(), "cron", cronExpr)
 	return nil
 }
 
 // Start begins processing scheduled jobs
 func (s *CronScheduler) Start() {
-	s.logger.Info("Starting scheduler")
+	s.logger.Debug("Starting scheduler")
 	s.cron.Start()
 }
 
 // Stop gracefully stops the scheduler
 func (s *CronScheduler) Stop() context.Context {
-	s.logger.Info("Stopping scheduler")
+	s.logger.Debug("Stopping scheduler")
 	return s.cron.Stop()
 }
 
@@ -98,7 +98,7 @@ func (s *CronScheduler) RunNow(ctx context.Context, jobName string) error {
 		return fmt.Errorf("job %q not found", jobName)
 	}
 
-	s.logger.Infow("Running job manually", "job", jobName)
+	s.logger.Debugw("Running job manually", "job", jobName)
 	return job.Execute(ctx)
 }
 

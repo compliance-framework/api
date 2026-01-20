@@ -33,7 +33,9 @@ type Config struct {
 	WebBaseURL                  string
 	SSO                         *SSOConfig
 	Email                       *EmailConfig
-	EvidenceDefaultExpiryMonths int // Default expiration in months for evidence without explicit expiry
+	EvidenceDefaultExpiryMonths int    // Default expiration in months for evidence without explicit expiry
+	DigestEnabled               bool   // Enable or disable the digest scheduler
+	DigestSchedule              string // Cron schedule for digest emails
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -153,6 +155,13 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		evidenceDefaultExpiryMonths = 1
 	}
 
+	// Digest configuration
+	digestEnabled := viper.GetBool("digest_enabled")
+	digestSchedule := viper.GetString("digest_schedule")
+	if digestSchedule == "" {
+		digestSchedule = "@weekly"
+	}
+
 	return &Config{
 		AppPort:                     appPort,
 		Environment:                 environment,
@@ -169,6 +178,8 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		SSO:                         ssoConfig,
 		Email:                       emailConfig,
 		EvidenceDefaultExpiryMonths: evidenceDefaultExpiryMonths,
+		DigestEnabled:               digestEnabled,
+		DigestSchedule:              digestSchedule,
 	}
 
 }

@@ -227,7 +227,7 @@ func (s *Service) SendDigestEmail(ctx context.Context, user *relational.User, su
 		return fmt.Errorf("digest email send failed: %s", result.Error)
 	}
 
-	s.logger.Infow("Digest email sent", "user", user.Email, "messageId", result.MessageID)
+	s.logger.Debugw("Digest email sent", "user", user.Email, "messageId", result.MessageID)
 	return nil
 }
 
@@ -240,13 +240,13 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 
 	// Skip if there's nothing to report
 	if summary.TotalCount == 0 {
-		s.logger.Info("No evidence found, skipping digest")
+		s.logger.Debug("No evidence found, skipping digest")
 		return nil
 	}
 
 	// Skip if there are no issues to report
 	if summary.NotSatisfiedCount == 0 && summary.ExpiredCount == 0 {
-		s.logger.Info("No issues found (no expired or not-satisfied evidence), skipping digest")
+		s.logger.Debug("No issues found (no expired or not-satisfied evidence), skipping digest")
 		return nil
 	}
 
@@ -256,11 +256,11 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	}
 
 	if len(users) == 0 {
-		s.logger.Info("No subscribed users found, skipping digest")
+		s.logger.Debug("No subscribed users found, skipping digest")
 		return nil
 	}
 
-	s.logger.Infow("Sending global digest",
+	s.logger.Debugw("Sending global digest",
 		"totalEvidence", summary.TotalCount,
 		"notSatisfied", summary.NotSatisfiedCount,
 		"expired", summary.ExpiredCount,

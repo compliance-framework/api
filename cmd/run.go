@@ -26,11 +26,6 @@ var (
 	}
 )
 
-func init() {
-	RunCmd.Flags().String("digest-schedule", "@weekly", "Cron schedule for digest emails (e.g., '@hourly', '@daily', '@weekly', '0 9 * * 1' for Monday 9am)")
-	RunCmd.Flags().Bool("digest-enabled", true, "Enable or disable the digest scheduler")
-}
-
 func RunServer(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
@@ -71,19 +66,16 @@ func RunServer(cmd *cobra.Command, args []string) {
 	// Initialize scheduler
 	sched := scheduler.NewCronScheduler(sugar)
 
-	// Register digest job
-	digestEnabled, _ := cmd.Flags().GetBool("digest-enabled")
-	digestSchedule, _ := cmd.Flags().GetString("digest-schedule")
-
-	if digestEnabled {
+	// Register digest job using config
+	if cfg.DigestEnabled {
 		digestJob := digest.NewGlobalDigestJob(digestService, sugar)
-		if err := sched.ScheduleCron(digestSchedule, digestJob); err != nil {
-			sugar.Warnw("Failed to schedule digest job", "schedule", digestSchedule, "error", err)
+		if err := sched.ScheduleCron(cfg.DigestSchedule, digestJob); err != nil {
+			sugar.Warnw("Failed to schedule digest job", "schedule", cfg.DigestSchedule, "error", err)
 		} else {
-			sugar.Infow("Digest job scheduled", "schedule", digestSchedule)
+			sugar.Debugw("Digest job scheduled", "schedule", cfg.DigestSchedule)
 		}
 	} else {
-		sugar.Infow("Digest scheduler disabled")
+		sugar.Debugw("Digest scheduler disabled")
 	}
 
 	// Start the scheduler
