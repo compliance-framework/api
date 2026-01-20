@@ -89,24 +89,29 @@ func (s *Service) GetGlobalEvidenceSummary(ctx context.Context) (*EvidenceSummar
 	}
 
 	// Count expired evidence (expires <= now)
-	// Note: Evidence without expiration dates (expires IS NULL) are treated as never expiring
+	// Note: Evidence without expiration dates (expires IS NULL or zero time) are treated as never expiring
 	// and are excluded from the expired count. This maintains backward compatibility with
 	// deployments that have evidence without expiration dates.
+	// We exclude zero time (1970-01-01 00:00:00 UTC / 1969-12-31 in negative timezones) which may exist in DB
+	// We use a subquery to properly count only the latest evidence per stream (DISTINCT ON uuid)
 	now := time.Now()
+	zeroTime := time.Unix(0, 0)
 	expiredCountQuery := s.db.Session(&gorm.Session{})
 	expiredCountQuery = relational.GetLatestEvidenceStreamsQuery(expiredCountQuery)
-	if err := expiredCountQuery.
-		Where("expires IS NOT NULL AND expires <= ?", now).
+	expiredCountQuery = expiredCountQuery.Where("expires IS NOT NULL AND expires > ? AND expires <= ?", zeroTime, now)
+
+	// Count distinct UUIDs from the subquery
+	if err := s.db.Table("(?) as latest_expired", expiredCountQuery).
 		Count(&summary.ExpiredCount).Error; err != nil {
 		return nil, fmt.Errorf("failed to count expired evidence: %w", err)
 	}
 
-	// Get top 5 expired evidence items (only those with explicit expiration dates)
+	// Get top 5 expired evidence items (only those with explicit expiration dates, excluding zero time)
 	var expiredEvidence []relational.Evidence
 	expiredItemsQuery := s.db.Session(&gorm.Session{})
 	expiredItemsQuery = relational.GetLatestEvidenceStreamsQuery(expiredItemsQuery)
 	if err := expiredItemsQuery.
-		Where("expires IS NOT NULL AND expires <= ?", now).
+		Where("expires IS NOT NULL AND expires > ? AND expires <= ?", zeroTime, now).
 		Preload("Labels").
 		Order("expires ASC").
 		Limit(5).

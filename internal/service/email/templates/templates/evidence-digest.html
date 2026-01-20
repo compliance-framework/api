@@ -307,7 +307,7 @@
                     <div class="evidence-title">{{.Title}}</div>
                     {{if .Description}}<div class="evidence-description">{{.Description}}</div>{{end}}
                     <div class="evidence-meta">Status: {{.Status}}</div>
-                    <a href="{{$.WebBaseURL}}/evidence/{{.UUID}}" class="evidence-link">View Details →</a>
+                    <a href="{{$.WebBaseURL}}/evidence/{{.ID}}" class="evidence-link">View Details →</a>
                 </li>
                 {{end}}
             </ul>
@@ -322,7 +322,7 @@
                     <div class="evidence-title">{{.Title}}</div>
                     {{if .Description}}<div class="evidence-description">{{.Description}}</div>{{end}}
                     <div class="evidence-meta">Expired: {{if .ExpiresAt}}{{.ExpiresAt}}{{else}}N/A{{end}}</div>
-                    <a href="{{$.WebBaseURL}}/evidence/{{.UUID}}" class="evidence-link">View Details →</a>
+                    <a href="{{$.WebBaseURL}}/evidence/{{.ID}}" class="evidence-link">View Details →</a>
                 </li>
                 {{end}}
             </ul>
