@@ -187,7 +187,7 @@ func (h *FilterHandler) Create(ctx echo.Context) error {
 	hasComponents := req.Components != nil && len(*req.Components) > 0
 
 	if hasControls && hasComponents {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("Controls and Components fields are mutually exclusive")))
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("filter Controls and Components fields are mutually exclusive")))
 	}
 
 	filter := relational.Filter{
@@ -286,7 +286,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 	if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components != nil && len(*req.Components) > 0) {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(
 			fmt.Errorf(
-				"Cannot associate a Filter with both Controls and Components.",
+				"cannot associate a Filter with both Controls and Components.",
 			)),
 		)
 	}
@@ -295,7 +295,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 	if (req.Controls != nil && len(*req.Controls) > 0) && (req.Components == nil) && len(filter.Components) > 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(
 			fmt.Errorf(
-				"Cannot link Controls to a Filter with associated Components."+
+				"cannot link Controls to a Filter with associated Components."+
 					"To remove existing Component associations, send an empty list for the Components field.",
 			)),
 		)
@@ -305,7 +305,7 @@ func (h *FilterHandler) Update(ctx echo.Context) error {
 	if (req.Controls == nil) && (req.Components != nil && len(*req.Components) > 0) && len(filter.Controls) > 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(
 			fmt.Errorf(
-				"Cannot link Components to a Filter with associated Controls."+
+				"cannot link Components to a Filter with associated Controls."+
 					"To remove existing Control associations, send an empty list for the Controls field.",
 			)),
 		)
