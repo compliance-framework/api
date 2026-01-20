@@ -401,7 +401,7 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 //	@Description	Gets the current user's digest email subscription status
 //	@Tags			Users
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataResponse[object{subscribed boolean}]
+//	@Success		200	{object}	handler.GenericDataResponse[handler.UserHandler.GetDigestSubscription.digestSubscriptionResponse]
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -436,8 +436,8 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 //	@Tags			Users
 //	@Accept			json
 //	@Produce		json
-//	@Param			subscription	body		object{subscribed boolean}	true	"Subscription status"
-//	@Success		200				{object}	handler.GenericDataResponse[object{subscribed boolean}]
+//	@Param			subscription	body		handler.UserHandler.UpdateDigestSubscription.updateDigestSubscriptionRequest	true	"Subscription status"
+//	@Success		200				{object}	handler.GenericDataResponse[handler.UserHandler.UpdateDigestSubscription.digestSubscriptionResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		401				{object}	api.Error
 //	@Failure		404				{object}	api.Error
