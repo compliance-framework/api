@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,6 +24,13 @@ type ProfileHandler struct {
 	db    *gorm.DB
 }
 
+type rule struct {
+	Name     string `json:"name"`
+	Ns       string `json:"ns"`
+	Operator string `json:"operator"` // equals | contains | regex | in
+	Value    string `json:"value"`
+}
+
 func NewProfileHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ProfileHandler {
 	return &ProfileHandler{
 		sugar: sugar,
@@ -33,6 +41,7 @@ func NewProfileHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ProfileHandler {
 func (h *ProfileHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
 	api.POST("", h.Create)
+	api.POST("/build-props", h.BuildByProps)
 	api.GET("/:id", h.Get)
 	api.GET("/:id/resolved", h.Resolved)
 
@@ -51,6 +60,151 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 	// merge
 	api.GET("/:id/merge", h.GetMerge)
 	api.PUT("/:id/merge", h.UpdateMerge)
+}
+
+// BuildByProps
+//
+//	@Summary		Build Profile by Control Props
+//	@Description	Generates a Profile selecting controls from a catalog based on prop matching rules. Returns the created Profile and the matched control IDs.
+//	@Tags			Profile
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body	oscal.ProfileHandler.BuildByProps.request	true	"Prop matching request"
+//	@Success		201		{object}	handler.GenericDataResponse[oscal.ProfileHandler.BuildByProps.response]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/profiles/build-props [post]
+func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
+	type request struct {
+		CatalogID     string `json:"catalogId"`
+		MatchStrategy string `json:"matchStrategy"` // all | any
+		Rules         []rule `json:"rules"`
+		Title         string `json:"title"`
+		Version       string `json:"version"`
+	}
+	type response struct {
+		ProfileID  uuid.UUID                `json:"profileId"`
+		ControlIDs []string                 `json:"controlIds"`
+		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+	}
+	var req request
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Warnw("failed to bind BuildByProps request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if req.CatalogID == "" || len(req.Rules) == 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalogId and rules are required")))
+	}
+	catUUID, err := uuid.Parse(req.CatalogID)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var controls []relational.Control
+	if err := h.db.Where("catalog_id = ?", catUUID).Find(&controls).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("failed to list catalog controls", "catalogId", req.CatalogID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	matchAll := strings.ToLower(req.MatchStrategy) == "all"
+	matched := make([]relational.Control, 0, len(controls))
+	matchedIDs := make([]string, 0, len(controls))
+	for i := range controls {
+		if matchControlByProps(&controls[i], req.Rules, matchAll) {
+			matched = append(matched, controls[i])
+			matchedIDs = append(matchedIDs, controls[i].ID)
+		}
+	}
+	now := time.Now()
+	profile := &relational.Profile{
+		Metadata: relational.Metadata{
+			Title:        req.Title,
+			Version:      req.Version,
+			OscalVersion: versioning.GetLatestSupportedVersion(),
+			LastModified: &now,
+		},
+		Controls: matched,
+	}
+	if err := h.db.Create(profile).Error; err != nil {
+		h.sugar.Errorw("failed to create profile from props", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if _, err := SyncProfileControls(h.db, *profile.ID); err != nil {
+		h.sugar.Errorw("failed to sync profile controls", "profileId", profile.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	oscalProfile := profile.MarshalOscal()
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{
+		Data: response{
+			ProfileID:  *profile.ID,
+			ControlIDs: matchedIDs,
+			Profile:    *oscalProfile,
+		},
+	})
+}
+
+func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool) bool {
+	if len(rules) == 0 {
+		return false
+	}
+	eval := func(r rule, p relational.Prop) bool {
+		if r.Name != "" && strings.ToLower(r.Name) != strings.ToLower(p.Name) {
+			return false
+		}
+		if r.Ns != "" && strings.ToLower(r.Ns) != strings.ToLower(p.Ns) {
+			return false
+		}
+		switch strings.ToLower(r.Operator) {
+		case "equals":
+			return strings.EqualFold(p.Value, r.Value)
+		case "contains":
+			return strings.Contains(strings.ToLower(p.Value), strings.ToLower(r.Value))
+		case "regex":
+			m, _ := func() (bool, error) {
+				// simple regex match
+				re, err := regexp.Compile(r.Value)
+				if err != nil {
+					return false, err
+				}
+				return re.MatchString(p.Value), nil
+			}()
+			return m
+		case "in":
+			parts := strings.Split(r.Value, ",")
+			for _, v := range parts {
+				if strings.EqualFold(strings.TrimSpace(v), p.Value) {
+					return true
+				}
+			}
+			return false
+		default:
+			return false
+		}
+	}
+	matchedCount := 0
+	for _, rule := range rules {
+		ruleMatched := false
+		for _, prop := range ctl.Props {
+			if eval(rule, prop) {
+				ruleMatched = true
+				break
+			}
+		}
+		if matchAll && !ruleMatched {
+			return false
+		}
+		if !matchAll && ruleMatched {
+			return true
+		}
+		if ruleMatched {
+			matchedCount++
+		}
+	}
+	return matchAll && matchedCount == len(rules)
 }
 
 // List godoc
