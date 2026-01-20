@@ -63,7 +63,7 @@ func NewSESProvider(ctx context.Context, cfg *config.SESConfig, logger *zap.Suga
 		return nil, fmt.Errorf("SES connection test failed: %w", err)
 	}
 
-	logger.Infow("SES provider initialized", "region", cfg.Region, "from", cfg.From)
+	logger.Debugw("SES provider initialized", "region", cfg.Region, "from", cfg.From)
 	return provider, nil
 }
 
@@ -132,7 +132,7 @@ func (p *sesProvider) Send(ctx context.Context, message *emailtypes.Message) (*e
 		messageId = *result.MessageId
 	}
 
-	p.logger.Infow("Email sent successfully via SES", "to", message.To, "subject", message.Subject, "message_id", messageId)
+	p.logger.Debugw("Email sent successfully via SES", "to", message.To, "subject", message.Subject, "message_id", messageId)
 	return &emailtypes.SendResult{
 		Success:   true,
 		MessageID: messageId,

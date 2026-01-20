@@ -59,52 +59,43 @@ func NewService(db *gorm.DB, emailService *email.Service, cfg *config.Config, lo
 func (s *Service) GetGlobalEvidenceSummary(ctx context.Context) (*EvidenceSummary, error) {
 	summary := &EvidenceSummary{}
 
-	// Get latest evidence streams
-	latestQuery := relational.GetLatestEvidenceStreamsQuery(s.db)
-
-	// Count by status
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
-	var statusCounts []StatusCount
-	if err := s.db.Table("(?) as latest", latestQuery).
-		Select("count(*) as count, status->>'state' as status").
-		Group("status->>'state'").
-		Scan(&statusCounts).Error; err != nil {
-		return nil, fmt.Errorf("failed to count evidence by status: %w", err)
-	}
-
-	for _, sc := range statusCounts {
-		summary.TotalCount += sc.Count
-		switch sc.Status {
-		case "satisfied":
-			summary.SatisfiedCount = sc.Count
-		case "not-satisfied":
-			summary.NotSatisfiedCount = sc.Count
-		default:
-			summary.OtherCount += sc.Count
-		}
-	}
-
-	// Count expired evidence (expires <= now)
-	// Note: Evidence without expiration dates (expires IS NULL or zero time) are treated as never expiring
-	// and are excluded from the expired count. This maintains backward compatibility with
-	// deployments that have evidence without expiration dates.
-	// We exclude zero time (1970-01-01 00:00:00 UTC / 1969-12-31 in negative timezones) which may exist in DB
-	// We use a subquery to properly count only the latest evidence per stream (DISTINCT ON uuid)
+	// Get latest evidence streams once using CTE to avoid recomputing the subquery multiple times
 	now := time.Now()
 	zeroTime := time.Unix(0, 0)
-	expiredCountQuery := s.db.Session(&gorm.Session{})
-	expiredCountQuery = relational.GetLatestEvidenceStreamsQuery(expiredCountQuery)
-	expiredCountQuery = expiredCountQuery.Where("expires IS NOT NULL AND expires > ? AND expires <= ?", zeroTime, now)
 
-	// Count distinct UUIDs from the subquery
-	if err := s.db.Table("(?) as latest_expired", expiredCountQuery).
-		Count(&summary.ExpiredCount).Error; err != nil {
-		return nil, fmt.Errorf("failed to count expired evidence: %w", err)
+	// Create a single CTE query for latest evidence streams with all aggregations
+	summaryQuery := s.db.Raw(`
+		WITH latest_evidence AS (
+			SELECT DISTINCT ON (uuid) *
+			FROM evidences
+			ORDER BY uuid, evidences.end DESC
+		)
+		SELECT 
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN status->>'state' = 'satisfied' THEN 1 END) as satisfied_count,
+			COUNT(CASE WHEN status->>'state' = 'not-satisfied' THEN 1 END) as not_satisfied_count,
+			COUNT(CASE WHEN status->>'state' NOT IN ('satisfied', 'not-satisfied') THEN 1 END) as other_count,
+			COUNT(CASE WHEN expires IS NOT NULL AND expires > ? AND expires <= ? THEN 1 END) as expired_count
+		FROM latest_evidence
+	`, zeroTime, now)
+
+	var result struct {
+		TotalCount        int64
+		SatisfiedCount    int64
+		NotSatisfiedCount int64
+		OtherCount        int64
+		ExpiredCount      int64
 	}
+
+	if err := summaryQuery.Scan(&result).Error; err != nil {
+		return nil, fmt.Errorf("failed to get evidence summary: %w", err)
+	}
+
+	summary.TotalCount = result.TotalCount
+	summary.SatisfiedCount = result.SatisfiedCount
+	summary.NotSatisfiedCount = result.NotSatisfiedCount
+	summary.ExpiredCount = result.ExpiredCount
+	summary.OtherCount = result.OtherCount
 
 	// Get top 5 expired evidence items (only those with explicit expiration dates, excluding zero time)
 	var expiredEvidence []relational.Evidence
@@ -126,7 +117,7 @@ func (s *Service) GetGlobalEvidenceSummary(ctx context.Context) (*EvidenceSummar
 	if err := s.db.Table("(?) as latest", relational.GetLatestEvidenceStreamsQuery(s.db)).
 		Where("status->>'state' = ?", "not-satisfied").
 		Preload("Labels").
-		Order("end DESC").
+		Order("latest.end DESC").
 		Limit(5).
 		Find(&notSatisfiedEvidence).Error; err != nil {
 		s.logger.Warnw("Failed to fetch top not-satisfied evidence", "error", err)
