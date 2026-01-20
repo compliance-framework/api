@@ -1,6 +1,7 @@
 package oscal
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -91,9 +92,41 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
 	}
 	var req request
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Warnw("failed to bind BuildByProps request", "error", err)
+	var raw map[string]any
+	if err := json.NewDecoder(ctx.Request().Body).Decode(&raw); err != nil {
+		h.sugar.Warnw("failed to decode BuildByProps request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	// Accept both camelCase and kebab-case keys
+	getStr := func(m map[string]any, keys ...string) string {
+		for _, k := range keys {
+			if v, ok := m[k]; ok {
+				if s, ok := v.(string); ok {
+					return s
+				}
+			}
+		}
+		return ""
+	}
+	req.CatalogID = getStr(raw, "catalogId", "catalog-id")
+	req.MatchStrategy = getStr(raw, "matchStrategy", "match-strategy")
+	req.Title = getStr(raw, "title")
+	req.Version = getStr(raw, "version")
+	if rv, ok := raw["rules"]; ok {
+		if arr, ok := rv.([]any); ok {
+			out := make([]rule, 0, len(arr))
+			for _, it := range arr {
+				if mm, ok := it.(map[string]any); ok {
+					out = append(out, rule{
+						Name:     getStr(mm, "name"),
+						Ns:       getStr(mm, "ns"),
+						Operator: getStr(mm, "operator"),
+						Value:    getStr(mm, "value"),
+					})
+				}
+			}
+			req.Rules = out
+		}
 	}
 	if req.CatalogID == "" || len(req.Rules) == 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalogId and rules are required")))
