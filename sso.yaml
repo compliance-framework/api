@@ -27,7 +27,7 @@ providers:
     group_mapping:
       "hd:container-solutions.com":
         - "ccf-authorized-users"
-      "email:admin@example.com":
+      "email:gustavo.carvalho@container-solutions.com":
         - "ccf-admins"
       # Add additional group mappings as needed
 
