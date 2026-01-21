@@ -205,6 +205,24 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 		h.sugar.Errorw("failed to create profile from props", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
+	if err := h.db.Model(profile).Association("Imports").Append(&newImport); err != nil {
+		h.sugar.Errorw("failed to append import", "profileId", profile.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	var savedImport relational.Import
+	if err := h.db.Where("profile_id = ? AND href = ?", profile.ID, newImport.Href).First(&savedImport).Error; err == nil {
+		if err := h.db.Model(&savedImport).Association("IncludeControls").Replace([]relational.SelectControlById{includeGroup}); err != nil {
+			h.sugar.Errorw("failed to set include controls", "profileId", profile.ID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+	var bm relational.BackMatter
+	if err := h.db.Where("parent_id = ? AND parent_type = 'profiles'", profile.ID.String()).First(&bm).Error; err == nil {
+		if err := h.db.Model(&bm).Association("Resources").Append(&resource); err != nil {
+			h.sugar.Errorw("failed to append backmatter resource", "profileId", profile.ID, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
 	if _, err := SyncProfileControls(h.db, *profile.ID); err != nil {
 		h.sugar.Errorw("failed to sync profile controls", "profileId", profile.ID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
