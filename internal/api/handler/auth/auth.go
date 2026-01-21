@@ -14,26 +14,29 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type AuthHandler struct {
-	sugar        *zap.SugaredLogger
-	db           *gorm.DB
-	config       *config.Config
-	metrics      *api.PrometheusMetrics
-	emailService *email.Service
+	sugar         *zap.SugaredLogger
+	db            *gorm.DB
+	config        *config.Config
+	metrics       *api.PrometheusMetrics
+	emailService  *email.Service
+	workerService *worker.Service
 }
 
-func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, metrics *api.PrometheusMetrics, emailService *email.Service) *AuthHandler {
+func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, metrics *api.PrometheusMetrics, emailService *email.Service, workerService *worker.Service) *AuthHandler {
 	return &AuthHandler{
-		sugar:        logger,
-		db:           db,
-		config:       config,
-		metrics:      metrics,
-		emailService: emailService,
+		sugar:         logger,
+		db:            db,
+		config:        config,
+		metrics:       metrics,
+		emailService:  emailService,
+		workerService: workerService,
 	}
 }
 
@@ -350,13 +353,32 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 		TextBody: textBody,
 	}
 
-	_, err = h.emailService.Send(ctx.Request().Context(), message)
-	if err != nil {
-		h.sugar.Errorw("Failed to send password reset email", "error", err, "email", user.Email)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
+	// Enqueue email job instead of sending directly
+	if h.workerService != nil && h.workerService.IsStarted() {
+		args := &worker.SendEmailArgs{
+			To:       message.To,
+			Subject:  message.Subject,
+			HTMLBody: message.HTMLBody,
+			TextBody: message.TextBody,
+		}
 
-	h.sugar.Infow("Password reset email sent", "email", user.Email)
+		err = h.workerService.EnqueueSendEmail(ctx.Request().Context(), args)
+		if err != nil {
+			h.sugar.Errorw("Failed to enqueue password reset email", "error", err, "email", user.Email)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+
+		h.sugar.Infow("Password reset email enqueued", "email", user.Email)
+	} else {
+		// Fallback to direct sending if worker is not available
+		_, err = h.emailService.Send(ctx.Request().Context(), message)
+		if err != nil {
+			h.sugar.Errorw("Failed to send password reset email", "error", err, "email", user.Email)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+
+		h.sugar.Infow("Password reset email sent", "email", user.Email)
+	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
 		Data: "If an account with this email exists, a password reset link has been sent.",

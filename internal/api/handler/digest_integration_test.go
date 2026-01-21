@@ -92,7 +92,7 @@ func (suite *DigestApiIntegrationSuite) SetupSuite() {
 	suite.mockScheduler = NewMockScheduler()
 
 	// Create digest handler
-	digestService := digest.NewService(suite.DB, suite.emailService, suite.Config, suite.logger)
+	digestService := digest.NewService(suite.DB, suite.emailService, nil, suite.Config, suite.logger)
 	suite.digestHandler = NewDigestHandler(digestService, suite.mockScheduler, suite.logger)
 
 	// Setup server
@@ -197,7 +197,7 @@ func (suite *DigestApiIntegrationSuite) TestTriggerDigestWithNilScheduler() {
 	suite.Require().NoError(err)
 
 	// Create handler with nil scheduler
-	digestService := digest.NewService(suite.DB, suite.emailService, suite.Config, suite.logger)
+	digestService := digest.NewService(suite.DB, suite.emailService, nil, suite.Config, suite.logger)
 	nilSchedulerHandler := NewDigestHandler(digestService, nil, suite.logger)
 
 	// Create a temporary echo context for testing

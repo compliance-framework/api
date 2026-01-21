@@ -51,7 +51,7 @@ func (suite *AuthAPIIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, metrics)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, metrics, nil, nil)
 	fmt.Println("Server initialized")
 }
 
