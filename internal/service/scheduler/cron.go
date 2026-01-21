@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
@@ -29,6 +30,21 @@ func NewCronScheduler(logger *zap.SugaredLogger) *CronScheduler {
 		ctx:    ctx,
 		cancel: cancel,
 	}
+}
+
+// ParseCronNext parses a cron expression and returns the next scheduled time
+// Supports 6-field cron syntax (with seconds) and descriptors like @weekly, @daily, etc.
+// Format: second minute hour day month weekday
+//
+//	@weekly	= Monday 00:00:00 UTC
+func ParseCronNext(cronExpr string, from time.Time) (time.Time, error) {
+	// Use same parser as CronScheduler - supports seconds (6-field cron)
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	schedule, err := parser.Parse(cronExpr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse cron expression %q: %w", cronExpr, err)
+	}
+	return schedule.Next(from), nil
 }
 
 // Schedule adds a job to run on the given schedule

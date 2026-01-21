@@ -85,7 +85,7 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to initialize email service", "error", err)
 	}
 
-	digestService := digest.NewService(db, emailService, cfg, sugar)
+	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
 
 	if dryRun {
 		sugar.Info("Running digest test in DRY-RUN mode (no emails will be sent)...")
@@ -145,7 +145,7 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 		sugar.Warnw("Failed to initialize email service", "error", err)
 	}
 
-	digestService := digest.NewService(db, emailService, cfg, sugar)
+	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
 
 	summary, err := digestService.GetGlobalEvidenceSummary(ctx)
 	if err != nil {

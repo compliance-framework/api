@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/worker"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -39,19 +40,21 @@ type EvidenceItem struct {
 
 // Service handles digest generation and delivery
 type Service struct {
-	db           *gorm.DB
-	emailService *email.Service
-	config       *config.Config
-	logger       *zap.SugaredLogger
+	db            *gorm.DB
+	emailService  *email.Service
+	workerService *worker.Service
+	config        *config.Config
+	logger        *zap.SugaredLogger
 }
 
 // NewService creates a new digest service
-func NewService(db *gorm.DB, emailService *email.Service, cfg *config.Config, logger *zap.SugaredLogger) *Service {
+func NewService(db *gorm.DB, emailService *email.Service, workerService *worker.Service, cfg *config.Config, logger *zap.SugaredLogger) *Service {
 	return &Service{
-		db:           db,
-		emailService: emailService,
-		config:       cfg,
-		logger:       logger,
+		db:            db,
+		emailService:  emailService,
+		workerService: workerService,
+		config:        cfg,
+		logger:        logger,
 	}
 }
 
@@ -209,16 +212,36 @@ func (s *Service) SendDigestEmail(ctx context.Context, user *relational.User, su
 		TextBody: textContent,
 	}
 
-	result, err := s.emailService.Send(ctx, message)
-	if err != nil {
-		return fmt.Errorf("failed to send digest email: %w", err)
+	// Enqueue email job instead of sending directly
+	if s.workerService != nil && s.workerService.IsStarted() {
+		args := &worker.SendEmailArgs{
+			From:     s.getDefaultFromAddress(),
+			To:       message.To,
+			Subject:  message.Subject,
+			HTMLBody: message.HTMLBody,
+			TextBody: message.TextBody,
+		}
+
+		err = s.workerService.EnqueueSendEmail(ctx, args)
+		if err != nil {
+			return fmt.Errorf("failed to enqueue digest email: %w", err)
+		}
+
+		s.logger.Debugw("Digest email enqueued", "user", user.Email)
+	} else {
+		// Fallback to direct sending if worker is not available
+		result, err := s.emailService.Send(ctx, message)
+		if err != nil {
+			return fmt.Errorf("failed to send digest email: %w", err)
+		}
+
+		if !result.Success {
+			return fmt.Errorf("digest email send failed: %s", result.Error)
+		}
+
+		s.logger.Debugw("Digest email sent", "user", user.Email, "messageId", result.MessageID)
 	}
 
-	if !result.Success {
-		return fmt.Errorf("digest email send failed: %s", result.Error)
-	}
-
-	s.logger.Debugw("Digest email sent", "user", user.Email, "messageId", result.MessageID)
 	return nil
 }
 
@@ -271,4 +294,17 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// SetWorkerService sets the worker service reference (used to avoid circular dependency)
+func (s *Service) SetWorkerService(workerService *worker.Service) {
+	s.workerService = workerService
+}
+
+// getDefaultFromAddress returns the default From address from the email service configuration
+func (s *Service) getDefaultFromAddress() string {
+	if s.emailService == nil {
+		return ""
+	}
+	return s.emailService.GetDefaultFromAddress()
 }

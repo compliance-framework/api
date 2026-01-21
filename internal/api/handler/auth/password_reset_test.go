@@ -48,7 +48,7 @@ func setupTestAuthHandler(t *testing.T) *AuthHandler {
 	metrics := api.NewMetricsHandler(context.TODO(), logger)
 
 	// Create auth handler without email service for testing
-	authHandler := NewAuthHandler(logger, db, cfg, metrics, nil)
+	authHandler := NewAuthHandler(logger, db, cfg, metrics, nil, nil)
 
 	return authHandler
 }
