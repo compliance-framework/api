@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -251,6 +252,63 @@ func TestSendEmailWorker_Validation(t *testing.T) {
 				assert.True(t, strings.TrimSpace(args.Subject) != "")
 				assert.True(t, strings.TrimSpace(args.HTMLBody) != "" || strings.TrimSpace(args.TextBody) != "")
 			}
+		})
+	}
+}
+
+func TestSendEmailWorker_Work_Validation(t *testing.T) {
+	mockEmailService := &MockEmailService{}
+	mockLogger := &MockLogger{}
+	worker := NewSendEmailWorker(mockEmailService, mockLogger)
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		args        *SendEmailArgs
+		expectError string
+	}{
+		{
+			name: "missing recipients",
+			args: &SendEmailArgs{
+				Subject:  "Test",
+				HTMLBody: "<p>Test</p>",
+			},
+			expectError: "email job requires at least one recipient",
+		},
+		{
+			name: "missing subject",
+			args: &SendEmailArgs{
+				To:       []string{"test@example.com"},
+				HTMLBody: "<p>Test</p>",
+			},
+			expectError: "email job requires a subject",
+		},
+		{
+			name: "missing body",
+			args: &SendEmailArgs{
+				To:      []string{"test@example.com"},
+				Subject: "Test",
+			},
+			expectError: "email job requires either HTML body or text body",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up mock logger to expect any call
+			mockLogger.On("Infow", "Processing send email job", mock.Anything).Maybe()
+
+			// Create a test job with the invalid args
+			job := &river.Job[SendEmailArgs]{
+				Args: *tt.args,
+			}
+
+			// Call the actual Work method and expect validation error
+			err := worker.Work(ctx, job)
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectError)
 		})
 	}
 }

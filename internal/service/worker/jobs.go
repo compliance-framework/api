@@ -337,12 +337,15 @@ func Workers(emailService EmailService, digestService DigestService, logger Logg
 	// Create worker instances with dependencies
 	sendEmailWorker := NewSendEmailWorker(emailService, logger)
 	sendEmailFromWorker := NewSendEmailFromWorker(emailService, logger)
-	sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestService, logger)
-
 	// Register workers with their Work methods
 	river.AddWorker(workers, river.WorkFunc(sendEmailWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(sendEmailFromWorker.Work))
-	river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
+
+	// Only create and register the global digest worker if the digest service is available
+	if digestService != nil {
+		sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestService, logger)
+		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
+	}
 
 	return workers
 }

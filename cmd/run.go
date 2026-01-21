@@ -79,29 +79,15 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to run River migrations", "error", err)
 	}
 
-	// Start the worker service
+	// Start worker service
 	if err := workerService.Start(ctx); err != nil {
 		sugar.Fatalw("Failed to start worker service", "error", err)
 	}
-	defer func() {
-		if err := workerService.Stop(ctx); err != nil {
-			sugar.Errorw("Failed to stop worker service", "error", err)
-		}
-	}()
 
 	// Initialize scheduler for other jobs (if any)
 	// Note: Digest scheduling is now handled by River's periodic jobs
 	sched := scheduler.NewCronScheduler(sugar)
 	sched.Start()
-	defer func() {
-		stopCtx := sched.Stop()
-		select {
-		case <-stopCtx.Done():
-			sugar.Debug("All scheduled jobs completed gracefully")
-		case <-time.After(10 * time.Second):
-			sugar.Warn("Scheduler shutdown timeout, some jobs may not have completed")
-		}
-	}()
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
@@ -120,4 +106,24 @@ func RunServer(cmd *cobra.Command, args []string) {
 	if err := server.Start(cfg.AppPort); err != nil {
 		sugar.Fatalw("Failed to start server", "error", err)
 	}
+
+	// Note: Defer statements are registered in reverse order of execution.
+	// This ensures proper shutdown order: scheduler -> worker service
+	defer func() {
+		// Stop worker service last (after scheduler has stopped)
+		if err := workerService.Stop(ctx); err != nil {
+			sugar.Errorw("Failed to stop worker service", "error", err)
+		}
+	}()
+
+	defer func() {
+		// Stop scheduler first
+		stopCtx := sched.Stop()
+		select {
+		case <-stopCtx.Done():
+			sugar.Debug("All scheduled jobs completed gracefully")
+		case <-time.After(10 * time.Second):
+			sugar.Warn("Scheduler shutdown timeout, some jobs may not have completed")
+		}
+	}()
 }

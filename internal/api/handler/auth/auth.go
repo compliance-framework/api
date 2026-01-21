@@ -459,26 +459,8 @@ func (h *AuthHandler) PasswordReset(ctx echo.Context) error {
 
 // getDefaultFromAddress returns the default From address from the email service configuration
 func (h *AuthHandler) getDefaultFromAddress() string {
-	if h.emailService == nil || !h.emailService.IsEnabled() {
+	if h.emailService == nil {
 		return ""
 	}
-
-	emailConfig := h.emailService.GetConfig()
-	if emailConfig == nil {
-		return ""
-	}
-
-	defaultProvider := emailConfig.GetDefaultProvider()
-	if defaultProvider == nil {
-		return ""
-	}
-
-	switch provider := defaultProvider.(type) {
-	case *config.SMTPConfig:
-		return provider.From
-	case *config.SESConfig:
-		return provider.From
-	default:
-		return ""
-	}
+	return h.emailService.GetDefaultFromAddress()
 }

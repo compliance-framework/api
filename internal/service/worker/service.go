@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -27,6 +28,7 @@ type Service struct {
 	digestSvc DigestService
 	logger    *zap.SugaredLogger
 	started   bool
+	startedMu sync.RWMutex
 	pgxPool   *pgxpool.Pool
 	digestCfg *config.Config
 }
@@ -148,6 +150,9 @@ func (s *Service) Start(ctx context.Context) error {
 		return nil
 	}
 
+	s.startedMu.Lock()
+	defer s.startedMu.Unlock()
+
 	if s.started {
 		s.logger.Warn("Worker service is already started")
 		return nil
@@ -170,6 +175,9 @@ func (s *Service) Start(ctx context.Context) error {
 
 // Stop stops the worker service
 func (s *Service) Stop(ctx context.Context) error {
+	s.startedMu.Lock()
+	defer s.startedMu.Unlock()
+
 	if !s.config.Enabled || !s.started {
 		s.logger.Info("Worker service is not running")
 		return nil
@@ -198,6 +206,8 @@ func (s *Service) Stop(ctx context.Context) error {
 
 // IsStarted returns true if the worker service is started
 func (s *Service) IsStarted() bool {
+	s.startedMu.RLock()
+	defer s.startedMu.RUnlock()
 	return s.started
 }
 

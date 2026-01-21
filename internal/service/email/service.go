@@ -99,7 +99,33 @@ func (s *Service) SendWithProvider(ctx context.Context, providerName string, mes
 
 // IsEnabled returns true if the email service is enabled
 func (s *Service) IsEnabled() bool {
-	return s.config != nil && s.config.Enabled && s.provider != nil
+	return s.config != nil && s.config.Enabled
+}
+
+// GetDefaultFromAddress returns the default From address from the email service configuration
+func (s *Service) GetDefaultFromAddress() string {
+	if s == nil || !s.IsEnabled() {
+		return ""
+	}
+
+	emailConfig := s.GetConfig()
+	if emailConfig == nil {
+		return ""
+	}
+
+	defaultProvider := emailConfig.GetDefaultProvider()
+	if defaultProvider == nil {
+		return ""
+	}
+
+	switch provider := defaultProvider.(type) {
+	case *config.SMTPConfig:
+		return provider.From
+	case *config.SESConfig:
+		return provider.From
+	default:
+		return ""
+	}
 }
 
 // IsHealthy checks if the email service is healthy

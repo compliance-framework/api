@@ -303,26 +303,8 @@ func (s *Service) SetWorkerService(workerService *worker.Service) {
 
 // getDefaultFromAddress returns the default From address from the email service configuration
 func (s *Service) getDefaultFromAddress() string {
-	if s.emailService == nil || !s.emailService.IsEnabled() {
+	if s.emailService == nil {
 		return ""
 	}
-
-	emailConfig := s.emailService.GetConfig()
-	if emailConfig == nil {
-		return ""
-	}
-
-	defaultProvider := emailConfig.GetDefaultProvider()
-	if defaultProvider == nil {
-		return ""
-	}
-
-	switch provider := defaultProvider.(type) {
-	case *config.SMTPConfig:
-		return provider.From
-	case *config.SESConfig:
-		return provider.From
-	default:
-		return ""
-	}
+	return s.emailService.GetDefaultFromAddress()
 }
