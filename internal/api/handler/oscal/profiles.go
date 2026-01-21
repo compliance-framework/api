@@ -187,8 +187,7 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 		WithIds:           datatypes.NewJSONSlice(matchedIDs),
 	}
 	newImport := relational.Import{
-		Href:            "#" + resourceUUID.String(),
-		IncludeControls: []relational.SelectControlById{includeGroup},
+		Href: "#" + resourceUUID.String(),
 	}
 	profile := &relational.Profile{
 		Metadata: relational.Metadata{
