@@ -197,29 +197,41 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 			OscalVersion: versioning.GetLatestSupportedVersion(),
 			LastModified: &now,
 		},
-		Controls:   matched,
-		BackMatter: &relational.BackMatter{Resources: []relational.BackMatterResource{resource}},
-		Imports:    []relational.Import{newImport},
+		Controls: matched,
 	}
 	if err := h.db.Create(profile).Error; err != nil {
 		h.sugar.Errorw("failed to create profile from props", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	if err := h.db.Model(profile).Association("Imports").Append(&newImport); err != nil {
-		h.sugar.Errorw("failed to append import", "profileId", profile.ID, "error", err)
+	// Persist BackMatter and resource under this profile
+	parentID := profile.ID.String()
+	parentType := "profiles"
+	bmRecord := &relational.BackMatter{
+		ParentID:   &parentID,
+		ParentType: &parentType,
+	}
+	if err := h.db.Create(bmRecord).Error; err != nil {
+		h.sugar.Errorw("failed to create backmatter for profile", "profileId", profile.ID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	var savedImport relational.Import
-	if err := h.db.Where("profile_id = ? AND href = ?", profile.ID, newImport.Href).First(&savedImport).Error; err == nil {
-		if err := h.db.Model(&savedImport).Association("IncludeControls").Replace([]relational.SelectControlById{includeGroup}); err != nil {
-			h.sugar.Errorw("failed to set include controls", "profileId", profile.ID, "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
+	if bmRecord.ID != nil {
+		resource.BackMatterID = *bmRecord.ID
 	}
-	var bm relational.BackMatter
-	if err := h.db.Where("parent_id = ? AND parent_type = 'profiles'", profile.ID.String()).First(&bm).Error; err == nil {
-		if err := h.db.Model(&bm).Association("Resources").Append(&resource); err != nil {
-			h.sugar.Errorw("failed to append backmatter resource", "profileId", profile.ID, "error", err)
+	if err := h.db.Create(&resource).Error; err != nil {
+		h.sugar.Errorw("failed to create backmatter resource", "profileId", profile.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	// Persist import and include-controls
+	newImport.ProfileID = *profile.ID
+	if err := h.db.Create(&newImport).Error; err != nil {
+		h.sugar.Errorw("failed to create import", "profileId", profile.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	if len(matchedIDs) > 0 && newImport.ID != nil {
+		includeGroup.ParentID = *newImport.ID
+		includeGroup.ParentType = "included"
+		if err := h.db.Create(&includeGroup).Error; err != nil {
+			h.sugar.Errorw("failed to create include-controls", "profileId", profile.ID, "error", err)
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 	}
@@ -227,7 +239,13 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 		h.sugar.Errorw("failed to sync profile controls", "profileId", profile.ID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	oscalProfile := profile.MarshalOscal()
+	// Reload full profile with associations for response
+	fullProfile, err := FindFullProfile(h.db, *profile.ID)
+	if err != nil {
+		h.sugar.Errorw("failed to reload full profile", "profileId", profile.ID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	oscalProfile := fullProfile.MarshalOscal()
 	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{
 		Data: response{
 			ProfileID:  *profile.ID,
