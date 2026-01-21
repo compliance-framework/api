@@ -1,8 +1,6 @@
 package relational
 
 import (
-	"errors"
-	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
@@ -63,13 +61,11 @@ func GetLatestEvidenceStreamsQuery(db *gorm.DB) *gorm.DB {
 }
 
 func GetEvidenceSearchByFilterQuery(latestQuery *gorm.DB, db *gorm.DB, filters ...labelfilter.Filter) (*gorm.DB, error) {
-	//sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-	finalWhere := db.Session(&gorm.Session{})
-	finalWhere = finalWhere.Table("(?) as l", latestQuery)
+	finalWhere := db.Session(&gorm.Session{}).Table("(?) as l", latestQuery)
 
 	for _, filter := range filters {
 		if filter.Scope != nil {
-			subQuery, err := getScopeClause(db, *filter.Scope)
+			subQuery, err := filter.Scope.GetClause(db)
 			if err != nil {
 				return nil, err
 			}
@@ -78,56 +74,4 @@ func GetEvidenceSearchByFilterQuery(latestQuery *gorm.DB, db *gorm.DB, filters .
 	}
 
 	return finalWhere, nil
-}
-
-func getScopeClause(db *gorm.DB, scope labelfilter.Scope) (*gorm.DB, error) {
-	if scope.IsCondition() {
-		return getConditionClause(db, *scope.Condition), nil
-	} else if scope.IsQuery() {
-		return getQueryClause(db, *scope.Query)
-	}
-	return db, nil
-}
-
-func getQueryClause(db *gorm.DB, query labelfilter.Query) (*gorm.DB, error) {
-	var err error
-	if strings.ToLower(query.Operator) == "and" {
-		sub := db.Session(&gorm.Session{})
-		for _, scope := range query.Scopes {
-			sc := db.Session(&gorm.Session{})
-			sc, err = getScopeClause(sc, scope)
-			if err != nil {
-				return nil, err
-			}
-			sub = sub.Where(sc)
-		}
-		return db.Where(sub), nil
-	} else if strings.ToLower(query.Operator) == "or" {
-		sub := db.Session(&gorm.Session{})
-		for _, scope := range query.Scopes {
-			sc := db.Session(&gorm.Session{})
-			sc, err = getScopeClause(sc, scope)
-			if err != nil {
-				return nil, err
-			}
-			sub = sub.Or(sc)
-		}
-		return db.Where(sub), nil
-	}
-	return db, errors.New("unrecognised query operator in label filter")
-}
-
-func getConditionClause(db *gorm.DB, condition labelfilter.Condition) *gorm.DB {
-	sub := db.Session(&gorm.Session{})
-	labelQuery := sub.
-		Select("1").
-		Table("evidence_labels el").
-		Where("el.evidence_id = l.id").
-		Where("lower(el.labels_name) = lower(?)", condition.Label).
-		Where("lower(el.labels_value) = lower(?)", condition.Value)
-
-	if condition.Operator == "!=" {
-		return sub.Not("EXISTS(?)", labelQuery)
-	}
-	return sub.Where("EXISTS(?)", labelQuery)
 }

@@ -158,6 +158,11 @@ type EvidenceCreateRequest struct {
 	Status oscalTypes_1_1_3.ObjectiveStatus
 }
 
+type EvidenceStatusCount struct {
+	Count  int64  `json:"count"`
+	Status string `json:"status"`
+}
+
 // Create godoc
 //
 //	@Summary		Create new Evidence
@@ -597,14 +602,9 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 		filters = append(filters, filter.Filter.Data())
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
 	if len(filters) == 0 {
 		// If there are no filters assigned for the control, we should return nothing explicitly, otherwise we return everything implicitly
-		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceStatusCount]{Data: []EvidenceStatusCount{}})
 	}
 
 	latestQuery := h.db.Session(&gorm.Session{})
@@ -633,14 +633,9 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
-type StatusCount struct {
-	Count  int64  `json:"count"`
-	Status string `json:"status"`
-}
-
-type StatusInterval struct {
-	Interval time.Time     `json:"interval"`
-	Statuses []StatusCount `json:"statuses"`
+type EvidenceStatusInterval struct {
+	Interval time.Time             `json:"interval"`
+	Statuses []EvidenceStatusCount `json:"statuses"`
 }
 
 // StatusOverTime godoc
@@ -652,7 +647,7 @@ type StatusInterval struct {
 //	@Produce		json
 //	@Param			filter		body		labelfilter.Filter	true	"Label filter"
 //	@Param			intervals	query		string				false	"Comma-separated list of duration intervals (e.g., '10m,1h,24h')"
-//	@Success		200			{object}	handler.GenericDataListResponse[StatusInterval]
+//	@Success		200			{object}	handler.GenericDataListResponse[EvidenceStatusInterval]
 //	@Failure		400			{object}	api.Error
 //	@Failure		422			{object}	api.Error
 //	@Failure		500			{object}	api.Error
@@ -678,7 +673,7 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 	type result struct {
 		idx      int
 		interval time.Time
-		data     []StatusCount
+		data     []EvidenceStatusCount
 		err      error
 	}
 
@@ -696,7 +691,7 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 				ch <- result{idx: i, err: err}
 				return
 			}
-			rows := []StatusCount{}
+			rows := []EvidenceStatusCount{}
 			if err := q.Model(&relational.Evidence{}).
 				Select("count(*) as count, status->>'state' as status").
 				Group("status->>'state'").
@@ -708,16 +703,16 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 		}(i, d)
 	}
 
-	results := make([]StatusInterval, len(intervals))
+	results := make([]EvidenceStatusInterval, len(intervals))
 	for range intervals {
 		r := <-ch
 		if r.err != nil {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(r.err))
 		}
-		results[r.idx] = StatusInterval{Interval: r.interval, Statuses: r.data}
+		results[r.idx] = EvidenceStatusInterval{Interval: r.interval, Statuses: r.data}
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusInterval]{Data: results})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceStatusInterval]{Data: results})
 }
 
 // StatusOverTimeByUUID godoc
@@ -728,7 +723,7 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			id			path		string	true	"Evidence UUID"
 //	@Param			intervals	query		string	false	"Comma-separated list of duration intervals (e.g., '10m,1h,24h')"
-//	@Success		200			{object}	handler.GenericDataListResponse[StatusInterval]
+//	@Success		200			{object}	handler.GenericDataListResponse[EvidenceStatusInterval]
 //	@Failure		400			{object}	api.Error
 //	@Failure		422			{object}	api.Error
 //	@Failure		500			{object}	api.Error
@@ -753,7 +748,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 	type result struct {
 		idx      int
 		interval time.Time
-		data     []StatusCount
+		data     []EvidenceStatusCount
 		err      error
 	}
 
@@ -772,7 +767,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 				ch <- result{idx: i, err: err}
 				return
 			}
-			rows := []StatusCount{}
+			rows := []EvidenceStatusCount{}
 			if err := q.Model(&relational.Evidence{}).
 				Select("count(*) as count, status->>'state' as status").
 				Group("status->>'state'").
@@ -784,16 +779,16 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 		}(i, d)
 	}
 
-	results := make([]StatusInterval, len(intervals))
+	results := make([]EvidenceStatusInterval, len(intervals))
 	for range intervals {
 		r := <-ch
 		if r.err != nil {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(r.err))
 		}
-		results[r.idx] = StatusInterval{Interval: r.interval, Statuses: r.data}
+		results[r.idx] = EvidenceStatusInterval{Interval: r.interval, Statuses: r.data}
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusInterval]{Data: results})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceStatusInterval]{Data: results})
 }
 
 // ComplianceByControl godoc
@@ -803,7 +798,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Control ID"
-//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Success		200	{object}	GenericDataListResponse[handler.EvidenceStatusCount]
 //	@Failure		500	{object}	api.Error
 //	@Router			/evidence/compliance-by-control/{id} [get]
 func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
@@ -821,14 +816,9 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 		filters = append(filters, filter.Filter.Data())
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
 	if len(filters) == 0 {
 		// If there are no filters assigned for the control, we should return nothing explicitly, otherwise we return everything implicitly
-		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceStatusCount]{Data: []EvidenceStatusCount{}})
 	}
 
 	latestQuery := h.db.Session(&gorm.Session{})
@@ -838,7 +828,7 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	rows := []StatusCount{}
+	rows := []EvidenceStatusCount{}
 	if err := q.Model(&relational.Evidence{}).
 		Select("count(*) as count, status->>'state' as status").
 		Group("status->>'state'").
@@ -846,7 +836,7 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: rows})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceStatusCount]{Data: rows})
 }
 
 // ComplianceByFilter godoc
@@ -856,7 +846,7 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Filter/Dashboard ID (UUID)"
-//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Success		200	{object}	GenericDataListResponse[handler.EvidenceStatusCount]
 //	@Failure		400	{object}	api.Error	"Invalid UUID"
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -876,11 +866,6 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
 	latestQuery := h.db.Session(&gorm.Session{})
 	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
 	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filter.Filter.Data())
@@ -888,7 +873,7 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	rows := []StatusCount{}
+	rows := []EvidenceStatusCount{}
 	if err := q.Model(&relational.Evidence{}).
 		Select("count(*) as count, status->>'state' as status").
 		Group("status->>'state'").
@@ -896,5 +881,5 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: rows})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[EvidenceStatusCount]{Data: rows})
 }

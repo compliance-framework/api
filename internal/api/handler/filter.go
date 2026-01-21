@@ -30,6 +30,7 @@ func NewFilterHandler(sugar *zap.SugaredLogger, db *gorm.DB) *FilterHandler {
 // Register registers the filter endpoints.
 func (h *FilterHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
+	api.GET("/computed/by-implemented-requirement/:reqId", h.ComputeByImplementedRequirement)
 	api.GET("/:id", h.Get)
 	api.POST("", h.Create)
 	api.PUT("/:id", h.Update)
