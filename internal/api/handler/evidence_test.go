@@ -25,7 +25,7 @@ func TestEvidenceHandler_Create_WithFutureDate_ReturnsError(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	ctx := e.NewContext(req, rec)
-	h := NewEvidenceHandler(nil, nil)
+	h := NewEvidenceHandler(nil, nil, nil)
 
 	// Assertions
 	if assert.NoError(t, h.Create(ctx)) {

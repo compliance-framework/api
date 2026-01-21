@@ -49,7 +49,7 @@ func NewSMTPProvider(ctx context.Context, cfg *config.SMTPConfig, logger *zap.Su
 		return nil, fmt.Errorf("SMTP connection test failed: %w", err)
 	}
 
-	logger.Infow("SMTP provider initialized", "host", cfg.Host, "port", cfg.Port, "from", cfg.From)
+	logger.Debugw("SMTP provider initialized", "host", cfg.Host, "port", cfg.Port, "from", cfg.From)
 	return provider, nil
 }
 
@@ -91,7 +91,7 @@ func (p *smtpProvider) Send(ctx context.Context, message *types.Message) (*types
 		}, err
 	}
 
-	p.logger.Infow("Email sent successfully", "to", message.To, "subject", message.Subject)
+	p.logger.Debugw("Email sent successfully", "to", message.To, "subject", message.Subject)
 	return &types.SendResult{
 		Success: true,
 	}, nil

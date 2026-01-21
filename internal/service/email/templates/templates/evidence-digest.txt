@@ -1,0 +1,47 @@
+Evidence Compliance Digest
+==========================
+
+Hello {{.UserName}},
+
+Here's your evidence compliance summary. This digest highlights evidence that requires your attention.
+
+SUMMARY
+-------
+Total Evidence: {{.TotalCount}}
+Satisfied: {{.SatisfiedCount}}
+Not Satisfied: {{.NotSatisfiedCount}}
+Expired: {{.ExpiredCount}}
+
+{{if .TopNotSatisfied}}
+NOT SATISFIED EVIDENCE
+----------------------
+{{range .TopNotSatisfied}}
+* {{.Title}}
+  {{if .Description}}Description: {{.Description}}{{end}}
+  Status: {{.Status}}
+  View: {{$.WebBaseURL}}/evidence/{{.ID}}
+
+{{end}}
+{{end}}
+
+{{if .TopExpired}}
+EXPIRED EVIDENCE
+----------------
+{{range .TopExpired}}
+* {{.Title}}
+  {{if .Description}}Description: {{.Description}}{{end}}
+  Expired: {{if .ExpiresAt}}{{.ExpiresAt}}{{else}}N/A{{end}}
+  View: {{$.WebBaseURL}}/evidence/{{.ID}}
+
+{{end}}
+{{end}}
+
+{{if and (not .TopNotSatisfied) (not .TopExpired)}}
+All evidence is in good standing!
+{{end}}
+
+View all evidence: {{.WebBaseURL}}/evidence
+
+---
+Generated at {{.GeneratedAt}}
+This is an automated digest from Compliance Framework.

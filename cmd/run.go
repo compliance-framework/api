@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -10,6 +11,9 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler/oscal"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
+	"github.com/compliance-framework/api/internal/service/digest"
+	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -51,9 +55,46 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to migrate database", "error", err)
 	}
 
+	// Initialize email service
+	emailService, err := email.NewService(cfg.Email, sugar)
+	if err != nil {
+		sugar.Warnw("Failed to initialize email service, digests will be disabled", "error", err)
+	}
+
+	// Initialize digest service
+	digestService := digest.NewService(db, emailService, cfg, sugar)
+
+	// Initialize scheduler
+	sched := scheduler.NewCronScheduler(sugar)
+
+	// Register digest job using config
+	if cfg.DigestEnabled {
+		digestJob := digest.NewGlobalDigestJob(digestService, sugar)
+		if err := sched.ScheduleCron(cfg.DigestSchedule, digestJob); err != nil {
+			sugar.Warnw("Failed to schedule digest job", "schedule", cfg.DigestSchedule, "error", err)
+		} else {
+			sugar.Debugw("Digest job scheduled", "schedule", cfg.DigestSchedule)
+		}
+	} else {
+		sugar.Debugw("Digest scheduler disabled")
+	}
+
+	// Start the scheduler
+	sched.Start()
+	defer func() {
+		stopCtx := sched.Stop()
+		// Wait for jobs to finish gracefully with a 10-second timeout
+		select {
+		case <-stopCtx.Done():
+			sugar.Debug("All scheduled jobs completed gracefully")
+		case <-time.After(10 * time.Second):
+			sugar.Warn("Scheduler shutdown timeout, some jobs may not have completed")
+		}
+	}()
+
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg)
+	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched)
 	oscal.RegisterHandlers(server, sugar, db, cfg)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics)
 

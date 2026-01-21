@@ -19,20 +19,23 @@ var (
 )
 
 type Config struct {
-	AppPort            string
-	Environment        string
-	DBDriver           string
-	DBConnectionString string
-	DBDebug            bool
-	JWTSecret          string
-	JWTPrivateKey      *rsa.PrivateKey
-	JWTPublicKey       *rsa.PublicKey
-	APIAllowedOrigins  []string
-	MetricsEnabled     bool
-	MetricsPort        string
-	WebBaseURL         string
-	SSO                *SSOConfig
-	Email              *EmailConfig
+	AppPort                     string
+	Environment                 string
+	DBDriver                    string
+	DBConnectionString          string
+	DBDebug                     bool
+	JWTSecret                   string
+	JWTPrivateKey               *rsa.PrivateKey
+	JWTPublicKey                *rsa.PublicKey
+	APIAllowedOrigins           []string
+	MetricsEnabled              bool
+	MetricsPort                 string
+	WebBaseURL                  string
+	SSO                         *SSOConfig
+	Email                       *EmailConfig
+	EvidenceDefaultExpiryMonths int    // Default expiration in months for evidence without explicit expiry
+	DigestEnabled               bool   // Enable or disable the digest scheduler
+	DigestSchedule              string // Cron schedule for digest emails
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -146,21 +149,37 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		emailConfig = &EmailConfig{Enabled: false}
 	}
 
+	// Evidence default expiry in months (default: 1 month)
+	evidenceDefaultExpiryMonths := viper.GetInt("evidence_default_expiry_months")
+	if evidenceDefaultExpiryMonths <= 0 {
+		evidenceDefaultExpiryMonths = 1
+	}
+
+	// Digest configuration
+	digestEnabled := viper.GetBool("digest_enabled")
+	digestSchedule := viper.GetString("digest_schedule")
+	if digestSchedule == "" {
+		digestSchedule = "@weekly"
+	}
+
 	return &Config{
-		AppPort:            appPort,
-		Environment:        environment,
-		DBDriver:           dbDriver,
-		DBConnectionString: stripQuotes(viper.GetString("db_connection")),
-		DBDebug:            viper.GetBool("db_debug"),
-		JWTSecret:          stripQuotes(viper.GetString("jwt_secret")),
-		JWTPrivateKey:      jwtPrivateKey,
-		JWTPublicKey:       jwtPublicKey,
-		APIAllowedOrigins:  allowedOrigins,
-		MetricsEnabled:     metricsEnabled,
-		MetricsPort:        metricsPort,
-		WebBaseURL:         webBaseURL,
-		SSO:                ssoConfig,
-		Email:              emailConfig,
+		AppPort:                     appPort,
+		Environment:                 environment,
+		DBDriver:                    dbDriver,
+		DBConnectionString:          stripQuotes(viper.GetString("db_connection")),
+		DBDebug:                     viper.GetBool("db_debug"),
+		JWTSecret:                   stripQuotes(viper.GetString("jwt_secret")),
+		JWTPrivateKey:               jwtPrivateKey,
+		JWTPublicKey:                jwtPublicKey,
+		APIAllowedOrigins:           allowedOrigins,
+		MetricsEnabled:              metricsEnabled,
+		MetricsPort:                 metricsPort,
+		WebBaseURL:                  webBaseURL,
+		SSO:                         ssoConfig,
+		Email:                       emailConfig,
+		EvidenceDefaultExpiryMonths: evidenceDefaultExpiryMonths,
+		DigestEnabled:               digestEnabled,
+		DigestSchedule:              digestSchedule,
 	}
 
 }

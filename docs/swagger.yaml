@@ -43,6 +43,53 @@ definitions:
     type: object
   datatypes.JSONType-relational_SystemComponentStatus:
     type: object
+  digest.EvidenceItem:
+    properties:
+      description:
+        type: string
+      expiresAt:
+        description: Formatted expiration date string (empty if no expiration)
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  digest.EvidenceSummary:
+    properties:
+      expiredCount:
+        format: int64
+        type: integer
+      notSatisfiedCount:
+        format: int64
+        type: integer
+      otherCount:
+        format: int64
+        type: integer
+      satisfiedCount:
+        format: int64
+        type: integer
+      topExpired:
+        description: Top items for the digest email
+        items:
+          $ref: '#/definitions/digest.EvidenceItem'
+        type: array
+      topNotSatisfied:
+        items:
+          $ref: '#/definitions/digest.EvidenceItem'
+        type: array
+      totalCount:
+        format: int64
+        type: integer
+    type: object
   gorm.DeletedAt:
     properties:
       time:
@@ -698,6 +745,13 @@ definitions:
         - $ref: '#/definitions/auth.AuthHandler'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-digest_EvidenceSummary:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/digest.EvidenceSummary'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
     properties:
       data:
@@ -717,6 +771,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_UserHandler:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.UserHandler'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_ImportResponse:
@@ -5557,6 +5618,10 @@ definitions:
         allOf:
         - $ref: '#/definitions/gorm.DeletedAt'
         description: Soft delete
+      digestSubscribed:
+        description: DigestSubscribed indicates if the user wants to receive evidence
+          digest emails
+        type: boolean
       email:
         type: string
       failedLogins:
@@ -5588,6 +5653,57 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
+  /admin/digest/preview:
+    get:
+      description: Returns the current evidence summary that would be included in
+        a digest email
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-digest_EvidenceSummary'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Preview evidence digest
+      tags:
+      - Digest
+  /admin/digest/trigger:
+    post:
+      description: Manually triggers the evidence digest job to send emails to all
+        users
+      parameters:
+      - description: 'Job name to trigger (default: global-evidence-digest)'
+        in: query
+        name: job
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Trigger evidence digest
+      tags:
+      - Digest
   /admin/users:
     get:
       description: Lists all users in the system
@@ -16244,6 +16360,72 @@ paths:
       security:
       - OAuth2Password: []
       summary: Change password for logged-in user
+      tags:
+      - Users
+  /users/me/digest-subscription:
+    get:
+      description: Gets the current user's digest email subscription status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_UserHandler'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get digest subscription status
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Updates the current user's digest email subscription status
+      parameters:
+      - description: Subscription status
+        in: body
+        name: subscription
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UserHandler'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_UserHandler'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update digest subscription status
       tags:
       - Users
 produces:

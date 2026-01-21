@@ -33,7 +33,7 @@ func (suite *UserApiIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil)
 }
 
 func (suite *UserApiIntegrationSuite) SetupTest() {
@@ -382,5 +382,88 @@ func (suite *UserApiIntegrationSuite) TestChangePassword() {
 		suite.Require().NoError(err, "Failed to retrieve updated user after password change")
 
 		suite.True(updatedUser.CheckPassword("NewPa55w0rd"), "Expected password to be updated successfully")
+	})
+}
+
+func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	suite.Run("GetDigestSubscription", func() {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/api/users/me/digest-subscription", nil)
+		req.Header.Set("Authorization", "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(200, rec.Code, "Expected OK response for GetDigestSubscription")
+
+		var response struct {
+			Data struct {
+				Subscribed bool `json:"subscribed"`
+			} `json:"data"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		suite.Require().NoError(err, "Failed to unmarshal GetDigestSubscription response")
+
+		// The default should be false for new users
+		suite.False(response.Data.Subscribed, "Expected default digest subscription to be false")
+	})
+
+	suite.Run("UpdateDigestSubscription", func() {
+		// Test subscribing to digest
+		payload := map[string]bool{"subscribed": true}
+		payloadJSON, err := json.Marshal(payload)
+		suite.Require().NoError(err, "Failed to marshal update digest subscription request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/api/users/me/digest-subscription", bytes.NewReader(payloadJSON))
+		req.Header.Set("Authorization", "Bearer "+*token)
+		req.Header.Set("Content-Type", "application/json")
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(200, rec.Code, "Expected OK response for UpdateDigestSubscription")
+
+		var response struct {
+			Data struct {
+				Subscribed bool `json:"subscribed"`
+			} `json:"data"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		suite.Require().NoError(err, "Failed to unmarshal UpdateDigestSubscription response")
+
+		suite.True(response.Data.Subscribed, "Expected digest subscription to be updated to true")
+
+		// Test unsubscribing from digest
+		payload = map[string]bool{"subscribed": false}
+		payloadJSON, err = json.Marshal(payload)
+		suite.Require().NoError(err, "Failed to marshal unsubscribe digest request")
+
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest("PUT", "/api/users/me/digest-subscription", bytes.NewReader(payloadJSON))
+		req.Header.Set("Authorization", "Bearer "+*token)
+		req.Header.Set("Content-Type", "application/json")
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(200, rec.Code, "Expected OK response for unsubscribe digest")
+
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		suite.Require().NoError(err, "Failed to unmarshal unsubscribe digest response")
+
+		suite.False(response.Data.Subscribed, "Expected digest subscription to be updated to false")
+	})
+
+	suite.Run("UpdateDigestSubscriptionInvalidPayload", func() {
+		// Test with invalid payload
+		payload := map[string]string{"subscribed": "invalid"}
+		payloadJSON, err := json.Marshal(payload)
+		suite.Require().NoError(err, "Failed to marshal invalid digest subscription request")
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/api/users/me/digest-subscription", bytes.NewReader(payloadJSON))
+		req.Header.Set("Authorization", "Bearer "+*token)
+		req.Header.Set("Content-Type", "application/json")
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Equal(400, rec.Code, "Expected Bad Request response for invalid payload")
 	})
 }

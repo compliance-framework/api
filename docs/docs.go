@@ -21,6 +21,85 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/digest/preview": {
+            "get": {
+                "description": "Returns the current evidence summary that would be included in a digest email",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Digest"
+                ],
+                "summary": "Preview evidence digest",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-digest_EvidenceSummary"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/digest/trigger": {
+            "post": {
+                "description": "Manually triggers the evidence digest job to send emails to all users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Digest"
+                ],
+                "summary": "Trigger evidence digest",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job name to trigger (default: global-evidence-digest)",
+                        "name": "job",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/users": {
             "get": {
                 "description": "Lists all users in the system",
@@ -16246,6 +16325,110 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/me/digest-subscription": {
+            "get": {
+                "description": "Gets the current user's digest email subscription status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get digest subscription status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Updates the current user's digest email subscription status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update digest subscription status",
+                "parameters": [
+                    {
+                        "description": "Subscription status",
+                        "name": "subscription",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UserHandler"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/users/{id}/change-password": {
             "post": {
                 "description": "Changes the password for a user by ID",
@@ -16376,6 +16559,74 @@ const docTemplate = `{
         },
         "datatypes.JSONType-relational_SystemComponentStatus": {
             "type": "object"
+        },
+        "digest.EvidenceItem": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "description": "Formatted expiration date string (empty if no expiration)",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "digest.EvidenceSummary": {
+            "type": "object",
+            "properties": {
+                "expiredCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "notSatisfiedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "otherCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "satisfiedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "topExpired": {
+                    "description": "Top items for the digest email",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/digest.EvidenceItem"
+                    }
+                },
+                "topNotSatisfied": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/digest.EvidenceItem"
+                    }
+                },
+                "totalCount": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
         },
         "gorm.DeletedAt": {
             "type": "object",
@@ -17307,6 +17558,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-digest_EvidenceSummary": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/digest.EvidenceSummary"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_FilterImportResponse": {
             "type": "object",
             "properties": {
@@ -17341,6 +17605,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_UserHandler": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.UserHandler"
                         }
                     ]
                 }
@@ -24793,6 +25070,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/gorm.DeletedAt"
                         }
                     ]
+                },
+                "digestSubscribed": {
+                    "description": "DigestSubscribed indicates if the user wants to receive evidence digest emails",
+                    "type": "boolean"
                 },
                 "email": {
                     "type": "string"
