@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -131,6 +132,16 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 	if req.CatalogID == "" || len(req.Rules) == 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalogId and rules are required")))
 	}
+	// filter out invalid rules (empty operator or value)
+	validRules := make([]rule, 0, len(req.Rules))
+	for _, r := range req.Rules {
+		if strings.TrimSpace(r.Operator) != "" && strings.TrimSpace(r.Value) != "" {
+			validRules = append(validRules, r)
+		}
+	}
+	if len(validRules) == 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("rules must include non-empty operator and value")))
+	}
 	catUUID, err := uuid.Parse(req.CatalogID)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -147,12 +158,38 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 	matched := make([]relational.Control, 0, len(controls))
 	matchedIDs := make([]string, 0, len(controls))
 	for i := range controls {
-		if matchControlByProps(&controls[i], req.Rules, matchAll) {
+		if matchControlByProps(&controls[i], validRules, matchAll) {
 			matched = append(matched, controls[i])
 			matchedIDs = append(matchedIDs, controls[i].ID)
 		}
 	}
 	now := time.Now()
+	// build BackMatter resource and Import pointing to the catalog
+	var catalog relational.Catalog
+	if err := h.db.Preload("Metadata").First(&catalog, "id = ?", catUUID).Error; err != nil {
+		h.sugar.Warnw("failed to load catalog metadata", "catalogId", req.CatalogID, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	resourceUUID := uuid.New()
+	title := catalog.Metadata.Title
+	resource := relational.BackMatterResource{
+		ID:    resourceUUID,
+		Title: &title,
+		RLinks: []relational.ResourceLink{
+			{
+				Href:      "#" + req.CatalogID,
+				MediaType: "application/ccf+oscal+json",
+			},
+		},
+	}
+	includeGroup := relational.SelectControlById{
+		WithChildControls: "",
+		WithIds:           datatypes.NewJSONSlice(matchedIDs),
+	}
+	newImport := relational.Import{
+		Href:            "#" + resourceUUID.String(),
+		IncludeControls: []relational.SelectControlById{includeGroup},
+	}
 	profile := &relational.Profile{
 		Metadata: relational.Metadata{
 			Title:        req.Title,
@@ -160,7 +197,9 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 			OscalVersion: versioning.GetLatestSupportedVersion(),
 			LastModified: &now,
 		},
-		Controls: matched,
+		Controls:   matched,
+		BackMatter: &relational.BackMatter{Resources: []relational.BackMatterResource{resource}},
+		Imports:    []relational.Import{newImport},
 	}
 	if err := h.db.Create(profile).Error; err != nil {
 		h.sugar.Errorw("failed to create profile from props", "error", err)
