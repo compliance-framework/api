@@ -62,7 +62,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Warnw("Failed to initialize email service, digests will be disabled", "error", err)
 	}
 
-	// Initialize digest service (needed before worker service for dependency injection)
+	// Initialize digest service (without worker service initially)
 	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
 
 	// Initialize worker service with digest support
@@ -71,8 +71,8 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to initialize worker service", "error", err)
 	}
 
-	// Update digest service with worker service reference
-	digestService = digest.NewService(db, emailService, workerService, cfg, sugar)
+	// Set worker service reference in digest service to avoid circular dependency
+	digestService.SetWorkerService(workerService)
 
 	// Run River migrations
 	if err := workerService.Migrate(ctx); err != nil {

@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
@@ -96,22 +97,36 @@ func (SendGlobalDigestArgs) Timeout() time.Duration {
 	return 5 * time.Minute
 }
 
-// SendEmailWorker is a work function for sending emails
-func SendEmailWorker(ctx context.Context, job *river.Job[SendEmailArgs]) error {
-	// Get services from context (they should be injected by the worker service)
-	emailService, ok := ctx.Value(emailServiceKey).(EmailService)
-	if !ok {
-		return fmt.Errorf("email service not found in job context")
-	}
+// SendEmailWorker handles sending email jobs
+type SendEmailWorker struct {
+	emailService EmailService
+	logger       Logger
+}
 
-	logger, ok := ctx.Value(loggerKey).(Logger)
-	if !ok {
-		return fmt.Errorf("logger not found in job context")
+// NewSendEmailWorker creates a new SendEmailWorker
+func NewSendEmailWorker(emailService EmailService, logger Logger) *SendEmailWorker {
+	return &SendEmailWorker{
+		emailService: emailService,
+		logger:       logger,
 	}
+}
 
+// Work is the River work function for sending emails
+func (w *SendEmailWorker) Work(ctx context.Context, job *river.Job[SendEmailArgs]) error {
 	args := job.Args
 
-	logger.Infow("Processing send email job",
+	// Validate required fields
+	if len(args.To) == 0 {
+		return fmt.Errorf("email job requires at least one recipient")
+	}
+	if strings.TrimSpace(args.Subject) == "" {
+		return fmt.Errorf("email job requires a subject")
+	}
+	if strings.TrimSpace(args.HTMLBody) == "" && strings.TrimSpace(args.TextBody) == "" {
+		return fmt.Errorf("email job requires either HTML body or text body")
+	}
+
+	w.logger.Infow("Processing send email job",
 		"job_id", job.ID,
 		"to", args.To,
 		"subject", args.Subject,
@@ -131,9 +146,9 @@ func SendEmailWorker(ctx context.Context, job *river.Job[SendEmailArgs]) error {
 	}
 
 	// Send the email
-	result, err := emailService.Send(ctx, message)
+	result, err := w.emailService.Send(ctx, message)
 	if err != nil {
-		logger.Errorw("Failed to send email",
+		w.logger.Errorw("Failed to send email",
 			"job_id", job.ID,
 			"error", err,
 		)
@@ -141,14 +156,14 @@ func SendEmailWorker(ctx context.Context, job *river.Job[SendEmailArgs]) error {
 	}
 
 	if !result.Success {
-		logger.Errorw("Email send failed",
+		w.logger.Errorw("Email send failed",
 			"job_id", job.ID,
 			"error", result.Error,
 		)
 		return fmt.Errorf("email send failed: %s", result.Error)
 	}
 
-	logger.Infow("Email sent successfully",
+	w.logger.Infow("Email sent successfully",
 		"job_id", job.ID,
 		"message_id", result.MessageID,
 	)
@@ -156,22 +171,39 @@ func SendEmailWorker(ctx context.Context, job *river.Job[SendEmailArgs]) error {
 	return nil
 }
 
-// SendEmailFromWorker is a work function for sending emails from a provider
-func SendEmailFromWorker(ctx context.Context, job *river.Job[SendEmailFromArgs]) error {
-	// Get services from context (they should be injected by the worker service)
-	emailService, ok := ctx.Value(emailServiceKey).(EmailService)
-	if !ok {
-		return fmt.Errorf("email service not found in job context")
-	}
+// SendEmailFromWorker handles sending email from provider jobs
+type SendEmailFromWorker struct {
+	emailService EmailService
+	logger       Logger
+}
 
-	logger, ok := ctx.Value(loggerKey).(Logger)
-	if !ok {
-		return fmt.Errorf("logger not found in job context")
+// NewSendEmailFromWorker creates a new SendEmailFromWorker
+func NewSendEmailFromWorker(emailService EmailService, logger Logger) *SendEmailFromWorker {
+	return &SendEmailFromWorker{
+		emailService: emailService,
+		logger:       logger,
 	}
+}
 
+// Work is the River work function for sending emails from a provider
+func (w *SendEmailFromWorker) Work(ctx context.Context, job *river.Job[SendEmailFromArgs]) error {
 	args := job.Args
 
-	logger.Infow("Processing send email from provider job",
+	// Validate required fields
+	if strings.TrimSpace(args.Provider) == "" {
+		return fmt.Errorf("email from provider job requires a provider name")
+	}
+	if len(args.To) == 0 {
+		return fmt.Errorf("email job requires at least one recipient")
+	}
+	if strings.TrimSpace(args.Subject) == "" {
+		return fmt.Errorf("email job requires a subject")
+	}
+	if strings.TrimSpace(args.HTMLBody) == "" && strings.TrimSpace(args.TextBody) == "" {
+		return fmt.Errorf("email job requires either HTML body or text body")
+	}
+
+	w.logger.Infow("Processing send email from provider job",
 		"job_id", job.ID,
 		"provider", args.Provider,
 		"to", args.To,
@@ -192,9 +224,9 @@ func SendEmailFromWorker(ctx context.Context, job *river.Job[SendEmailFromArgs])
 	}
 
 	// Send the email using the specified provider
-	result, err := emailService.SendWithProvider(ctx, args.Provider, message)
+	result, err := w.emailService.SendWithProvider(ctx, args.Provider, message)
 	if err != nil {
-		logger.Errorw("Failed to send email from provider",
+		w.logger.Errorw("Failed to send email from provider",
 			"job_id", job.ID,
 			"provider", args.Provider,
 			"error", err,
@@ -203,7 +235,7 @@ func SendEmailFromWorker(ctx context.Context, job *river.Job[SendEmailFromArgs])
 	}
 
 	if !result.Success {
-		logger.Errorw("Email send failed from provider",
+		w.logger.Errorw("Email send failed from provider",
 			"job_id", job.ID,
 			"provider", args.Provider,
 			"error", result.Error,
@@ -211,7 +243,7 @@ func SendEmailFromWorker(ctx context.Context, job *river.Job[SendEmailFromArgs])
 		return fmt.Errorf("email send failed from provider %s: %s", args.Provider, result.Error)
 	}
 
-	logger.Infow("Email sent successfully from provider",
+	w.logger.Infow("Email sent successfully from provider",
 		"job_id", job.ID,
 		"provider", args.Provider,
 		"message_id", result.MessageID,
@@ -220,39 +252,60 @@ func SendEmailFromWorker(ctx context.Context, job *river.Job[SendEmailFromArgs])
 	return nil
 }
 
-// SendGlobalDigestWorker is a work function for sending global digest
-func SendGlobalDigestWorker(ctx context.Context, job *river.Job[SendGlobalDigestArgs]) error {
-	// Get services from context
-	digestService, ok := ctx.Value(digestServiceKey).(DigestService)
-	if !ok {
-		return fmt.Errorf("digest service not found in job context")
-	}
+// SendGlobalDigestWorker handles sending global digest jobs
+type SendGlobalDigestWorker struct {
+	digestService DigestService
+	logger        Logger
+}
 
-	logger, ok := ctx.Value(loggerKey).(Logger)
-	if !ok {
-		return fmt.Errorf("logger not found in job context")
+// NewSendGlobalDigestWorker creates a new SendGlobalDigestWorker
+func NewSendGlobalDigestWorker(digestService DigestService, logger Logger) *SendGlobalDigestWorker {
+	return &SendGlobalDigestWorker{
+		digestService: digestService,
+		logger:        logger,
 	}
+}
 
-	logger.Infow("Processing global digest job", "job_id", job.ID)
+// Work is the River work function for sending global digest
+func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGlobalDigestArgs]) error {
+	w.logger.Infow("Processing global digest job", "job_id", job.ID)
 
 	// Send the global digest
-	if err := digestService.SendGlobalDigest(ctx); err != nil {
-		logger.Errorw("Failed to send global digest",
+	if err := w.digestService.SendGlobalDigest(ctx); err != nil {
+		w.logger.Errorw("Failed to send global digest",
 			"job_id", job.ID,
 			"error", err,
 		)
 		return fmt.Errorf("failed to send global digest: %w", err)
 	}
 
-	logger.Infow("Global digest sent successfully", "job_id", job.ID)
+	w.logger.Infow("Global digest sent successfully", "job_id", job.ID)
 	return nil
 }
 
 // JobInsertOptions returns common insert options for email jobs
 func JobInsertOptions() *river.InsertOpts {
 	return &river.InsertOpts{
-		Queue:       "email",
+		Queue:       "email", // Default queue for email jobs
+		MaxAttempts: 5,       // Retry up to 5 times
+		// River uses exponential backoff by default
+	}
+}
+
+// JobInsertOptionsWithQueue returns insert options for jobs with specified queue
+func JobInsertOptionsWithQueue(queue string) *river.InsertOpts {
+	return &river.InsertOpts{
+		Queue:       queue,
 		MaxAttempts: 5, // Retry up to 5 times
+		// River uses exponential backoff by default
+	}
+}
+
+// JobInsertOptionsWithRetry returns insert options for jobs with custom retry policy
+func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts {
+	return &river.InsertOpts{
+		Queue:       queue,
+		MaxAttempts: maxAttempts,
 		// River uses exponential backoff by default
 	}
 }
@@ -277,11 +330,19 @@ func InsertSendEmailFromJob(ctx context.Context, client *river.Client[pgx.Tx], a
 	return nil
 }
 
-// Workers returns all workers as work functions
-func Workers() *river.Workers {
+// Workers returns all workers as work functions with dependencies injected
+func Workers(emailService EmailService, digestService DigestService, logger Logger) *river.Workers {
 	workers := river.NewWorkers()
-	river.AddWorker(workers, river.WorkFunc(SendEmailWorker))
-	river.AddWorker(workers, river.WorkFunc(SendEmailFromWorker))
-	river.AddWorker(workers, river.WorkFunc(SendGlobalDigestWorker))
+
+	// Create worker instances with dependencies
+	sendEmailWorker := NewSendEmailWorker(emailService, logger)
+	sendEmailFromWorker := NewSendEmailFromWorker(emailService, logger)
+	sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestService, logger)
+
+	// Register workers with their Work methods
+	river.AddWorker(workers, river.WorkFunc(sendEmailWorker.Work))
+	river.AddWorker(workers, river.WorkFunc(sendEmailFromWorker.Work))
+	river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
+
 	return workers
 }

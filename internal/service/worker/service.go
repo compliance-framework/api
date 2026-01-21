@@ -18,15 +18,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// contextKey is a private type for context keys to prevent collisions
-type contextKey string
-
-const (
-	emailServiceKey  contextKey = "emailService"
-	loggerKey        contextKey = "logger"
-	digestServiceKey contextKey = "digestService"
-)
-
 // Service manages the River client and workers
 type Service struct {
 	client    *river.Client[pgx.Tx]
@@ -77,18 +68,37 @@ func NewServiceWithDigest(
 	}
 
 	// Get pgx pool from GORM
+	// Note: Creating a separate pgx pool for River workers is acceptable here because:
+	// 1. River requires a pgxpool.Pool specifically, not GORM's generic interface
+	// 2. We use conservative pool settings to avoid exhaustion
+	// 3. The pools share the same database but operate independently
 	var pgxPool *pgxpool.Pool
 	// Since GORM's ConnPool doesn't directly expose pgxpool.Pool,
 	// we need to create a new pool from the DSN
-	dsn := db.Dialector.(*postgres.Dialector).DSN
-	pool, err := pgxpool.New(context.Background(), dsn)
+	dialector, ok := db.Dialector.(*postgres.Dialector)
+	if !ok {
+		return nil, fmt.Errorf("worker service requires a postgres dialector, got %T", db.Dialector)
+	}
+	dsn := dialector.DSN
+
+	// Configure pgx pool with conservative settings to avoid connection exhaustion
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pgx pool config: %w", err)
+	}
+	// Limit connections to avoid exhausting database connections
+	// Use a small fraction of typical connection limits
+	poolConfig.MaxConns = 10 // Conservative limit for worker pool
+	poolConfig.MinConns = 2  // Keep minimum connections warm
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pgx pool: %w", err)
 	}
 	pgxPool = pool
 
-	// Register workers
-	workers := Workers()
+	// Register workers with dependencies injected
+	workers := Workers(emailSvc, digestSvc, logger)
 
 	// Configure periodic jobs
 	var periodicJobs []*river.PeriodicJob
@@ -148,15 +158,8 @@ func (s *Service) Start(ctx context.Context) error {
 		"queue", s.config.Queue,
 	)
 
-	// Create a new context with services for workers
-	workerCtx := context.WithValue(ctx, emailServiceKey, s.emailSvc)
-	workerCtx = context.WithValue(workerCtx, loggerKey, s.logger)
-	if s.digestSvc != nil {
-		workerCtx = context.WithValue(workerCtx, digestServiceKey, s.digestSvc)
-	}
-
-	// Start the workers with injected context
-	if err := s.client.Start(workerCtx); err != nil {
+	// Start the workers with the provided context (no dependency injection needed)
+	if err := s.client.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start River client: %w", err)
 	}
 
@@ -256,9 +259,25 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 		return fmt.Errorf("worker service is disabled")
 	}
 
+	if s.client == nil {
+		return fmt.Errorf("worker client is not initialized")
+	}
+
+	// Use configured queue or default to "email"
+	queue := s.config.Queue
+	if queue == "" {
+		queue = "email"
+	}
+
+	// Use configured retry policy or default to 5 attempts
+	maxAttempts := s.config.RetryPolicy.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 5
+	}
+
 	// Use InsertMany which doesn't require a transaction
 	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptions()},
+		{Args: args, InsertOpts: JobInsertOptionsWithRetry(queue, maxAttempts)},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send email job: %w", err)
@@ -272,9 +291,25 @@ func (s *Service) EnqueueSendEmailFrom(ctx context.Context, args *SendEmailFromA
 		return fmt.Errorf("worker service is disabled")
 	}
 
+	if s.client == nil {
+		return fmt.Errorf("worker client is not initialized")
+	}
+
+	// Use configured queue or default to "email"
+	queue := s.config.Queue
+	if queue == "" {
+		queue = "email"
+	}
+
+	// Use configured retry policy or default to 5 attempts
+	maxAttempts := s.config.RetryPolicy.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 5
+	}
+
 	// Use InsertMany which doesn't require a transaction
 	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptions()},
+		{Args: args, InsertOpts: JobInsertOptionsWithRetry(queue, maxAttempts)},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send email from job: %w", err)

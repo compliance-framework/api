@@ -215,6 +215,7 @@ func (s *Service) SendDigestEmail(ctx context.Context, user *relational.User, su
 	// Enqueue email job instead of sending directly
 	if s.workerService != nil && s.workerService.IsStarted() {
 		args := &worker.SendEmailArgs{
+			From:     s.getDefaultFromAddress(),
 			To:       message.To,
 			Subject:  message.Subject,
 			HTMLBody: message.HTMLBody,
@@ -293,4 +294,35 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// SetWorkerService sets the worker service reference (used to avoid circular dependency)
+func (s *Service) SetWorkerService(workerService *worker.Service) {
+	s.workerService = workerService
+}
+
+// getDefaultFromAddress returns the default From address from the email service configuration
+func (s *Service) getDefaultFromAddress() string {
+	if s.emailService == nil || !s.emailService.IsEnabled() {
+		return ""
+	}
+
+	emailConfig := s.emailService.GetConfig()
+	if emailConfig == nil {
+		return ""
+	}
+
+	defaultProvider := emailConfig.GetDefaultProvider()
+	if defaultProvider == nil {
+		return ""
+	}
+
+	switch provider := defaultProvider.(type) {
+	case *config.SMTPConfig:
+		return provider.From
+	case *config.SESConfig:
+		return provider.From
+	default:
+		return ""
+	}
 }

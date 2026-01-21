@@ -356,6 +356,7 @@ func (h *AuthHandler) ForgotPassword(ctx echo.Context) error {
 	// Enqueue email job instead of sending directly
 	if h.workerService != nil && h.workerService.IsStarted() {
 		args := &worker.SendEmailArgs{
+			From:     h.getDefaultFromAddress(),
 			To:       message.To,
 			Subject:  message.Subject,
 			HTMLBody: message.HTMLBody,
@@ -454,4 +455,30 @@ func (h *AuthHandler) PasswordReset(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[string]{
 		Data: "Password has been reset successfully",
 	})
+}
+
+// getDefaultFromAddress returns the default From address from the email service configuration
+func (h *AuthHandler) getDefaultFromAddress() string {
+	if h.emailService == nil || !h.emailService.IsEnabled() {
+		return ""
+	}
+
+	emailConfig := h.emailService.GetConfig()
+	if emailConfig == nil {
+		return ""
+	}
+
+	defaultProvider := emailConfig.GetDefaultProvider()
+	if defaultProvider == nil {
+		return ""
+	}
+
+	switch provider := defaultProvider.(type) {
+	case *config.SMTPConfig:
+		return provider.From
+	case *config.SESConfig:
+		return provider.From
+	default:
+		return ""
+	}
 }
