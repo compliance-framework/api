@@ -223,6 +223,10 @@ func (s *Service) Migrate(ctx context.Context) error {
 		return nil
 	}
 
+	if s.pgxPool == nil {
+		return fmt.Errorf("pgx pool is not initialized - worker service may be disabled")
+	}
+
 	// Get migrator from the driver
 	migrator, err := rivermigrate.New(riverpgxv5.New(s.pgxPool), &rivermigrate.Config{})
 	if err != nil {

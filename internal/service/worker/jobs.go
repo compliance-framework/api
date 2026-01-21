@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
-	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 )
 
@@ -308,26 +307,6 @@ func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts 
 		MaxAttempts: maxAttempts,
 		// River uses exponential backoff by default
 	}
-}
-
-// InsertSendEmailJob inserts a new send email job
-func InsertSendEmailJob(ctx context.Context, client *river.Client[pgx.Tx], args *SendEmailArgs) error {
-	_, err := client.Insert(ctx, args, JobInsertOptions())
-	if err != nil {
-		return fmt.Errorf("failed to insert send email job: %w", err)
-	}
-
-	return nil
-}
-
-// InsertSendEmailFromJob inserts a new send email from provider job
-func InsertSendEmailFromJob(ctx context.Context, client *river.Client[pgx.Tx], args *SendEmailFromArgs) error {
-	_, err := client.Insert(ctx, args, JobInsertOptions())
-	if err != nil {
-		return fmt.Errorf("failed to insert send email from job: %w", err)
-	}
-
-	return nil
 }
 
 // Workers returns all workers as work functions with dependencies injected

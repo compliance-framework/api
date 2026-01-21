@@ -1,9 +1,5 @@
 package config
 
-import (
-	"time"
-)
-
 // WorkerConfig contains configuration for background workers
 // Environment variables:
 //   - CCF_WORKER_ENABLED: Enable/disable workers (default: true)
@@ -27,12 +23,6 @@ type WorkerConfig struct {
 type RetryPolicyConfig struct {
 	// MaxAttempts is the maximum number of attempts for a job
 	MaxAttempts int `mapstructure:"max_attempts"`
-
-	// MinDelay is the minimum delay between retries
-	MinDelay time.Duration `mapstructure:"min_delay"`
-
-	// MaxDelay is the maximum delay between retries
-	MaxDelay time.Duration `mapstructure:"max_delay"`
 }
 
 // DefaultWorkerConfig returns a default worker configuration
@@ -43,8 +33,6 @@ func DefaultWorkerConfig() *WorkerConfig {
 		Queue:   "email", // Default to email queue to match job configuration
 		RetryPolicy: RetryPolicyConfig{
 			MaxAttempts: 5,
-			MinDelay:    5 * time.Second,
-			MaxDelay:    30 * time.Minute,
 		},
 	}
 }

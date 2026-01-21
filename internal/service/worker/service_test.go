@@ -2,8 +2,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -173,87 +171,6 @@ func TestSendEmailWorker_MessageConstruction(t *testing.T) {
 	assert.Equal(t, "test-message-id", result.MessageID)
 
 	mockEmailService.AssertExpectations(t)
-}
-
-func TestSendEmailWorker_Validation(t *testing.T) {
-	// Test validation logic directly
-	tests := []struct {
-		name        string
-		args        *SendEmailArgs
-		expectError string
-	}{
-		{
-			name: "missing recipients",
-			args: &SendEmailArgs{
-				Subject:  "Test",
-				HTMLBody: "<p>Test</p>",
-			},
-			expectError: "email job requires at least one recipient",
-		},
-		{
-			name: "missing subject",
-			args: &SendEmailArgs{
-				To:       []string{"test@example.com"},
-				HTMLBody: "<p>Test</p>",
-			},
-			expectError: "email job requires a subject",
-		},
-		{
-			name: "missing body",
-			args: &SendEmailArgs{
-				To:      []string{"test@example.com"},
-				Subject: "Test",
-			},
-			expectError: "email job requires either HTML body or text body",
-		},
-		{
-			name: "valid email args",
-			args: &SendEmailArgs{
-				To:       []string{"test@example.com"},
-				Subject:  "Test",
-				HTMLBody: "<p>Test</p>",
-			},
-			expectError: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			args := tt.args
-
-			// Check validation for missing recipients
-			if len(args.To) == 0 {
-				err := fmt.Errorf("email job requires at least one recipient")
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectError)
-				return
-			}
-
-			// Check validation for missing subject
-			if strings.TrimSpace(args.Subject) == "" {
-				err := fmt.Errorf("email job requires a subject")
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectError)
-				return
-			}
-
-			// Check validation for missing body
-			if strings.TrimSpace(args.HTMLBody) == "" && strings.TrimSpace(args.TextBody) == "" {
-				err := fmt.Errorf("email job requires either HTML body or text body")
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectError)
-				return
-			}
-
-			// If we get here, the args should be valid
-			if tt.expectError == "" {
-				// Valid args - no validation error expected
-				assert.True(t, len(args.To) > 0)
-				assert.True(t, strings.TrimSpace(args.Subject) != "")
-				assert.True(t, strings.TrimSpace(args.HTMLBody) != "" || strings.TrimSpace(args.TextBody) != "")
-			}
-		})
-	}
 }
 
 func TestSendEmailWorker_Work_Validation(t *testing.T) {
