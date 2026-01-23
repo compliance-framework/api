@@ -601,26 +601,24 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var components []oscalTypes_1_1_3.DefinedComponent
-	if err := ctx.Bind(&components); err != nil {
+	var component oscalTypes_1_1_3.DefinedComponent
+	if err := ctx.Bind(&component); err != nil {
 		h.sugar.Warnw("Failed to bind components", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	// Validate required fields for each component
-	for _, component := range components {
-		if component.Type == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component type is required")))
-		}
-		if component.Title == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component title is required")))
-		}
-		if component.Description == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component description is required")))
-		}
-		if component.Purpose == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component purpose is required")))
-		}
+	if component.Type == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component type is required")))
+	}
+	if component.Title == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component title is required")))
+	}
+	if component.Description == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component description is required")))
+	}
+	if component.Purpose == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component purpose is required")))
 	}
 
 	// Begin a transaction
@@ -630,22 +628,15 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(tx.Error))
 	}
 
-	// Convert to relational model
-	var newComponents []relational.DefinedComponent
-	for _, component := range components {
-		relationalComponent := relational.DefinedComponent{}
-		relationalComponent.UnmarshalOscal(component)
-		relationalComponent.ComponentDefinitionID = &id
-		newComponents = append(newComponents, relationalComponent)
-	}
+	relationalComponent := relational.DefinedComponent{}
+	relationalComponent.UnmarshalOscal(component)
+	relationalComponent.ComponentDefinitionID = &id
 
 	// Create each component individually
-	for _, component := range newComponents {
-		if err := tx.Create(&component).Error; err != nil {
-			tx.Rollback()
-			h.sugar.Errorf("Failed to create component: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
+	if err := tx.Create(&relationalComponent).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create component: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	// Update metadata
@@ -666,8 +657,8 @@ func (h *ComponentDefinitionHandler) CreateComponents(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.DefinedComponent]{
-		Data: components,
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.DefinedComponent]{
+		Data: component,
 	})
 }
 
