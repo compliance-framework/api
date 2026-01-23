@@ -1589,40 +1589,38 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var capabilities []oscalTypes_1_1_3.Capability
-	if err := ctx.Bind(&capabilities); err != nil {
-		h.sugar.Warnw("Failed to bind capabilities", "error", err)
+	var capability oscalTypes_1_1_3.Capability
+	if err := ctx.Bind(&capability); err != nil {
+		h.sugar.Warnw("Failed to bind capability", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	// Validate required fields
-	for _, capability := range capabilities {
-		if capability.Name == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("capability name is required")))
-		}
-		if capability.Description == "" {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("capability description is required")))
-		}
-		if capability.ControlImplementations != nil {
-			for _, impl := range *capability.ControlImplementations {
-				if impl.Description == "" {
-					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("control implementation description is required")))
-				}
-				for _, req := range impl.ImplementedRequirements {
-					if req.ControlId == "" {
-						return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("control ID is required")))
-					}
+	if capability.Name == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("capability name is required")))
+	}
+	if capability.Description == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("capability description is required")))
+	}
+	if capability.ControlImplementations != nil {
+		for _, impl := range *capability.ControlImplementations {
+			if impl.Description == "" {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("control implementation description is required")))
+			}
+			for _, req := range impl.ImplementedRequirements {
+				if req.ControlId == "" {
+					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("control ID is required")))
 				}
 			}
 		}
-		if capability.IncorporatesComponents != nil {
-			for _, component := range *capability.IncorporatesComponents {
-				if component.ComponentUuid == "" {
-					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component UUID is required for incorporates component")))
-				}
-				if component.Description == "" {
-					return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("description is required for incorporates component")))
-				}
+	}
+	if capability.IncorporatesComponents != nil {
+		for _, component := range *capability.IncorporatesComponents {
+			if component.ComponentUuid == "" {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("component UUID is required for incorporates component")))
+			}
+			if component.Description == "" {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("description is required for incorporates component")))
 			}
 		}
 	}
@@ -1635,21 +1633,17 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 	}
 
 	// Convert to relational model
-	var newCapabilities []relational.Capability
-	for _, capability := range capabilities {
-		relationalCapability := relational.Capability{}
-		relationalCapability.UnmarshalOscal(capability)
-		relationalCapability.ComponentDefinitionId = id
-		newCapabilities = append(newCapabilities, relationalCapability)
-	}
+	var newCapability relational.Capability
+	relationalCapability := relational.Capability{}
+	relationalCapability.UnmarshalOscal(capability)
+	relationalCapability.ComponentDefinitionId = id
+	newCapability = relationalCapability
 
-	// Create the capabilities
-	for _, capability := range newCapabilities {
-		if err := tx.Create(&capability).Error; err != nil {
-			tx.Rollback()
-			h.sugar.Errorf("Failed to create capability: %v", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
+	// Create the capability
+	if err := tx.Create(&newCapability).Error; err != nil {
+		tx.Rollback()
+		h.sugar.Errorf("Failed to create capability: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	// Commit the transaction
@@ -1658,8 +1652,8 @@ func (h *ComponentDefinitionHandler) CreateCapabilities(ctx echo.Context) error 
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Capability]{
-		Data: capabilities,
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Capability]{
+		Data: capability,
 	})
 }
 
