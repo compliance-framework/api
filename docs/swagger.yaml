@@ -12562,6 +12562,155 @@ paths:
       summary: Get POA&M local definitions
       tags:
       - Plan Of Action and Milestones
+    post:
+      consumes:
+      - application/json
+      description: Creates local definitions for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Local definitions data
+        in: body
+        name: localDefinitions
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestonesLocalDefinitions'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create local definitions for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+  /oscal/plan-of-action-and-milestones/{id}/local-definitions/{definitionId}:
+    delete:
+      description: Deletes local definitions for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Definition ID (placeholder for consistency, not used in implementation)
+        in: path
+        name: definitionId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete local definitions for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+    get:
+      description: Retrieves local definitions for a given POA&M (same as GET /local-definitions
+        but with consistent routing).
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Definition ID (placeholder for consistency, not used in implementation)
+        in: path
+        name: definitionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestonesLocalDefinitions'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get local definitions for a POA&M
+      tags:
+      - Plan Of Action and Milestones
+    put:
+      consumes:
+      - application/json
+      description: Updates local definitions for a given POA&M.
+      parameters:
+      - description: POA&M ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Definition ID (placeholder for consistency, not used in implementation)
+        in: path
+        name: definitionId
+        required: true
+        type: string
+      - description: Local definitions data
+        in: body
+        name: localDefinitions
+        required: true
+        schema:
+          $ref: '#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestonesLocalDefinitions'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update local definitions for a POA&M
+      tags:
+      - Plan Of Action and Milestones
   /oscal/plan-of-action-and-milestones/{id}/metadata:
     get:
       description: Retrieves metadata for a given POA&M.

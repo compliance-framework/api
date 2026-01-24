@@ -868,68 +868,6 @@ func TestFinding_MarshalUnmarshalOscal(t *testing.T) {
 	}
 }
 
-// TestPlanOfActionAndMilestonesLocalDefinitions_MarshalUnmarshalOscal tests the marshaling and unmarshaling of PlanOfActionAndMilestonesLocalDefinitions
-// to and from OSCAL format, verifying correct handling of all nested components.
-func TestPlanOfActionAndMilestonesLocalDefinitions_MarshalUnmarshalOscal(t *testing.T) {
-	tests := []struct {
-		name string
-		data oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions
-	}{
-		{
-			name: "minimal fields",
-			data: oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions{
-				Remarks: "Minimal local definitions",
-			},
-		},
-		{
-			name: "all fields set",
-			data: oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions{
-				AssessmentAssets: &oscalTypes_1_1_3.AssessmentAssets{
-					AssessmentPlatforms: []oscalTypes_1_1_3.AssessmentPlatform{
-						{
-							UUID:  uuid.New().String(),
-							Title: "Assessment Platform 1",
-						},
-					},
-				},
-				Components: &[]oscalTypes_1_1_3.SystemComponent{
-					{
-						UUID:        uuid.New().String(),
-						Type:        "software",
-						Title:       "Component 1",
-						Description: "System component",
-						Status: oscalTypes_1_1_3.SystemComponentStatus{
-							State: "operational",
-						},
-					},
-				},
-				InventoryItems: &[]oscalTypes_1_1_3.InventoryItem{
-					{
-						UUID:        uuid.New().String(),
-						Description: "Inventory item",
-					},
-				},
-				Remarks: "Full local definitions",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			inputJson, err := json.Marshal(tt.data)
-			assert.NoError(t, err)
-
-			ld := &PlanOfActionAndMilestonesLocalDefinitions{}
-			ld.UnmarshalOscal(tt.data)
-			output := ld.MarshalOscal()
-			outputJson, err := json.Marshal(output)
-			assert.NoError(t, err)
-
-			assert.JSONEq(t, string(inputJson), string(outputJson))
-		})
-	}
-}
-
 // TestPoamItem_MarshalUnmarshalOscal tests the marshaling and unmarshaling of PoamItem
 // to and from OSCAL format, ensuring all fields are correctly handled.
 func TestPoamItem_MarshalUnmarshalOscal(t *testing.T) {

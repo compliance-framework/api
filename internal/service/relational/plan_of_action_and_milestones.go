@@ -16,12 +16,12 @@ type PlanOfActionAndMilestones struct {
 	BackMatter BackMatter `json:"back-matter" gorm:"polymorphic:Parent;"`
 
 	// Simple fields stored as JSON
-	ImportSsp        datatypes.JSONType[ImportSsp]                                 `json:"import-ssp"`
-	SystemId         datatypes.JSONType[SystemId]                                  `json:"system-id"`
-	LocalDefinitions datatypes.JSONType[PlanOfActionAndMilestonesLocalDefinitions] `json:"local-definitions"`
+	ImportSsp datatypes.JSONType[ImportSsp] `json:"import-ssp"`
+	SystemId  datatypes.JSONType[SystemId]  `json:"system-id"`
 
 	// Complex entities as proper tables with polymorphic relationships
-	PoamItems []PoamItem `gorm:"foreignKey:PlanOfActionAndMilestonesID"`
+	PoamItems        []PoamItem                                  `gorm:"foreignKey:PlanOfActionAndMilestonesID"`
+	LocalDefinitions []PlanOfActionAndMilestonesLocalDefinitions `gorm:"foreignKey:PlanOfActionAndMilestonesID"`
 
 	Observations []Observation `gorm:"many2many:poam_observations;"`
 	Risks        []Risk        `gorm:"many2many:poam_risks;"`
@@ -49,11 +49,12 @@ func (p *PlanOfActionAndMilestones) UnmarshalOscal(opam oscalTypes_1_1_3.PlanOfA
 		systemId = datatypes.NewJSONType(sid)
 	}
 
-	var localDefinitions datatypes.JSONType[PlanOfActionAndMilestonesLocalDefinitions]
+	var localDefinitions []PlanOfActionAndMilestonesLocalDefinitions
 	if opam.LocalDefinitions != nil {
-		ld := PlanOfActionAndMilestonesLocalDefinitions{}
-		ld.UnmarshalOscal(*opam.LocalDefinitions)
-		localDefinitions = datatypes.NewJSONType(ld)
+		ld := *opam.LocalDefinitions
+		localDef := PlanOfActionAndMilestonesLocalDefinitions{}
+		localDef.UnmarshalOscal(ld, id)
+		localDefinitions = append(localDefinitions, localDef)
 	}
 
 	var observations []Observation
@@ -127,8 +128,35 @@ func (p *PlanOfActionAndMilestones) MarshalOscal() *oscalTypes_1_1_3.PlanOfActio
 		opam.SystemId = sid.MarshalOscal()
 	}
 
-	if ld := p.LocalDefinitions.Data(); ld.Remarks != "" || len(ld.Components) > 0 || len(ld.InventoryItems) > 0 {
-		opam.LocalDefinitions = ld.MarshalOscal()
+	if len(p.LocalDefinitions) > 0 {
+		// Combine all local definitions into one OSCAL structure
+		var allComponents []oscalTypes_1_1_3.SystemComponent
+		var allInventoryItems []oscalTypes_1_1_3.InventoryItem
+		var remarks string
+
+		for _, ld := range p.LocalDefinitions {
+			if len(ld.Components) > 0 {
+				allComponents = append(allComponents, ld.Components...)
+			}
+			if len(ld.InventoryItems) > 0 {
+				allInventoryItems = append(allInventoryItems, ld.InventoryItems...)
+			}
+			if ld.Remarks != "" {
+				remarks = ld.Remarks
+			}
+		}
+
+		localDefs := oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions{
+			Remarks: remarks,
+		}
+		if len(allComponents) > 0 {
+			localDefs.Components = &allComponents
+		}
+		if len(allInventoryItems) > 0 {
+			localDefs.InventoryItems = &allInventoryItems
+		}
+
+		opam.LocalDefinitions = &localDefs
 	}
 
 	if len(p.Observations) > 0 {
@@ -549,56 +577,45 @@ func (p *PoamItem) MarshalOscal() *oscalTypes_1_1_3.PoamItem {
 	return &ret
 }
 
-// PlanOfActionAndMilestonesLocalDefinitions represents local definitions in POAM.
+// PlanOfActionAndMilestonesLocalDefinitions represents a local definition collection in POAM.
 type PlanOfActionAndMilestonesLocalDefinitions struct {
-	AssessmentAssets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets] `json:"assessment-assets"`
-	Components       datatypes.JSONSlice[oscalTypes_1_1_3.SystemComponent] `json:"components" gorm:"type:json"`
-	InventoryItems   datatypes.JSONSlice[oscalTypes_1_1_3.InventoryItem]   `json:"inventory-items" gorm:"type:json"`
-	Remarks          string                                                `json:"remarks"`
+	UUIDModel
+	PlanOfActionAndMilestonesID uuid.UUID                                             `gorm:"index"`
+	Remarks                     string                                                `json:"remarks"`
+	Components                  datatypes.JSONSlice[oscalTypes_1_1_3.SystemComponent] `json:"components" gorm:"type:json"`
+	InventoryItems              datatypes.JSONSlice[oscalTypes_1_1_3.InventoryItem]   `json:"inventory-items" gorm:"type:json"`
 }
 
-func (p *PlanOfActionAndMilestonesLocalDefinitions) UnmarshalOscal(op oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions) *PlanOfActionAndMilestonesLocalDefinitions {
-	var assessmentAssets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets]
-	if op.AssessmentAssets != nil {
-		assessmentAssets = datatypes.NewJSONType(*op.AssessmentAssets)
+func (ld *PlanOfActionAndMilestonesLocalDefinitions) UnmarshalOscal(op oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions, planID uuid.UUID) *PlanOfActionAndMilestonesLocalDefinitions {
+	ld.PlanOfActionAndMilestonesID = planID
+	ld.Remarks = op.Remarks
+
+	if op.Components != nil {
+		ld.Components = datatypes.NewJSONSlice(*op.Components)
 	}
 
-	components := ConvertList(op.Components, func(oc oscalTypes_1_1_3.SystemComponent) oscalTypes_1_1_3.SystemComponent {
-		return oc
-	})
-
-	inventoryItems := ConvertList(op.InventoryItems, func(oi oscalTypes_1_1_3.InventoryItem) oscalTypes_1_1_3.InventoryItem {
-		return oi
-	})
-
-	*p = PlanOfActionAndMilestonesLocalDefinitions{
-		AssessmentAssets: assessmentAssets,
-		Components:       datatypes.NewJSONSlice(components),
-		InventoryItems:   datatypes.NewJSONSlice(inventoryItems),
-		Remarks:          op.Remarks,
+	if op.InventoryItems != nil {
+		ld.InventoryItems = datatypes.NewJSONSlice(*op.InventoryItems)
 	}
-	return p
+
+	return ld
 }
 
-func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions {
+func (ld *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions {
 	ret := oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions{
-		Remarks: p.Remarks,
+		Remarks: ld.Remarks,
 	}
 
-	if assessmentAssets := p.AssessmentAssets.Data(); len(assessmentAssets.AssessmentPlatforms) > 0 || (assessmentAssets.Components != nil && len(*assessmentAssets.Components) > 0) {
-		ret.AssessmentAssets = &assessmentAssets
-	}
-
-	if len(p.Components) > 0 {
-		components := make([]oscalTypes_1_1_3.SystemComponent, len(p.Components))
-		copy(components, p.Components)
+	if len(ld.Components) > 0 {
+		components := make([]oscalTypes_1_1_3.SystemComponent, len(ld.Components))
+		copy(components, ld.Components)
 		ret.Components = &components
 	}
 
-	if len(p.InventoryItems) > 0 {
-		items := make([]oscalTypes_1_1_3.InventoryItem, len(p.InventoryItems))
-		copy(items, p.InventoryItems)
-		ret.InventoryItems = &items
+	if len(ld.InventoryItems) > 0 {
+		inventoryItems := make([]oscalTypes_1_1_3.InventoryItem, len(ld.InventoryItems))
+		copy(inventoryItems, ld.InventoryItems)
+		ret.InventoryItems = &inventoryItems
 	}
 
 	return &ret

@@ -335,9 +335,12 @@ func (suite *PlanOfActionAndMilestonesIntegrationSuite) TestPOAMCompleteStructur
 			ID:             "SYS-001",
 			IdentifierType: "https://organization.gov",
 		}),
-		LocalDefinitions: datatypes.NewJSONType(relational.PlanOfActionAndMilestonesLocalDefinitions{
-			Remarks: "Local definitions for POAM-specific components and assets",
-		}),
+		LocalDefinitions: []relational.PlanOfActionAndMilestonesLocalDefinitions{
+			{
+				Remarks: "Local definitions for POAM-specific components and assets",
+			},
+		},
+
 		PoamItems: []relational.PoamItem{
 			*poamItem,
 		},

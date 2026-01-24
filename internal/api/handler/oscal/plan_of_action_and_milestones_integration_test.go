@@ -14,6 +14,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -3449,4 +3450,513 @@ func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestUpdateMetadataFul
 	suite.Equal("Final Lifecycle Test POA&M", finalResponse.Data.Title)
 	suite.Equal("2.0.0", finalResponse.Data.Version)
 	suite.Equal("Final lifecycle test", finalResponse.Data.Remarks)
+}
+
+// LOCAL DEFINITIONS CRUD TESTS
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsCreateMultipleItems() {
+	poamUUID := suite.createBasicPOAM()
+
+	// Create local definitions with multiple components and inventory items
+	createLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Test local definitions with multiple items",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Test Component 1",
+				Type:        "Software",
+				Description: "First test component description",
+			},
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Test Component 2",
+				Type:        "Hardware",
+				Description: "Second test component description",
+			},
+		},
+		InventoryItems: &[]oscaltypes.InventoryItem{
+			{
+				UUID:        uuid.New().String(),
+				Description: "Test inventory item 1",
+				Props: &[]oscaltypes.Property{
+					{
+						Name:  "asset-type",
+						Value: "server",
+					},
+				},
+			},
+			{
+				UUID:        uuid.New().String(),
+				Description: "Test inventory item 2",
+				Props: &[]oscaltypes.Property{
+					{
+						Name:  "asset-type",
+						Value: "workstation",
+					},
+				},
+			},
+			{
+				UUID:        uuid.New().String(),
+				Description: "Test inventory item 3",
+				Props: &[]oscaltypes.Property{
+					{
+						Name:  "asset-type",
+						Value: "network-device",
+					},
+				},
+			},
+		},
+	}
+
+	createRec, createReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs)
+	suite.server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	// Verify the created local definitions contain all items
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusOK, getRec.Code)
+
+	var getResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+	err := json.Unmarshal(getRec.Body.Bytes(), &getResponse)
+	suite.Require().NoError(err)
+
+	// Verify we have 2 components
+	suite.Require().NotNil(getResponse.Data.Components)
+	suite.Equal(2, len(*getResponse.Data.Components))
+	suite.Equal("Test Component 1", (*getResponse.Data.Components)[0].Title)
+	suite.Equal("Test Component 2", (*getResponse.Data.Components)[1].Title)
+
+	// Verify we have 3 inventory items
+	suite.Require().NotNil(getResponse.Data.InventoryItems)
+	suite.Equal(3, len(*getResponse.Data.InventoryItems))
+	suite.Equal("Test inventory item 1", (*getResponse.Data.InventoryItems)[0].Description)
+	suite.Equal("Test inventory item 2", (*getResponse.Data.InventoryItems)[1].Description)
+	suite.Equal("Test inventory item 3", (*getResponse.Data.InventoryItems)[2].Description)
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsCreateEndpoint() {
+	poamUUID := suite.createBasicPOAM()
+
+	// Create local definitions
+	createLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Test local definitions",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Test Component",
+				Type:        "Software",
+				Description: "Test component description",
+			},
+		},
+		InventoryItems: &[]oscaltypes.InventoryItem{
+			{
+				UUID:        uuid.New().String(),
+				Description: "Test inventory item",
+				Props: &[]oscaltypes.Property{
+					{
+						Name:  "asset-type",
+						Value: "server",
+					},
+				},
+			},
+		},
+	}
+
+	createRec, createReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs)
+	suite.server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	var createResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+	err := json.Unmarshal(createRec.Body.Bytes(), &createResponse)
+	suite.Require().NoError(err)
+	suite.Equal("Test local definitions", createResponse.Data.Remarks)
+	suite.Require().NotNil(createResponse.Data.Components)
+	suite.Equal(1, len(*createResponse.Data.Components))
+	suite.Require().NotNil(createResponse.Data.InventoryItems)
+	suite.Equal(1, len(*createResponse.Data.InventoryItems))
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsUpdateEndpoint() {
+	poamUUID := suite.createBasicPOAM()
+
+	// First create local definitions
+	createLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Initial local definitions",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Initial Component",
+				Type:        "Software",
+				Description: "Initial component description",
+			},
+		},
+	}
+
+	createRec, createReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs)
+	suite.server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	// Get the created component to get its ID
+	var createResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+	err := json.Unmarshal(createRec.Body.Bytes(), &createResponse)
+	suite.Require().NoError(err)
+
+	// Extract the component ID from the created response
+	var componentID string
+	if createResponse.Data.Components != nil && len(*createResponse.Data.Components) > 0 {
+		// We need to get the actual database ID of the created local definition
+		// For now, let's create a new component for the update test
+		updateLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+			Components: &[]oscaltypes.SystemComponent{
+				{
+					UUID:        uuid.New().String(),
+					Title:       "Updated Component",
+					Type:        "Hardware",
+					Description: "Updated component description",
+				},
+			},
+		}
+
+		// Create a new component and then update it
+		createUpdateRec, createUpdateReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), updateLocalDefs)
+		suite.server.E().ServeHTTP(createUpdateRec, createUpdateReq)
+		suite.Equal(http.StatusCreated, createUpdateRec.Code)
+
+		var createUpdateResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+		err = json.Unmarshal(createUpdateRec.Body.Bytes(), &createUpdateResponse)
+		suite.Require().NoError(err)
+
+		// Get the database ID of the newly created component
+		// We need to query the database to get the actual ID
+		var allDefs []relational.PlanOfActionAndMilestonesLocalDefinitions
+		suite.DB.Where("plan_of_action_and_milestones_id = ?", poamUUID).Find(&allDefs)
+		suite.Require().GreaterOrEqual(len(allDefs), 2)
+
+		// Find the component we just created
+		for _, def := range allDefs {
+			if len(def.Components) > 0 {
+				// Check if this local definition contains the component we're looking for
+				for _, comp := range def.Components {
+					if comp.Title == "Updated Component" {
+						componentID = def.ID.String()
+						break
+					}
+				}
+				if componentID != "" {
+					break
+				}
+			}
+		}
+		suite.Require().NotEmpty(componentID)
+
+		// Now update the component
+		finalUpdateLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+			Components: &[]oscaltypes.SystemComponent{
+				{
+					UUID:        (*createUpdateResponse.Data.Components)[0].UUID,
+					Title:       "Final Updated Component",
+					Type:        "Hardware",
+					Description: "Final updated component description",
+				},
+			},
+		}
+
+		updateRec, updateReq := suite.createRequest(http.MethodPut, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/%s", poamUUID, componentID), finalUpdateLocalDefs)
+		suite.server.E().ServeHTTP(updateRec, updateReq)
+		suite.Equal(http.StatusOK, updateRec.Code)
+
+		var updateResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+		err = json.Unmarshal(updateRec.Body.Bytes(), &updateResponse)
+		suite.Require().NoError(err)
+		suite.Equal("Final Updated Component", (*updateResponse.Data.Components)[0].Title)
+	}
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsGetSingleEndpoint() {
+	poamUUID := suite.createBasicPOAM()
+
+	// Create local definitions first
+	createLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Test get single local definitions",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Test Component for Get",
+				Type:        "Software",
+				Description: "Test component for get endpoint",
+			},
+		},
+	}
+
+	createRec, createReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs)
+	suite.server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	// Get the database ID of the created component to get it
+	var allDefs []relational.PlanOfActionAndMilestonesLocalDefinitions
+	suite.DB.Where("plan_of_action_and_milestones_id = ?", poamUUID).Find(&allDefs)
+	suite.Require().GreaterOrEqual(len(allDefs), 1)
+
+	// Find the component we created
+	var componentID string
+	targetUUID := (*createLocalDefs.Components)[0].UUID
+	for _, def := range allDefs {
+		if len(def.Components) > 0 {
+			// Check if this local definition contains the component we're looking for
+			for _, comp := range def.Components {
+				if comp.UUID == targetUUID {
+					componentID = def.ID.String()
+					break
+				}
+			}
+			if componentID != "" {
+				break
+			}
+		}
+	}
+	suite.Require().NotEmpty(componentID)
+
+	// Get single local definition
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/%s", poamUUID, componentID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusOK, getRec.Code)
+
+	var getResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+	err := json.Unmarshal(getRec.Body.Bytes(), &getResponse)
+	suite.Require().NoError(err)
+	suite.Require().NotNil(getResponse.Data.Components)
+	suite.Equal(1, len(*getResponse.Data.Components))
+	suite.Equal("Test Component for Get", (*getResponse.Data.Components)[0].Title)
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsDeleteEndpoint() {
+	poamUUID := suite.createBasicPOAM()
+
+	// Create local definitions first
+	createLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Test delete local definitions",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Test Component for Delete",
+				Type:        "Software",
+				Description: "Test component for delete endpoint",
+			},
+		},
+	}
+
+	createRec, createReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs)
+	suite.server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	// Verify local definitions exist before deletion
+	verifyRec, verifyReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), nil)
+	suite.server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusOK, verifyRec.Code)
+
+	// Get the database ID of the created component to delete it
+	var allDefs []relational.PlanOfActionAndMilestonesLocalDefinitions
+	suite.DB.Where("plan_of_action_and_milestones_id = ?", poamUUID).Find(&allDefs)
+	suite.Require().GreaterOrEqual(len(allDefs), 1)
+
+	// Find the component we created
+	var componentID string
+	for _, def := range allDefs {
+		if len(def.Components) > 0 {
+			// Check if this local definition contains the component we're looking for
+			for _, comp := range def.Components {
+				if comp.Title == "Test Component for Delete" {
+					componentID = def.ID.String()
+					break
+				}
+			}
+			if componentID != "" {
+				break
+			}
+		}
+	}
+	suite.Require().NotEmpty(componentID)
+
+	// Delete the specific local definition
+	deleteRec, deleteReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/%s", poamUUID, componentID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	suite.Equal(http.StatusNoContent, deleteRec.Code)
+
+	// Verify that specific local definition no longer exists
+	getSingleRec, getSingleReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/%s", poamUUID, componentID), nil)
+	suite.server.E().ServeHTTP(getSingleRec, getSingleReq)
+	suite.Equal(http.StatusNotFound, getSingleRec.Code)
+
+	// Verify other local definitions still exist (if any)
+	var remainingDefs []relational.PlanOfActionAndMilestonesLocalDefinitions
+	suite.DB.Where("plan_of_action_and_milestones_id = ?", poamUUID).Find(&remainingDefs)
+
+	if len(remainingDefs) == 0 {
+		// If no remaining definitions, the get all should return 404
+		verifyAfterRec, verifyAfterReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), nil)
+		suite.server.E().ServeHTTP(verifyAfterRec, verifyAfterReq)
+		suite.Equal(http.StatusNotFound, verifyAfterRec.Code)
+	} else {
+		// If remaining definitions exist, the get all should return 200
+		verifyAfterRec, verifyAfterReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), nil)
+		suite.server.E().ServeHTTP(verifyAfterRec, verifyAfterReq)
+		suite.Equal(http.StatusOK, verifyAfterRec.Code)
+	}
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsCreateMerge() {
+	poamUUID := suite.createBasicPOAM()
+
+	// Create initial local definitions
+	createLocalDefs1 := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Initial local definitions",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Initial Component",
+				Type:        "Software",
+				Description: "Initial component description",
+			},
+		},
+	}
+
+	createRec1, createReq1 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs1)
+	suite.server.E().ServeHTTP(createRec1, createReq1)
+	suite.Equal(http.StatusCreated, createRec1.Code)
+
+	// Add more local definitions (should merge, not conflict)
+	createLocalDefs2 := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Additional local definitions",
+		Components: &[]oscaltypes.SystemComponent{
+			{
+				UUID:        uuid.New().String(),
+				Title:       "Additional Component",
+				Type:        "Hardware",
+				Description: "Additional component description",
+			},
+		},
+		InventoryItems: &[]oscaltypes.InventoryItem{
+			{
+				UUID:        uuid.New().String(),
+				Description: "New inventory item",
+				Props: &[]oscaltypes.Property{
+					{
+						Name:  "asset-type",
+						Value: "workstation",
+					},
+				},
+			},
+		},
+	}
+
+	createRec2, createReq2 := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), createLocalDefs2)
+	suite.server.E().ServeHTTP(createRec2, createReq2)
+	suite.Equal(http.StatusCreated, createRec2.Code)
+
+	// Verify the create worked correctly
+	var mergeResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+	err := json.Unmarshal(createRec2.Body.Bytes(), &mergeResponse)
+	suite.Require().NoError(err)
+
+	// Should have the new remarks (from second request)
+	suite.Equal("Additional local definitions", mergeResponse.Data.Remarks)
+
+	// Should have the new components (from second request only, since they're separate entities)
+	suite.Require().NotNil(mergeResponse.Data.Components)
+	suite.Equal(1, len(*mergeResponse.Data.Components))
+
+	// Should have the new inventory items (from second request only)
+	suite.Require().NotNil(mergeResponse.Data.InventoryItems)
+	suite.Equal(1, len(*mergeResponse.Data.InventoryItems))
+
+	// Verify total count by getting all local definitions
+	getAllRec, getAllReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), nil)
+	suite.server.E().ServeHTTP(getAllRec, getAllReq)
+	suite.Equal(http.StatusOK, getAllRec.Code)
+
+	var getAllResponse handler.GenericDataResponse[oscaltypes.PlanOfActionAndMilestonesLocalDefinitions]
+	err = json.Unmarshal(getAllRec.Body.Bytes(), &getAllResponse)
+	suite.Require().NoError(err)
+
+	// Should have total of 2 components (1 from first request + 1 from second request)
+	suite.Require().NotNil(getAllResponse.Data.Components)
+	suite.Equal(2, len(*getAllResponse.Data.Components))
+
+	// Should have total of 1 inventory item (from second request)
+	suite.Require().NotNil(getAllResponse.Data.InventoryItems)
+	suite.Equal(1, len(*getAllResponse.Data.InventoryItems))
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsNotFound() {
+	poamUUID := suite.createBasicPOAM()
+
+	// Try to get local definitions that don't exist
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", poamUUID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusNotFound, getRec.Code)
+
+	// Try to get single local definitions that don't exist
+	getSingleRec, getSingleReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/test-id", poamUUID), nil)
+	suite.server.E().ServeHTTP(getSingleRec, getSingleReq)
+	suite.Equal(http.StatusNotFound, getSingleRec.Code)
+
+	// Try to delete local definitions that don't exist
+	deleteRec, deleteReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/test-id", poamUUID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	suite.Equal(http.StatusNotFound, deleteRec.Code)
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsWithInvalidUUID() {
+	invalidUUID := "invalid-uuid-format"
+	testLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Test with invalid UUID",
+	}
+
+	// Try POST with invalid UUID
+	postRec, postReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", invalidUUID), testLocalDefs)
+	suite.server.E().ServeHTTP(postRec, postReq)
+	suite.Equal(http.StatusBadRequest, postRec.Code)
+
+	// Try PUT with invalid UUID
+	putRec, putReq := suite.createRequest(http.MethodPut, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/test-id", invalidUUID), testLocalDefs)
+	suite.server.E().ServeHTTP(putRec, putReq)
+	suite.Equal(http.StatusBadRequest, putRec.Code)
+
+	// Try GET with invalid UUID
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", invalidUUID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusBadRequest, getRec.Code)
+
+	// Try DELETE with invalid UUID
+	deleteRec, deleteReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/test-id", invalidUUID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	suite.Equal(http.StatusBadRequest, deleteRec.Code)
+}
+
+func (suite *PlanOfActionAndMilestonesApiIntegrationSuite) TestLocalDefinitionsWithInvalidPOAM() {
+	nonExistentUUID := uuid.New().String()
+	testLocalDefs := oscaltypes.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: "Test with non-existent POAM",
+	}
+
+	// Try POST with non-existent POAM
+	postRec, postReq := suite.createRequest(http.MethodPost, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", nonExistentUUID), testLocalDefs)
+	suite.server.E().ServeHTTP(postRec, postReq)
+	suite.Equal(http.StatusNotFound, postRec.Code)
+
+	// Try PUT with non-existent POAM
+	putRec, putReq := suite.createRequest(http.MethodPut, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/test-id", nonExistentUUID), testLocalDefs)
+	suite.server.E().ServeHTTP(putRec, putReq)
+	suite.Equal(http.StatusNotFound, putRec.Code)
+
+	// Try GET with non-existent POAM
+	getRec, getReq := suite.createRequest(http.MethodGet, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions", nonExistentUUID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusNotFound, getRec.Code)
+
+	// Try DELETE with non-existent POAM
+	deleteRec, deleteReq := suite.createRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/plan-of-action-and-milestones/%s/local-definitions/test-id", nonExistentUUID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	suite.Equal(http.StatusNotFound, deleteRec.Code)
 }

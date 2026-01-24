@@ -67,6 +67,10 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.POST("/:id/system-id", h.CreateSystemId)
 	api.PUT("/:id/system-id", h.UpdateSystemId)
 	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
+	api.POST("/:id/local-definitions", h.CreateLocalDefinitions)
+	api.PUT("/:id/local-definitions/:definitionId", h.UpdateLocalDefinitions)
+	api.GET("/:id/local-definitions/:definitionId", h.GetLocalDefinition)
+	api.DELETE("/:id/local-definitions/:definitionId", h.DeleteLocalDefinitions)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.POST("/:id/back-matter", h.CreateBackMatter)
 	api.PUT("/:id/back-matter", h.UpdateBackMatter)
@@ -187,6 +191,49 @@ func (h *PlanOfActionAndMilestonesHandler) validatePoamItemInput(item *oscalType
 	if item.Description == "" {
 		return fmt.Errorf("description is required")
 	}
+	return nil
+}
+
+// validateLocalDefinitionsInput validates local definitions input
+func (h *PlanOfActionAndMilestonesHandler) validateLocalDefinitionsInput(localDefs *oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions) error {
+	// Local definitions are optional, but if provided, validate structure
+	if localDefs == nil {
+		return nil
+	}
+
+	// Validate components if present
+	if localDefs.Components != nil {
+		for i, component := range *localDefs.Components {
+			if component.UUID == "" {
+				return fmt.Errorf("component UUID is required at index %d", i)
+			}
+			if _, err := uuid.Parse(component.UUID); err != nil {
+				return fmt.Errorf("invalid component UUID format at index %d: %v", i, err)
+			}
+			if component.Title == "" {
+				return fmt.Errorf("component title is required at index %d", i)
+			}
+			if component.Type == "" {
+				return fmt.Errorf("component type is required at index %d", i)
+			}
+		}
+	}
+
+	// Validate inventory items if present
+	if localDefs.InventoryItems != nil {
+		for i, item := range *localDefs.InventoryItems {
+			if item.UUID == "" {
+				return fmt.Errorf("inventory item UUID is required at index %d", i)
+			}
+			if _, err := uuid.Parse(item.UUID); err != nil {
+				return fmt.Errorf("invalid inventory item UUID format at index %d: %v", i, err)
+			}
+			if item.Description == "" {
+				return fmt.Errorf("inventory item description is required at index %d", i)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -830,11 +877,45 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 		h.sugar.Errorw("failed to get poam", "error", err)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
-	localDefs := poam.LocalDefinitions.Data()
-	if localDefs.Remarks == "" && len(localDefs.Components) == 0 && len(localDefs.InventoryItems) == 0 {
+
+	// Preload local definitions
+	if err := h.db.Preload("LocalDefinitions").First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam with local definitions", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	if len(poam.LocalDefinitions) == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no local-definitions for POA&M %s", idParam)))
 	}
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs.MarshalOscal()})
+
+	// Combine all local definitions into one OSCAL structure
+	var allComponents []oscalTypes_1_1_3.SystemComponent
+	var allInventoryItems []oscalTypes_1_1_3.InventoryItem
+	var remarks string
+
+	for _, ld := range poam.LocalDefinitions {
+		if len(ld.Components) > 0 {
+			allComponents = append(allComponents, ld.Components...)
+		}
+		if len(ld.InventoryItems) > 0 {
+			allInventoryItems = append(allInventoryItems, ld.InventoryItems...)
+		}
+		if ld.Remarks != "" {
+			remarks = ld.Remarks
+		}
+	}
+
+	localDefs := oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions{
+		Remarks: remarks,
+	}
+	if len(allComponents) > 0 {
+		localDefs.Components = &allComponents
+	}
+	if len(allInventoryItems) > 0 {
+		localDefs.InventoryItems = &allInventoryItems
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: localDefs})
 }
 
 // GetBackMatter godoc
@@ -2128,6 +2209,226 @@ func (h *PlanOfActionAndMilestonesHandler) DeleteBackMatterResource(ctx echo.Con
 
 	if result.RowsAffected == 0 {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("resource not found")))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// CreateLocalDefinitions godoc
+//
+//	@Summary		Create local definitions for a POA&M
+//	@Description	Creates local definitions for a given POA&M.
+//	@Tags			Plan Of Action and Milestones
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		string														true	"POA&M ID"
+//	@Param			localDefinitions	body		oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions	true	"Local definitions data"
+//	@Success		201					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions [post]
+func (h *PlanOfActionAndMilestonesHandler) CreateLocalDefinitions(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
+	}
+
+	var oscalLocalDefs oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions
+	if err := ctx.Bind(&oscalLocalDefs); err != nil {
+		h.sugar.Warnw("Invalid create local-definitions request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validateLocalDefinitionsInput(&oscalLocalDefs); err != nil {
+		h.sugar.Warnw("Invalid local-definitions input", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var poam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&poam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	// Create a single local definition entity that contains all components and inventory items
+	var newLocalDef relational.PlanOfActionAndMilestonesLocalDefinitions
+	newLocalDef.UnmarshalOscal(oscalLocalDefs, id)
+
+	// Create the local definition
+	if err := h.db.Create(&newLocalDef).Error; err != nil {
+		h.sugar.Errorf("Failed to create local-definitions: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Return the created definitions in OSCAL format
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: oscalLocalDefs})
+}
+
+// UpdateLocalDefinitions godoc
+//
+//	@Summary		Update local definitions for a POA&M
+//	@Description	Updates local definitions for a given POA&M.
+//	@Tags			Plan Of Action and Milestones
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		string														true	"POA&M ID"
+//	@Param			definitionId		path		string														true	"Definition ID (placeholder for consistency, not used in implementation)"
+//	@Param			localDefinitions	body		oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions	true	"Local definitions data"
+//	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions/{definitionId} [put]
+func (h *PlanOfActionAndMilestonesHandler) UpdateLocalDefinitions(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	definitionIdParam := ctx.Param("definitionId")
+	definitionID, err := uuid.Parse(definitionIdParam)
+	if err != nil {
+		h.sugar.Errorw("invalid definition id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
+	}
+
+	var oscalLocalDefs oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions
+	if err := ctx.Bind(&oscalLocalDefs); err != nil {
+		h.sugar.Warnw("Invalid update local-definitions request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Validate input
+	if err := h.validateLocalDefinitionsInput(&oscalLocalDefs); err != nil {
+		h.sugar.Warnw("Invalid local-definitions input", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Find the existing local definition
+	var existingLocalDef relational.PlanOfActionAndMilestonesLocalDefinitions
+	if err := h.db.Where("id = ? AND plan_of_action_and_milestones_id = ?", definitionID, id).First(&existingLocalDef).Error; err != nil {
+		h.sugar.Errorw("failed to get local definition", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("local definition not found")))
+	}
+
+	// Update the local definition based on the OSCAL input
+	var updatedLocalDef relational.PlanOfActionAndMilestonesLocalDefinitions
+	updatedLocalDef.UnmarshalOscal(oscalLocalDefs, id)
+	updatedLocalDef.ID = existingLocalDef.ID // Keep the existing ID
+
+	// Save the updated local definition
+	if err := h.db.Save(&updatedLocalDef).Error; err != nil {
+		h.sugar.Errorf("Failed to update local definition: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Return the updated definition in OSCAL format
+	localDefs := updatedLocalDef.MarshalOscal()
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs})
+}
+
+// GetLocalDefinition godoc
+//
+//	@Summary		Get local definitions for a POA&M
+//	@Description	Retrieves local definitions for a given POA&M (same as GET /local-definitions but with consistent routing).
+//	@Tags			Plan Of Action and Milestones
+//	@Produce		json
+//	@Param			id				path		string	true	"POA&M ID"
+//	@Param			definitionId	path		string	true	"Definition ID (placeholder for consistency, not used in implementation)"
+//	@Success		200				{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions/{definitionId} [get]
+func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinition(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	definitionIdParam := ctx.Param("definitionId")
+	definitionID, err := uuid.Parse(definitionIdParam)
+	if err != nil {
+		h.sugar.Errorw("invalid definition id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
+	}
+
+	// Find the specific local definition
+	var localDef relational.PlanOfActionAndMilestonesLocalDefinitions
+	if err := h.db.Where("id = ? AND plan_of_action_and_milestones_id = ?", definitionID, id).First(&localDef).Error; err != nil {
+		h.sugar.Errorw("failed to get local definition", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("local definition not found")))
+	}
+
+	// Convert back to OSCAL format and return as a single-item collection
+	localDefs := localDef.MarshalOscal()
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs})
+}
+
+// DeleteLocalDefinitions godoc
+//
+//	@Summary		Delete local definitions for a POA&M
+//	@Description	Deletes local definitions for a given POA&M.
+//	@Tags			Plan Of Action and Milestones
+//	@Param			id				path	string	true	"POA&M ID"
+//	@Param			definitionId	path	string	true	"Definition ID (placeholder for consistency, not used in implementation)"
+//	@Success		204				"No Content"
+//	@Failure		400				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions/{definitionId} [delete]
+func (h *PlanOfActionAndMilestonesHandler) DeleteLocalDefinitions(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	definitionIdParam := ctx.Param("definitionId")
+	definitionID, err := uuid.Parse(definitionIdParam)
+	if err != nil {
+		h.sugar.Errorw("invalid definition id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
+	}
+
+	// Delete the specific local definition
+	result := h.db.Where("id = ? AND plan_of_action_and_milestones_id = ?", definitionID, id).Delete(&relational.PlanOfActionAndMilestonesLocalDefinitions{})
+	if result.Error != nil {
+		h.sugar.Errorf("Failed to delete local definition: %v", result.Error)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
+	}
+
+	if result.RowsAffected == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("local definition not found")))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
