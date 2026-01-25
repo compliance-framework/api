@@ -43,6 +43,53 @@ definitions:
     type: object
   datatypes.JSONType-relational_SystemComponentStatus:
     type: object
+  digest.EvidenceItem:
+    properties:
+      description:
+        type: string
+      expiresAt:
+        description: Formatted expiration date string (empty if no expiration)
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  digest.EvidenceSummary:
+    properties:
+      expiredCount:
+        format: int64
+        type: integer
+      notSatisfiedCount:
+        format: int64
+        type: integer
+      otherCount:
+        format: int64
+        type: integer
+      satisfiedCount:
+        format: int64
+        type: integer
+      topExpired:
+        description: Top items for the digest email
+        items:
+          $ref: '#/definitions/digest.EvidenceItem'
+        type: array
+      topNotSatisfied:
+        items:
+          $ref: '#/definitions/digest.EvidenceItem'
+        type: array
+      totalCount:
+        format: int64
+        type: integer
+    type: object
   gorm.DeletedAt:
     properties:
       time:
@@ -279,8 +326,38 @@ definitions:
           Component
         type: string
     type: object
-  handler.FilterWithControlsResponse:
+  handler.FilterImportFileResult:
     properties:
+      count:
+        type: integer
+      filename:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  handler.FilterImportResponse:
+    properties:
+      failed_count:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/handler.FilterImportFileResult'
+        type: array
+      successful_count:
+        type: integer
+      total_dashboards:
+        type: integer
+      total_files:
+        type: integer
+    type: object
+  handler.FilterWithAssociations:
+    properties:
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
       controls:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.Control'
@@ -325,12 +402,12 @@ definitions:
           $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_FilterWithControlsResponse:
+  handler.GenericDataListResponse-handler_FilterWithAssociations:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.FilterWithControlsResponse'
+          $ref: '#/definitions/handler.FilterWithAssociations'
         type: array
     type: object
   handler.GenericDataListResponse-handler_OscalLikeEvidence:
@@ -668,11 +745,25 @@ definitions:
         - $ref: '#/definitions/auth.AuthHandler'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_FilterWithControlsResponse:
+  handler.GenericDataResponse-digest_EvidenceSummary:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.FilterWithControlsResponse'
+        - $ref: '#/definitions/digest.EvidenceSummary'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_FilterImportResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.FilterImportResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_FilterWithAssociations:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.FilterWithAssociations'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_OscalLikeEvidence:
@@ -680,6 +771,20 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_UserHandler:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.UserHandler'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-oscal_ImportResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.ImportResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_InventoryItemWithSource:
@@ -1179,6 +1284,10 @@ definitions:
     type: object
   handler.createFilterRequest:
     properties:
+      components:
+        items:
+          type: string
+        type: array
       controls:
         items:
           type: string
@@ -1235,6 +1344,32 @@ definitions:
         type: string
       inventory_item:
         $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+    type: object
+  oscal.ImportFileResult:
+    properties:
+      filename:
+        type: string
+      message:
+        type: string
+      success:
+        type: boolean
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  oscal.ImportResponse:
+    properties:
+      failed_count:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/oscal.ImportFileResult'
+        type: array
+      successful_count:
+        type: integer
+      total_files:
+        type: integer
     type: object
   oscal.InventoryItemWithSource:
     properties:
@@ -4631,6 +4766,10 @@ definitions:
     type: object
   relational.Filter:
     properties:
+      components:
+        items:
+          $ref: '#/definitions/relational.SystemComponent'
+        type: array
       controls:
         items:
           $ref: '#/definitions/relational.Control'
@@ -5417,6 +5556,10 @@ definitions:
         items:
           $ref: '#/definitions/relational.Evidence'
         type: array
+      filters:
+        items:
+          $ref: '#/definitions/relational.Filter'
+        type: array
       id:
         type: string
       links:
@@ -5475,6 +5618,10 @@ definitions:
         allOf:
         - $ref: '#/definitions/gorm.DeletedAt'
         description: Soft delete
+      digestSubscribed:
+        description: DigestSubscribed indicates if the user wants to receive evidence
+          digest emails
+        type: boolean
       email:
         type: string
       failedLogins:
@@ -5506,6 +5653,57 @@ info:
   title: Continuous Compliance Framework API
   version: "1"
 paths:
+  /admin/digest/preview:
+    get:
+      description: Returns the current evidence summary that would be included in
+        a digest email
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-digest_EvidenceSummary'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Preview evidence digest
+      tags:
+      - Digest
+  /admin/digest/trigger:
+    post:
+      description: Manually triggers the evidence digest job to send emails to all
+        users
+      parameters:
+      - description: 'Job name to trigger (default: global-evidence-digest)'
+        in: query
+        name: job
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Trigger evidence digest
+      tags:
+      - Digest
   /admin/users:
     get:
       description: Lists all users in the system
@@ -6176,14 +6374,14 @@ paths:
       - Evidence
   /filters:
     get:
-      description: Retrieves all filters.
+      description: Retrieves all filters, optionally filtered by controlId or componentId.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsResponse'
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations'
         "500":
           description: Internal Server Error
           schema:
@@ -6265,7 +6463,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithControlsResponse'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterWithAssociations'
         "400":
           description: Bad Request
           schema:
@@ -6317,6 +6515,35 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a filter
+      tags:
+      - Filters
+  /filters/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Import multiple dashboard filter JSON files
+      parameters:
+      - description: Dashboard filter JSON files to import
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_FilterImportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Import dashboard filters
       tags:
       - Filters
   /oscal/activities:
@@ -9556,6 +9783,35 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}:
+    delete:
+      description: Deletes a Catalog and cascades to related groups/controls, metadata
+        and back-matter.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Catalog (cascade)
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Catalog by its unique ID.
       parameters:
@@ -9743,6 +9999,40 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}/controls/{control}:
+    delete:
+      description: Deletes a Control and cascades to nested children; clears filter
+        associations.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: control
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Control (cascade)
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Control by its ID for a given Catalog.
       parameters:
@@ -9980,6 +10270,39 @@ paths:
       tags:
       - Catalog
   /oscal/catalogs/{id}/groups/{group}:
+    delete:
+      description: Deletes a Group and cascades to nested groups and controls.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Group ID
+        in: path
+        name: group
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a Group (cascade)
+      tags:
+      - Catalog
     get:
       description: Retrieves a single Group by its ID for a given Catalog.
       parameters:
@@ -11380,6 +11703,35 @@ paths:
       summary: Update import component definitions for a component definition
       tags:
       - Component Definitions
+  /oscal/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Import multiple OSCAL JSON files (catalogs, profiles, SSPs, etc.)
+      parameters:
+      - description: OSCAL JSON files to import
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_ImportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Import OSCAL files
+      tags:
+      - OSCAL
   /oscal/inventory:
     get:
       description: Retrieves all inventory items from all sources (SSP, Evidence,
@@ -16008,6 +16360,72 @@ paths:
       security:
       - OAuth2Password: []
       summary: Change password for logged-in user
+      tags:
+      - Users
+  /users/me/digest-subscription:
+    get:
+      description: Gets the current user's digest email subscription status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_UserHandler'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get digest subscription status
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Updates the current user's digest email subscription status
+      parameters:
+      - description: Subscription status
+        in: body
+        name: subscription
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UserHandler'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_UserHandler'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update digest subscription status
       tags:
       - Users
 produces:

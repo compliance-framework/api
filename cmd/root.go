@@ -26,6 +26,9 @@ func setDefaultEnvironmentVariables() {
 	viper.SetDefault("db_debug", "false")
 	viper.SetDefault("metrics_enabled", "true")
 	viper.SetDefault("metrics_port", ":9090")
+	viper.SetDefault("evidence_default_expiry_months", "1")
+	viper.SetDefault("digest_enabled", "true")
+	viper.SetDefault("digest_schedule", "@weekly")
 }
 
 func bindEnvironmentVariables() {
@@ -45,6 +48,9 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("metrics_enabled")
 	viper.MustBindEnv("metrics_port")
 	viper.MustBindEnv("use_dev_logger")
+	viper.MustBindEnv("evidence_default_expiry_months")
+	viper.MustBindEnv("digest_enabled")
+	viper.MustBindEnv("digest_schedule")
 }
 
 func init() {
@@ -71,6 +77,7 @@ func init() {
 	rootCmd.AddCommand(seed.RootCmd)
 	rootCmd.AddCommand(newMigrateCMD())
 	rootCmd.AddCommand(dashboards.RootCmd)
+	rootCmd.AddCommand(DigestCmd)
 }
 
 func Execute() error {

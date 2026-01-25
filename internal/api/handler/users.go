@@ -42,6 +42,8 @@ func (h *UserHandler) Register(api *echo.Group) {
 func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
 	api.GET("/me", h.GetMe)
 	api.POST("/me/change-password", h.ChangeLoggedInUserPassword)
+	api.GET("/me/digest-subscription", h.GetDigestSubscription)
+	api.PUT("/me/digest-subscription", h.UpdateDigestSubscription)
 }
 
 // ListUsers godoc
@@ -391,6 +393,94 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(204)
+}
+
+// GetDigestSubscription godoc
+//
+//	@Summary		Get digest subscription status
+//	@Description	Gets the current user's digest email subscription status
+//	@Tags			Users
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataResponse[handler.UserHandler.GetDigestSubscription.digestSubscriptionResponse]
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/me/digest-subscription [get]
+func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
+	type digestSubscriptionResponse struct {
+		Subscribed bool `json:"subscribed"`
+	}
+
+	userClaims := ctx.Get("user").(*authn.UserClaims)
+
+	email := userClaims.Subject
+	var user relational.User
+	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get user by email", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
+		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},
+	})
+}
+
+// UpdateDigestSubscription godoc
+//
+//	@Summary		Update digest subscription status
+//	@Description	Updates the current user's digest email subscription status
+//	@Tags			Users
+//	@Accept			json
+//	@Produce		json
+//	@Param			subscription	body		handler.UserHandler.UpdateDigestSubscription.updateDigestSubscriptionRequest	true	"Subscription status"
+//	@Success		200				{object}	handler.GenericDataResponse[handler.UserHandler.UpdateDigestSubscription.digestSubscriptionResponse]
+//	@Failure		400				{object}	api.Error
+//	@Failure		401				{object}	api.Error
+//	@Failure		404				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/me/digest-subscription [put]
+func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
+	type updateDigestSubscriptionRequest struct {
+		Subscribed bool `json:"subscribed"`
+	}
+	type digestSubscriptionResponse struct {
+		Subscribed bool `json:"subscribed"`
+	}
+
+	userClaims := ctx.Get("user").(*authn.UserClaims)
+
+	var req updateDigestSubscriptionRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Errorw("Failed to bind update digest subscription request", "error", err)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	email := userClaims.Subject
+	var user relational.User
+	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get user by email", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	user.DigestSubscribed = req.Subscribed
+	if err := h.db.Save(&user).Error; err != nil {
+		h.sugar.Errorw("Failed to update user digest subscription", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	h.sugar.Debugw("User digest subscription updated", "email", email, "subscribed", req.Subscribed)
+
+	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
+		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},
+	})
 }
 
 // ChangePassword godoc

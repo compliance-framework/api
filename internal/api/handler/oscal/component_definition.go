@@ -285,38 +285,31 @@ func (h *ComponentDefinitionHandler) Full(ctx echo.Context) error {
 	}
 
 	var componentDefinition relational.ComponentDefinition
-	if err := h.db.
+	err = h.db.
 		Preload("Metadata").
 		Preload("Metadata.Revisions").
 		Preload("BackMatter").
 		Preload("BackMatter.Resources").
-		First(&componentDefinition, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-	// Load Components and their nested relationships dynamically
-	if err := h.db.Preload("Components.ResponsibleRoles").
+		Preload("Components").
+		Preload("Components.ResponsibleRoles").
 		Preload("Components.ControlImplementations").
 		Preload("Components.ControlImplementations.ImplementedRequirements").
 		Preload("Components.ControlImplementations.ImplementedRequirements.ResponsibleRoles").
 		Preload("Components.ControlImplementations.ImplementedRequirements.Statements").
 		Preload("Components.ControlImplementations.ImplementedRequirements.Statements.ResponsibleRoles").
-		Find(&componentDefinition.Components).Error; err != nil {
-		h.sugar.Warnw("Failed to load component definition components", "id", idParam, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	// Load Capabilities and their nested relationships dynamically
-	if err := h.db.Preload("Capabilities.ControlImplementations").
+		Preload("Capabilities").
+		Preload("Capabilities.ControlImplementations").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements.ResponsibleRoles").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements.Statements").
 		Preload("Capabilities.ControlImplementations.ImplementedRequirements.Statements.ResponsibleRoles").
-		Find(&componentDefinition.Capabilities).Error; err != nil {
-		h.sugar.Warnw("Failed to load component definition capabilities", "id", idParam, "error", err)
+		First(&componentDefinition, "id = ?", id).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load component definition", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 

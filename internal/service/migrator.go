@@ -253,6 +253,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.Labels{},
 		&relational.Filter{},
 		"filter_controls",
+		"filter_system_components",
 
 		&relational.TermsAndConditions{},
 		"terms_and_conditions_parts",

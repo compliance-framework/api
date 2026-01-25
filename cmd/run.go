@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -10,6 +11,10 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler/oscal"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service"
+	"github.com/compliance-framework/api/internal/service/digest"
+	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/scheduler"
+	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -51,11 +56,44 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to migrate database", "error", err)
 	}
 
+	// Initialize email service
+	emailService, err := email.NewService(cfg.Email, sugar)
+	if err != nil {
+		sugar.Warnw("Failed to initialize email service, digests will be disabled", "error", err)
+	}
+
+	// Initialize digest service (without worker service initially)
+	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
+
+	// Initialize worker service with digest support
+	workerService, err := worker.NewServiceWithDigest(cfg.Worker, db, emailService, digestService, cfg, sugar)
+	if err != nil {
+		sugar.Fatalw("Failed to initialize worker service", "error", err)
+	}
+
+	// Set worker service reference in digest service to avoid circular dependency
+	digestService.SetWorkerService(workerService)
+
+	// Run River migrations
+	if err := workerService.Migrate(ctx); err != nil {
+		sugar.Fatalw("Failed to run River migrations", "error", err)
+	}
+
+	// Start worker service
+	if err := workerService.Start(ctx); err != nil {
+		sugar.Fatalw("Failed to start worker service", "error", err)
+	}
+
+	// Initialize scheduler for other jobs (if any)
+	// Note: Digest scheduling is now handled by River's periodic jobs
+	sched := scheduler.NewCronScheduler(sugar)
+	sched.Start()
+
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg)
+	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched)
 	oscal.RegisterHandlers(server, sugar, db, cfg)
-	auth.RegisterHandlers(server, sugar, db, cfg, metrics)
+	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 
 	sugar.Infow("Allowed Origins", "origins", cfg.APIAllowedOrigins)
 	server.PrintRoutes()
@@ -68,4 +106,24 @@ func RunServer(cmd *cobra.Command, args []string) {
 	if err := server.Start(cfg.AppPort); err != nil {
 		sugar.Fatalw("Failed to start server", "error", err)
 	}
+
+	// Note: Defer statements are registered in reverse order of execution.
+	// This ensures proper shutdown order: scheduler -> worker service
+	defer func() {
+		// Stop worker service last (after scheduler has stopped)
+		if err := workerService.Stop(ctx); err != nil {
+			sugar.Errorw("Failed to stop worker service", "error", err)
+		}
+	}()
+
+	defer func() {
+		// Stop scheduler first
+		stopCtx := sched.Stop()
+		select {
+		case <-stopCtx.Done():
+			sugar.Debug("All scheduled jobs completed gracefully")
+		case <-time.After(10 * time.Second):
+			sugar.Warn("Scheduler shutdown timeout, some jobs may not have completed")
+		}
+	}()
 }

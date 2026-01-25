@@ -21,6 +21,85 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/digest/preview": {
+            "get": {
+                "description": "Returns the current evidence summary that would be included in a digest email",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Digest"
+                ],
+                "summary": "Preview evidence digest",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-digest_EvidenceSummary"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/digest/trigger": {
+            "post": {
+                "description": "Manually triggers the evidence digest job to send emails to all users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Digest"
+                ],
+                "summary": "Trigger evidence digest",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job name to trigger (default: global-evidence-digest)",
+                        "name": "job",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/users": {
             "get": {
                 "description": "Lists all users in the system",
@@ -1039,7 +1118,7 @@ const docTemplate = `{
         },
         "/filters": {
             "get": {
-                "description": "Retrieves all filters.",
+                "description": "Retrieves all filters, optionally filtered by controlId or componentId.",
                 "produces": [
                     "application/json"
                 ],
@@ -1051,7 +1130,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithControlsResponse"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_FilterWithAssociations"
                         }
                     },
                     "500": {
@@ -1113,6 +1192,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/filters/import": {
+            "post": {
+                "description": "Import multiple dashboard filter JSON files",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Import dashboard filters",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Dashboard filter JSON files to import",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterImportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/filters/{id}": {
             "get": {
                 "description": "Retrieves a single filter by its unique ID.",
@@ -1136,7 +1259,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithControlsResponse"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_FilterWithAssociations"
                         }
                     },
                     "400": {
@@ -6372,6 +6495,50 @@ const docTemplate = `{
                         "OAuth2Password": []
                     }
                 ]
+            },
+            "delete": {
+                "description": "Deletes a Catalog and cascades to related groups/controls, metadata and back-matter.",
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Delete a Catalog (cascade)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/catalogs/{id}/back-matter": {
@@ -6647,6 +6814,57 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Control"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes a Control and cascades to nested children; clears filter associations.",
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Delete a Control (cascade)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "control",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -7011,6 +7229,57 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_Group"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes a Group and cascades to nested groups and controls.",
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Delete a Group (cascade)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -9067,6 +9336,50 @@ const docTemplate = `{
                         "OAuth2Password": []
                     }
                 ]
+            }
+        },
+        "/oscal/import": {
+            "post": {
+                "description": "Import multiple OSCAL JSON files (catalogs, profiles, SSPs, etc.)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OSCAL"
+                ],
+                "summary": "Import OSCAL files",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "OSCAL JSON files to import",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_ImportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/inventory": {
@@ -16012,6 +16325,110 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/me/digest-subscription": {
+            "get": {
+                "description": "Gets the current user's digest email subscription status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get digest subscription status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Updates the current user's digest email subscription status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update digest subscription status",
+                "parameters": [
+                    {
+                        "description": "Subscription status",
+                        "name": "subscription",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UserHandler"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/users/{id}/change-password": {
             "post": {
                 "description": "Changes the password for a user by ID",
@@ -16142,6 +16559,74 @@ const docTemplate = `{
         },
         "datatypes.JSONType-relational_SystemComponentStatus": {
             "type": "object"
+        },
+        "digest.EvidenceItem": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "description": "Formatted expiration date string (empty if no expiration)",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "digest.EvidenceSummary": {
+            "type": "object",
+            "properties": {
+                "expiredCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "notSatisfiedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "otherCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "satisfiedCount": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "topExpired": {
+                    "description": "Top items for the digest email",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/digest.EvidenceItem"
+                    }
+                },
+                "topNotSatisfied": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/digest.EvidenceItem"
+                    }
+                },
+                "totalCount": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
         },
         "gorm.DeletedAt": {
             "type": "object",
@@ -16440,9 +16925,55 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.FilterWithControlsResponse": {
+        "handler.FilterImportFileResult": {
             "type": "object",
             "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.FilterImportResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.FilterImportFileResult"
+                    }
+                },
+                "successful_count": {
+                    "type": "integer"
+                },
+                "total_dashboards": {
+                    "type": "integer"
+                },
+                "total_files": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.FilterWithAssociations": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                },
                 "controls": {
                     "type": "array",
                     "items": {
@@ -16510,14 +17041,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_FilterWithControlsResponse": {
+        "handler.GenericDataListResponse-handler_FilterWithAssociations": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.FilterWithControlsResponse"
+                        "$ref": "#/definitions/handler.FilterWithAssociations"
                     }
                 }
             }
@@ -17027,14 +17558,40 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_FilterWithControlsResponse": {
+        "handler.GenericDataResponse-digest_EvidenceSummary": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.FilterWithControlsResponse"
+                            "$ref": "#/definitions/digest.EvidenceSummary"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_FilterImportResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.FilterImportResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_FilterWithAssociations": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.FilterWithAssociations"
                         }
                     ]
                 }
@@ -17048,6 +17605,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_UserHandler": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.UserHandler"
                         }
                     ]
                 }
@@ -17716,6 +18286,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_ImportResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.ImportResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_InventoryItemWithSource": {
             "type": "object",
             "properties": {
@@ -17937,6 +18520,12 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "controls": {
                     "type": "array",
                     "items": {
@@ -18015,6 +18604,46 @@ const docTemplate = `{
                 },
                 "inventory_item": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                }
+            }
+        },
+        "oscal.ImportFileResult": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.ImportResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ImportFileResult"
+                    }
+                },
+                "successful_count": {
+                    "type": "integer"
+                },
+                "total_files": {
+                    "type": "integer"
                 }
             }
         },
@@ -23168,6 +23797,12 @@ const docTemplate = `{
         "relational.Filter": {
             "type": "object",
             "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemComponent"
+                    }
+                },
                 "controls": {
                     "type": "array",
                     "items": {
@@ -24342,6 +24977,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Evidence"
                     }
                 },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Filter"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -24429,6 +25070,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/gorm.DeletedAt"
                         }
                     ]
+                },
+                "digestSubscribed": {
+                    "description": "DigestSubscribed indicates if the user wants to receive evidence digest emails",
+                    "type": "boolean"
                 },
                 "email": {
                     "type": "string"
