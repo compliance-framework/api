@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -517,7 +516,6 @@ func (suite *ProfileIntegrationSuite) TestAddImport() {
 
 		suite.server.E().ServeHTTP(rec, req)
 
-		fmt.Println("Response Body:", rec.Body.String())
 		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected status code 201 Created")
 
 		var response handler.GenericDataResponse[oscalTypes_1_1_3.Import]
@@ -589,10 +587,10 @@ func (suite *ProfileIntegrationSuite) TestBuildByPropsCreatesImportAndControls()
 		Metadata:  relational.Metadata{Title: "Prop Match Test Catalog"},
 		Controls: []relational.Control{
 			{
-				ID:       "ac-1",
-				Title:    "Access Control 1",
+				ID:        "ac-1",
+				Title:     "Access Control 1",
 				CatalogID: catID,
-				Props:    []relational.Prop{{Name: "class", Value: "technical"}},
+				Props:     []relational.Prop{{Name: "class", Value: "technical"}},
 			},
 		},
 	}
@@ -619,9 +617,9 @@ func (suite *ProfileIntegrationSuite) TestBuildByPropsCreatesImportAndControls()
 	suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
 
 	var response handler.GenericDataResponse[struct {
-		ProfileID  uuid.UUID                            `json:"profileId"`
-		ControlIDs []string                             `json:"controlIds"`
-		Profile    oscalTypes_1_1_3.Profile             `json:"profile"`
+		ProfileID  uuid.UUID                `json:"profileId"`
+		ControlIDs []string                 `json:"controlIds"`
+		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
 	}]
 	err = json.NewDecoder(rec.Body).Decode(&response)
 	suite.Require().NoError(err, "Failed to decode build-by-props response")

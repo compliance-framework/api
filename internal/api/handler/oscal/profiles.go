@@ -1629,7 +1629,7 @@ func FindOscalCatalogFromBackMatter(profile *relational.Profile, ref string) (uu
 			}
 		}
 	}
-	return uuid.Nil, errors.New("No valid catalog UUID was found within the backmatter. Ref: " + ref)
+	return uuid.Nil, errors.New("no valid catalog uuid was found within the backmatter. ref: " + ref)
 }
 
 // GatherControlIds extracts unique control IDs from an Import’s IncludeControls, avoiding duplicates.
