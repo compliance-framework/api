@@ -71,7 +71,7 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Tags			Profile
 //	@Accept			json
 //	@Produce		json
-//	@Param			request	body	oscal.ProfileHandler.BuildByProps.request	true	"Prop matching request"
+//	@Param			request	body		oscal.ProfileHandler.BuildByProps.request	true	"Prop matching request"
 //	@Success		201		{object}	handler.GenericDataResponse[oscal.ProfileHandler.BuildByProps.response]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
