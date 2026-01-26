@@ -10634,6 +10634,63 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "put": {
+                "description": "Updates local-definitions for a given POA\u0026M with special handling:",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Plan Of Action and Milestones"
+                ],
+                "summary": "Update POA\u0026M local-definitions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POA\u0026M ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Local definitions data",
+                        "name": "local-definitions",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscalTypes_1_1_3_PlanOfActionAndMilestonesLocalDefinitions"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
             }
         },
         "/oscal/plan-of-action-and-milestones/{id}/metadata": {
