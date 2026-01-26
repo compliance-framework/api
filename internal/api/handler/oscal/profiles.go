@@ -259,10 +259,10 @@ func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool) b
 		return false
 	}
 	eval := func(r rule, p relational.Prop) bool {
-		if r.Name != "" && strings.ToLower(r.Name) != strings.ToLower(p.Name) {
+		if r.Name != "" && !strings.EqualFold(r.Name, p.Name) {
 			return false
 		}
-		if r.Ns != "" && strings.ToLower(r.Ns) != strings.ToLower(p.Ns) {
+		if r.Ns != "" && !strings.EqualFold(r.Ns, p.Ns) {
 			return false
 		}
 		switch strings.ToLower(r.Operator) {
