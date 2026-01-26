@@ -13746,6 +13746,47 @@ paths:
       summary: Get Resolved Profile
       tags:
       - Profile
+  /oscal/profiles/build-props:
+    post:
+      consumes:
+      - application/json
+      description: Generates a Profile selecting controls from a catalog based on
+        prop matching rules. Returns the created Profile and the matched control IDs.
+      parameters:
+      - description: Prop matching request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.ProfileHandler'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_ProfileHandler'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Build Profile by Control Props
+      tags:
+      - Profile
   /oscal/roles:
     get:
       description: Retrieves all roles.
