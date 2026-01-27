@@ -12565,7 +12565,12 @@ paths:
     put:
       consumes:
       - application/json
-      description: 'Updates local-definitions for a given POA&M with special handling:'
+      description: |-
+        Updates local-definitions for a given POA&M with special handling of array and object fields.
+        - Components and inventory-items arrays are treated as full replacements: the existing values on the POA&M are overwritten by the arrays provided in the request body (no per-element merge is performed).
+        - Sending an empty array [] for components or inventory-items clears that specific field (resulting in an empty array on the POA&M).
+        - Omitting a field in the request body leaves the existing value for that field unchanged.
+        - Sending an empty JSON object {} as the payload deletes the entire local-definitions object for the POA&M.
       parameters:
       - description: POA&M ID
         in: path

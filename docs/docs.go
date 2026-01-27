@@ -10636,7 +10636,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Updates local-definitions for a given POA\u0026M with special handling:",
+                "description": "Updates local-definitions for a given POA\u0026M with special handling of array and object fields.\n- Components and inventory-items arrays are treated as full replacements: the existing values on the POA\u0026M are overwritten by the arrays provided in the request body (no per-element merge is performed).\n- Sending an empty array [] for components or inventory-items clears that specific field (resulting in an empty array on the POA\u0026M).\n- Omitting a field in the request body leaves the existing value for that field unchanged.\n- Sending an empty JSON object {} as the payload deletes the entire local-definitions object for the POA\u0026M.",
                 "consumes": [
                     "application/json"
                 ],
