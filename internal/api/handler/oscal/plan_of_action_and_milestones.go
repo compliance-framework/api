@@ -835,7 +835,7 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 	localDefs := poam.LocalDefinitions.Data()
-	if localDefs.Remarks == "" && len(localDefs.Components) == 0 && len(localDefs.InventoryItems) == 0 {
+	if isLocalDefinitionsEmpty(localDefs) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no local-definitions for POA&M %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs.MarshalOscal()})
@@ -879,12 +879,19 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateLocalDefinitions(ctx echo.Conte
 	}
 	ctx.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	payloadFields := map[string]json.RawMessage{}
-	if trimmed := bytes.TrimSpace(bodyBytes); len(trimmed) > 0 {
-		if err := json.Unmarshal(trimmed, &payloadFields); err != nil {
-			h.sugar.Warnw("Invalid update local-definitions request", "error", err)
-			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-		}
+	trimmedBody := bytes.TrimSpace(bodyBytes)
+	if len(trimmedBody) == 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("request body must be a JSON object")))
+	}
+
+	var payloadFields map[string]json.RawMessage
+	if err := json.Unmarshal(trimmedBody, &payloadFields); err != nil {
+		h.sugar.Warnw("Invalid update local-definitions request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if payloadFields == nil {
+		h.sugar.Warnw("Non-object update local-definitions payload", "payload", string(trimmedBody))
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("request body must be a JSON object")))
 	}
 
 	var oscalLocalDefs oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions
@@ -980,6 +987,9 @@ func (h *PlanOfActionAndMilestonesHandler) UpdateLocalDefinitions(ctx echo.Conte
 // isEmptyLocalDefinitionsPayload checks if the local-definitions payload is effectively empty ({})
 // This is used to determine if we should delete the entire local-definitions
 func isEmptyLocalDefinitionsPayload(payloadFields map[string]json.RawMessage) bool {
+	if payloadFields == nil {
+		return false
+	}
 	return len(payloadFields) == 0
 }
 
@@ -989,6 +999,27 @@ func fieldProvided(payloadFields map[string]json.RawMessage, key string) bool {
 	}
 	_, ok := payloadFields[key]
 	return ok
+}
+
+func isLocalDefinitionsEmpty(localDefs relational.PlanOfActionAndMilestonesLocalDefinitions) bool {
+	if localDefs.Components != nil {
+		return false
+	}
+	if localDefs.InventoryItems != nil {
+		return false
+	}
+	if localDefs.Remarks != "" {
+		return false
+	}
+	return !hasAssessmentAssets(localDefs.AssessmentAssets)
+}
+
+func hasAssessmentAssets(assets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets]) bool {
+	assessmentAssets := assets.Data()
+	if len(assessmentAssets.AssessmentPlatforms) > 0 {
+		return true
+	}
+	return assessmentAssets.Components != nil && len(*assessmentAssets.Components) > 0
 }
 
 // deleteLocalDefinitionsForPOAM handles the deletion of entire local-definitions when empty payload is sent
