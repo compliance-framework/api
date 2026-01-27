@@ -593,11 +593,19 @@ func (p *PlanOfActionAndMilestonesLocalDefinitions) MarshalOscal() *oscalTypes_1
 		components := make([]oscalTypes_1_1_3.SystemComponent, len(p.Components))
 		copy(components, p.Components)
 		ret.Components = &components
+	} else if p.Components != nil {
+		// Include empty slice if it was explicitly set to empty
+		components := []oscalTypes_1_1_3.SystemComponent{}
+		ret.Components = &components
 	}
 
 	if len(p.InventoryItems) > 0 {
 		items := make([]oscalTypes_1_1_3.InventoryItem, len(p.InventoryItems))
 		copy(items, p.InventoryItems)
+		ret.InventoryItems = &items
+	} else if p.InventoryItems != nil {
+		// Include empty slice if it was explicitly set to empty
+		items := []oscalTypes_1_1_3.InventoryItem{}
 		ret.InventoryItems = &items
 	}
 

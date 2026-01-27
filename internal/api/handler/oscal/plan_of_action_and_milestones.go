@@ -1,8 +1,11 @@
 package oscal
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -67,6 +70,7 @@ func (h *PlanOfActionAndMilestonesHandler) Register(api *echo.Group) {
 	api.POST("/:id/system-id", h.CreateSystemId)
 	api.PUT("/:id/system-id", h.UpdateSystemId)
 	api.GET("/:id/local-definitions", h.GetLocalDefinitions)
+	api.PUT("/:id/local-definitions", h.UpdateLocalDefinitions)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.POST("/:id/back-matter", h.CreateBackMatter)
 	api.PUT("/:id/back-matter", h.UpdateBackMatter)
@@ -831,10 +835,203 @@ func (h *PlanOfActionAndMilestonesHandler) GetLocalDefinitions(ctx echo.Context)
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 	localDefs := poam.LocalDefinitions.Data()
-	if localDefs.Remarks == "" && len(localDefs.Components) == 0 && len(localDefs.InventoryItems) == 0 {
+	if isLocalDefinitionsEmpty(localDefs) {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("no local-definitions for POA&M %s", idParam)))
 	}
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *localDefs.MarshalOscal()})
+}
+
+// UpdateLocalDefinitions godoc
+//
+//	@Summary		Update POA&M local-definitions
+//	@Description	Updates local-definitions for a given POA&M with special handling of array and object fields.
+//	@Description	- Components and inventory-items arrays are treated as full replacements: the existing values on the POA&M are overwritten by the arrays provided in the request body (no per-element merge is performed).
+//	@Description	- Sending an empty array [] for components or inventory-items clears that specific field (resulting in an empty array on the POA&M).
+//	@Description	- Omitting a field in the request body leaves the existing value for that field unchanged.
+//	@Description	- Sending an empty JSON object {} as the payload deletes the entire local-definitions object for the POA&M.
+//	@Tags			Plan Of Action and Milestones
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		string														true	"POA&M ID"
+//	@Param			local-definitions	body		oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions	true	"Local definitions data"
+//	@Success		200					{object}	handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]
+//	@Failure		400					{object}	api.Error
+//	@Failure		404					{object}	api.Error
+//	@Failure		500					{object}	api.Error
+//	@Router			/oscal/plan-of-action-and-milestones/{id}/local-definitions [put]
+func (h *PlanOfActionAndMilestonesHandler) UpdateLocalDefinitions(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("invalid id", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Verify POAM exists
+	if err := h.verifyPoamExists(ctx, id); err != nil {
+		return err
+	}
+
+	bodyBytes, err := io.ReadAll(ctx.Request().Body)
+	if err != nil {
+		h.sugar.Warnw("Failed to read update local-definitions payload", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	ctx.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	trimmedBody := bytes.TrimSpace(bodyBytes)
+	if len(trimmedBody) == 0 {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("request body must be a JSON object")))
+	}
+
+	var payloadFields map[string]json.RawMessage
+	if err := json.Unmarshal(trimmedBody, &payloadFields); err != nil {
+		h.sugar.Warnw("Invalid update local-definitions request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if payloadFields == nil {
+		h.sugar.Warnw("Non-object update local-definitions payload", "payload", string(trimmedBody))
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("request body must be a JSON object")))
+	}
+
+	var oscalLocalDefs oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions
+	if err := ctx.Bind(&oscalLocalDefs); err != nil {
+		h.sugar.Warnw("Invalid update local-definitions request", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Get existing POAM
+	var existingPoam relational.PlanOfActionAndMilestones
+	if err := h.db.First(&existingPoam, "id = ?", id).Error; err != nil {
+		h.sugar.Errorw("failed to get poam", "error", err)
+		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+	}
+
+	// Handle special logic for empty payload (DELETE entire local-definitions)
+	if isEmptyLocalDefinitionsPayload(payloadFields) {
+		return h.deleteLocalDefinitionsForPOAM(ctx, existingPoam)
+	}
+
+	existingLocalDefs := existingPoam.LocalDefinitions.Data()
+
+	// Create new local-definitions from request
+	newLocalDefs := relational.PlanOfActionAndMilestonesLocalDefinitions{}
+	newLocalDefs.UnmarshalOscal(oscalLocalDefs)
+
+	componentsProvided := fieldProvided(payloadFields, "components")
+	inventoryProvided := fieldProvided(payloadFields, "inventory-items")
+	assessmentAssetsProvided := fieldProvided(payloadFields, "assessment-assets")
+	remarksProvided := fieldProvided(payloadFields, "remarks")
+
+	// Handle components array logic
+	if componentsProvided {
+		if oscalLocalDefs.Components == nil {
+			newLocalDefs.Components = nil
+			h.sugar.Infow("Removing components field in local-definitions")
+		} else if len(*oscalLocalDefs.Components) == 0 {
+			newLocalDefs.Components = datatypes.NewJSONSlice([]oscalTypes_1_1_3.SystemComponent{})
+			h.sugar.Infow("Clearing all components in local-definitions")
+		} else {
+			h.sugar.Infow("Replacing components array", "count", len(*oscalLocalDefs.Components))
+			newLocalDefs.Components = datatypes.NewJSONSlice(*oscalLocalDefs.Components)
+		}
+	} else {
+		newLocalDefs.Components = existingLocalDefs.Components
+	}
+
+	// Handle inventory items array logic (same pattern as components)
+	if inventoryProvided {
+		if oscalLocalDefs.InventoryItems == nil {
+			newLocalDefs.InventoryItems = nil
+			h.sugar.Infow("Removing inventory items field in local-definitions")
+		} else if len(*oscalLocalDefs.InventoryItems) == 0 {
+			newLocalDefs.InventoryItems = datatypes.NewJSONSlice([]oscalTypes_1_1_3.InventoryItem{})
+			h.sugar.Infow("Clearing all inventory items in local-definitions")
+		} else {
+			h.sugar.Infow("Replacing inventory items array", "count", len(*oscalLocalDefs.InventoryItems))
+			newLocalDefs.InventoryItems = datatypes.NewJSONSlice(*oscalLocalDefs.InventoryItems)
+		}
+	} else {
+		newLocalDefs.InventoryItems = existingLocalDefs.InventoryItems
+	}
+
+	// Handle assessment-assets (preserve existing if not sent)
+	if assessmentAssetsProvided {
+		if oscalLocalDefs.AssessmentAssets == nil {
+			newLocalDefs.AssessmentAssets = datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets]{}
+		} else {
+			newLocalDefs.AssessmentAssets = datatypes.NewJSONType(*oscalLocalDefs.AssessmentAssets)
+		}
+	} else {
+		newLocalDefs.AssessmentAssets = existingLocalDefs.AssessmentAssets
+	}
+
+	// Handle remarks (preserve existing if not sent)
+	if remarksProvided {
+		newLocalDefs.Remarks = oscalLocalDefs.Remarks
+	} else {
+		newLocalDefs.Remarks = existingLocalDefs.Remarks
+	}
+
+	// Update the POAM with the new local-definitions
+	existingPoam.LocalDefinitions = datatypes.NewJSONType(newLocalDefs)
+
+	if err := h.db.Save(&existingPoam).Error; err != nil {
+		h.sugar.Errorf("Failed to update local-definitions: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *newLocalDefs.MarshalOscal()})
+}
+
+// isEmptyLocalDefinitionsPayload checks if the local-definitions payload is effectively empty ({})
+// This is used to determine if we should delete the entire local-definitions
+func isEmptyLocalDefinitionsPayload(payloadFields map[string]json.RawMessage) bool {
+	if payloadFields == nil {
+		return false
+	}
+	return len(payloadFields) == 0
+}
+
+func fieldProvided(payloadFields map[string]json.RawMessage, key string) bool {
+	if payloadFields == nil {
+		return false
+	}
+	_, ok := payloadFields[key]
+	return ok
+}
+
+func isLocalDefinitionsEmpty(localDefs relational.PlanOfActionAndMilestonesLocalDefinitions) bool {
+	if localDefs.Components != nil {
+		return false
+	}
+	if localDefs.InventoryItems != nil {
+		return false
+	}
+	if localDefs.Remarks != "" {
+		return false
+	}
+	return !hasAssessmentAssets(localDefs.AssessmentAssets)
+}
+
+func hasAssessmentAssets(assets datatypes.JSONType[oscalTypes_1_1_3.AssessmentAssets]) bool {
+	assessmentAssets := assets.Data()
+	if len(assessmentAssets.AssessmentPlatforms) > 0 {
+		return true
+	}
+	return assessmentAssets.Components != nil && len(*assessmentAssets.Components) > 0
+}
+
+// deleteLocalDefinitionsForPOAM handles the deletion of entire local-definitions when empty payload is sent
+func (h *PlanOfActionAndMilestonesHandler) deleteLocalDefinitionsForPOAM(ctx echo.Context, existingPoam relational.PlanOfActionAndMilestones) error {
+	// Clear the local-definitions field
+	emptyLocalDefs := relational.PlanOfActionAndMilestonesLocalDefinitions{}
+	if err := h.db.Model(&existingPoam).Update("local_definitions", datatypes.NewJSONType(emptyLocalDefs)).Error; err != nil {
+		h.sugar.Errorf("Failed to delete local-definitions: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.PlanOfActionAndMilestonesLocalDefinitions]{Data: *emptyLocalDefs.MarshalOscal()})
 }
 
 // GetBackMatter godoc
