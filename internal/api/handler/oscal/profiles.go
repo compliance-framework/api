@@ -33,6 +33,22 @@ type rule struct {
 	Value    string `json:"value"`
 }
 
+// BuildByPropsRequest represents the payload to build a Profile by matching control props.
+type BuildByPropsRequest struct {
+	CatalogID     string `json:"catalogId"`
+	MatchStrategy string `json:"matchStrategy"` // all | any
+	Rules         []rule `json:"rules"`
+	Title         string `json:"title"`
+	Version       string `json:"version"`
+}
+
+// BuildByPropsResponse represents the response payload for Profile build-by-props.
+type BuildByPropsResponse struct {
+	ProfileID  uuid.UUID                `json:"profileId"`
+	ControlIDs []string                 `json:"controlIds"`
+	Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+}
+
 func NewProfileHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ProfileHandler {
 	return &ProfileHandler{
 		sugar: sugar,
@@ -71,8 +87,8 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Tags			Profile
 //	@Accept			json
 //	@Produce		json
-//	@Param			request	body		oscal.ProfileHandler.BuildByProps.request	true	"Prop matching request"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.ProfileHandler.BuildByProps.response]
+//	@Param			request	body		oscal.BuildByPropsRequest	true	"Prop matching request"
+//	@Success		201		{object}	handler.GenericDataResponse[oscal.BuildByPropsResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
@@ -80,19 +96,7 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/build-props [post]
 func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
-	type request struct {
-		CatalogID     string `json:"catalogId"`
-		MatchStrategy string `json:"matchStrategy"` // all | any
-		Rules         []rule `json:"rules"`
-		Title         string `json:"title"`
-		Version       string `json:"version"`
-	}
-	type response struct {
-		ProfileID  uuid.UUID                `json:"profileId"`
-		ControlIDs []string                 `json:"controlIds"`
-		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
-	}
-	var req request
+	var req BuildByPropsRequest
 	var raw map[string]any
 	if err := json.NewDecoder(ctx.Request().Body).Decode(&raw); err != nil {
 		h.sugar.Warnw("failed to decode BuildByProps request", "error", err)
@@ -245,8 +249,8 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	oscalProfile := fullProfile.MarshalOscal()
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{
-		Data: response{
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[BuildByPropsResponse]{
+		Data: BuildByPropsResponse{
 			ProfileID:  *profile.ID,
 			ControlIDs: matchedIDs,
 			Profile:    *oscalProfile,

@@ -780,6 +780,13 @@ definitions:
         - $ref: '#/definitions/handler.UserHandler'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscal_BuildByPropsResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.BuildByPropsResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_ImportResponse:
     properties:
       data:
@@ -1335,6 +1342,33 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  oscal.BuildByPropsRequest:
+    properties:
+      catalogId:
+        type: string
+      matchStrategy:
+        description: all | any
+        type: string
+      rules:
+        items:
+          $ref: '#/definitions/oscal.rule'
+        type: array
+      title:
+        type: string
+      version:
+        type: string
+    type: object
+  oscal.BuildByPropsResponse:
+    properties:
+      controlIds:
+        items:
+          type: string
+        type: array
+      profile:
+        $ref: '#/definitions/oscalTypes_1_1_3.Profile'
+      profileId:
+        type: string
+    type: object
   oscal.CreateInventoryItemRequest:
     properties:
       destination:
@@ -1403,6 +1437,18 @@ definitions:
         type: string
     type: object
   oscal.ProfileHandler:
+    type: object
+  oscal.rule:
+    properties:
+      name:
+        type: string
+      ns:
+        type: string
+      operator:
+        description: equals | contains | regex | in
+        type: string
+      value:
+        type: string
     type: object
   oscalTypes_1_1_3.Action:
     properties:
@@ -13758,14 +13804,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/oscal.ProfileHandler'
+          $ref: '#/definitions/oscal.BuildByPropsRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-oscal_ProfileHandler'
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_BuildByPropsResponse'
         "400":
           description: Bad Request
           schema:
