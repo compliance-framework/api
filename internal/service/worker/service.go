@@ -3,11 +3,15 @@ package worker
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -31,6 +35,12 @@ type Service struct {
 	startedMu sync.RWMutex
 	pgxPool   *pgxpool.Pool
 	digestCfg *config.Config
+
+	// Workflow services
+	workflowExecutor         interface{}
+	stepExecutionService     interface{}
+	workflowExecutionService interface{}
+	stepDefinitionService    interface{}
 }
 
 // NewService creates a new worker service
@@ -102,6 +112,31 @@ func NewServiceWithDigest(
 	// Register workers with dependencies injected
 	workers := Workers(emailSvc, digestSvc, logger)
 
+	// Create workflow services
+	stepExecService := workflows.NewStepExecutionService(db)
+	workflowExecService := workflows.NewWorkflowExecutionService(db)
+	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
+
+	// Create workflow executor
+	workflowLogger := log.New(os.Stdout, "[WORKFLOW] ", log.LstdFlags)
+	executor := workflow.NewDAGExecutor(
+		stepExecService,
+		workflowExecService,
+		stepDefService,
+		workflowLogger,
+	)
+
+	// Initialize evidence integration and set it on the executor
+	evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
+	executor.SetEvidenceIntegration(evidenceIntegration)
+
+	// Add workflow workers
+	workflowExecutionWorker := workflow.NewWorkflowExecutionWorker(executor, logger)
+	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
+
+	stepExecutionWorker := workflow.NewStepExecutionWorker(stepExecService, logger)
+	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
+
 	// Configure periodic jobs
 	var periodicJobs []*river.PeriodicJob
 	if digestCfg != nil && digestCfg.DigestEnabled {
@@ -116,6 +151,12 @@ func NewServiceWithDigest(
 			},
 			"digest": {
 				MaxWorkers: 1, // Only one digest worker to avoid duplicates
+			},
+			"workflow": {
+				MaxWorkers: 2, // Limit concurrent workflow executions
+			},
+			"steps": {
+				MaxWorkers: 10, // Allow more parallel step executions
 			},
 		},
 		Workers:      workers,
@@ -138,6 +179,12 @@ func NewServiceWithDigest(
 		logger:    logger,
 		started:   false,
 		pgxPool:   pgxPool,
+
+		// Store workflow services
+		workflowExecutor:         executor,
+		stepExecutionService:     stepExecService,
+		workflowExecutionService: workflowExecService,
+		stepDefinitionService:    stepDefService,
 	}
 
 	return service, nil

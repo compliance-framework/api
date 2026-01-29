@@ -5643,6 +5643,717 @@ definitions:
       userAttributes:
         type: string
     type: object
+  time.Duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    format: int64
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
+  workflow.ExecutionMetrics:
+    properties:
+      averageStepDuration:
+        $ref: '#/definitions/time.Duration'
+      duration:
+        $ref: '#/definitions/time.Duration'
+      executionID:
+        type: string
+      longestStepDuration:
+        $ref: '#/definitions/time.Duration'
+      totalSteps:
+        type: integer
+    type: object
+  workflow.ExecutionStatus:
+    properties:
+      blockedSteps:
+        type: integer
+      cancelledSteps:
+        type: integer
+      completedAt:
+        type: string
+      completedSteps:
+        type: integer
+      executionID:
+        type: string
+      failedAt:
+        type: string
+      failedSteps:
+        type: integer
+      failureReason:
+        type: string
+      inProgressSteps:
+        type: integer
+      pendingSteps:
+        type: integer
+      startedAt:
+        type: string
+      status:
+        type: string
+      totalSteps:
+        type: integer
+    type: object
+  workflows.CancelWorkflowExecutionRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  workflows.ControlRelationship:
+    properties:
+      catalog_id:
+        description: Link to catalog if available
+        type: string
+      control_id:
+        description: Control Information
+        type: string
+      control_source:
+        description: e.g., "NIST 800-53 Rev 5", "ISO 27001"
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: string
+      is_active:
+        type: boolean
+      relationship_type:
+        description: Relationship Information
+        type: string
+      strength:
+        description: primary, secondary, supporting
+        type: string
+      updated_at:
+        type: string
+      workflow_definition:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowDefinition'
+        description: Relationships
+      workflow_definition_id:
+        description: Foreign Keys
+        type: string
+    type: object
+  workflows.ControlRelationshipListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.ControlRelationship'
+        type: array
+    type: object
+  workflows.ControlRelationshipResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.ControlRelationship'
+    type: object
+  workflows.CreateControlRelationshipRequest:
+    properties:
+      control_id:
+        type: string
+      control_source:
+        type: string
+      description:
+        type: string
+      is_active:
+        type: boolean
+      relationship_type:
+        type: string
+      strength:
+        type: string
+      workflow_definition_id:
+        type: string
+    required:
+    - control_id
+    - control_source
+    - relationship_type
+    - workflow_definition_id
+    type: object
+  workflows.CreateRoleAssignmentRequest:
+    properties:
+      assigned_to_id:
+        type: string
+      assigned_to_type:
+        type: string
+      is_active:
+        type: boolean
+      role_name:
+        type: string
+      workflow_instance_id:
+        type: string
+    required:
+    - assigned_to_id
+    - assigned_to_type
+    - role_name
+    - workflow_instance_id
+    type: object
+  workflows.CreateWorkflowDefinitionRequest:
+    properties:
+      description:
+        type: string
+      evidence_required:
+        type: string
+      name:
+        type: string
+      suggested_cadence:
+        type: string
+      version:
+        type: string
+    required:
+    - name
+    type: object
+  workflows.CreateWorkflowInstanceRequest:
+    properties:
+      cadence:
+        type: string
+      description:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      system_name:
+        type: string
+      workflow_definition_id:
+        type: string
+    required:
+    - name
+    - system_name
+    - workflow_definition_id
+    type: object
+  workflows.CreateWorkflowStepDefinitionRequest:
+    properties:
+      depends_on:
+        description: Array of step IDs this step depends on
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      estimated_duration:
+        type: integer
+      evidence_required:
+        type: string
+      name:
+        type: string
+      responsible_role:
+        type: string
+      workflow_definition_id:
+        type: string
+    required:
+    - name
+    - responsible_role
+    - workflow_definition_id
+    type: object
+  workflows.FailStepRequest:
+    properties:
+      reason:
+        type: string
+    required:
+    - reason
+    type: object
+  workflows.RoleAssignment:
+    properties:
+      assigned_to_id:
+        description: User ID, group ID, or email
+        type: string
+      assigned_to_type:
+        description: user, group, email
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      role_name:
+        type: string
+      workflow_instance:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowInstance'
+        description: Relationships
+      workflow_instance_id:
+        type: string
+    type: object
+  workflows.RoleAssignmentListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.RoleAssignment'
+        type: array
+    type: object
+  workflows.RoleAssignmentResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.RoleAssignment'
+    type: object
+  workflows.StartWorkflowExecutionRequest:
+    properties:
+      triggered_by:
+        type: string
+      triggered_by_id:
+        type: string
+      workflow_instance_id:
+        type: string
+    required:
+    - triggered_by
+    - workflow_instance_id
+    type: object
+  workflows.StepDependency:
+    properties:
+      depends_on_step:
+        $ref: '#/definitions/workflows.WorkflowStepDefinition'
+      depends_on_step_id:
+        type: string
+      id:
+        type: string
+      workflow_step_definition:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowStepDefinition'
+        description: Relationships
+      workflow_step_definition_id:
+        type: string
+    type: object
+  workflows.StepEvidence:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      evidence:
+        $ref: '#/definitions/relational.Evidence'
+      evidence_id:
+        description: Link to main evidence table
+        type: string
+      evidence_type:
+        description: document, attestation, screenshot, log
+        type: string
+      file_hash:
+        description: SHA-256 hash of file
+        type: string
+      file_path:
+        description: Path to stored file
+        type: string
+      file_size:
+        description: File size in bytes
+        type: integer
+      id:
+        type: string
+      metadata:
+        description: JSON metadata
+        type: string
+      name:
+        description: Evidence Information
+        type: string
+      step_execution:
+        allOf:
+        - $ref: '#/definitions/workflows.StepExecution'
+        description: Relationships
+      step_execution_id:
+        description: Foreign Keys
+        type: string
+      updated_at:
+        type: string
+    type: object
+  workflows.StepExecution:
+    properties:
+      assigned_at:
+        type: string
+      assigned_to_id:
+        description: User ID, group ID, or email
+        type: string
+      assigned_to_type:
+        description: Assignment Information
+        type: string
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      failed_at:
+        type: string
+      failure_reason:
+        type: string
+      id:
+        type: string
+      started_at:
+        type: string
+      status:
+        description: Execution Information
+        type: string
+      step_evidence:
+        items:
+          $ref: '#/definitions/workflows.StepEvidence'
+        type: array
+      updated_at:
+        type: string
+      workflow_execution:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowExecution'
+        description: Relationships
+      workflow_execution_id:
+        description: Foreign Keys
+        type: string
+      workflow_step_definition:
+        $ref: '#/definitions/workflows.WorkflowStepDefinition'
+      workflow_step_definition_id:
+        type: string
+    type: object
+  workflows.StepExecutionListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.StepExecution'
+        type: array
+    type: object
+  workflows.StepExecutionResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.StepExecution'
+    type: object
+  workflows.StepTrigger:
+    properties:
+      id:
+        type: string
+      is_active:
+        type: boolean
+      trigger_condition:
+        description: JSON condition expression
+        type: string
+      trigger_type:
+        description: evidence_stream, time_based, external_event
+        type: string
+      workflow_step_definition:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowStepDefinition'
+        description: Relationships
+      workflow_step_definition_id:
+        type: string
+    type: object
+  workflows.SubmitEvidenceRequest:
+    properties:
+      evidence_id:
+        type: string
+      notes:
+        type: string
+    required:
+    - evidence_id
+    type: object
+  workflows.UpdateControlRelationshipRequest:
+    properties:
+      description:
+        type: string
+      relationship_type:
+        type: string
+      strength:
+        type: string
+    type: object
+  workflows.UpdateRoleAssignmentRequest:
+    properties:
+      assigned_to_id:
+        type: string
+      assigned_to_type:
+        type: string
+    type: object
+  workflows.UpdateStepStatusRequest:
+    properties:
+      status:
+        type: string
+    required:
+    - status
+    type: object
+  workflows.UpdateWorkflowDefinitionRequest:
+    properties:
+      description:
+        type: string
+      evidence_required:
+        type: string
+      name:
+        type: string
+      suggested_cadence:
+        type: string
+      version:
+        type: string
+    type: object
+  workflows.UpdateWorkflowInstanceRequest:
+    properties:
+      cadence:
+        type: string
+      description:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      system_name:
+        type: string
+    type: object
+  workflows.UpdateWorkflowStepDefinitionRequest:
+    properties:
+      description:
+        type: string
+      estimated_duration:
+        type: integer
+      evidence_required:
+        type: string
+      name:
+        type: string
+      responsible_role:
+        type: string
+    type: object
+  workflows.WorkflowDefinition:
+    properties:
+      control_relationships:
+        items:
+          $ref: '#/definitions/workflows.ControlRelationship'
+        type: array
+      created_at:
+        type: string
+      created_by_id:
+        description: Audit Fields
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      evidence_required:
+        description: JSON array of required evidence types
+        type: string
+      id:
+        type: string
+      instances:
+        items:
+          $ref: '#/definitions/workflows.WorkflowInstance'
+        type: array
+      name:
+        description: Basic Information
+        type: string
+      steps:
+        description: Relationships
+        items:
+          $ref: '#/definitions/workflows.WorkflowStepDefinition'
+        type: array
+      suggested_cadence:
+        description: Workflow Configuration
+        type: string
+      updated_at:
+        type: string
+      updated_by_id:
+        type: string
+      version:
+        type: string
+    type: object
+  workflows.WorkflowDefinitionListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.WorkflowDefinition'
+        type: array
+    type: object
+  workflows.WorkflowDefinitionResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.WorkflowDefinition'
+    type: object
+  workflows.WorkflowExecution:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      created_by_id:
+        description: Audit Fields
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      failed_at:
+        type: string
+      failure_reason:
+        type: string
+      id:
+        type: string
+      started_at:
+        type: string
+      status:
+        description: Execution Information
+        type: string
+      step_executions:
+        items:
+          $ref: '#/definitions/workflows.StepExecution'
+        type: array
+      triggered_by:
+        description: Execution Context
+        type: string
+      triggered_by_id:
+        description: User ID or system identifier
+        type: string
+      updated_at:
+        type: string
+      updated_by_id:
+        type: string
+      workflow_instance:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowInstance'
+        description: Relationships
+      workflow_instance_id:
+        description: Foreign Keys
+        type: string
+    type: object
+  workflows.WorkflowExecutionListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.WorkflowExecution'
+        type: array
+    type: object
+  workflows.WorkflowExecutionMetricsResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflow.ExecutionMetrics'
+    type: object
+  workflows.WorkflowExecutionResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.WorkflowExecution'
+    type: object
+  workflows.WorkflowExecutionStatusResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflow.ExecutionStatus'
+    type: object
+  workflows.WorkflowInstance:
+    properties:
+      cadence:
+        description: daily, weekly, monthly, quarterly, annually
+        type: string
+      created_at:
+        type: string
+      created_by_id:
+        description: Audit Fields
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      executions:
+        items:
+          $ref: '#/definitions/workflows.WorkflowExecution'
+        type: array
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_executed_at:
+        type: string
+      name:
+        description: Basic Information
+        type: string
+      next_scheduled_at:
+        description: Scheduling
+        type: string
+      role_assignments:
+        items:
+          $ref: '#/definitions/workflows.RoleAssignment'
+        type: array
+      system_name:
+        description: Instance Configuration
+        type: string
+      updated_at:
+        type: string
+      updated_by_id:
+        type: string
+      workflow_definition:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowDefinition'
+        description: Relationships
+      workflow_definition_id:
+        description: Foreign Keys
+        type: string
+    type: object
+  workflows.WorkflowInstanceListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.WorkflowInstance'
+        type: array
+    type: object
+  workflows.WorkflowInstanceResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.WorkflowInstance'
+    type: object
+  workflows.WorkflowStepDefinition:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      dependent_steps:
+        items:
+          $ref: '#/definitions/workflows.StepDependency'
+        type: array
+      depends_on:
+        items:
+          $ref: '#/definitions/workflows.StepDependency'
+        type: array
+      description:
+        type: string
+      estimated_duration:
+        description: Estimated duration in minutes
+        type: integer
+      evidence_required:
+        description: JSON array of required evidence types
+        type: string
+      id:
+        type: string
+      name:
+        description: Basic Information
+        type: string
+      responsible_role:
+        description: Step Configuration
+        type: string
+      step_executions:
+        items:
+          $ref: '#/definitions/workflows.StepExecution'
+        type: array
+      triggers:
+        items:
+          $ref: '#/definitions/workflows.StepTrigger'
+        type: array
+      updated_at:
+        type: string
+      workflow_definition:
+        allOf:
+        - $ref: '#/definitions/workflows.WorkflowDefinition'
+        description: Relationships
+      workflow_definition_id:
+        description: Foreign Keys
+        type: string
+    type: object
+  workflows.WorkflowStepDefinitionListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.WorkflowStepDefinition'
+        type: array
+    type: object
+  workflows.WorkflowStepDefinitionResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.WorkflowStepDefinition'
+    type: object
 externalDocs:
   description: OpenAPI
   url: https://swagger.io/resources/open-api/
@@ -16471,6 +17182,1650 @@ paths:
       summary: Update digest subscription status
       tags:
       - Users
+  /workflows/control-relationships:
+    get:
+      description: List all control relationships, optionally filtered by workflow
+        definition
+      parameters:
+      - description: Workflow Definition ID
+        in: query
+        name: workflow_definition_id
+        type: string
+      - description: Control ID
+        in: query
+        name: control_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.ControlRelationshipListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List control relationships
+      tags:
+      - Control Relationships
+    post:
+      consumes:
+      - application/json
+      description: Create a new control relationship for a workflow
+      parameters:
+      - description: Control relationship details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.CreateControlRelationshipRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.ControlRelationshipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create control relationship
+      tags:
+      - Control Relationships
+  /workflows/control-relationships/{id}:
+    delete:
+      description: Delete a control relationship
+      parameters:
+      - description: Control Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete control relationship
+      tags:
+      - Control Relationships
+    get:
+      description: Get control relationship by ID
+      parameters:
+      - description: Control Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.ControlRelationshipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get control relationship
+      tags:
+      - Control Relationships
+    put:
+      consumes:
+      - application/json
+      description: Update an existing control relationship
+      parameters:
+      - description: Control Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.UpdateControlRelationshipRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.ControlRelationshipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update control relationship
+      tags:
+      - Control Relationships
+  /workflows/control-relationships/{id}/activate:
+    put:
+      description: Activate a control relationship
+      parameters:
+      - description: Control Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.ControlRelationshipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Activate control relationship
+      tags:
+      - Control Relationships
+  /workflows/control-relationships/{id}/deactivate:
+    put:
+      description: Deactivate a control relationship
+      parameters:
+      - description: Control Relationship ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.ControlRelationshipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Deactivate control relationship
+      tags:
+      - Control Relationships
+  /workflows/definitions:
+    get:
+      description: List all workflow definition templates
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowDefinitionListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List workflow definitions
+      tags:
+      - Workflow Definitions
+    post:
+      consumes:
+      - application/json
+      description: Create a new workflow definition template
+      parameters:
+      - description: Workflow definition details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.CreateWorkflowDefinitionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.WorkflowDefinitionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create workflow definition
+      tags:
+      - Workflow Definitions
+  /workflows/definitions/{id}:
+    delete:
+      description: Delete workflow definition by ID
+      parameters:
+      - description: Workflow Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete workflow definition
+      tags:
+      - Workflow Definitions
+    get:
+      description: Get workflow definition by ID
+      parameters:
+      - description: Workflow Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowDefinitionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get workflow definition
+      tags:
+      - Workflow Definitions
+    put:
+      consumes:
+      - application/json
+      description: Update workflow definition by ID
+      parameters:
+      - description: Workflow Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated workflow definition details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.UpdateWorkflowDefinitionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowDefinitionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update workflow definition
+      tags:
+      - Workflow Definitions
+  /workflows/executions:
+    get:
+      description: List all executions for a workflow instance
+      parameters:
+      - description: Workflow Instance ID
+        in: query
+        name: workflow_instance_id
+        required: true
+        type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List workflow executions
+      tags:
+      - Workflow Executions
+    post:
+      consumes:
+      - application/json
+      description: Start a new execution of a workflow instance
+      parameters:
+      - description: Execution details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.StartWorkflowExecutionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Start workflow execution
+      tags:
+      - Workflow Executions
+  /workflows/executions/{id}:
+    get:
+      description: Get workflow execution by ID
+      parameters:
+      - description: Workflow Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get workflow execution
+      tags:
+      - Workflow Executions
+  /workflows/executions/{id}/cancel:
+    put:
+      consumes:
+      - application/json
+      description: Cancel a running workflow execution
+      parameters:
+      - description: Workflow Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cancel details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.CancelWorkflowExecutionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Cancel workflow execution
+      tags:
+      - Workflow Executions
+  /workflows/executions/{id}/metrics:
+    get:
+      description: Get performance metrics for a workflow execution
+      parameters:
+      - description: Workflow Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionMetricsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get workflow execution metrics
+      tags:
+      - Workflow Executions
+  /workflows/executions/{id}/retry:
+    post:
+      description: Create a new execution to retry a failed workflow
+      parameters:
+      - description: Workflow Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Retry workflow execution
+      tags:
+      - Workflow Executions
+  /workflows/executions/{id}/status:
+    get:
+      description: Get detailed status of a workflow execution including step counts
+      parameters:
+      - description: Workflow Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowExecutionStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get workflow execution status
+      tags:
+      - Workflow Executions
+  /workflows/instances:
+    get:
+      description: List all workflow instances with optional filtering
+      parameters:
+      - description: Filter by Workflow Definition ID
+        in: query
+        name: workflow_definition_id
+        type: string
+      - description: Filter by System Name
+        in: query
+        name: system_name
+        type: string
+      - description: Filter by Active Status
+        in: query
+        name: is_active
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowInstanceListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List workflow instances
+      tags:
+      - Workflow Instances
+    post:
+      consumes:
+      - application/json
+      description: Create a new workflow instance for a specific system
+      parameters:
+      - description: Workflow instance details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.CreateWorkflowInstanceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.WorkflowInstanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create workflow instance
+      tags:
+      - Workflow Instances
+  /workflows/instances/{id}:
+    delete:
+      description: Delete workflow instance by ID
+      parameters:
+      - description: Workflow Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete workflow instance
+      tags:
+      - Workflow Instances
+    get:
+      description: Get workflow instance by ID
+      parameters:
+      - description: Workflow Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowInstanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get workflow instance
+      tags:
+      - Workflow Instances
+    put:
+      consumes:
+      - application/json
+      description: Update workflow instance by ID
+      parameters:
+      - description: Workflow Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated workflow instance details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.UpdateWorkflowInstanceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowInstanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update workflow instance
+      tags:
+      - Workflow Instances
+  /workflows/instances/{id}/activate:
+    put:
+      description: Activate a workflow instance to enable scheduled executions
+      parameters:
+      - description: Workflow Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowInstanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Activate workflow instance
+      tags:
+      - Workflow Instances
+  /workflows/instances/{id}/deactivate:
+    put:
+      description: Deactivate a workflow instance to disable scheduled executions
+      parameters:
+      - description: Workflow Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowInstanceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Deactivate workflow instance
+      tags:
+      - Workflow Instances
+  /workflows/role-assignments:
+    get:
+      description: List all role assignments, optionally filtered by workflow instance
+      parameters:
+      - description: Workflow Instance ID
+        in: query
+        name: workflow_instance_id
+        type: string
+      - description: Role Name
+        in: query
+        name: role_name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.RoleAssignmentListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List role assignments
+      tags:
+      - Role Assignments
+    post:
+      consumes:
+      - application/json
+      description: Create a new role assignment for a workflow instance
+      parameters:
+      - description: Role assignment details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.CreateRoleAssignmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.RoleAssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create role assignment
+      tags:
+      - Role Assignments
+  /workflows/role-assignments/{id}:
+    delete:
+      description: Delete a role assignment
+      parameters:
+      - description: Role Assignment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete role assignment
+      tags:
+      - Role Assignments
+    get:
+      description: Get role assignment by ID
+      parameters:
+      - description: Role Assignment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.RoleAssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get role assignment
+      tags:
+      - Role Assignments
+    put:
+      consumes:
+      - application/json
+      description: Update an existing role assignment
+      parameters:
+      - description: Role Assignment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.UpdateRoleAssignmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.RoleAssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update role assignment
+      tags:
+      - Role Assignments
+  /workflows/role-assignments/{id}/activate:
+    put:
+      description: Activate a role assignment
+      parameters:
+      - description: Role Assignment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.RoleAssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Activate role assignment
+      tags:
+      - Role Assignments
+  /workflows/role-assignments/{id}/deactivate:
+    put:
+      description: Deactivate a role assignment
+      parameters:
+      - description: Role Assignment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.RoleAssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Deactivate role assignment
+      tags:
+      - Role Assignments
+  /workflows/step-executions:
+    get:
+      description: List all step executions for a workflow execution
+      parameters:
+      - description: Workflow Execution ID
+        in: query
+        name: workflow_execution_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.StepExecutionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List step executions
+      tags:
+      - Step Executions
+  /workflows/step-executions/{id}:
+    get:
+      description: Get step execution by ID
+      parameters:
+      - description: Step Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.StepExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get step execution
+      tags:
+      - Step Executions
+  /workflows/step-executions/{id}/evidence:
+    post:
+      consumes:
+      - application/json
+      description: Submit evidence for a step execution
+      parameters:
+      - description: Step Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence submission
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.SubmitEvidenceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.StepExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Submit evidence for step execution
+      tags:
+      - Step Executions
+  /workflows/step-executions/{id}/fail:
+    put:
+      consumes:
+      - application/json
+      description: Mark a step execution as failed with a reason
+      parameters:
+      - description: Step Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Failure details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.FailStepRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.StepExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Fail step execution
+      tags:
+      - Step Executions
+  /workflows/step-executions/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: Update the status of a step execution
+      parameters:
+      - description: Step Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.UpdateStepStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.StepExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update step execution status
+      tags:
+      - Step Executions
+  /workflows/steps:
+    get:
+      description: List all step definitions for a workflow definition
+      parameters:
+      - description: Workflow Definition ID
+        in: query
+        name: workflow_definition_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowStepDefinitionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List workflow step definitions
+      tags:
+      - Workflow Step Definitions
+    post:
+      consumes:
+      - application/json
+      description: Create a new step definition for a workflow
+      parameters:
+      - description: Step definition details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.CreateWorkflowStepDefinitionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workflows.WorkflowStepDefinitionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create workflow step definition
+      tags:
+      - Workflow Step Definitions
+  /workflows/steps/{id}:
+    delete:
+      description: Delete workflow step definition by ID
+      parameters:
+      - description: Step Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete workflow step definition
+      tags:
+      - Workflow Step Definitions
+    get:
+      description: Get workflow step definition by ID
+      parameters:
+      - description: Step Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowStepDefinitionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get workflow step definition
+      tags:
+      - Workflow Step Definitions
+    put:
+      consumes:
+      - application/json
+      description: Update workflow step definition by ID
+      parameters:
+      - description: Step Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated step definition details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.UpdateWorkflowStepDefinitionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowStepDefinitionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update workflow step definition
+      tags:
+      - Workflow Step Definitions
+  /workflows/steps/{id}/dependencies:
+    get:
+      description: Get all dependencies for a workflow step definition
+      parameters:
+      - description: Step Definition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.WorkflowStepDefinitionListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get step dependencies
+      tags:
+      - Workflow Step Definitions
 produces:
 - application/json
 securityDefinitions:

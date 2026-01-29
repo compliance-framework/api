@@ -16546,6 +16546,2577 @@
                     }
                 ]
             }
+        },
+        "/workflows/control-relationships": {
+            "get": {
+                "description": "List all control relationships, optionally filtered by workflow definition",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "List control relationships",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Definition ID",
+                        "name": "workflow_definition_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "control_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ControlRelationshipListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a new control relationship for a workflow",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "Create control relationship",
+                "parameters": [
+                    {
+                        "description": "Control relationship details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.CreateControlRelationshipRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ControlRelationshipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/control-relationships/{id}": {
+            "get": {
+                "description": "Get control relationship by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "Get control relationship",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control Relationship ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ControlRelationshipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update an existing control relationship",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "Update control relationship",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control Relationship ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.UpdateControlRelationshipRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ControlRelationshipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete a control relationship",
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "Delete control relationship",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control Relationship ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/control-relationships/{id}/activate": {
+            "put": {
+                "description": "Activate a control relationship",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "Activate control relationship",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control Relationship ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ControlRelationshipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/control-relationships/{id}/deactivate": {
+            "put": {
+                "description": "Deactivate a control relationship",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Control Relationships"
+                ],
+                "summary": "Deactivate control relationship",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Control Relationship ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ControlRelationshipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/definitions": {
+            "get": {
+                "description": "List all workflow definition templates",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Definitions"
+                ],
+                "summary": "List workflow definitions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowDefinitionListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a new workflow definition template",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Definitions"
+                ],
+                "summary": "Create workflow definition",
+                "parameters": [
+                    {
+                        "description": "Workflow definition details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.CreateWorkflowDefinitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowDefinitionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/definitions/{id}": {
+            "get": {
+                "description": "Get workflow definition by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Definitions"
+                ],
+                "summary": "Get workflow definition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowDefinitionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update workflow definition by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Definitions"
+                ],
+                "summary": "Update workflow definition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated workflow definition details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.UpdateWorkflowDefinitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowDefinitionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete workflow definition by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Definitions"
+                ],
+                "summary": "Delete workflow definition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/executions": {
+            "get": {
+                "description": "List all executions for a workflow instance",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "List workflow executions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "workflow_instance_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Start a new execution of a workflow instance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Start workflow execution",
+                "parameters": [
+                    {
+                        "description": "Execution details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StartWorkflowExecutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/executions/{id}": {
+            "get": {
+                "description": "Get workflow execution by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Get workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/executions/{id}/cancel": {
+            "put": {
+                "description": "Cancel a running workflow execution",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Cancel workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Cancel details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.CancelWorkflowExecutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/executions/{id}/metrics": {
+            "get": {
+                "description": "Get performance metrics for a workflow execution",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Get workflow execution metrics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionMetricsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/executions/{id}/retry": {
+            "post": {
+                "description": "Create a new execution to retry a failed workflow",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Retry workflow execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/executions/{id}/status": {
+            "get": {
+                "description": "Get detailed status of a workflow execution including step counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Get workflow execution status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowExecutionStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/instances": {
+            "get": {
+                "description": "List all workflow instances with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "List workflow instances",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by Workflow Definition ID",
+                        "name": "workflow_definition_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by System Name",
+                        "name": "system_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by Active Status",
+                        "name": "is_active",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowInstanceListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a new workflow instance for a specific system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "Create workflow instance",
+                "parameters": [
+                    {
+                        "description": "Workflow instance details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.CreateWorkflowInstanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowInstanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/instances/{id}": {
+            "get": {
+                "description": "Get workflow instance by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "Get workflow instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowInstanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update workflow instance by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "Update workflow instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated workflow instance details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.UpdateWorkflowInstanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowInstanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete workflow instance by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "Delete workflow instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/instances/{id}/activate": {
+            "put": {
+                "description": "Activate a workflow instance to enable scheduled executions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "Activate workflow instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowInstanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/instances/{id}/deactivate": {
+            "put": {
+                "description": "Deactivate a workflow instance to disable scheduled executions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Instances"
+                ],
+                "summary": "Deactivate workflow instance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowInstanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/role-assignments": {
+            "get": {
+                "description": "List all role assignments, optionally filtered by workflow instance",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "List role assignments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Instance ID",
+                        "name": "workflow_instance_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Role Name",
+                        "name": "role_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.RoleAssignmentListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a new role assignment for a workflow instance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "Create role assignment",
+                "parameters": [
+                    {
+                        "description": "Role assignment details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.CreateRoleAssignmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.RoleAssignmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/role-assignments/{id}": {
+            "get": {
+                "description": "Get role assignment by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "Get role assignment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Assignment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.RoleAssignmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update an existing role assignment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "Update role assignment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Assignment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.UpdateRoleAssignmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.RoleAssignmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete a role assignment",
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "Delete role assignment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Assignment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/role-assignments/{id}/activate": {
+            "put": {
+                "description": "Activate a role assignment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "Activate role assignment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Assignment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.RoleAssignmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/role-assignments/{id}/deactivate": {
+            "put": {
+                "description": "Deactivate a role assignment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Role Assignments"
+                ],
+                "summary": "Deactivate role assignment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Assignment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.RoleAssignmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions": {
+            "get": {
+                "description": "List all step executions for a workflow execution",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "List step executions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "workflow_execution_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StepExecutionListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions/{id}": {
+            "get": {
+                "description": "Get step execution by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "Get step execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StepExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions/{id}/evidence": {
+            "post": {
+                "description": "Submit evidence for a step execution",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "Submit evidence for step execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evidence submission",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.SubmitEvidenceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StepExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions/{id}/fail": {
+            "put": {
+                "description": "Mark a step execution as failed with a reason",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "Fail step execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Failure details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.FailStepRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StepExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions/{id}/status": {
+            "put": {
+                "description": "Update the status of a step execution",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "Update step execution status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.UpdateStepStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StepExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/steps": {
+            "get": {
+                "description": "List all step definitions for a workflow definition",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Step Definitions"
+                ],
+                "summary": "List workflow step definitions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Definition ID",
+                        "name": "workflow_definition_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinitionListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a new step definition for a workflow",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Step Definitions"
+                ],
+                "summary": "Create workflow step definition",
+                "parameters": [
+                    {
+                        "description": "Step definition details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.CreateWorkflowStepDefinitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinitionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/steps/{id}": {
+            "get": {
+                "description": "Get workflow step definition by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Step Definitions"
+                ],
+                "summary": "Get workflow step definition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinitionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update workflow step definition by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Step Definitions"
+                ],
+                "summary": "Update workflow step definition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated step definition details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.UpdateWorkflowStepDefinitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinitionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete workflow step definition by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Step Definitions"
+                ],
+                "summary": "Delete workflow step definition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/steps/{id}/dependencies": {
+            "get": {
+                "description": "Get all dependencies for a workflow step definition",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Step Definitions"
+                ],
+                "summary": "Get step dependencies",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Definition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinitionListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
         }
     },
     "definitions": {
@@ -25155,6 +27726,1077 @@
                 },
                 "userAttributes": {
                     "type": "string"
+                }
+            }
+        },
+        "time.Duration": {
+            "type": "integer",
+            "format": "int64",
+            "enum": [
+                -9223372036854775808,
+                9223372036854775807,
+                1,
+                1000,
+                1000000,
+                1000000000,
+                60000000000,
+                3600000000000
+            ],
+            "x-enum-varnames": [
+                "minDuration",
+                "maxDuration",
+                "Nanosecond",
+                "Microsecond",
+                "Millisecond",
+                "Second",
+                "Minute",
+                "Hour"
+            ]
+        },
+        "workflow.ExecutionMetrics": {
+            "type": "object",
+            "properties": {
+                "averageStepDuration": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "duration": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "executionID": {
+                    "type": "string"
+                },
+                "longestStepDuration": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "totalSteps": {
+                    "type": "integer"
+                }
+            }
+        },
+        "workflow.ExecutionStatus": {
+            "type": "object",
+            "properties": {
+                "blockedSteps": {
+                    "type": "integer"
+                },
+                "cancelledSteps": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "completedSteps": {
+                    "type": "integer"
+                },
+                "executionID": {
+                    "type": "string"
+                },
+                "failedAt": {
+                    "type": "string"
+                },
+                "failedSteps": {
+                    "type": "integer"
+                },
+                "failureReason": {
+                    "type": "string"
+                },
+                "inProgressSteps": {
+                    "type": "integer"
+                },
+                "pendingSteps": {
+                    "type": "integer"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "totalSteps": {
+                    "type": "integer"
+                }
+            }
+        },
+        "workflows.CancelWorkflowExecutionRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.ControlRelationship": {
+            "type": "object",
+            "properties": {
+                "catalog_id": {
+                    "description": "Link to catalog if available",
+                    "type": "string"
+                },
+                "control_id": {
+                    "description": "Control Information",
+                    "type": "string"
+                },
+                "control_source": {
+                    "description": "e.g., \"NIST 800-53 Rev 5\", \"ISO 27001\"",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "relationship_type": {
+                    "description": "Relationship Information",
+                    "type": "string"
+                },
+                "strength": {
+                    "description": "primary, secondary, supporting",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workflow_definition": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowDefinition"
+                        }
+                    ]
+                },
+                "workflow_definition_id": {
+                    "description": "Foreign Keys",
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.ControlRelationshipListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.ControlRelationship"
+                    }
+                }
+            }
+        },
+        "workflows.ControlRelationshipResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.ControlRelationship"
+                }
+            }
+        },
+        "workflows.CreateControlRelationshipRequest": {
+            "type": "object",
+            "required": [
+                "control_id",
+                "control_source",
+                "relationship_type",
+                "workflow_definition_id"
+            ],
+            "properties": {
+                "control_id": {
+                    "type": "string"
+                },
+                "control_source": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "relationship_type": {
+                    "type": "string"
+                },
+                "strength": {
+                    "type": "string"
+                },
+                "workflow_definition_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.CreateRoleAssignmentRequest": {
+            "type": "object",
+            "required": [
+                "assigned_to_id",
+                "assigned_to_type",
+                "role_name",
+                "workflow_instance_id"
+            ],
+            "properties": {
+                "assigned_to_id": {
+                    "type": "string"
+                },
+                "assigned_to_type": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "role_name": {
+                    "type": "string"
+                },
+                "workflow_instance_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.CreateWorkflowDefinitionRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "evidence_required": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "suggested_cadence": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.CreateWorkflowInstanceRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "system_name",
+                "workflow_definition_id"
+            ],
+            "properties": {
+                "cadence": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "system_name": {
+                    "type": "string"
+                },
+                "workflow_definition_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.CreateWorkflowStepDefinitionRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "responsible_role",
+                "workflow_definition_id"
+            ],
+            "properties": {
+                "depends_on": {
+                    "description": "Array of step IDs this step depends on",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "estimated_duration": {
+                    "type": "integer"
+                },
+                "evidence_required": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "responsible_role": {
+                    "type": "string"
+                },
+                "workflow_definition_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.FailStepRequest": {
+            "type": "object",
+            "required": [
+                "reason"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.RoleAssignment": {
+            "type": "object",
+            "properties": {
+                "assigned_to_id": {
+                    "description": "User ID, group ID, or email",
+                    "type": "string"
+                },
+                "assigned_to_type": {
+                    "description": "user, group, email",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "role_name": {
+                    "type": "string"
+                },
+                "workflow_instance": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowInstance"
+                        }
+                    ]
+                },
+                "workflow_instance_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.RoleAssignmentListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.RoleAssignment"
+                    }
+                }
+            }
+        },
+        "workflows.RoleAssignmentResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.RoleAssignment"
+                }
+            }
+        },
+        "workflows.StartWorkflowExecutionRequest": {
+            "type": "object",
+            "required": [
+                "triggered_by",
+                "workflow_instance_id"
+            ],
+            "properties": {
+                "triggered_by": {
+                    "type": "string"
+                },
+                "triggered_by_id": {
+                    "type": "string"
+                },
+                "workflow_instance_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.StepDependency": {
+            "type": "object",
+            "properties": {
+                "depends_on_step": {
+                    "$ref": "#/definitions/workflows.WorkflowStepDefinition"
+                },
+                "depends_on_step_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "workflow_step_definition": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinition"
+                        }
+                    ]
+                },
+                "workflow_step_definition_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.StepEvidence": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "$ref": "#/definitions/relational.Evidence"
+                },
+                "evidence_id": {
+                    "description": "Link to main evidence table",
+                    "type": "string"
+                },
+                "evidence_type": {
+                    "description": "document, attestation, screenshot, log",
+                    "type": "string"
+                },
+                "file_hash": {
+                    "description": "SHA-256 hash of file",
+                    "type": "string"
+                },
+                "file_path": {
+                    "description": "Path to stored file",
+                    "type": "string"
+                },
+                "file_size": {
+                    "description": "File size in bytes",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "description": "JSON metadata",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Evidence Information",
+                    "type": "string"
+                },
+                "step_execution": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.StepExecution"
+                        }
+                    ]
+                },
+                "step_execution_id": {
+                    "description": "Foreign Keys",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.StepExecution": {
+            "type": "object",
+            "properties": {
+                "assigned_at": {
+                    "type": "string"
+                },
+                "assigned_to_id": {
+                    "description": "User ID, group ID, or email",
+                    "type": "string"
+                },
+                "assigned_to_type": {
+                    "description": "Assignment Information",
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "failed_at": {
+                    "type": "string"
+                },
+                "failure_reason": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Execution Information",
+                    "type": "string"
+                },
+                "step_evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepEvidence"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workflow_execution": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowExecution"
+                        }
+                    ]
+                },
+                "workflow_execution_id": {
+                    "description": "Foreign Keys",
+                    "type": "string"
+                },
+                "workflow_step_definition": {
+                    "$ref": "#/definitions/workflows.WorkflowStepDefinition"
+                },
+                "workflow_step_definition_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.StepExecutionListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepExecution"
+                    }
+                }
+            }
+        },
+        "workflows.StepExecutionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.StepExecution"
+                }
+            }
+        },
+        "workflows.StepTrigger": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "trigger_condition": {
+                    "description": "JSON condition expression",
+                    "type": "string"
+                },
+                "trigger_type": {
+                    "description": "evidence_stream, time_based, external_event",
+                    "type": "string"
+                },
+                "workflow_step_definition": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowStepDefinition"
+                        }
+                    ]
+                },
+                "workflow_step_definition_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.SubmitEvidenceRequest": {
+            "type": "object",
+            "required": [
+                "evidence_id"
+            ],
+            "properties": {
+                "evidence_id": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.UpdateControlRelationshipRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "relationship_type": {
+                    "type": "string"
+                },
+                "strength": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.UpdateRoleAssignmentRequest": {
+            "type": "object",
+            "properties": {
+                "assigned_to_id": {
+                    "type": "string"
+                },
+                "assigned_to_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.UpdateStepStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.UpdateWorkflowDefinitionRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "evidence_required": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "suggested_cadence": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.UpdateWorkflowInstanceRequest": {
+            "type": "object",
+            "properties": {
+                "cadence": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "system_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.UpdateWorkflowStepDefinitionRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "estimated_duration": {
+                    "type": "integer"
+                },
+                "evidence_required": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "responsible_role": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.WorkflowDefinition": {
+            "type": "object",
+            "properties": {
+                "control_relationships": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.ControlRelationship"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_id": {
+                    "description": "Audit Fields",
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidence_required": {
+                    "description": "JSON array of required evidence types",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instances": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowInstance"
+                    }
+                },
+                "name": {
+                    "description": "Basic Information",
+                    "type": "string"
+                },
+                "steps": {
+                    "description": "Relationships",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowStepDefinition"
+                    }
+                },
+                "suggested_cadence": {
+                    "description": "Workflow Configuration",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by_id": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.WorkflowDefinitionListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowDefinition"
+                    }
+                }
+            }
+        },
+        "workflows.WorkflowDefinitionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.WorkflowDefinition"
+                }
+            }
+        },
+        "workflows.WorkflowExecution": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_id": {
+                    "description": "Audit Fields",
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "failed_at": {
+                    "type": "string"
+                },
+                "failure_reason": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Execution Information",
+                    "type": "string"
+                },
+                "step_executions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepExecution"
+                    }
+                },
+                "triggered_by": {
+                    "description": "Execution Context",
+                    "type": "string"
+                },
+                "triggered_by_id": {
+                    "description": "User ID or system identifier",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by_id": {
+                    "type": "string"
+                },
+                "workflow_instance": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowInstance"
+                        }
+                    ]
+                },
+                "workflow_instance_id": {
+                    "description": "Foreign Keys",
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.WorkflowExecutionListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowExecution"
+                    }
+                }
+            }
+        },
+        "workflows.WorkflowExecutionMetricsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflow.ExecutionMetrics"
+                }
+            }
+        },
+        "workflows.WorkflowExecutionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.WorkflowExecution"
+                }
+            }
+        },
+        "workflows.WorkflowExecutionStatusResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflow.ExecutionStatus"
+                }
+            }
+        },
+        "workflows.WorkflowInstance": {
+            "type": "object",
+            "properties": {
+                "cadence": {
+                    "description": "daily, weekly, monthly, quarterly, annually",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_id": {
+                    "description": "Audit Fields",
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "executions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowExecution"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_executed_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Basic Information",
+                    "type": "string"
+                },
+                "next_scheduled_at": {
+                    "description": "Scheduling",
+                    "type": "string"
+                },
+                "role_assignments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.RoleAssignment"
+                    }
+                },
+                "system_name": {
+                    "description": "Instance Configuration",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by_id": {
+                    "type": "string"
+                },
+                "workflow_definition": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowDefinition"
+                        }
+                    ]
+                },
+                "workflow_definition_id": {
+                    "description": "Foreign Keys",
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.WorkflowInstanceListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowInstance"
+                    }
+                }
+            }
+        },
+        "workflows.WorkflowInstanceResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.WorkflowInstance"
+                }
+            }
+        },
+        "workflows.WorkflowStepDefinition": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "dependent_steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepDependency"
+                    }
+                },
+                "depends_on": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepDependency"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "estimated_duration": {
+                    "description": "Estimated duration in minutes",
+                    "type": "integer"
+                },
+                "evidence_required": {
+                    "description": "JSON array of required evidence types",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Basic Information",
+                    "type": "string"
+                },
+                "responsible_role": {
+                    "description": "Step Configuration",
+                    "type": "string"
+                },
+                "step_executions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepExecution"
+                    }
+                },
+                "triggers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepTrigger"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workflow_definition": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflows.WorkflowDefinition"
+                        }
+                    ]
+                },
+                "workflow_definition_id": {
+                    "description": "Foreign Keys",
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.WorkflowStepDefinitionListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.WorkflowStepDefinition"
+                    }
+                }
+            }
+        },
+        "workflows.WorkflowStepDefinitionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.WorkflowStepDefinition"
                 }
             }
         }

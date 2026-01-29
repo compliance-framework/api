@@ -13,8 +13,10 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/compliance-framework/api/internal/service/worker"
+	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -89,9 +91,21 @@ func RunServer(cmd *cobra.Command, args []string) {
 	sched := scheduler.NewCronScheduler(sugar)
 	sched.Start()
 
+	// Initialize workflow manager
+	workflowExecService := workflows.NewWorkflowExecutionService(db)
+	workflowInstService := workflows.NewWorkflowInstanceService(db)
+	stepExecService := workflows.NewStepExecutionService(db)
+	workflowManager := workflow.NewManager(
+		workerService.GetClient(),
+		workflowExecService,
+		workflowInstService,
+		stepExecService,
+		sugar,
+	)
+
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched)
+	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched, workflowManager)
 	oscal.RegisterHandlers(server, sugar, db, cfg)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 
