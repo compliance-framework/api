@@ -74,11 +74,11 @@ func TestWorkflowExecutionHandler_Start(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -138,11 +138,11 @@ func TestWorkflowExecutionHandler_List(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -195,11 +195,11 @@ func TestWorkflowExecutionHandler_Get(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -251,11 +251,11 @@ func TestWorkflowExecutionHandler_GetStatus(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -311,11 +311,12 @@ func TestWorkflowExecutionHandler_GetMetrics(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
+	sysId := uuid.New()
 
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -354,11 +355,12 @@ func TestWorkflowExecutionHandler_Cancel(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
+	sysId := uuid.New()
 
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -404,11 +406,12 @@ func TestWorkflowExecutionHandler_Retry(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
+	sysId := uuid.New()
 
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 

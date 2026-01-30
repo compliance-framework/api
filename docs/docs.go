@@ -6541,6 +6541,64 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/catalogs/{id}/all-controls": {
+            "get": {
+                "description": "Retrieves the top-level controls for a given Catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "List controls for a Catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/catalogs/{id}/back-matter": {
             "get": {
                 "description": "Retrieves the back-matter for a given Catalog.",
@@ -17668,8 +17726,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by System Name",
-                        "name": "system_name",
+                        "description": "Filter by System Security Plan ID",
+                        "name": "system_security_plan_id",
                         "in": "query"
                     },
                     {
@@ -19176,7 +19234,16 @@ const docTemplate = `{
         "datatypes.JSONType-relational_Citation": {
             "type": "object"
         },
+        "datatypes.JSONType-relational_CombinationRule": {
+            "type": "object"
+        },
+        "datatypes.JSONType-relational_FlatWithoutGrouping": {
+            "type": "object"
+        },
         "datatypes.JSONType-relational_ImplementationStatus": {
+            "type": "object"
+        },
+        "datatypes.JSONType-relational_ImportProfile": {
             "type": "object"
         },
         "datatypes.JSONType-relational_IncludeAll": {
@@ -19185,7 +19252,16 @@ const docTemplate = `{
         "datatypes.JSONType-relational_ParameterSelection": {
             "type": "object"
         },
+        "datatypes.JSONType-relational_SecurityImpactLevel": {
+            "type": "object"
+        },
+        "datatypes.JSONType-relational_Status": {
+            "type": "object"
+        },
         "datatypes.JSONType-relational_SystemComponentStatus": {
+            "type": "object"
+        },
+        "datatypes.JSONType-relational_SystemInformation": {
             "type": "object"
         },
         "digest.EvidenceItem": {
@@ -25604,6 +25680,50 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.Addition": {
+            "type": "object",
+            "properties": {
+                "alterationID": {
+                    "type": "string"
+                },
+                "by-id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Parameter"
+                    }
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Part"
+                    }
+                },
+                "position": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "relational.Address": {
             "type": "object",
             "properties": {
@@ -25640,6 +25760,33 @@ const docTemplate = `{
                 "AddressTypeWork",
                 "AddressTypeHome"
             ]
+        },
+        "relational.Alteration": {
+            "type": "object",
+            "properties": {
+                "adds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Addition"
+                    }
+                },
+                "control-id": {
+                    "description": "required",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "modify-id": {
+                    "type": "string"
+                },
+                "removes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Removal"
+                    }
+                }
+            }
         },
         "relational.AssessedControlsSelectControlById": {
             "type": "object",
@@ -25708,6 +25855,64 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "Type represents a component, party, location, user, or inventory item.\nIt will likely be updated once we can map it correctly",
+                    "type": "string"
+                }
+            }
+        },
+        "relational.AuthorizationBoundary": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "diagrams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Diagram"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "systemCharacteristicsId": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.AuthorizedPrivilege": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "functions-performed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "systemUserId": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -25990,6 +26195,32 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.ControlImplementation": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "implemented-requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ImplementedRequirement"
+                    }
+                },
+                "set-parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SetParameter"
+                    }
+                },
+                "systemSecurityPlanId": {
+                    "type": "string"
+                }
+            }
+        },
         "relational.ControlImplementationResponsibility": {
             "type": "object",
             "properties": {
@@ -26204,6 +26435,41 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.DataFlow": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "diagrams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Diagram"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "systemCharacteristicsId": {
+                    "type": "string"
+                }
+            }
+        },
         "relational.DefinedComponent": {
             "type": "object",
             "properties": {
@@ -26262,6 +26528,41 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "required",
+                    "type": "string"
+                }
+            }
+        },
+        "relational.Diagram": {
+            "type": "object",
+            "properties": {
+                "caption": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "parentID": {
+                    "type": "string"
+                },
+                "parentType": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
                     "type": "string"
                 }
             }
@@ -26526,6 +26827,59 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.ImplementedRequirement": {
+            "type": "object",
+            "properties": {
+                "by-components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ByComponent"
+                    }
+                },
+                "control-id": {
+                    "type": "string"
+                },
+                "controlImplementationId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ResponsibleRole"
+                    }
+                },
+                "set-parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SetParameter"
+                    }
+                },
+                "statements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Statement"
+                    }
+                }
+            }
+        },
         "relational.ImplementedRequirementControlImplementation": {
             "type": "object",
             "properties": {
@@ -26576,6 +26930,36 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.ControlStatementImplementation"
                     }
+                }
+            }
+        },
+        "relational.Import": {
+            "type": "object",
+            "properties": {
+                "exclude-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SelectControlById"
+                    }
+                },
+                "href": {
+                    "description": "Href as per the OSCAL docs can be an absolute network path (potentially remote), relative or a URI fragment\nfor the moment to make the system's life easier, it should be a URI fragment to back-matter and try and resolve\nback to an ingested catalog.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "include-all": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_IncludeAll"
+                },
+                "include-controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SelectControlById"
+                    }
+                },
+                "profileID": {
+                    "type": "string"
                 }
             }
         },
@@ -26692,6 +27076,41 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.LeveragedAuthorization": {
+            "type": "object",
+            "properties": {
+                "date-authorized": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "party-uuid": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "systemImplementationId": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "relational.Link": {
             "type": "object",
             "properties": {
@@ -26756,6 +27175,34 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "relational.Matching": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.Merge": {
+            "type": "object",
+            "properties": {
+                "as-is": {
+                    "type": "boolean"
+                },
+                "combine": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_CombinationRule"
+                },
+                "flat": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_FlatWithoutGrouping"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "profileID": {
+                    "type": "string"
                 }
             }
         },
@@ -26843,6 +27290,64 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.Modify": {
+            "type": "object",
+            "properties": {
+                "alters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Alteration"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "profileID": {
+                    "type": "string"
+                },
+                "set-parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ParameterSetting"
+                    }
+                }
+            }
+        },
+        "relational.NetworkArchitecture": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "diagrams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Diagram"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "systemCharacteristicsId": {
                     "type": "string"
                 }
             }
@@ -26947,6 +27452,63 @@ const docTemplate = `{
             "properties": {
                 "prose": {
                     "type": "string"
+                }
+            }
+        },
+        "relational.ParameterSetting": {
+            "type": "object",
+            "properties": {
+                "class": {
+                    "type": "string"
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ParameterConstraint"
+                    }
+                },
+                "depends-on": {
+                    "type": "string"
+                },
+                "guidelines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ParameterGuideline"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "modifyID": {
+                    "type": "string"
+                },
+                "param-id": {
+                    "description": "required",
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "select": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_ParameterSelection"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -27095,6 +27657,38 @@ const docTemplate = `{
                 "PartyTypeOrganization"
             ]
         },
+        "relational.Profile": {
+            "type": "object",
+            "properties": {
+                "back-matter": {
+                    "$ref": "#/definitions/relational.BackMatter"
+                },
+                "controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Control"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "imports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Import"
+                    }
+                },
+                "merge": {
+                    "$ref": "#/definitions/relational.Merge"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/relational.Metadata"
+                },
+                "modify": {
+                    "$ref": "#/definitions/relational.Modify"
+                }
+            }
+        },
         "relational.Prop": {
             "type": "object",
             "properties": {
@@ -27173,6 +27767,26 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/relational.ResponsibleRole"
                     }
+                }
+            }
+        },
+        "relational.Removal": {
+            "type": "object",
+            "properties": {
+                "by-class": {
+                    "type": "string"
+                },
+                "by-id": {
+                    "type": "string"
+                },
+                "by-item-name": {
+                    "type": "string"
+                },
+                "by-name": {
+                    "type": "string"
+                },
+                "by-ns": {
+                    "type": "string"
                 }
             }
         },
@@ -27442,6 +28056,35 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.SelectControlById": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "matching": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Matching"
+                    }
+                },
+                "parentID": {
+                    "type": "string"
+                },
+                "parentType": {
+                    "type": "string"
+                },
+                "with-child-controls": {
+                    "type": "string"
+                },
+                "with-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "relational.SelectObjectiveById": {
             "type": "object",
             "properties": {
@@ -27593,6 +28236,77 @@ const docTemplate = `{
                 }
             }
         },
+        "relational.SystemCharacteristics": {
+            "type": "object",
+            "properties": {
+                "authorization-boundary": {
+                    "$ref": "#/definitions/relational.AuthorizationBoundary"
+                },
+                "dataFlow": {
+                    "$ref": "#/definitions/relational.DataFlow"
+                },
+                "date-authorized": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "networkArchitecture": {
+                    "$ref": "#/definitions/relational.NetworkArchitecture"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-parties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.ResponsibleParty"
+                    }
+                },
+                "security-impact-level": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_SecurityImpactLevel"
+                },
+                "security-sensitivity-level": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_Status"
+                },
+                "system-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemId"
+                    }
+                },
+                "system-information": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_SystemInformation"
+                },
+                "system-name": {
+                    "type": "string"
+                },
+                "system-name-short": {
+                    "type": "string"
+                },
+                "systemSecurityPlanId": {
+                    "type": "string"
+                }
+            }
+        },
         "relational.SystemComponent": {
             "type": "object",
             "properties": {
@@ -27654,6 +28368,146 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.SystemId": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "identifier-type": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.SystemImplementation": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemComponent"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inventory-items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.InventoryItem"
+                    }
+                },
+                "leveraged-authorizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.LeveragedAuthorization"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "systemSecurityPlanId": {
+                    "type": "string"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemUser"
+                    }
+                }
+            }
+        },
+        "relational.SystemSecurityPlan": {
+            "type": "object",
+            "properties": {
+                "back-matter": {
+                    "$ref": "#/definitions/relational.BackMatter"
+                },
+                "control-implementation": {
+                    "$ref": "#/definitions/relational.ControlImplementation"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "import-profile": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_ImportProfile"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/relational.Metadata"
+                },
+                "profile": {
+                    "$ref": "#/definitions/relational.Profile"
+                },
+                "profileID": {
+                    "type": "string"
+                },
+                "system-characteristics": {
+                    "$ref": "#/definitions/relational.SystemCharacteristics"
+                },
+                "system-implementation": {
+                    "$ref": "#/definitions/relational.SystemImplementation"
+                }
+            }
+        },
+        "relational.SystemUser": {
+            "type": "object",
+            "properties": {
+                "authorized-privileges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.AuthorizedPrivilege"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "role-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "short-name": {
+                    "type": "string"
+                },
+                "systemImplementationId": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -27846,7 +28700,7 @@ const docTemplate = `{
                     "description": "e.g., \"NIST 800-53 Rev 5\", \"ISO 27001\"",
                     "type": "string"
                 },
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "deleted_at": {
@@ -27866,7 +28720,7 @@ const docTemplate = `{
                     "description": "primary, secondary, supporting",
                     "type": "string"
                 },
-                "updated_at": {
+                "updated-at": {
                     "type": "string"
                 },
                 "workflow_definition": {
@@ -27905,31 +28759,32 @@ const docTemplate = `{
         "workflows.CreateControlRelationshipRequest": {
             "type": "object",
             "required": [
-                "control_id",
-                "control_source",
-                "relationship_type",
-                "workflow_definition_id"
+                "catalog-id",
+                "control-id",
+                "workflow-definition-id"
             ],
             "properties": {
-                "control_id": {
+                "catalog-id": {
                     "type": "string"
                 },
-                "control_source": {
+                "control-id": {
                     "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
-                "is_active": {
+                "is-active": {
                     "type": "boolean"
                 },
-                "relationship_type": {
+                "relationship-type": {
+                    "description": "If not provided - 'satisfies' is used",
                     "type": "string"
                 },
                 "strength": {
+                    "description": "If not provided - 'primary' is used",
                     "type": "string"
                 },
-                "workflow_definition_id": {
+                "workflow-definition-id": {
                     "type": "string"
                 }
             }
@@ -27937,25 +28792,25 @@ const docTemplate = `{
         "workflows.CreateRoleAssignmentRequest": {
             "type": "object",
             "required": [
-                "assigned_to_id",
-                "assigned_to_type",
-                "role_name",
-                "workflow_instance_id"
+                "assigned-to-id",
+                "assigned-to-type",
+                "role-name",
+                "workflow-instance-id"
             ],
             "properties": {
-                "assigned_to_id": {
+                "assigned-to-id": {
                     "type": "string"
                 },
-                "assigned_to_type": {
+                "assigned-to-type": {
                     "type": "string"
                 },
-                "is_active": {
+                "is-active": {
                     "type": "boolean"
                 },
-                "role_name": {
+                "role-name": {
                     "type": "string"
                 },
-                "workflow_instance_id": {
+                "workflow-instance-id": {
                     "type": "string"
                 }
             }
@@ -27969,13 +28824,13 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "evidence_required": {
+                "evidence-required": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
-                "suggested_cadence": {
+                "suggested-cadence": {
                     "type": "string"
                 },
                 "version": {
@@ -27987,8 +28842,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "name",
-                "system_name",
-                "workflow_definition_id"
+                "system-security-plan-id",
+                "workflow-definition-id"
             ],
             "properties": {
                 "cadence": {
@@ -27997,16 +28852,16 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "is_active": {
+                "is-active": {
                     "type": "boolean"
                 },
                 "name": {
                     "type": "string"
                 },
-                "system_name": {
+                "system-security-plan-id": {
                     "type": "string"
                 },
-                "workflow_definition_id": {
+                "workflow-definition-id": {
                     "type": "string"
                 }
             }
@@ -28015,11 +28870,11 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "name",
-                "responsible_role",
-                "workflow_definition_id"
+                "responsible-role",
+                "workflow-definition-id"
             ],
             "properties": {
-                "depends_on": {
+                "depends-on": {
                     "description": "Array of step IDs this step depends on",
                     "type": "array",
                     "items": {
@@ -28029,19 +28884,19 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "estimated_duration": {
+                "estimated-duration": {
                     "type": "integer"
                 },
-                "evidence_required": {
+                "evidence-required": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
-                "responsible_role": {
+                "responsible-role": {
                     "type": "string"
                 },
-                "workflow_definition_id": {
+                "workflow-definition-id": {
                     "type": "string"
                 }
             }
@@ -28112,17 +28967,17 @@ const docTemplate = `{
         "workflows.StartWorkflowExecutionRequest": {
             "type": "object",
             "required": [
-                "triggered_by",
-                "workflow_instance_id"
+                "triggered-by",
+                "workflow-instance-id"
             ],
             "properties": {
-                "triggered_by": {
+                "triggered-by": {
                     "type": "string"
                 },
-                "triggered_by_id": {
+                "triggered-by-id": {
                     "type": "string"
                 },
-                "workflow_instance_id": {
+                "workflow-instance-id": {
                     "type": "string"
                 }
             }
@@ -28155,7 +29010,7 @@ const docTemplate = `{
         "workflows.StepEvidence": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "deleted_at": {
@@ -28175,6 +29030,10 @@ const docTemplate = `{
                     "description": "document, attestation, screenshot, log",
                     "type": "string"
                 },
+                "file-size": {
+                    "description": "File size in bytes",
+                    "type": "integer"
+                },
                 "file_hash": {
                     "description": "SHA-256 hash of file",
                     "type": "string"
@@ -28182,10 +29041,6 @@ const docTemplate = `{
                 "file_path": {
                     "description": "Path to stored file",
                     "type": "string"
-                },
-                "file_size": {
-                    "description": "File size in bytes",
-                    "type": "integer"
                 },
                 "id": {
                     "type": "string"
@@ -28210,7 +29065,7 @@ const docTemplate = `{
                     "description": "Foreign Keys",
                     "type": "string"
                 },
-                "updated_at": {
+                "updated-at": {
                     "type": "string"
                 }
             }
@@ -28218,7 +29073,7 @@ const docTemplate = `{
         "workflows.StepExecution": {
             "type": "object",
             "properties": {
-                "assigned_at": {
+                "assigned-at": {
                     "type": "string"
                 },
                 "assigned_to_id": {
@@ -28229,16 +29084,16 @@ const docTemplate = `{
                     "description": "Assignment Information",
                     "type": "string"
                 },
-                "completed_at": {
+                "completed-at": {
                     "type": "string"
                 },
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
-                "failed_at": {
+                "failed-at": {
                     "type": "string"
                 },
                 "failure_reason": {
@@ -28247,7 +29102,7 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "started_at": {
+                "started-at": {
                     "type": "string"
                 },
                 "status": {
@@ -28260,7 +29115,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/workflows.StepEvidence"
                     }
                 },
-                "updated_at": {
+                "updated-at": {
                     "type": "string"
                 },
                 "workflow_execution": {
@@ -28335,10 +29190,10 @@ const docTemplate = `{
         "workflows.SubmitEvidenceRequest": {
             "type": "object",
             "required": [
-                "evidence_id"
+                "evidence-id"
             ],
             "properties": {
-                "evidence_id": {
+                "evidence-id": {
                     "type": "string"
                 },
                 "notes": {
@@ -28352,7 +29207,7 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "relationship_type": {
+                "relationship-type": {
                     "type": "string"
                 },
                 "strength": {
@@ -28363,10 +29218,10 @@ const docTemplate = `{
         "workflows.UpdateRoleAssignmentRequest": {
             "type": "object",
             "properties": {
-                "assigned_to_id": {
+                "assigned-to-id": {
                     "type": "string"
                 },
-                "assigned_to_type": {
+                "assigned-to-type": {
                     "type": "string"
                 }
             }
@@ -28388,13 +29243,13 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "evidence_required": {
+                "evidence-required": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
-                "suggested_cadence": {
+                "suggested-cadence": {
                     "type": "string"
                 },
                 "version": {
@@ -28411,13 +29266,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "is_active": {
+                "is-active": {
                     "type": "boolean"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "system_name": {
                     "type": "string"
                 }
             }
@@ -28425,19 +29277,25 @@ const docTemplate = `{
         "workflows.UpdateWorkflowStepDefinitionRequest": {
             "type": "object",
             "properties": {
+                "depends-on": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
-                "estimated_duration": {
+                "estimated-duration": {
                     "type": "integer"
                 },
-                "evidence_required": {
+                "evidence-required": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
-                "responsible_role": {
+                "responsible-role": {
                     "type": "string"
                 }
             }
@@ -28451,7 +29309,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/workflows.ControlRelationship"
                     }
                 },
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "created_by_id": {
@@ -28492,7 +29350,7 @@ const docTemplate = `{
                     "description": "Workflow Configuration",
                     "type": "string"
                 },
-                "updated_at": {
+                "updated-at": {
                     "type": "string"
                 },
                 "updated_by_id": {
@@ -28525,10 +29383,10 @@ const docTemplate = `{
         "workflows.WorkflowExecution": {
             "type": "object",
             "properties": {
-                "completed_at": {
+                "completed-at": {
                     "type": "string"
                 },
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "created_by_id": {
@@ -28538,7 +29396,7 @@ const docTemplate = `{
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
-                "failed_at": {
+                "failed-at": {
                     "type": "string"
                 },
                 "failure_reason": {
@@ -28547,7 +29405,7 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "started_at": {
+                "started-at": {
                     "type": "string"
                 },
                 "status": {
@@ -28568,7 +29426,7 @@ const docTemplate = `{
                     "description": "User ID or system identifier",
                     "type": "string"
                 },
-                "updated_at": {
+                "updated-at": {
                     "type": "string"
                 },
                 "updated_by_id": {
@@ -28627,10 +29485,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "cadence": {
-                    "description": "daily, weekly, monthly, quarterly, annually",
+                    "description": "Instance Configuration",
                     "type": "string"
                 },
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "created_by_id": {
@@ -28655,14 +29513,14 @@ const docTemplate = `{
                 "is_active": {
                     "type": "boolean"
                 },
-                "last_executed_at": {
+                "last-executed-at": {
                     "type": "string"
                 },
                 "name": {
                     "description": "Basic Information",
                     "type": "string"
                 },
-                "next_scheduled_at": {
+                "next-scheduled-at": {
                     "description": "Scheduling",
                     "type": "string"
                 },
@@ -28672,23 +29530,25 @@ const docTemplate = `{
                         "$ref": "#/definitions/workflows.RoleAssignment"
                     }
                 },
-                "system_name": {
-                    "description": "Instance Configuration",
+                "system_id": {
                     "type": "string"
                 },
-                "updated_at": {
+                "system_security_plan": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.SystemSecurityPlan"
+                        }
+                    ]
+                },
+                "updated-at": {
                     "type": "string"
                 },
                 "updated_by_id": {
                     "type": "string"
                 },
                 "workflow_definition": {
-                    "description": "Relationships",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/workflows.WorkflowDefinition"
-                        }
-                    ]
+                    "$ref": "#/definitions/workflows.WorkflowDefinition"
                 },
                 "workflow_definition_id": {
                     "description": "Foreign Keys",
@@ -28718,7 +29578,7 @@ const docTemplate = `{
         "workflows.WorkflowStepDefinition": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "created-at": {
                     "type": "string"
                 },
                 "deleted_at": {
@@ -28770,7 +29630,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/workflows.StepTrigger"
                     }
                 },
-                "updated_at": {
+                "updated-at": {
                     "type": "string"
                 },
                 "workflow_definition": {

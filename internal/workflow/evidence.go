@@ -83,11 +83,18 @@ func (e *EvidenceIntegration) GetOrCreateExecutionStream(ctx context.Context, wo
 	// Create new evidence stream
 	labels := e.buildExecutionStreamLabels(definition, instance, execution)
 
+	var systemID string
+	if instance.SystemSecurityPlanID != nil {
+		systemID = instance.SystemSecurityPlanID.String()
+	} else {
+		systemID = "unknown"
+	}
+
 	stream := &relational.Evidence{
 		UUID:  streamUUID,
 		Title: fmt.Sprintf("Workflow Execution: %s", definition.Name),
 		Description: fmt.Sprintf("Evidence stream for execution %s of workflow %s (v%s) on system %s",
-			execution.ID, definition.Name, definition.Version, instance.SystemName),
+			execution.ID, definition.Name, definition.Version, systemID),
 		Start: time.Now(),
 		End:   time.Now(),
 	}
@@ -146,11 +153,18 @@ func (e *EvidenceIntegration) GetOrCreateInstanceStream(ctx context.Context, wor
 	// Create new evidence stream
 	labels := e.buildInstanceStreamLabels(definition, instance)
 
+	var systemID string
+	if instance.SystemSecurityPlanID != nil {
+		systemID = instance.SystemSecurityPlanID.String()
+	} else {
+		systemID = "unknown"
+	}
+
 	stream := &relational.Evidence{
 		UUID:  streamUUID,
 		Title: fmt.Sprintf("Workflow Instance: %s", instance.Name),
 		Description: fmt.Sprintf("Evidence stream for workflow instance %s of %s (v%s) on system %s",
-			instance.Name, definition.Name, definition.Version, instance.SystemName),
+			instance.Name, definition.Name, definition.Version, systemID),
 		Start: time.Now(),
 		End:   time.Now(),
 	}
@@ -395,6 +409,13 @@ func (e *EvidenceIntegration) buildExecutionStreamLabels(
 	instance *workflows.WorkflowInstance,
 	execution *workflows.WorkflowExecution,
 ) []relational.Labels {
+	var systemID string
+	if instance.SystemSecurityPlanID != nil {
+		systemID = instance.SystemSecurityPlanID.String()
+	} else {
+		systemID = "unknown"
+	}
+
 	return []relational.Labels{
 		{Name: "stream.type", Value: "workflow_execution"},
 		{Name: "workflow.definition.id", Value: definition.ID.String()},
@@ -402,7 +423,7 @@ func (e *EvidenceIntegration) buildExecutionStreamLabels(
 		{Name: "workflow.definition.version", Value: definition.Version},
 		{Name: "workflow.instance.id", Value: instance.ID.String()},
 		{Name: "workflow.instance.name", Value: instance.Name},
-		{Name: "workflow.instance.system", Value: instance.SystemName},
+		{Name: "workflow.instance.system_security_plan_id", Value: systemID},
 		{Name: "workflow.execution.id", Value: execution.ID.String()},
 		{Name: "workflow.triggered_by", Value: execution.TriggeredBy},
 	}
@@ -413,6 +434,13 @@ func (e *EvidenceIntegration) buildInstanceStreamLabels(
 	definition *workflows.WorkflowDefinition,
 	instance *workflows.WorkflowInstance,
 ) []relational.Labels {
+	var systemID string
+	if instance.SystemSecurityPlanID != nil {
+		systemID = instance.SystemSecurityPlanID.String()
+	} else {
+		systemID = "unknown"
+	}
+
 	return []relational.Labels{
 		{Name: "stream.type", Value: "workflow_instance"},
 		{Name: "workflow.definition.id", Value: definition.ID.String()},
@@ -420,6 +448,6 @@ func (e *EvidenceIntegration) buildInstanceStreamLabels(
 		{Name: "workflow.definition.version", Value: definition.Version},
 		{Name: "workflow.instance.id", Value: instance.ID.String()},
 		{Name: "workflow.instance.name", Value: instance.Name},
-		{Name: "workflow.instance.system", Value: instance.SystemName},
+		{Name: "workflow.instance.system_security_plan_id", Value: systemID},
 	}
 }

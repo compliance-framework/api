@@ -41,16 +41,16 @@ type CreateWorkflowDefinitionRequest struct {
 	Name             string `json:"name" validate:"required"`
 	Description      string `json:"description"`
 	Version          string `json:"version"`
-	SuggestedCadence string `json:"suggested_cadence"`
-	EvidenceRequired string `json:"evidence_required"`
+	SuggestedCadence string `json:"suggested-cadence"`
+	EvidenceRequired string `json:"evidence-required"`
 }
 
 type UpdateWorkflowDefinitionRequest struct {
 	Name             *string `json:"name"`
 	Description      *string `json:"description"`
 	Version          *string `json:"version"`
-	SuggestedCadence *string `json:"suggested_cadence"`
-	EvidenceRequired *string `json:"evidence_required"`
+	SuggestedCadence *string `json:"suggested-cadence"`
+	EvidenceRequired *string `json:"evidence-required"`
 }
 
 type WorkflowDefinitionResponse struct {

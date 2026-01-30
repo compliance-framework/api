@@ -12,8 +12,8 @@ import (
 // Replaces the original ControlMapping to better reflect the relationship nature
 type ControlRelationship struct {
 	relational.UUIDModel
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	CreatedAt time.Time      `json:"created-at"`
+	UpdatedAt time.Time      `json:"updated-at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 
 	// Control Information

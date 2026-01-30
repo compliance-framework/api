@@ -38,10 +38,11 @@ func TestControlRelationshipHandler_Create(t *testing.T) {
 	require.NoError(t, db.Create(workflowDef).Error)
 
 	t.Run("Success", func(t *testing.T) {
+		catalog := uuid.New()
 		reqBody := CreateControlRelationshipRequest{
 			WorkflowDefinitionID: workflowDef.ID,
 			ControlID:            "AC-2",
-			ControlSource:        "NIST 800-53",
+			CatalogID:            catalog.String(),
 			RelationshipType:     "satisfies",
 			Strength:             "primary",
 		}

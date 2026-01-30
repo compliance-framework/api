@@ -38,7 +38,7 @@ type UpdateStepStatusRequest struct {
 }
 
 type SubmitEvidenceRequest struct {
-	EvidenceID *uuid.UUID `json:"evidence_id" validate:"required"`
+	EvidenceID *uuid.UUID `json:"evidence-id" validate:"required"`
 	Notes      string     `json:"notes"`
 }
 

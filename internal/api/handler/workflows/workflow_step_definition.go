@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,6 +16,73 @@ import (
 type WorkflowStepDefinitionHandler struct {
 	sugar   *zap.SugaredLogger
 	service *workflows.WorkflowStepDefinitionService
+}
+
+func (h *WorkflowStepDefinitionHandler) updateStepDependencies(stepID *uuid.UUID, desired []string) (int, error) {
+	if stepID == nil {
+		return http.StatusInternalServerError, fmt.Errorf("step id cannot be nil")
+	}
+
+	if desired == nil {
+		desired = []string{}
+	}
+
+	desiredMap := make(map[string]*uuid.UUID)
+	for _, depIDStr := range desired {
+		depUUID, err := uuid.Parse(depIDStr)
+		if err != nil {
+			return http.StatusBadRequest, fmt.Errorf("invalid dependency id: %s", depIDStr)
+		}
+		if depUUID.String() == stepID.String() {
+			return http.StatusBadRequest, fmt.Errorf("step cannot depend on itself")
+		}
+		depCopy := depUUID
+		desiredMap[depUUID.String()] = &depCopy
+	}
+
+	currentDeps, err := h.service.GetDependencies(stepID)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	currentMap := make(map[string]*uuid.UUID)
+	for _, dep := range currentDeps {
+		if dep.ID == nil {
+			continue
+		}
+		depIDStr := dep.ID.String()
+		depCopy := *dep.ID
+		currentMap[depIDStr] = &depCopy
+		if _, ok := desiredMap[depIDStr]; !ok {
+			if err := h.service.RemoveDependency(stepID, dep.ID); err != nil {
+				return dependencyServiceErrorStatus(err), err
+			}
+		}
+	}
+
+	for depIDStr, depUUID := range desiredMap {
+		if _, exists := currentMap[depIDStr]; exists {
+			continue
+		}
+		if err := h.service.AddDependency(stepID, depUUID); err != nil {
+			return dependencyServiceErrorStatus(err), err
+		}
+	}
+
+	return http.StatusOK, nil
+}
+
+func dependencyServiceErrorStatus(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "not found") || strings.Contains(msg, "already exists") || strings.Contains(msg, "circular") || strings.Contains(msg, "does not exist") {
+		return http.StatusBadRequest
+	}
+
+	return http.StatusInternalServerError
 }
 
 func NewWorkflowStepDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowStepDefinitionHandler {
@@ -34,21 +102,22 @@ func (h *WorkflowStepDefinitionHandler) Register(api *echo.Group) {
 }
 
 type CreateWorkflowStepDefinitionRequest struct {
-	WorkflowDefinitionID *uuid.UUID `json:"workflow_definition_id" validate:"required"`
+	WorkflowDefinitionID *uuid.UUID `json:"workflow-definition-id" validate:"required"`
 	Name                 string     `json:"name" validate:"required"`
 	Description          string     `json:"description"`
-	ResponsibleRole      string     `json:"responsible_role" validate:"required"`
-	EvidenceRequired     string     `json:"evidence_required"`
-	EstimatedDuration    int        `json:"estimated_duration"`
-	DependsOn            []string   `json:"depends_on"` // Array of step IDs this step depends on
+	ResponsibleRole      string     `json:"responsible-role" validate:"required"`
+	EvidenceRequired     string     `json:"evidence-required"`
+	EstimatedDuration    int        `json:"estimated-duration"`
+	DependsOn            []string   `json:"depends-on"` // Array of step IDs this step depends on
 }
 
 type UpdateWorkflowStepDefinitionRequest struct {
-	Name              *string `json:"name"`
-	Description       *string `json:"description"`
-	ResponsibleRole   *string `json:"responsible_role"`
-	EvidenceRequired  *string `json:"evidence_required"`
-	EstimatedDuration *int    `json:"estimated_duration"`
+	Name              *string   `json:"name"`
+	Description       *string   `json:"description"`
+	ResponsibleRole   *string   `json:"responsible-role"`
+	EvidenceRequired  *string   `json:"evidence-required"`
+	EstimatedDuration *int      `json:"estimated-duration"`
+	DependsOn         *[]string `json:"depends-on"`
 }
 
 type WorkflowStepDefinitionResponse struct {
@@ -112,9 +181,13 @@ func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
 			}
 		}
 	}
-
-	h.sugar.Infow("Workflow step definition created", "id", stepDef.ID)
-	return ctx.JSON(http.StatusCreated, WorkflowStepDefinitionResponse{Data: stepDef})
+	output, err := h.service.GetByID(stepDef.ID)
+	if err != nil {
+		h.sugar.Errorw("Failed to get workflow step definition", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	h.sugar.Infow("Workflow step definition created", "id", output.ID)
+	return ctx.JSON(http.StatusCreated, WorkflowStepDefinitionResponse{Data: output})
 }
 
 // ListByWorkflowDefinition godoc
@@ -245,8 +318,23 @@ func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	h.sugar.Infow("Workflow step definition updated", "id", stepDef.ID)
-	return ctx.JSON(http.StatusOK, WorkflowStepDefinitionResponse{Data: stepDef})
+	if req.DependsOn != nil {
+		status, err := h.updateStepDependencies(stepDef.ID, *req.DependsOn)
+		if err != nil {
+			h.sugar.Errorw("Failed to update workflow step dependencies", "error", err, "step_id", stepDef.ID)
+			return ctx.JSON(status, api.NewError(err))
+		}
+	}
+
+	// Reload step definition to return fresh relationships
+	updatedStepDef, err := h.service.GetByID(&id)
+	if err != nil {
+		h.sugar.Errorw("Failed to reload workflow step definition", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	h.sugar.Infow("Workflow step definition updated", "id", updatedStepDef.ID)
+	return ctx.JSON(http.StatusOK, WorkflowStepDefinitionResponse{Data: updatedStepDef})
 }
 
 // Delete godoc

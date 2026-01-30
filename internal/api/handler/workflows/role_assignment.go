@@ -36,16 +36,16 @@ func (h *RoleAssignmentHandler) Register(api *echo.Group) {
 }
 
 type CreateRoleAssignmentRequest struct {
-	WorkflowInstanceID *uuid.UUID `json:"workflow_instance_id" validate:"required"`
-	RoleName           string     `json:"role_name" validate:"required"`
-	AssignedToType     string     `json:"assigned_to_type" validate:"required"`
-	AssignedToID       string     `json:"assigned_to_id" validate:"required"`
-	IsActive           *bool      `json:"is_active"`
+	WorkflowInstanceID *uuid.UUID `json:"workflow-instance-id" validate:"required"`
+	RoleName           string     `json:"role-name" validate:"required"`
+	AssignedToType     string     `json:"assigned-to-type" validate:"required"`
+	AssignedToID       string     `json:"assigned-to-id" validate:"required"`
+	IsActive           *bool      `json:"is-active"`
 }
 
 type UpdateRoleAssignmentRequest struct {
-	AssignedToType *string `json:"assigned_to_type"`
-	AssignedToID   *string `json:"assigned_to_id"`
+	AssignedToType *string `json:"assigned-to-type"`
+	AssignedToID   *string `json:"assigned-to-id"`
 }
 
 type RoleAssignmentResponse struct {

@@ -34,20 +34,19 @@ func (h *WorkflowInstanceHandler) Register(api *echo.Group) {
 }
 
 type CreateWorkflowInstanceRequest struct {
-	WorkflowDefinitionID *uuid.UUID `json:"workflow_definition_id" validate:"required"`
+	WorkflowDefinitionID *uuid.UUID `json:"workflow-definition-id" validate:"required"`
 	Name                 string     `json:"name" validate:"required"`
 	Description          string     `json:"description"`
-	SystemName           string     `json:"system_name" validate:"required"`
+	SystemSecurityPlanID string     `json:"system-id" validate:"required"`
 	Cadence              string     `json:"cadence"`
-	IsActive             *bool      `json:"is_active"`
+	IsActive             *bool      `json:"is-active"`
 }
 
 type UpdateWorkflowInstanceRequest struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
-	SystemName  *string `json:"system_name"`
 	Cadence     *string `json:"cadence"`
-	IsActive    *bool   `json:"is_active"`
+	IsActive    *bool   `json:"is-active"`
 }
 
 type WorkflowInstanceResponse struct {
@@ -83,12 +82,16 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 		h.sugar.Errorw("Failed to validate request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
+	systemId, err := uuid.Parse(req.SystemSecurityPlanID)
+	if err != nil {
+		h.sugar.Errorw("Failed to parse system security plan ID", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: req.WorkflowDefinitionID,
 		Name:                 req.Name,
 		Description:          req.Description,
-		SystemName:           req.SystemName,
+		SystemSecurityPlanID: &systemId,
 		Cadence:              req.Cadence,
 		IsActive:             true, // Default to active
 	}
@@ -113,7 +116,7 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 //	@Tags			Workflow Instances
 //	@Produce		json
 //	@Param			workflow_definition_id	query		string	false	"Filter by Workflow Definition ID"
-//	@Param			system_name				query		string	false	"Filter by System Name"
+//	@Param			system_security_plan_id	query		string	false	"Filter by System Security Plan ID"
 //	@Param			is_active				query		bool	false	"Filter by Active Status"
 //	@Success		200						{object}	WorkflowInstanceListResponse
 //	@Failure		401						{object}	api.Error
@@ -122,7 +125,7 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 //	@Router			/workflows/instances [get]
 func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 	workflowDefIDStr := ctx.QueryParam("workflow_definition_id")
-	systemName := ctx.QueryParam("system_name")
+	systemSecurityPlanIDStr := ctx.QueryParam("system_security_plan_id")
 	isActiveStr := ctx.QueryParam("is_active")
 
 	var instances []workflows.WorkflowInstance
@@ -138,8 +141,13 @@ func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 		}
 		filters["workflow_definition_id"] = workflowDefID
 	}
-	if systemName != "" {
-		filters["system_name"] = systemName
+	if systemSecurityPlanIDStr != "" {
+		systemSecurityPlanID, parseErr := uuid.Parse(systemSecurityPlanIDStr)
+		if parseErr != nil {
+			h.sugar.Errorw("Invalid system security plan ID", "error", parseErr)
+			return ctx.JSON(http.StatusBadRequest, api.NewError(parseErr))
+		}
+		filters["system_security_plan_id"] = systemSecurityPlanID
 	}
 
 	instances, _, err = h.service.GetAll(1000, 0, filters)
@@ -242,9 +250,6 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 	}
 	if req.Description != nil {
 		instance.Description = *req.Description
-	}
-	if req.SystemName != nil {
-		instance.SystemName = *req.SystemName
 	}
 	if req.Cadence != nil {
 		instance.Cadence = *req.Cadence

@@ -36,10 +36,11 @@ func TestStepExecutionHandler_List(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -99,11 +100,11 @@ func TestStepExecutionHandler_Get(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -170,10 +171,11 @@ func TestStepExecutionHandler_UpdateStatus(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -234,11 +236,11 @@ func TestStepExecutionHandler_SubmitEvidence(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -298,10 +300,11 @@ func TestStepExecutionHandler_Fail(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 

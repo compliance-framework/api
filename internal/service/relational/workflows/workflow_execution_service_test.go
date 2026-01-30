@@ -691,11 +691,11 @@ func TestWorkflowExecutionService_Integration(t *testing.T) {
 	if err := db.Create(step2).Error; err != nil {
 		t.Fatalf("Failed to create step 2: %v", err)
 	}
-
+	sysId := uuid.New()
 	// Create workflow instance
 	instance := createTestWorkflowInstance(workflowDef.ID)
 	instance.Name = "Integration Test Instance"
-	instance.SystemName = "Test System"
+	instance.SystemSecurityPlanID = &sysId
 	if err := db.Create(instance).Error; err != nil {
 		t.Fatalf("Failed to create instance: %v", err)
 	}

@@ -37,9 +37,9 @@ func (h *WorkflowExecutionHandler) Register(api *echo.Group) {
 }
 
 type StartWorkflowExecutionRequest struct {
-	WorkflowInstanceID *uuid.UUID `json:"workflow_instance_id" validate:"required"`
-	TriggeredBy        string     `json:"triggered_by" validate:"required"`
-	TriggeredByID      string     `json:"triggered_by_id"`
+	WorkflowInstanceID *uuid.UUID `json:"workflow-instance-id" validate:"required"`
+	TriggeredBy        string     `json:"triggered-by" validate:"required"`
+	TriggeredByID      string     `json:"triggered-by-id"`
 }
 
 type CancelWorkflowExecutionRequest struct {

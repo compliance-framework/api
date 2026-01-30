@@ -38,7 +38,7 @@ func setupEvidenceTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func createTestWorkflowContext(t *testing.T, db *gorm.DB) (*workflows.WorkflowDefinition, *workflows.WorkflowInstance, *workflows.WorkflowExecution) {
+func createTestWorkflowContext(t *testing.T, db *gorm.DB) (*workflows.WorkflowDefinition, *workflows.WorkflowInstance, *workflows.WorkflowExecution, uuid.UUID) {
 	// Create workflow definition
 	definition := &workflows.WorkflowDefinition{
 		Name:    "Test Workflow",
@@ -47,10 +47,11 @@ func createTestWorkflowContext(t *testing.T, db *gorm.DB) (*workflows.WorkflowDe
 	require.NoError(t, db.Create(definition).Error)
 
 	// Create workflow instance
+	sspID := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: definition.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sspID,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -64,7 +65,7 @@ func createTestWorkflowContext(t *testing.T, db *gorm.DB) (*workflows.WorkflowDe
 	}
 	require.NoError(t, db.Create(execution).Error)
 
-	return definition, instance, execution
+	return definition, instance, execution, sspID
 }
 
 func TestNewEvidenceIntegration(t *testing.T) {
@@ -99,7 +100,7 @@ func TestGetOrCreateExecutionStream(t *testing.T) {
 	integration := NewEvidenceIntegration(db, logger)
 	ctx := context.Background()
 
-	definition, instance, execution := createTestWorkflowContext(t, db)
+	definition, instance, execution, sspID := createTestWorkflowContext(t, db)
 
 	t.Run("CreateNewStream", func(t *testing.T) {
 		stream, err := integration.GetOrCreateExecutionStream(ctx, execution.ID)
@@ -109,7 +110,7 @@ func TestGetOrCreateExecutionStream(t *testing.T) {
 		assert.NotEqual(t, uuid.Nil, stream.UUID)
 		assert.Contains(t, stream.Title, "Workflow Execution")
 		assert.Contains(t, stream.Description, definition.Name)
-		assert.Contains(t, stream.Description, instance.SystemName)
+		assert.Contains(t, stream.Description, sspID.String())
 
 		// Verify labels were created
 		var labels []relational.Labels
@@ -175,7 +176,7 @@ func TestGetOrCreateInstanceStream(t *testing.T) {
 	integration := NewEvidenceIntegration(db, logger)
 	ctx := context.Background()
 
-	definition, instance, _ := createTestWorkflowContext(t, db)
+	definition, instance, _, _ := createTestWorkflowContext(t, db)
 
 	t.Run("CreateNewStream", func(t *testing.T) {
 		stream, err := integration.GetOrCreateInstanceStream(ctx, instance.ID)
@@ -218,10 +219,11 @@ func TestGetOrCreateInstanceStream(t *testing.T) {
 
 	t.Run("DeterministicUUID", func(t *testing.T) {
 		// Create another instance for the same definition
+		sspID2 := uuid.New()
 		instance2 := &workflows.WorkflowInstance{
 			WorkflowDefinitionID: definition.ID,
 			Name:                 "Test Instance 2",
-			SystemName:           "test-system-2",
+			SystemSecurityPlanID: &sspID2,
 		}
 		require.NoError(t, db.Create(instance2).Error)
 
@@ -248,7 +250,7 @@ func TestAddStepCompletionEvidence(t *testing.T) {
 	integration := NewEvidenceIntegration(db, logger)
 	ctx := context.Background()
 
-	definition, _, execution := createTestWorkflowContext(t, db)
+	definition, _, execution, _ := createTestWorkflowContext(t, db)
 
 	// Create step definition
 	stepDef := &workflows.WorkflowStepDefinition{
@@ -360,7 +362,7 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 	integration := NewEvidenceIntegration(db, logger)
 	ctx := context.Background()
 
-	definition, instance, execution := createTestWorkflowContext(t, db)
+	definition, instance, execution, _ := createTestWorkflowContext(t, db)
 
 	// Mark execution as completed
 	completedTime := time.Now()
@@ -482,7 +484,7 @@ func TestGenerateStreamUUIDs(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	integration := NewEvidenceIntegration(db, logger)
 
-	definition, instance, execution := createTestWorkflowContext(t, db)
+	definition, instance, execution, _ := createTestWorkflowContext(t, db)
 
 	t.Run("ExecutionStreamUUIDIsDeterministic", func(t *testing.T) {
 		uuid1 := integration.generateExecutionStreamUUID(definition, instance, execution)
@@ -529,7 +531,7 @@ func TestBuildStreamLabels(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	integration := NewEvidenceIntegration(db, logger)
 
-	definition, instance, execution := createTestWorkflowContext(t, db)
+	definition, instance, execution, sspID := createTestWorkflowContext(t, db)
 
 	t.Run("ExecutionStreamLabels", func(t *testing.T) {
 		labels := integration.buildExecutionStreamLabels(definition, instance, execution)
@@ -547,7 +549,7 @@ func TestBuildStreamLabels(t *testing.T) {
 		assert.Equal(t, definition.Version, labelMap["workflow.definition.version"])
 		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
 		assert.Equal(t, instance.Name, labelMap["workflow.instance.name"])
-		assert.Equal(t, instance.SystemName, labelMap["workflow.instance.system"])
+		assert.Equal(t, sspID.String(), labelMap["workflow.instance.system_security_plan_id"])
 		assert.Equal(t, execution.ID.String(), labelMap["workflow.execution.id"])
 		assert.Equal(t, execution.TriggeredBy, labelMap["workflow.triggered_by"])
 	})
@@ -568,6 +570,6 @@ func TestBuildStreamLabels(t *testing.T) {
 		assert.Equal(t, definition.Version, labelMap["workflow.definition.version"])
 		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
 		assert.Equal(t, instance.Name, labelMap["workflow.instance.name"])
-		assert.Equal(t, instance.SystemName, labelMap["workflow.instance.system"])
+		assert.Equal(t, sspID.String(), labelMap["workflow.instance.system_security_plan_id"])
 	})
 }

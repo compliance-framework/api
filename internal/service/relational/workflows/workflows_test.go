@@ -2,6 +2,8 @@ package workflows
 
 import (
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // TestWorkflowEntities tests that all workflow entities can be instantiated
@@ -29,7 +31,8 @@ func TestWorkflowEntities(t *testing.T) {
 			v.TriggerType = "test"
 		case *WorkflowInstance:
 			v.Name = "Test Instance"
-			v.SystemName = "Test System"
+			uid := uuid.New()
+			v.SystemSecurityPlanID = &uid
 		case *RoleAssignment:
 			v.RoleName = "test_role"
 			v.AssignedToType = "user"

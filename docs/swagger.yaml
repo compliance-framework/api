@@ -35,13 +35,25 @@ definitions:
     type: object
   datatypes.JSONType-relational_Citation:
     type: object
+  datatypes.JSONType-relational_CombinationRule:
+    type: object
+  datatypes.JSONType-relational_FlatWithoutGrouping:
+    type: object
   datatypes.JSONType-relational_ImplementationStatus:
+    type: object
+  datatypes.JSONType-relational_ImportProfile:
     type: object
   datatypes.JSONType-relational_IncludeAll:
     type: object
   datatypes.JSONType-relational_ParameterSelection:
     type: object
+  datatypes.JSONType-relational_SecurityImpactLevel:
+    type: object
+  datatypes.JSONType-relational_Status:
+    type: object
   datatypes.JSONType-relational_SystemComponentStatus:
+    type: object
+  datatypes.JSONType-relational_SystemInformation:
     type: object
   digest.EvidenceItem:
     properties:
@@ -4211,6 +4223,35 @@ definitions:
       title:
         type: string
     type: object
+  relational.Addition:
+    properties:
+      alterationID:
+        type: string
+      by-id:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      params:
+        items:
+          $ref: '#/definitions/relational.Parameter'
+        type: array
+      parts:
+        items:
+          $ref: '#/definitions/relational.Part'
+        type: array
+      position:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      title:
+        type: string
+    type: object
   relational.Address:
     properties:
       city:
@@ -4236,6 +4277,24 @@ definitions:
     x-enum-varnames:
     - AddressTypeWork
     - AddressTypeHome
+  relational.Alteration:
+    properties:
+      adds:
+        items:
+          $ref: '#/definitions/relational.Addition'
+        type: array
+      control-id:
+        description: required
+        type: string
+      id:
+        type: string
+      modify-id:
+        type: string
+      removes:
+        items:
+          $ref: '#/definitions/relational.Removal'
+        type: array
+    type: object
   relational.AssessedControlsSelectControlById:
     properties:
       control:
@@ -4283,6 +4342,44 @@ definitions:
         description: |-
           Type represents a component, party, location, user, or inventory item.
           It will likely be updated once we can map it correctly
+        type: string
+    type: object
+  relational.AuthorizationBoundary:
+    properties:
+      description:
+        type: string
+      diagrams:
+        items:
+          $ref: '#/definitions/relational.Diagram'
+        type: array
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      systemCharacteristicsId:
+        type: string
+    type: object
+  relational.AuthorizedPrivilege:
+    properties:
+      description:
+        type: string
+      functions-performed:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      systemUserId:
+        type: string
+      title:
         type: string
     type: object
   relational.BackMatter:
@@ -4470,6 +4567,23 @@ definitions:
         description: required
         type: string
     type: object
+  relational.ControlImplementation:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      implemented-requirements:
+        items:
+          $ref: '#/definitions/relational.ImplementedRequirement'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/relational.SetParameter'
+        type: array
+      systemSecurityPlanId:
+        type: string
+    type: object
   relational.ControlImplementationResponsibility:
     properties:
       description:
@@ -4613,6 +4727,29 @@ definitions:
         description: required
         type: string
     type: object
+  relational.DataFlow:
+    properties:
+      description:
+        type: string
+      diagrams:
+        items:
+          $ref: '#/definitions/relational.Diagram'
+        type: array
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      systemCharacteristicsId:
+        type: string
+    type: object
   relational.DefinedComponent:
     properties:
       componentDefinition:
@@ -4653,6 +4790,29 @@ definitions:
         type: string
       type:
         description: required
+        type: string
+    type: object
+  relational.Diagram:
+    properties:
+      caption:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      parentID:
+        type: string
+      parentType:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
         type: string
     type: object
   relational.DocumentID:
@@ -4836,6 +4996,41 @@ definitions:
           $ref: '#/definitions/relational.ResponsibleParty'
         type: array
     type: object
+  relational.ImplementedRequirement:
+    properties:
+      by-components:
+        items:
+          $ref: '#/definitions/relational.ByComponent'
+        type: array
+      control-id:
+        type: string
+      controlImplementationId:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/relational.ResponsibleRole'
+        type: array
+      set-parameters:
+        items:
+          $ref: '#/definitions/relational.SetParameter'
+        type: array
+      statements:
+        items:
+          $ref: '#/definitions/relational.Statement'
+        type: array
+    type: object
   relational.ImplementedRequirementControlImplementation:
     properties:
       control-id:
@@ -4871,6 +5066,29 @@ definitions:
         items:
           $ref: '#/definitions/relational.ControlStatementImplementation'
         type: array
+    type: object
+  relational.Import:
+    properties:
+      exclude-controls:
+        items:
+          $ref: '#/definitions/relational.SelectControlById'
+        type: array
+      href:
+        description: |-
+          Href as per the OSCAL docs can be an absolute network path (potentially remote), relative or a URI fragment
+          for the moment to make the system's life easier, it should be a URI fragment to back-matter and try and resolve
+          back to an ingested catalog.
+        type: string
+      id:
+        type: string
+      include-all:
+        $ref: '#/definitions/datatypes.JSONType-relational_IncludeAll'
+      include-controls:
+        items:
+          $ref: '#/definitions/relational.SelectControlById'
+        type: array
+      profileID:
+        type: string
     type: object
   relational.ImportComponentDefinition:
     properties:
@@ -4946,6 +5164,29 @@ definitions:
       value:
         type: string
     type: object
+  relational.LeveragedAuthorization:
+    properties:
+      date-authorized:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      party-uuid:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      systemImplementationId:
+        type: string
+      title:
+        type: string
+    type: object
   relational.Link:
     properties:
       href:
@@ -4989,6 +5230,24 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  relational.Matching:
+    properties:
+      pattern:
+        type: string
+    type: object
+  relational.Merge:
+    properties:
+      as-is:
+        type: boolean
+      combine:
+        $ref: '#/definitions/datatypes.JSONType-relational_CombinationRule'
+      flat:
+        $ref: '#/definitions/datatypes.JSONType-relational_FlatWithoutGrouping'
+      id:
+        type: string
+      profileID:
+        type: string
     type: object
   relational.Metadata:
     properties:
@@ -5048,6 +5307,44 @@ definitions:
       title:
         type: string
       version:
+        type: string
+    type: object
+  relational.Modify:
+    properties:
+      alters:
+        items:
+          $ref: '#/definitions/relational.Alteration'
+        type: array
+      id:
+        type: string
+      profileID:
+        type: string
+      set-parameters:
+        items:
+          $ref: '#/definitions/relational.ParameterSetting'
+        type: array
+    type: object
+  relational.NetworkArchitecture:
+    properties:
+      description:
+        type: string
+      diagrams:
+        items:
+          $ref: '#/definitions/relational.Diagram'
+        type: array
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      systemCharacteristicsId:
         type: string
     type: object
   relational.Origin:
@@ -5116,6 +5413,44 @@ definitions:
     properties:
       prose:
         type: string
+    type: object
+  relational.ParameterSetting:
+    properties:
+      class:
+        type: string
+      constraints:
+        items:
+          $ref: '#/definitions/relational.ParameterConstraint'
+        type: array
+      depends-on:
+        type: string
+      guidelines:
+        items:
+          $ref: '#/definitions/relational.ParameterGuideline'
+        type: array
+      id:
+        type: string
+      label:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      modifyID:
+        type: string
+      param-id:
+        description: required
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      select:
+        $ref: '#/definitions/datatypes.JSONType-relational_ParameterSelection'
+      values:
+        items:
+          type: string
+        type: array
     type: object
   relational.Part:
     properties:
@@ -5214,6 +5549,27 @@ definitions:
     x-enum-varnames:
     - PartyTypePerson
     - PartyTypeOrganization
+  relational.Profile:
+    properties:
+      back-matter:
+        $ref: '#/definitions/relational.BackMatter'
+      controls:
+        items:
+          $ref: '#/definitions/relational.Control'
+        type: array
+      id:
+        type: string
+      imports:
+        items:
+          $ref: '#/definitions/relational.Import'
+        type: array
+      merge:
+        $ref: '#/definitions/relational.Merge'
+      metadata:
+        $ref: '#/definitions/relational.Metadata'
+      modify:
+        $ref: '#/definitions/relational.Modify'
+    type: object
   relational.Prop:
     properties:
       class:
@@ -5266,6 +5622,19 @@ definitions:
         items:
           $ref: '#/definitions/relational.ResponsibleRole'
         type: array
+    type: object
+  relational.Removal:
+    properties:
+      by-class:
+        type: string
+      by-id:
+        type: string
+      by-item-name:
+        type: string
+      by-name:
+        type: string
+      by-ns:
+        type: string
     type: object
   relational.ResourceLink:
     properties:
@@ -5446,6 +5815,25 @@ definitions:
           $ref: '#/definitions/relational.ResponsibleRole'
         type: array
     type: object
+  relational.SelectControlById:
+    properties:
+      id:
+        type: string
+      matching:
+        items:
+          $ref: '#/definitions/relational.Matching'
+        type: array
+      parentID:
+        type: string
+      parentType:
+        type: string
+      with-child-controls:
+        type: string
+      with-ids:
+        items:
+          type: string
+        type: array
+    type: object
   relational.SelectObjectiveById:
     properties:
       id:
@@ -5548,6 +5936,53 @@ definitions:
       title:
         type: string
     type: object
+  relational.SystemCharacteristics:
+    properties:
+      authorization-boundary:
+        $ref: '#/definitions/relational.AuthorizationBoundary'
+      dataFlow:
+        $ref: '#/definitions/relational.DataFlow'
+      date-authorized:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      networkArchitecture:
+        $ref: '#/definitions/relational.NetworkArchitecture'
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      responsible-parties:
+        items:
+          $ref: '#/definitions/relational.ResponsibleParty'
+        type: array
+      security-impact-level:
+        $ref: '#/definitions/datatypes.JSONType-relational_SecurityImpactLevel'
+      security-sensitivity-level:
+        type: string
+      status:
+        $ref: '#/definitions/datatypes.JSONType-relational_Status'
+      system-ids:
+        items:
+          $ref: '#/definitions/relational.SystemId'
+        type: array
+      system-information:
+        $ref: '#/definitions/datatypes.JSONType-relational_SystemInformation'
+      system-name:
+        type: string
+      system-name-short:
+        type: string
+      systemSecurityPlanId:
+        type: string
+    type: object
   relational.SystemComponent:
     properties:
       description:
@@ -5589,6 +6024,98 @@ definitions:
       title:
         type: string
       type:
+        type: string
+    type: object
+  relational.SystemId:
+    properties:
+      id:
+        type: string
+      identifier-type:
+        type: string
+    type: object
+  relational.SystemImplementation:
+    properties:
+      components:
+        items:
+          $ref: '#/definitions/relational.SystemComponent'
+        type: array
+      id:
+        type: string
+      inventory-items:
+        items:
+          $ref: '#/definitions/relational.InventoryItem'
+        type: array
+      leveraged-authorizations:
+        items:
+          $ref: '#/definitions/relational.LeveragedAuthorization'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      systemSecurityPlanId:
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/relational.SystemUser'
+        type: array
+    type: object
+  relational.SystemSecurityPlan:
+    properties:
+      back-matter:
+        $ref: '#/definitions/relational.BackMatter'
+      control-implementation:
+        $ref: '#/definitions/relational.ControlImplementation'
+      id:
+        type: string
+      import-profile:
+        $ref: '#/definitions/datatypes.JSONType-relational_ImportProfile'
+      metadata:
+        $ref: '#/definitions/relational.Metadata'
+      profile:
+        $ref: '#/definitions/relational.Profile'
+      profileID:
+        type: string
+      system-characteristics:
+        $ref: '#/definitions/relational.SystemCharacteristics'
+      system-implementation:
+        $ref: '#/definitions/relational.SystemImplementation'
+    type: object
+  relational.SystemUser:
+    properties:
+      authorized-privileges:
+        items:
+          $ref: '#/definitions/relational.AuthorizedPrivilege'
+        type: array
+      description:
+        type: string
+      id:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      remarks:
+        type: string
+      role-ids:
+        items:
+          type: string
+        type: array
+      short-name:
+        type: string
+      systemImplementationId:
+        type: string
+      title:
         type: string
     type: object
   relational.TelephoneNumber:
@@ -5722,7 +6249,7 @@ definitions:
       control_source:
         description: e.g., "NIST 800-53 Rev 5", "ISO 27001"
         type: string
-      created_at:
+      created-at:
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
@@ -5736,7 +6263,7 @@ definitions:
       strength:
         description: primary, secondary, supporting
         type: string
-      updated_at:
+      updated-at:
         type: string
       workflow_definition:
         allOf:
@@ -5760,53 +6287,54 @@ definitions:
     type: object
   workflows.CreateControlRelationshipRequest:
     properties:
-      control_id:
+      catalog-id:
         type: string
-      control_source:
+      control-id:
         type: string
       description:
         type: string
-      is_active:
+      is-active:
         type: boolean
-      relationship_type:
+      relationship-type:
+        description: If not provided - 'satisfies' is used
         type: string
       strength:
+        description: If not provided - 'primary' is used
         type: string
-      workflow_definition_id:
+      workflow-definition-id:
         type: string
     required:
-    - control_id
-    - control_source
-    - relationship_type
-    - workflow_definition_id
+    - catalog-id
+    - control-id
+    - workflow-definition-id
     type: object
   workflows.CreateRoleAssignmentRequest:
     properties:
-      assigned_to_id:
+      assigned-to-id:
         type: string
-      assigned_to_type:
+      assigned-to-type:
         type: string
-      is_active:
+      is-active:
         type: boolean
-      role_name:
+      role-name:
         type: string
-      workflow_instance_id:
+      workflow-instance-id:
         type: string
     required:
-    - assigned_to_id
-    - assigned_to_type
-    - role_name
-    - workflow_instance_id
+    - assigned-to-id
+    - assigned-to-type
+    - role-name
+    - workflow-instance-id
     type: object
   workflows.CreateWorkflowDefinitionRequest:
     properties:
       description:
         type: string
-      evidence_required:
+      evidence-required:
         type: string
       name:
         type: string
-      suggested_cadence:
+      suggested-cadence:
         type: string
       version:
         type: string
@@ -5819,42 +6347,42 @@ definitions:
         type: string
       description:
         type: string
-      is_active:
+      is-active:
         type: boolean
       name:
         type: string
-      system_name:
+      system-security-plan-id:
         type: string
-      workflow_definition_id:
+      workflow-definition-id:
         type: string
     required:
     - name
-    - system_name
-    - workflow_definition_id
+    - system-security-plan-id
+    - workflow-definition-id
     type: object
   workflows.CreateWorkflowStepDefinitionRequest:
     properties:
-      depends_on:
+      depends-on:
         description: Array of step IDs this step depends on
         items:
           type: string
         type: array
       description:
         type: string
-      estimated_duration:
+      estimated-duration:
         type: integer
-      evidence_required:
+      evidence-required:
         type: string
       name:
         type: string
-      responsible_role:
+      responsible-role:
         type: string
-      workflow_definition_id:
+      workflow-definition-id:
         type: string
     required:
     - name
-    - responsible_role
-    - workflow_definition_id
+    - responsible-role
+    - workflow-definition-id
     type: object
   workflows.FailStepRequest:
     properties:
@@ -5898,15 +6426,15 @@ definitions:
     type: object
   workflows.StartWorkflowExecutionRequest:
     properties:
-      triggered_by:
+      triggered-by:
         type: string
-      triggered_by_id:
+      triggered-by-id:
         type: string
-      workflow_instance_id:
+      workflow-instance-id:
         type: string
     required:
-    - triggered_by
-    - workflow_instance_id
+    - triggered-by
+    - workflow-instance-id
     type: object
   workflows.StepDependency:
     properties:
@@ -5925,7 +6453,7 @@ definitions:
     type: object
   workflows.StepEvidence:
     properties:
-      created_at:
+      created-at:
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
@@ -5939,15 +6467,15 @@ definitions:
       evidence_type:
         description: document, attestation, screenshot, log
         type: string
+      file-size:
+        description: File size in bytes
+        type: integer
       file_hash:
         description: SHA-256 hash of file
         type: string
       file_path:
         description: Path to stored file
         type: string
-      file_size:
-        description: File size in bytes
-        type: integer
       id:
         type: string
       metadata:
@@ -5963,12 +6491,12 @@ definitions:
       step_execution_id:
         description: Foreign Keys
         type: string
-      updated_at:
+      updated-at:
         type: string
     type: object
   workflows.StepExecution:
     properties:
-      assigned_at:
+      assigned-at:
         type: string
       assigned_to_id:
         description: User ID, group ID, or email
@@ -5976,19 +6504,19 @@ definitions:
       assigned_to_type:
         description: Assignment Information
         type: string
-      completed_at:
+      completed-at:
         type: string
-      created_at:
+      created-at:
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
-      failed_at:
+      failed-at:
         type: string
       failure_reason:
         type: string
       id:
         type: string
-      started_at:
+      started-at:
         type: string
       status:
         description: Execution Information
@@ -5997,7 +6525,7 @@ definitions:
         items:
           $ref: '#/definitions/workflows.StepEvidence'
         type: array
-      updated_at:
+      updated-at:
         type: string
       workflow_execution:
         allOf:
@@ -6044,27 +6572,27 @@ definitions:
     type: object
   workflows.SubmitEvidenceRequest:
     properties:
-      evidence_id:
+      evidence-id:
         type: string
       notes:
         type: string
     required:
-    - evidence_id
+    - evidence-id
     type: object
   workflows.UpdateControlRelationshipRequest:
     properties:
       description:
         type: string
-      relationship_type:
+      relationship-type:
         type: string
       strength:
         type: string
     type: object
   workflows.UpdateRoleAssignmentRequest:
     properties:
-      assigned_to_id:
+      assigned-to-id:
         type: string
-      assigned_to_type:
+      assigned-to-type:
         type: string
     type: object
   workflows.UpdateStepStatusRequest:
@@ -6078,11 +6606,11 @@ definitions:
     properties:
       description:
         type: string
-      evidence_required:
+      evidence-required:
         type: string
       name:
         type: string
-      suggested_cadence:
+      suggested-cadence:
         type: string
       version:
         type: string
@@ -6093,24 +6621,26 @@ definitions:
         type: string
       description:
         type: string
-      is_active:
+      is-active:
         type: boolean
       name:
-        type: string
-      system_name:
         type: string
     type: object
   workflows.UpdateWorkflowStepDefinitionRequest:
     properties:
+      depends-on:
+        items:
+          type: string
+        type: array
       description:
         type: string
-      estimated_duration:
+      estimated-duration:
         type: integer
-      evidence_required:
+      evidence-required:
         type: string
       name:
         type: string
-      responsible_role:
+      responsible-role:
         type: string
     type: object
   workflows.WorkflowDefinition:
@@ -6119,7 +6649,7 @@ definitions:
         items:
           $ref: '#/definitions/workflows.ControlRelationship'
         type: array
-      created_at:
+      created-at:
         type: string
       created_by_id:
         description: Audit Fields
@@ -6148,7 +6678,7 @@ definitions:
       suggested_cadence:
         description: Workflow Configuration
         type: string
-      updated_at:
+      updated-at:
         type: string
       updated_by_id:
         type: string
@@ -6169,22 +6699,22 @@ definitions:
     type: object
   workflows.WorkflowExecution:
     properties:
-      completed_at:
+      completed-at:
         type: string
-      created_at:
+      created-at:
         type: string
       created_by_id:
         description: Audit Fields
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
-      failed_at:
+      failed-at:
         type: string
       failure_reason:
         type: string
       id:
         type: string
-      started_at:
+      started-at:
         type: string
       status:
         description: Execution Information
@@ -6199,7 +6729,7 @@ definitions:
       triggered_by_id:
         description: User ID or system identifier
         type: string
-      updated_at:
+      updated-at:
         type: string
       updated_by_id:
         type: string
@@ -6236,9 +6766,9 @@ definitions:
   workflows.WorkflowInstance:
     properties:
       cadence:
-        description: daily, weekly, monthly, quarterly, annually
+        description: Instance Configuration
         type: string
-      created_at:
+      created-at:
         type: string
       created_by_id:
         description: Audit Fields
@@ -6255,29 +6785,30 @@ definitions:
         type: string
       is_active:
         type: boolean
-      last_executed_at:
+      last-executed-at:
         type: string
       name:
         description: Basic Information
         type: string
-      next_scheduled_at:
+      next-scheduled-at:
         description: Scheduling
         type: string
       role_assignments:
         items:
           $ref: '#/definitions/workflows.RoleAssignment'
         type: array
-      system_name:
-        description: Instance Configuration
+      system_id:
         type: string
-      updated_at:
+      system_security_plan:
+        allOf:
+        - $ref: '#/definitions/relational.SystemSecurityPlan'
+        description: Relationships
+      updated-at:
         type: string
       updated_by_id:
         type: string
       workflow_definition:
-        allOf:
-        - $ref: '#/definitions/workflows.WorkflowDefinition'
-        description: Relationships
+        $ref: '#/definitions/workflows.WorkflowDefinition'
       workflow_definition_id:
         description: Foreign Keys
         type: string
@@ -6296,7 +6827,7 @@ definitions:
     type: object
   workflows.WorkflowStepDefinition:
     properties:
-      created_at:
+      created-at:
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
@@ -6332,7 +6863,7 @@ definitions:
         items:
           $ref: '#/definitions/workflows.StepTrigger'
         type: array
-      updated_at:
+      updated-at:
         type: string
       workflow_definition:
         allOf:
@@ -10597,6 +11128,43 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update a Catalog
+      tags:
+      - Catalog
+  /oscal/catalogs/{id}/all-controls:
+    get:
+      description: Retrieves the top-level controls for a given Catalog.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-oscalTypes_1_1_3_Control'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List controls for a Catalog
       tags:
       - Catalog
   /oscal/catalogs/{id}/back-matter:
@@ -17891,9 +18459,9 @@ paths:
         in: query
         name: workflow_definition_id
         type: string
-      - description: Filter by System Name
+      - description: Filter by System Security Plan ID
         in: query
-        name: system_name
+        name: system_security_plan_id
         type: string
       - description: Filter by Active Status
         in: query

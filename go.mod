@@ -20,6 +20,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/riverqueue/river v0.30.1
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.30.1
+	github.com/riverqueue/river/rivertype v0.30.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.10.2
@@ -139,7 +140,6 @@ require (
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/riverqueue/river/riverdriver v0.30.1 // indirect
 	github.com/riverqueue/river/rivershared v0.30.1 // indirect
-	github.com/riverqueue/river/rivertype v0.30.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect

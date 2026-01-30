@@ -48,10 +48,10 @@ func TestWorkflowInstanceService_Create(t *testing.T) {
 
 	// Test with empty system name
 	invalidInstance = createTestWorkflowInstance(workflowDef.ID)
-	invalidInstance.SystemName = ""
+	invalidInstance.SystemSecurityPlanID = nil
 	err = service.Create(invalidInstance)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "system name is required")
+	assert.Contains(t, err.Error(), "system security plan id is required")
 
 	// Test with nil workflow definition ID
 	invalidInstance = createTestWorkflowInstance(nil)
@@ -117,10 +117,11 @@ func TestWorkflowInstanceService_GetAll(t *testing.T) {
 		createTestWorkflowInstance(workflowDef.ID),
 		createTestWorkflowInstance(workflowDef.ID),
 	}
+	sysId := uuid.New()
 
 	for i, instance := range instances {
 		instance.Name = "Instance " + string(rune('A'+i))
-		instance.SystemName = "System " + string(rune('X'+i))
+		instance.SystemSecurityPlanID = &sysId
 		if err := db.Create(instance).Error; err != nil {
 			t.Fatalf("Failed to create test workflow instance %d: %v", i, err)
 		}
@@ -140,14 +141,14 @@ func TestWorkflowInstanceService_GetAll(t *testing.T) {
 
 	// Test with filters
 	filters := map[string]interface{}{
-		"system_name": "System X",
-		"is_active":   true,
+		"system_security_plan_id": &sysId,
+		"is_active":               true,
 	}
 	retrieved, total, err = service.GetAll(10, 0, filters)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), total)
+	assert.Equal(t, int64(3), total)
 	assert.Len(t, retrieved, 1)
-	assert.Equal(t, "System X", retrieved[0].SystemName)
+	assert.Equal(t, sysId, *retrieved[0].SystemSecurityPlanID)
 
 	// Test with workflow definition filter
 	filters = map[string]interface{}{
@@ -211,14 +212,14 @@ func TestWorkflowInstanceService_Update(t *testing.T) {
 	if err := db.Create(instance).Error; err != nil {
 		t.Fatalf("Failed to create test workflow instance: %v", err)
 	}
-
+	sysId := uuid.New()
 	// Test successful update
 	updates := &WorkflowInstance{
 		UUIDModel:            relational.UUIDModel{ID: instance.ID},
 		WorkflowDefinitionID: instance.WorkflowDefinitionID,
 		Name:                 "Updated Instance",
 		Description:          "Updated description",
-		SystemName:           "Updated System",
+		SystemSecurityPlanID: &sysId,
 		Cadence:              "weekly",
 	}
 	err := service.Update(instance.ID, updates)
@@ -229,7 +230,7 @@ func TestWorkflowInstanceService_Update(t *testing.T) {
 	err = db.First(&updated, instance.ID).Error
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Instance", updated.Name)
-	assert.Equal(t, "Updated System", updated.SystemName)
+	assert.Equal(t, sysId, *updated.SystemSecurityPlanID)
 	assert.Equal(t, "weekly", updated.Cadence)
 
 	// Test with nil updates
@@ -243,7 +244,7 @@ func TestWorkflowInstanceService_Update(t *testing.T) {
 		UUIDModel:            relational.UUIDModel{ID: &nonExistentID},
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Updated Instance",
-		SystemName:           "Updated System",
+		SystemSecurityPlanID: &sysId,
 	}
 	err = service.Update(&nonExistentID, updatesWithNonExistentID)
 	assert.Error(t, err)
@@ -254,8 +255,8 @@ func TestWorkflowInstanceService_Update(t *testing.T) {
 	invalidUpdates := &WorkflowInstance{
 		UUIDModel:            relational.UUIDModel{ID: instance.ID},
 		WorkflowDefinitionID: instance.WorkflowDefinitionID,
-		Name:                 "", // Empty name should fail validation
-		SystemName:           "", // Empty system name should also fail validation
+		Name:                 "",  // Empty name should fail validation
+		SystemSecurityPlanID: nil, // Empty system name should also fail validation
 	}
 	err = service.Update(instance.ID, invalidUpdates)
 	assert.Error(t, err)
@@ -484,8 +485,8 @@ func TestWorkflowInstanceService_GetDueInstances(t *testing.T) {
 	assert.Equal(t, dueInstance.ID, dueInstances[0].ID, "Expected the due instance to be returned")
 }
 
-// TestWorkflowInstanceService_GetBySystemName tests the GetBySystemName method
-func TestWorkflowInstanceService_GetBySystemName(t *testing.T) {
+// TestWorkflowInstanceService_GetBySystemId tests the GetBySystemId method
+func TestWorkflowInstanceService_GetBySystemId(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewWorkflowInstanceService(db)
 
@@ -494,16 +495,17 @@ func TestWorkflowInstanceService_GetBySystemName(t *testing.T) {
 	if err := db.Create(workflowDef).Error; err != nil {
 		t.Fatalf("Failed to create test workflow definition: %v", err)
 	}
-
+	sysId1 := uuid.New()
+	sysId2 := uuid.New()
 	// Create instances for different systems
 	instance1 := createTestWorkflowInstance(workflowDef.ID)
-	instance1.SystemName = "System A"
+	instance1.SystemSecurityPlanID = &sysId1
 
 	instance2 := createTestWorkflowInstance(workflowDef.ID)
-	instance2.SystemName = "System B"
+	instance2.SystemSecurityPlanID = &sysId2
 
 	instance3 := createTestWorkflowInstance(workflowDef.ID)
-	instance3.SystemName = "System A" // Same system as instance1
+	instance3.SystemSecurityPlanID = &sysId1
 
 	if err := db.Create(instance1).Error; err != nil {
 		t.Fatalf("Failed to create instance 1: %v", err)
@@ -515,18 +517,19 @@ func TestWorkflowInstanceService_GetBySystemName(t *testing.T) {
 		t.Fatalf("Failed to create instance 3: %v", err)
 	}
 
-	// Test getting instances by system name
-	instances, err := service.GetBySystemName("System A")
+	// Test getting instances by system security plan ID
+	instances, err := service.GetBySystemId(&sysId1)
 	require.NoError(t, err)
 	assert.Len(t, instances, 2)
 
-	// Verify system names
+	// Verify system security plan IDs
 	for _, instance := range instances {
-		assert.Equal(t, "System A", instance.SystemName)
+		assert.Equal(t, sysId1, *instance.SystemSecurityPlanID)
 	}
 
-	// Test with non-existent system name
-	instances, err = service.GetBySystemName("Non-existent System")
+	// Test with non-existent system security plan ID
+	unexisting := uuid.New()
+	instances, err = service.GetBySystemId(&unexisting)
 	require.NoError(t, err)
 	assert.Len(t, instances, 0)
 }
@@ -566,18 +569,10 @@ func TestWorkflowInstanceService_ValidateInstance(t *testing.T) {
 	// Test empty system name
 	testUUID4 := uuid.New()
 	invalidInstance = createTestWorkflowInstance(&testUUID4)
-	invalidInstance.SystemName = ""
+	invalidInstance.SystemSecurityPlanID = nil
 	err = service.ValidateInstance(invalidInstance)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "system name is required")
-
-	// Test system name too long
-	testUUID5 := uuid.New()
-	invalidInstance = createTestWorkflowInstance(&testUUID5)
-	invalidInstance.SystemName = string(make([]byte, MaxNameLength+1))
-	err = service.ValidateInstance(invalidInstance)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "system name cannot exceed")
 
 	// Test nil workflow definition ID
 	invalidInstance = createTestWorkflowInstance(nil)
@@ -648,7 +643,6 @@ func TestWorkflowInstanceService_Integration(t *testing.T) {
 	// Create instances with role assignments
 	instance := createTestWorkflowInstance(workflowDef.ID)
 	instance.Name = "Production Instance"
-	instance.SystemName = "Production System"
 	instance.Cadence = "monthly"
 	instance.IsActive = true
 
@@ -675,7 +669,6 @@ func TestWorkflowInstanceService_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, retrieved)
 	assert.Equal(t, "Production Instance", retrieved.Name)
-	assert.Equal(t, "Production System", retrieved.SystemName)
 	assert.NotNil(t, retrieved.WorkflowDefinition)
 	assert.Len(t, retrieved.RoleAssignments, 2)
 

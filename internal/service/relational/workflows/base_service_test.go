@@ -60,11 +60,12 @@ func createTestWorkflowStepDefinition(workflowDefID *uuid.UUID) *WorkflowStepDef
 // createTestWorkflowInstance creates a test workflow instance
 func createTestWorkflowInstance(workflowDefID *uuid.UUID) *WorkflowInstance {
 	id := uuid.New()
+	sysId := uuid.New()
 	return &WorkflowInstance{
 		UUIDModel:            relational.UUIDModel{ID: &id},
 		WorkflowDefinitionID: workflowDefID,
 		Name:                 "Test Workflow Instance",
-		SystemName:           "Test System",
+		SystemSecurityPlanID: &sysId,
 		Cadence:              "monthly",
 		NextScheduledAt:      &time.Time{},
 	}

@@ -89,10 +89,11 @@ func (s *WorkflowStepDefinitionService) Update(id *uuid.UUID, updates *WorkflowS
 
 // Delete soft deletes a workflow step definition
 func (s *WorkflowStepDefinitionService) Delete(id *uuid.UUID) error {
-	// Check if step has dependent steps
+	// Check if step has active dependent steps
 	var dependentCount int64
 	if err := s.db.Model(&StepDependency{}).
-		Where("depends_on_step_id = ?", id).
+		Joins("JOIN workflow_step_definitions ON workflow_step_definitions.id = step_dependencies.workflow_step_definition_id").
+		Where("step_dependencies.depends_on_step_id = ? AND workflow_step_definitions.deleted_at IS NULL", id).
 		Count(&dependentCount).Error; err != nil {
 		return err
 	}

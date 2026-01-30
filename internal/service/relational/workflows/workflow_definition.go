@@ -12,8 +12,8 @@ import (
 // Created centrally by Compliance teams and maps to multiple controls across catalogs
 type WorkflowDefinition struct {
 	relational.UUIDModel
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	CreatedAt time.Time      `json:"created-at"`
+	UpdatedAt time.Time      `json:"updated-at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 
 	// Basic Information

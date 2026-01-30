@@ -36,11 +36,11 @@ func TestRoleAssignmentHandler_Create(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -82,11 +82,11 @@ func TestRoleAssignmentHandler_List(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -157,11 +157,11 @@ func TestRoleAssignmentHandler_Get(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -213,11 +213,11 @@ func TestRoleAssignmentHandler_Update(t *testing.T) {
 		Version: "1.0",
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
-
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -266,10 +266,11 @@ func TestRoleAssignmentHandler_Delete(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -304,10 +305,11 @@ func TestRoleAssignmentHandler_Activate(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -348,10 +350,11 @@ func TestRoleAssignmentHandler_Deactivate(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	sysId := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sysId,
 	}
 	require.NoError(t, db.Create(instance).Error)
 

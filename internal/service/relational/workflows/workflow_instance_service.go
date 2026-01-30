@@ -63,8 +63,8 @@ func (s *WorkflowInstanceService) GetAll(limit, offset int, filters map[string]i
 	if workflowDefID, ok := filters["workflow_definition_id"]; ok {
 		query = query.Where("workflow_definition_id = ?", workflowDefID)
 	}
-	if systemName, ok := filters["system_name"]; ok {
-		query = query.Where("system_name LIKE ?", "%"+systemName.(string)+"%")
+	if systemSecurityPlanID, ok := filters["system_security_plan_id"]; ok {
+		query = query.Where("system_security_plan_id = ?", systemSecurityPlanID)
 	}
 	if isActive, ok := filters["is_active"]; ok {
 		query = query.Where("is_active = ?", isActive)
@@ -167,8 +167,7 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 	return CombineErrors(
 		ValidateStringRequired(instance.Name, "instance name"),
 		ValidateStringLength(instance.Name, "instance name", MaxNameLength),
-		ValidateStringRequired(instance.SystemName, "system name"),
-		ValidateStringLength(instance.SystemName, "system name", MaxNameLength),
+		ValidateUUIDRequired(instance.SystemSecurityPlanID, "system security plan ID"),
 		ValidateUUIDRequired(instance.WorkflowDefinitionID, "workflow definition ID"),
 		ValidateCadence(instance.Cadence),
 	)
@@ -192,10 +191,10 @@ func (s *WorkflowInstanceService) calculateNextSchedule(from time.Time, cadence 
 	}
 }
 
-// GetBySystemName retrieves all instances for a specific system
-func (s *WorkflowInstanceService) GetBySystemName(systemName string) ([]WorkflowInstance, error) {
+// GetBySystemId retrieves all instances for a specific system
+func (s *WorkflowInstanceService) GetBySystemId(systemId *uuid.UUID) ([]WorkflowInstance, error) {
 	var instances []WorkflowInstance
-	err := s.db.Where("system_name = ?", systemName).
+	err := s.db.Where("system_security_plan_id = ?", systemId).
 		Preload("WorkflowDefinition").
 		Preload("RoleAssignments").
 		Find(&instances).Error

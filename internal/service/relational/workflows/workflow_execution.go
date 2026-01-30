@@ -11,15 +11,15 @@ import (
 // WorkflowExecution represents a specific run of a workflow instance
 type WorkflowExecution struct {
 	relational.UUIDModel
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	CreatedAt time.Time      `json:"created-at"`
+	UpdatedAt time.Time      `json:"updated-at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 
 	// Execution Information
 	Status        string     `gorm:"size:50;index:idx_workflow_exec_instance_status,priority:2;index:idx_workflow_exec_status_created" json:"status"` // pending, in_progress, completed, failed, cancelled
-	StartedAt     *time.Time `json:"started_at,omitempty"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty"`
-	FailedAt      *time.Time `json:"failed_at,omitempty"`
+	StartedAt     *time.Time `json:"started-at,omitempty"`
+	CompletedAt   *time.Time `json:"completed-at,omitempty"`
+	FailedAt      *time.Time `json:"failed-at,omitempty"`
 	FailureReason string     `gorm:"type:text" json:"failure_reason,omitempty"`
 
 	// Execution Context
@@ -46,21 +46,21 @@ func (WorkflowExecution) TableName() string {
 // StepExecution represents the execution of a specific step within a workflow execution
 type StepExecution struct {
 	relational.UUIDModel
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	CreatedAt time.Time      `json:"created-at"`
+	UpdatedAt time.Time      `json:"updated-at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 
 	// Execution Information
 	Status        string     `gorm:"size:50;index:idx_step_exec_workflow_status,priority:2;index:idx_step_exec_step_status,priority:2" json:"status"` // pending, blocked, in_progress, completed, failed, skipped
-	StartedAt     *time.Time `json:"started_at,omitempty"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty"`
-	FailedAt      *time.Time `json:"failed_at,omitempty"`
+	StartedAt     *time.Time `json:"started-at,omitempty"`
+	CompletedAt   *time.Time `json:"completed-at,omitempty"`
+	FailedAt      *time.Time `json:"failed-at,omitempty"`
 	FailureReason string     `gorm:"type:text" json:"failure_reason,omitempty"`
 
 	// Assignment Information
 	AssignedToType string     `gorm:"size:20" json:"assigned_to_type"` // user, group, email
 	AssignedToID   string     `gorm:"size:255" json:"assigned_to_id"`  // User ID, group ID, or email
-	AssignedAt     *time.Time `json:"assigned_at,omitempty"`
+	AssignedAt     *time.Time `json:"assigned-at,omitempty"`
 
 	// Foreign Keys
 	WorkflowExecutionID      *uuid.UUID `gorm:"not null;index;index:idx_step_exec_workflow_status,priority:1" json:"workflow_execution_id"`
@@ -80,8 +80,8 @@ func (StepExecution) TableName() string {
 // StepEvidence represents evidence submitted for a specific step execution
 type StepEvidence struct {
 	relational.UUIDModel
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	CreatedAt time.Time      `json:"created-at"`
+	UpdatedAt time.Time      `json:"updated-at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 
 	// Evidence Information
@@ -89,7 +89,7 @@ type StepEvidence struct {
 	Description  string `gorm:"type:text" json:"description"`
 	EvidenceType string `gorm:"size:50" json:"evidence_type"` // document, attestation, screenshot, log
 	FilePath     string `gorm:"size:500" json:"file_path"`    // Path to stored file
-	FileSize     int64  `json:"file_size"`                    // File size in bytes
+	FileSize     int64  `json:"file-size"`                    // File size in bytes
 	FileHash     string `gorm:"size:64" json:"file_hash"`     // SHA-256 hash of file
 	Metadata     string `gorm:"type:text" json:"metadata"`    // JSON metadata
 

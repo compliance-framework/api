@@ -125,11 +125,12 @@ func createTestWorkflow(t *testing.T, db *gorm.DB) (*workflows.WorkflowDefinitio
 // createTestWorkflowInstance creates a test workflow instance
 func createTestWorkflowInstance(t *testing.T, db *gorm.DB, workflowDef *workflows.WorkflowDefinition) *workflows.WorkflowInstance {
 	instanceID := uuid.New()
+	sspID := uuid.New()
 	instance := &workflows.WorkflowInstance{
 		UUIDModel:            relational.UUIDModel{ID: &instanceID},
 		Name:                 "Test Instance",
 		Description:          "Test workflow instance",
-		SystemName:           "Test System",
+		SystemSecurityPlanID: &sspID,
 		Cadence:              "weekly",
 		IsActive:             true,
 		WorkflowDefinitionID: workflowDef.ID,

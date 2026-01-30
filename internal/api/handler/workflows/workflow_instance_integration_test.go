@@ -37,12 +37,15 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP ID (we don't need to create the actual SSP for these tests)
+	sysId := uuid.New()
+
 	t.Run("Success", func(t *testing.T) {
 		reqBody := CreateWorkflowInstanceRequest{
 			WorkflowDefinitionID: workflowDef.ID,
 			Name:                 "Production Security Assessment",
 			Description:          "Security assessment for production environment",
-			SystemName:           "production-web-app",
+			SystemSecurityPlanID: sysId.String(),
 			Cadence:              "quarterly",
 		}
 
@@ -64,7 +67,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		assert.NotNil(t, response.Data)
 		assert.NotNil(t, response.Data.ID)
 		assert.Equal(t, "Production Security Assessment", response.Data.Name)
-		assert.Equal(t, "production-web-app", response.Data.SystemName)
+		assert.Equal(t, sysId, *response.Data.SystemSecurityPlanID)
 		assert.Equal(t, "quarterly", response.Data.Cadence)
 		assert.True(t, response.Data.IsActive)
 	})
@@ -72,7 +75,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
 		reqBody := CreateWorkflowInstanceRequest{
 			WorkflowDefinitionID: workflowDef.ID,
-			SystemName:           "test-system",
+			SystemSecurityPlanID: sysId.String(),
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -93,7 +96,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		reqBody := CreateWorkflowInstanceRequest{
 			WorkflowDefinitionID: workflowDef.ID,
 			Name:                 "Inactive Instance",
-			SystemName:           "test-system",
+			SystemSecurityPlanID: sysId.String(),
 			IsActive:             &isActive,
 		}
 
@@ -112,7 +115,6 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		var response WorkflowInstanceResponse
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		require.NoError(t, err)
-		// Note: Service may override IsActive based on validation rules
 		assert.NotNil(t, response.Data)
 	})
 }
@@ -127,16 +129,20 @@ func TestWorkflowInstanceHandler_List(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP IDs (we don't need to create the actual SSPs for these tests)
+	ssp1ID := uuid.New()
+	ssp2ID := uuid.New()
+
 	instance1 := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Instance 1",
-		SystemName:           "system-a",
+		SystemSecurityPlanID: &ssp1ID,
 		IsActive:             true,
 	}
 	instance2 := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Instance 2",
-		SystemName:           "system-b",
+		SystemSecurityPlanID: &ssp2ID,
 		IsActive:             true,
 	}
 
@@ -176,8 +182,8 @@ func TestWorkflowInstanceHandler_List(t *testing.T) {
 		assert.Len(t, response.Data, 2)
 	})
 
-	t.Run("FilterBySystemName", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/workflows/instances?system_name=system-a", nil)
+	t.Run("FilterBySystemSecurityPlanID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/instances?system_security_plan_id="+ssp1ID.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
@@ -189,7 +195,7 @@ func TestWorkflowInstanceHandler_List(t *testing.T) {
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response.Data, 1)
-		assert.Equal(t, "system-a", response.Data[0].SystemName)
+		assert.Equal(t, ssp1ID, *response.Data[0].SystemSecurityPlanID)
 	})
 
 	t.Run("FilterByIsActive", func(t *testing.T) {
@@ -219,10 +225,13 @@ func TestWorkflowInstanceHandler_Get(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP ID (we don't need to create the actual SSP for this test)
+	sspID := uuid.New()
+
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sspID,
 		Cadence:              "monthly",
 		IsActive:             true,
 	}
@@ -271,10 +280,13 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP ID (we don't need to create the actual SSP for this test)
+	sspID := uuid.New()
+
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Original Name",
-		SystemName:           "original-system",
+		SystemSecurityPlanID: &sspID,
 		Cadence:              "monthly",
 		IsActive:             true,
 	}
@@ -307,7 +319,7 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Name", response.Data.Name)
 		assert.Equal(t, "quarterly", response.Data.Cadence)
-		assert.Equal(t, "original-system", response.Data.SystemName) // Unchanged
+		assert.Equal(t, sspID, *response.Data.SystemSecurityPlanID) // Unchanged
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -343,10 +355,13 @@ func TestWorkflowInstanceHandler_Delete(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP ID (we don't need to create the actual SSP for this test)
+	sspID := uuid.New()
+
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "To Be Deleted",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sspID,
 	}
 	require.NoError(t, db.Create(instance).Error)
 
@@ -391,10 +406,13 @@ func TestWorkflowInstanceHandler_Activate(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP ID (we don't need to create the actual SSP for this test)
+	sspID := uuid.New()
+
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sspID,
 		IsActive:             false,
 	}
 	require.NoError(t, db.Create(instance).Error)
@@ -440,10 +458,13 @@ func TestWorkflowInstanceHandler_Deactivate(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create SSP ID (we don't need to create the actual SSP for this test)
+	sspID := uuid.New()
+
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: workflowDef.ID,
 		Name:                 "Test Instance",
-		SystemName:           "test-system",
+		SystemSecurityPlanID: &sspID,
 		IsActive:             true,
 	}
 	require.NoError(t, db.Create(instance).Error)

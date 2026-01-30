@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -36,17 +37,17 @@ func (h *ControlRelationshipHandler) Register(api *echo.Group) {
 }
 
 type CreateControlRelationshipRequest struct {
-	WorkflowDefinitionID *uuid.UUID `json:"workflow_definition_id" validate:"required"`
-	ControlID            string     `json:"control_id" validate:"required"`
-	ControlSource        string     `json:"control_source" validate:"required"`
-	RelationshipType     string     `json:"relationship_type" validate:"required"`
-	Strength             string     `json:"strength"`
+	WorkflowDefinitionID *uuid.UUID `json:"workflow-definition-id" validate:"required"`
+	ControlID            string     `json:"control-id" validate:"required"`
+	CatalogID            string     `json:"catalog-id" validate:"required"`
+	RelationshipType     string     `json:"relationship-type"` // If not provided - 'satisfies' is used
+	Strength             string     `json:"strength"`          // If not provided - 'primary' is used
 	Description          string     `json:"description"`
-	IsActive             *bool      `json:"is_active"`
+	IsActive             *bool      `json:"is-active"`
 }
 
 type UpdateControlRelationshipRequest struct {
-	RelationshipType *string `json:"relationship_type"`
+	RelationshipType *string `json:"relationship-type"`
 	Strength         *string `json:"strength"`
 	Description      *string `json:"description"`
 }
@@ -84,14 +85,34 @@ func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 		h.sugar.Errorw("Failed to validate request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	relType := req.RelationshipType
+	if relType == "" {
+		relType = "satisfies"
+	}
 
+	strength := req.Strength
+	if strength == "" {
+		strength = "primary"
+	}
 	relationship := &workflows.ControlRelationship{
 		WorkflowDefinitionID: req.WorkflowDefinitionID,
 		ControlID:            req.ControlID,
-		ControlSource:        req.ControlSource,
-		RelationshipType:     req.RelationshipType,
-		Strength:             req.Strength,
+		CatalogID:            req.CatalogID,
+		RelationshipType:     relType,
+		Strength:             strength,
 		IsActive:             true,
+	}
+
+	if catalogUUID, catalogErr := uuid.Parse(req.CatalogID); catalogErr == nil {
+		var catalog relational.Catalog
+		err := h.db.Preload("Metadata").First(&catalog, "id = ?", catalogUUID).Error
+		if err != nil {
+			h.sugar.Errorw("Failed to get catalog", "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		if catalog.Metadata.Title != "" {
+			relationship.ControlSource = catalog.Metadata.Title
+		}
 	}
 
 	if req.IsActive != nil {
