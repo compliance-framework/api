@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -72,7 +71,7 @@ func createTestWorkflow(t *testing.T, db *gorm.DB) (*workflows.WorkflowDefinitio
 			Name:                 "Step 1 - Initial Setup",
 			Description:          "Initial setup step",
 			ResponsibleRole:      "admin",
-			EvidenceRequired:     "[]",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
 			EstimatedDuration:    30,
 			WorkflowDefinitionID: &workflowDefID,
 		},
@@ -81,7 +80,7 @@ func createTestWorkflow(t *testing.T, db *gorm.DB) (*workflows.WorkflowDefinitio
 			Name:                 "Step 2 - Configuration",
 			Description:          "Configuration step",
 			ResponsibleRole:      "admin",
-			EvidenceRequired:     "[]",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
 			EstimatedDuration:    60,
 			WorkflowDefinitionID: &workflowDefID,
 		},
@@ -90,7 +89,7 @@ func createTestWorkflow(t *testing.T, db *gorm.DB) (*workflows.WorkflowDefinitio
 			Name:                 "Step 3 - Validation",
 			Description:          "Validation step",
 			ResponsibleRole:      "validator",
-			EvidenceRequired:     "[]",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
 			EstimatedDuration:    45,
 			WorkflowDefinitionID: &workflowDefID,
 		},
@@ -157,7 +156,7 @@ func createTestWorkflowExecution(t *testing.T, db *gorm.DB, instance *workflows.
 	return execution
 }
 
-func TestDAGExecutor_Integration_ExecuteWorkflow(t *testing.T) {
+func TestDAGExecutor_Integration_InitializeWorkflow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -170,7 +169,7 @@ func TestDAGExecutor_Integration_ExecuteWorkflow(t *testing.T) {
 	}()
 
 	// Create services
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 
@@ -183,55 +182,41 @@ func TestDAGExecutor_Integration_ExecuteWorkflow(t *testing.T) {
 	instance := createTestWorkflowInstance(t, db, workflowDef)
 	execution := createTestWorkflowExecution(t, db, instance)
 
-	// Execute workflow
+	// Initialize workflow
 	ctx := context.Background()
-	result, err := executor.ExecuteWorkflow(ctx, execution.ID)
-
-	// Verify results
+	err := executor.InitializeWorkflow(ctx, execution.ID)
 	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.True(t, result.Success)
-	assert.Equal(t, 3, result.TotalSteps)
-	assert.Equal(t, 3, result.CompletedSteps)
-	assert.Equal(t, 0, result.FailedSteps)
 
 	// Verify workflow execution status
 	updatedExecution, err := workflowExecService.GetByID(execution.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "completed", updatedExecution.Status)
-	assert.NotNil(t, updatedExecution.StartedAt)
-	assert.NotNil(t, updatedExecution.CompletedAt)
+	assert.Equal(t, "in_progress", updatedExecution.Status)
 
-	// Verify step executions
+	// Verify step executions were created
 	stepExecutions, err := stepExecService.GetByWorkflowExecutionID(execution.ID)
 	require.NoError(t, err)
 	assert.Len(t, stepExecutions, 3)
 
-	// Create a map of step executions by definition ID for easier verification
+	// Create a map of step executions by definition ID
 	stepExecMap := make(map[uuid.UUID]*workflows.StepExecution)
 	for i := range stepExecutions {
 		stepExecMap[*stepExecutions[i].WorkflowStepDefinitionID] = &stepExecutions[i]
 	}
 
-	// Verify each step execution
-	for _, stepDef := range stepDefs {
-		stepExec, exists := stepExecMap[*stepDef.ID]
-		require.True(t, exists, "Step execution not found for step %s", stepDef.Name)
-		assert.Equal(t, "completed", stepExec.Status)
-		assert.NotNil(t, stepExec.StartedAt)
-		assert.NotNil(t, stepExec.CompletedAt)
-	}
-
-	// Verify execution order (Step 1 should complete before Step 2, etc.)
+	// Verify step 1 is pending (no dependencies)
 	step1Exec := stepExecMap[*stepDefs[0].ID]
-	step2Exec := stepExecMap[*stepDefs[1].ID]
-	step3Exec := stepExecMap[*stepDefs[2].ID]
+	assert.Equal(t, "pending", step1Exec.Status)
 
-	assert.True(t, step1Exec.CompletedAt.Before(*step2Exec.CompletedAt) || step1Exec.CompletedAt.Equal(*step2Exec.CompletedAt))
-	assert.True(t, step2Exec.CompletedAt.Before(*step3Exec.CompletedAt) || step2Exec.CompletedAt.Equal(*step3Exec.CompletedAt))
+	// Verify step 2 is blocked (depends on step 1)
+	step2Exec := stepExecMap[*stepDefs[1].ID]
+	assert.Equal(t, "blocked", step2Exec.Status)
+
+	// Verify step 3 is blocked (depends on step 2)
+	step3Exec := stepExecMap[*stepDefs[2].ID]
+	assert.Equal(t, "blocked", step3Exec.Status)
 }
 
-func TestDAGExecutor_Integration_CancelExecution(t *testing.T) {
+func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -244,7 +229,7 @@ func TestDAGExecutor_Integration_CancelExecution(t *testing.T) {
 	}()
 
 	// Create services
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 
@@ -253,42 +238,43 @@ func TestDAGExecutor_Integration_CancelExecution(t *testing.T) {
 	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, logger)
 
 	// Create test workflow
-	workflowDef, _ := createTestWorkflow(t, db)
+	workflowDef, stepDefs := createTestWorkflow(t, db)
 	instance := createTestWorkflowInstance(t, db, workflowDef)
 	execution := createTestWorkflowExecution(t, db, instance)
 
-	// Start workflow execution in a goroutine
+	// Initialize workflow
 	ctx := context.Background()
-	done := make(chan error, 1)
-
-	go func() {
-		_, err := executor.ExecuteWorkflow(ctx, execution.ID)
-		done <- err
-	}()
-
-	// Wait a bit for execution to start
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel the execution
-	err := executor.CancelExecution(ctx, execution.ID)
+	err := executor.InitializeWorkflow(ctx, execution.ID)
 	require.NoError(t, err)
 
-	// Wait for execution to complete
-	select {
-	case err := <-done:
-		// Execution should have been cancelled or completed
-		assert.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("Execution did not complete within timeout")
+	// Get step executions
+	stepExecutions, err := stepExecService.GetByWorkflowExecutionID(execution.ID)
+	require.NoError(t, err)
+
+	// Create map by definition ID
+	stepExecMap := make(map[uuid.UUID]*workflows.StepExecution)
+	for i := range stepExecutions {
+		stepExecMap[*stepExecutions[i].WorkflowStepDefinitionID] = &stepExecutions[i]
 	}
 
-	// Verify workflow execution status
-	updatedExecution, err := workflowExecService.GetByID(execution.ID)
+	// Complete step 1 (user action)
+	step1Exec := stepExecMap[*stepDefs[0].ID]
+	err = stepExecService.UpdateStatus(step1Exec.ID, "completed")
 	require.NoError(t, err)
-	// Status could be either "cancelled" or "completed" depending on timing
-	// The important thing is that cancellation was processed without error
-	assert.Contains(t, []string{"cancelled", "completed"}, updatedExecution.Status,
-		"Expected status to be either cancelled or completed, got: %s", updatedExecution.Status)
+
+	// Process step completion to unblock dependent steps
+	err = executor.ProcessStepCompletion(ctx, step1Exec.ID)
+	require.NoError(t, err)
+
+	// Verify step 2 is now unblocked
+	step2Exec, err := stepExecService.GetByID(stepExecMap[*stepDefs[1].ID].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "pending", step2Exec.Status)
+
+	// Step 3 should still be blocked
+	step3Exec, err := stepExecService.GetByID(stepExecMap[*stepDefs[2].ID].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "blocked", step3Exec.Status)
 }
 
 func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
@@ -304,7 +290,7 @@ func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
 	}()
 
 	// Create services
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 
@@ -317,34 +303,38 @@ func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
 	instance := createTestWorkflowInstance(t, db, workflowDef)
 	execution := createTestWorkflowExecution(t, db, instance)
 
-	// Get execution status before execution
+	// Get execution status before initialization
 	state, err := executor.GetExecutionStatus(execution.ID)
 	require.NoError(t, err)
 	assert.Equal(t, *execution.ID, state.WorkflowExecutionID)
 	assert.Len(t, state.StepStates, 0) // No step executions yet
 
-	// Execute workflow
+	// Initialize workflow
 	ctx := context.Background()
-	_, err = executor.ExecuteWorkflow(ctx, execution.ID)
+	err = executor.InitializeWorkflow(ctx, execution.ID)
 	require.NoError(t, err)
 
-	// Get execution status after execution
+	// Get execution status after initialization
 	state, err = executor.GetExecutionStatus(execution.ID)
 	require.NoError(t, err)
 	assert.Len(t, state.StepStates, 3)
-	assert.Len(t, state.CompletedSteps, 3)
+	assert.Len(t, state.CompletedSteps, 0)
 	assert.Len(t, state.FailedSteps, 0)
-	assert.Len(t, state.RunningSteps, 0)
+	assert.Len(t, state.BlockedSteps, 2) // Steps 2 and 3 are blocked
 
-	// Verify all steps are in completed state
-	for _, stepDef := range stepDefs {
+	// Verify step statuses
+	for i, stepDef := range stepDefs {
 		stepState, exists := state.StepStates[*stepDef.ID]
 		require.True(t, exists, "Step state not found for step %s", stepDef.Name)
-		assert.Equal(t, "completed", stepState.Status)
+		if i == 0 {
+			assert.Equal(t, "pending", stepState.Status)
+		} else {
+			assert.Equal(t, "blocked", stepState.Status)
+		}
 	}
 }
 
-func TestDAGExecutor_Integration_ParallelExecution(t *testing.T) {
+func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -357,7 +347,7 @@ func TestDAGExecutor_Integration_ParallelExecution(t *testing.T) {
 	}()
 
 	// Create services
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 
@@ -390,7 +380,7 @@ func TestDAGExecutor_Integration_ParallelExecution(t *testing.T) {
 			Name:                 "Parallel Step 1",
 			Description:          "First parallel step",
 			ResponsibleRole:      "admin",
-			EvidenceRequired:     "[]",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
 			EstimatedDuration:    30,
 			WorkflowDefinitionID: &workflowDefID,
 		},
@@ -399,7 +389,7 @@ func TestDAGExecutor_Integration_ParallelExecution(t *testing.T) {
 			Name:                 "Parallel Step 2",
 			Description:          "Second parallel step",
 			ResponsibleRole:      "admin",
-			EvidenceRequired:     "[]",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
 			EstimatedDuration:    30,
 			WorkflowDefinitionID: &workflowDefID,
 		},
@@ -408,7 +398,7 @@ func TestDAGExecutor_Integration_ParallelExecution(t *testing.T) {
 			Name:                 "Parallel Step 3",
 			Description:          "Third parallel step",
 			ResponsibleRole:      "admin",
-			EvidenceRequired:     "[]",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
 			EstimatedDuration:    30,
 			WorkflowDefinitionID: &workflowDefID,
 		},
@@ -424,43 +414,18 @@ func TestDAGExecutor_Integration_ParallelExecution(t *testing.T) {
 	instance := createTestWorkflowInstance(t, db, workflowDef)
 	execution := createTestWorkflowExecution(t, db, instance)
 
-	// Execute workflow
+	// Initialize workflow
 	ctx := context.Background()
-	result, err := executor.ExecuteWorkflow(ctx, execution.ID)
-
-	// Verify results
+	err = executor.InitializeWorkflow(ctx, execution.ID)
 	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.True(t, result.Success)
-	assert.Equal(t, 3, result.TotalSteps)
-	assert.Equal(t, 3, result.CompletedSteps)
-	assert.Equal(t, 0, result.FailedSteps)
 
-	// Verify step executions
+	// Verify step executions - all should be pending (no dependencies)
 	stepExecutions, err := stepExecService.GetByWorkflowExecutionID(execution.ID)
 	require.NoError(t, err)
 	assert.Len(t, stepExecutions, 3)
 
-	// All steps should have started around the same time (within a reasonable window)
-	var startTimes []time.Time
+	// All steps should be pending since they have no dependencies
 	for _, stepExec := range stepExecutions {
-		startTimes = append(startTimes, *stepExec.StartedAt)
+		assert.Equal(t, "pending", stepExec.Status)
 	}
-
-	// Check that steps started within 100ms of each other (indicating parallel execution)
-	maxDiff := time.Duration(0)
-	for i := 0; i < len(startTimes); i++ {
-		for j := i + 1; j < len(startTimes); j++ {
-			diff := startTimes[i].Sub(startTimes[j])
-			if diff < 0 {
-				diff = -diff
-			}
-			if diff > maxDiff {
-				maxDiff = diff
-			}
-		}
-	}
-
-	// Allow some tolerance for test environment
-	assert.Less(t, maxDiff, 400*time.Millisecond, "Steps should have started in parallel")
 }

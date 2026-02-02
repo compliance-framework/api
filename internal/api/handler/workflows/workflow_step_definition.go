@@ -102,22 +102,22 @@ func (h *WorkflowStepDefinitionHandler) Register(api *echo.Group) {
 }
 
 type CreateWorkflowStepDefinitionRequest struct {
-	WorkflowDefinitionID *uuid.UUID `json:"workflow-definition-id" validate:"required"`
-	Name                 string     `json:"name" validate:"required"`
-	Description          string     `json:"description"`
-	ResponsibleRole      string     `json:"responsible-role" validate:"required"`
-	EvidenceRequired     string     `json:"evidence-required"`
-	EstimatedDuration    int        `json:"estimated-duration"`
-	DependsOn            []string   `json:"depends-on"` // Array of step IDs this step depends on
+	WorkflowDefinitionID *uuid.UUID                      `json:"workflow-definition-id" validate:"required"`
+	Name                 string                          `json:"name" validate:"required"`
+	Description          string                          `json:"description"`
+	ResponsibleRole      string                          `json:"responsible-role" validate:"required"`
+	EvidenceRequired     []workflows.EvidenceRequirement `json:"evidence-required"`
+	EstimatedDuration    int                             `json:"estimated-duration"`
+	DependsOn            []string                        `json:"depends-on"` // Array of step IDs this step depends on
 }
 
 type UpdateWorkflowStepDefinitionRequest struct {
-	Name              *string   `json:"name"`
-	Description       *string   `json:"description"`
-	ResponsibleRole   *string   `json:"responsible-role"`
-	EvidenceRequired  *string   `json:"evidence-required"`
-	EstimatedDuration *int      `json:"estimated-duration"`
-	DependsOn         *[]string `json:"depends-on"`
+	Name              *string                          `json:"name"`
+	Description       *string                          `json:"description"`
+	ResponsibleRole   *string                          `json:"responsible-role"`
+	EvidenceRequired  *[]workflows.EvidenceRequirement `json:"evidence-required"`
+	EstimatedDuration *int                             `json:"estimated-duration"`
+	DependsOn         *[]string                        `json:"depends-on"`
 }
 
 type WorkflowStepDefinitionResponse struct {

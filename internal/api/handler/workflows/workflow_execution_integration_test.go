@@ -42,7 +42,7 @@ func setupExecutionTestHandler(t *testing.T) (*WorkflowExecutionHandler, *gorm.D
 	logger := zap.NewNop().Sugar()
 
 	// Create services for the manager
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
 

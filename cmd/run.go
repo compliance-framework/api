@@ -94,7 +94,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	// Initialize workflow manager
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowManager := workflow.NewManager(
 		workerService.GetClient(),
 		workflowExecService,

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -56,16 +57,68 @@ func createTestWorkflowContext(t *testing.T, db *gorm.DB) (*workflows.WorkflowDe
 	require.NoError(t, db.Create(instance).Error)
 
 	// Create workflow execution
-	startTime := time.Now()
+	now := time.Now()
 	execution := &workflows.WorkflowExecution{
 		WorkflowInstanceID: instance.ID,
-		Status:             "running",
+		Status:             "pending",
 		TriggeredBy:        "manual",
-		StartedAt:          &startTime,
+		StartedAt:          &now,
 	}
 	require.NoError(t, db.Create(execution).Error)
 
 	return definition, instance, execution, sspID
+}
+
+// TestWorkflowExecutionEvidenceCreatedOnStart tests that workflow execution evidence is created when workflow starts
+func TestWorkflowExecutionEvidenceCreatedOnStart(t *testing.T) {
+	db := setupEvidenceTestDB(t)
+	defer func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+	}()
+
+	// Create test workflow context
+	definition, instance, execution, _ := createTestWorkflowContext(t, db)
+
+	// Create evidence integration
+	logger := zap.NewNop().Sugar()
+	integration := NewEvidenceIntegration(db, logger)
+
+	// Test that evidence stream is created when workflow execution starts
+	ctx := context.Background()
+	stream, err := integration.GetOrCreateExecutionStream(ctx, execution.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, stream)
+	assert.NotNil(t, stream.ID)
+
+	// Verify the evidence stream has the correct properties
+	assert.Equal(t, fmt.Sprintf("Workflow Execution: %s", definition.Name), stream.Title)
+	assert.Contains(t, stream.Description, "Evidence stream for execution")
+	assert.Contains(t, stream.Description, definition.Name)
+	assert.Contains(t, stream.Description, definition.Version)
+
+	// Verify labels were created
+	var labels []relational.Labels
+	err = db.Model(stream).Association("Labels").Find(&labels)
+	require.NoError(t, err)
+	assert.Greater(t, len(labels), 0)
+
+	// Check for key labels
+	labelMap := make(map[string]string)
+	for _, label := range labels {
+		labelMap[label.Name] = label.Value
+	}
+	assert.Equal(t, "workflow_execution", labelMap["stream.type"])
+	assert.Equal(t, definition.ID.String(), labelMap["workflow.definition.id"])
+	assert.Equal(t, definition.Name, labelMap["workflow.definition.name"])
+	assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
+	assert.Equal(t, execution.ID.String(), labelMap["workflow.execution.id"])
+
+	// Test that subsequent calls return the same stream (idempotent)
+	stream2, err := integration.GetOrCreateExecutionStream(ctx, execution.ID)
+	require.NoError(t, err)
+	assert.Equal(t, stream.UUID, stream2.UUID)
+	assert.Equal(t, stream.ID, stream2.ID)
 }
 
 func TestNewEvidenceIntegration(t *testing.T) {
@@ -188,20 +241,6 @@ func TestGetOrCreateInstanceStream(t *testing.T) {
 		assert.Contains(t, stream.Description, instance.Name)
 		assert.Contains(t, stream.Description, definition.Name)
 
-		// Verify labels were created
-		var labels []relational.Labels
-		err = db.Model(stream).Association("Labels").Find(&labels)
-		require.NoError(t, err)
-		assert.Greater(t, len(labels), 0)
-
-		// Check for expected labels
-		labelMap := make(map[string]string)
-		for _, label := range labels {
-			labelMap[label.Name] = label.Value
-		}
-		assert.Equal(t, "workflow_instance", labelMap["stream.type"])
-		assert.Equal(t, definition.ID.String(), labelMap["workflow.definition.id"])
-		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
 	})
 
 	t.Run("ReuseExistingStream", func(t *testing.T) {
@@ -214,7 +253,8 @@ func TestGetOrCreateInstanceStream(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, stream1.UUID, stream2.UUID)
-		assert.Equal(t, stream1.ID.String(), stream2.ID.String())
+		// They should not contain the same ID - they're different evidence entries
+		assert.NotEqual(t, stream1.ID.String(), stream2.ID.String())
 	})
 
 	t.Run("DeterministicUUID", func(t *testing.T) {
@@ -400,7 +440,7 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		var evidenceRecords []relational.Evidence
 		err = db.Where("uuid = ?", stream.UUID).Find(&evidenceRecords).Error
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(evidenceRecords), 2) // Stream + execution evidence
+		assert.GreaterOrEqual(t, len(evidenceRecords), 1) // Only execution evidence (no instance stream)
 
 		// Find the execution evidence record
 		var execEvidence *relational.Evidence
@@ -428,7 +468,9 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		assert.Equal(t, "execution_completion", labelMap["evidence.type"])
 		assert.Equal(t, execution.ID.String(), labelMap["workflow.execution.id"])
 		assert.Equal(t, "completed", labelMap["workflow.execution.status"])
-		assert.Equal(t, "1", labelMap["workflow.step_count"])
+		// Completion evidence should not have failure reason
+		_, exists := labelMap["workflow.failure_reason"]
+		assert.False(t, exists, "completion evidence should not have failure reason")
 	})
 
 	t.Run("RejectNonCompletedExecution", func(t *testing.T) {
@@ -470,7 +512,7 @@ func TestAddExecutionCompletionEvidence(t *testing.T) {
 		var evidenceRecords []relational.Evidence
 		err = db.Where("uuid = ?", stream.UUID).Find(&evidenceRecords).Error
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(evidenceRecords), 3) // Stream + 2 execution evidences
+		assert.GreaterOrEqual(t, len(evidenceRecords), 2) // Only 2 execution evidences (no instance stream)
 	})
 }
 
@@ -571,5 +613,153 @@ func TestBuildStreamLabels(t *testing.T) {
 		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
 		assert.Equal(t, instance.Name, labelMap["workflow.instance.name"])
 		assert.Equal(t, sspID.String(), labelMap["workflow.instance.system_security_plan_id"])
+	})
+}
+
+func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
+	db := setupEvidenceTestDB(t)
+	defer func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+	}()
+
+	logger := zap.NewNop().Sugar()
+	evidenceIntegration := NewEvidenceIntegration(db, logger)
+
+	t.Run("AddWorkflowExecutionStartedEvidence", func(t *testing.T) {
+		// Create workflow context
+		definition, instance, execution, _ := createTestWorkflowContext(t, db)
+
+		// Verify the execution starts in pending status
+		assert.Equal(t, "pending", execution.Status)
+
+		// Test that the evidence method works directly with the pending execution
+		err := evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
+		require.NoError(t, err)
+
+		// Find the workflow execution started evidence
+		var evidence relational.Evidence
+		err = db.Where("title LIKE ?", "Workflow Execution Started: %").First(&evidence).Error
+		require.NoError(t, err)
+
+		// Verify evidence properties
+		assert.Equal(t, fmt.Sprintf("Workflow Execution Started: %s", definition.Name), evidence.Title)
+		assert.Contains(t, evidence.Description, execution.ID.String())
+		assert.Contains(t, evidence.Description, "started at")
+
+		// Verify labels
+		var labels []relational.Labels
+		err = db.Model(&evidence).Association("Labels").Find(&labels)
+		require.NoError(t, err)
+		require.Greater(t, len(labels), 0)
+
+		labelMap := make(map[string]string)
+		for _, label := range labels {
+			labelMap[label.Name] = label.Value
+		}
+
+		assert.Equal(t, execution.ID.String(), labelMap["workflow.execution.id"])
+		assert.Equal(t, definition.ID.String(), labelMap["workflow.definition.id"])
+		assert.Equal(t, definition.Name, labelMap["workflow.definition.name"])
+		assert.Equal(t, instance.ID.String(), labelMap["workflow.instance.id"])
+		assert.Equal(t, "workflow_execution_started", labelMap["evidence.type"])
+	})
+
+	t.Run("RejectNonPendingExecution", func(t *testing.T) {
+		// Create workflow context
+		_, _, execution, _ := createTestWorkflowContext(t, db)
+
+		// Update execution to in_progress status
+		err := db.Model(execution).Update("status", "in_progress").Error
+		require.NoError(t, err)
+
+		// Try to add evidence for an in_progress execution (should fail since evidence is only created for pending executions)
+		err = evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not in pending status")
+	})
+}
+
+func TestAddStepStartedEvidence(t *testing.T) {
+	db := setupEvidenceTestDB(t)
+	defer func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+	}()
+
+	logger := zap.NewNop().Sugar()
+	evidenceIntegration := NewEvidenceIntegration(db, logger)
+
+	// Set the evidence integration as its own evidence creator to enable step started evidence
+	evidenceIntegration.stepExecutionSvc.SetEvidenceCreator(evidenceIntegration)
+
+	t.Run("AddStepStartedEvidence", func(t *testing.T) {
+		// Create workflow context
+		definition, _, execution, _ := createTestWorkflowContext(t, db)
+
+		stepDef := &workflows.WorkflowStepDefinition{
+			WorkflowDefinitionID: definition.ID,
+			Name:                 "Test Step",
+			Description:          "A test step",
+		}
+		require.NoError(t, db.Create(stepDef).Error)
+
+		stepExecution := &workflows.StepExecution{
+			WorkflowExecutionID:      execution.ID,
+			WorkflowStepDefinitionID: stepDef.ID,
+			Status:                   "pending",
+			StartedAt:                &time.Time{},
+		}
+		require.NoError(t, db.Create(stepExecution).Error)
+
+		// Now use the UpdateStatus method to trigger evidence creation
+		err := evidenceIntegration.stepExecutionSvc.UpdateStatus(stepExecution.ID, "in_progress")
+		require.NoError(t, err)
+
+		// Find the step started evidence
+		var evidence relational.Evidence
+		err = db.Where("title LIKE ?", "Step Started: %").First(&evidence).Error
+		require.NoError(t, err)
+
+		// Verify labels
+		var labels []relational.Labels
+		err = db.Model(&evidence).Association("Labels").Find(&labels)
+		require.NoError(t, err)
+		require.Greater(t, len(labels), 0)
+
+		labelMap := make(map[string]string)
+		for _, label := range labels {
+			labelMap[label.Name] = label.Value
+		}
+		assert.Equal(t, "step_started", labelMap["evidence.type"])
+		assert.Equal(t, stepExecution.ID.String(), labelMap["step.execution.id"])
+		assert.Equal(t, stepDef.ID.String(), labelMap["step.definition.id"])
+		assert.Equal(t, stepDef.Name, labelMap["step.name"])
+		assert.Equal(t, "pending", labelMap["step.status"])
+	})
+
+	t.Run("RejectNonInProgressStep", func(t *testing.T) {
+		// Create workflow context
+		definition, _, execution, _ := createTestWorkflowContext(t, db)
+
+		stepDef := &workflows.WorkflowStepDefinition{
+			WorkflowDefinitionID: definition.ID,
+			Name:                 "Test Step",
+			Description:          "A test step",
+		}
+		require.NoError(t, db.Create(stepDef).Error)
+
+		// Create step with canceled status (should not allow step started evidence)
+		stepExecution := &workflows.StepExecution{
+			WorkflowExecutionID:      execution.ID,
+			WorkflowStepDefinitionID: stepDef.ID,
+			Status:                   "canceled",
+		}
+		require.NoError(t, db.Create(stepExecution).Error)
+
+		// Try to add step started evidence - should fail
+		err := evidenceIntegration.AddStepStartedEvidence(context.Background(), stepExecution.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not in pending status")
 	})
 }

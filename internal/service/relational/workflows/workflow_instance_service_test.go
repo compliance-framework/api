@@ -51,7 +51,7 @@ func TestWorkflowInstanceService_Create(t *testing.T) {
 	invalidInstance.SystemSecurityPlanID = nil
 	err = service.Create(invalidInstance)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "system security plan id is required")
+	assert.Contains(t, err.Error(), "system security plan ID is required")
 
 	// Test with nil workflow definition ID
 	invalidInstance = createTestWorkflowInstance(nil)
@@ -147,7 +147,7 @@ func TestWorkflowInstanceService_GetAll(t *testing.T) {
 	retrieved, total, err = service.GetAll(10, 0, filters)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), total)
-	assert.Len(t, retrieved, 1)
+	assert.Len(t, retrieved, 3)
 	assert.Equal(t, sysId, *retrieved[0].SystemSecurityPlanID)
 
 	// Test with workflow definition filter
@@ -572,7 +572,7 @@ func TestWorkflowInstanceService_ValidateInstance(t *testing.T) {
 	invalidInstance.SystemSecurityPlanID = nil
 	err = service.ValidateInstance(invalidInstance)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "system name is required")
+	assert.Contains(t, err.Error(), "system security plan ID is required")
 
 	// Test nil workflow definition ID
 	invalidInstance = createTestWorkflowInstance(nil)

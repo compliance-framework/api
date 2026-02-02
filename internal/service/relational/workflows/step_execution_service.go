@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -8,18 +9,30 @@ import (
 	"gorm.io/gorm"
 )
 
+// StepEvidenceCreator interface to avoid import cycle
+type StepEvidenceCreator interface {
+	AddStepStartedEvidence(ctx context.Context, stepExecutionID *uuid.UUID) error
+}
+
 // StepExecutionService provides CRUD operations for StepExecution
 type StepExecutionService struct {
-	db   *gorm.DB
-	base *BaseService
+	db              *gorm.DB
+	base            *BaseService
+	evidenceCreator StepEvidenceCreator
 }
 
 // NewStepExecutionService creates a new StepExecutionService
-func NewStepExecutionService(db *gorm.DB) *StepExecutionService {
+func NewStepExecutionService(db *gorm.DB, evidenceCreator StepEvidenceCreator) *StepExecutionService {
 	return &StepExecutionService{
-		db:   db,
-		base: NewBaseService(db),
+		db:              db,
+		base:            NewBaseService(db),
+		evidenceCreator: evidenceCreator,
 	}
+}
+
+// SetEvidenceCreator sets the evidence creator (to avoid circular dependency)
+func (s *StepExecutionService) SetEvidenceCreator(creator StepEvidenceCreator) {
+	s.evidenceCreator = creator
 }
 
 // Create creates a new step execution
@@ -37,7 +50,15 @@ func (s *StepExecutionService) Create(stepExecution *StepExecution) error {
 		stepExecution.Status = "pending"
 	}
 
-	return s.db.Create(stepExecution).Error
+	err := s.db.Create(stepExecution).Error
+	if err != nil {
+		return err
+	}
+
+	// Note: Step started evidence is only added when transitioning from pending -> in_progress
+	// not when creating the step with pending status
+
+	return nil
 }
 
 // GetByID retrieves a step execution by ID
@@ -51,13 +72,14 @@ func (s *StepExecutionService) GetByID(id *uuid.UUID) (*StepExecution, error) {
 	return &stepExecution, nil
 }
 
-// GetByWorkflowExecutionID retrieves all step executions for a workflow execution
+// GetByWorkflowExecutionID retrieves all step executions for a workflow execution ordered by step definition order
 func (s *StepExecutionService) GetByWorkflowExecutionID(executionID *uuid.UUID) ([]StepExecution, error) {
 	var stepExecutions []StepExecution
-	err := s.db.Where("workflow_execution_id = ?", executionID).
+	err := s.db.Joins("JOIN workflow_step_definitions ON workflow_step_definitions.id = step_executions.workflow_step_definition_id").
+		Where("step_executions.workflow_execution_id = ?", executionID).
+		Order("workflow_step_definitions.\"order\" ASC").
 		Preload("WorkflowStepDefinition").
 		Preload("StepEvidence").
-		Order("created_at ASC").
 		Find(&stepExecutions).Error
 
 	return stepExecutions, err
@@ -88,6 +110,14 @@ func (s *StepExecutionService) UpdateStatus(id *uuid.UUID, status string) error 
 	switch status {
 	case "in_progress":
 		updates["started_at"] = now
+		// Add step started evidence when transitioning to in_progress
+		if s.evidenceCreator != nil {
+			if err := s.evidenceCreator.AddStepStartedEvidence(context.Background(), id); err != nil {
+				// Log error but don't fail the status update
+				// TODO: Add proper logging
+				_ = err // Suppress errcheck warning
+			}
+		}
 	case "completed":
 		updates["completed_at"] = now
 	case "failed":
@@ -100,10 +130,24 @@ func (s *StepExecutionService) UpdateStatus(id *uuid.UUID, status string) error 
 // Start marks a step execution as started
 func (s *StepExecutionService) Start(id *uuid.UUID) error {
 	now := time.Now()
-	return s.base.UpdateStatus(&StepExecution{}, id, "in_progress", "status", map[string]interface{}{
+	err := s.base.UpdateStatus(&StepExecution{}, id, "in_progress", "status", map[string]interface{}{
 		"status":     "in_progress",
 		"started_at": now,
 	})
+	if err != nil {
+		return err
+	}
+
+	// Add step started evidence for in_progress steps
+	if s.evidenceCreator != nil {
+		if err := s.evidenceCreator.AddStepStartedEvidence(context.Background(), id); err != nil {
+			// Log error but don't fail the start
+			// TODO: Add proper logging
+			_ = err // Suppress errcheck warning
+		}
+	}
+
+	return nil
 }
 
 // Complete marks a step execution as completed

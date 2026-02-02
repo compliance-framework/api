@@ -46,6 +46,16 @@ func (m *MockStepExecutionService) Fail(id *uuid.UUID, reason string) error {
 	return args.Error(0)
 }
 
+func (m *MockStepExecutionService) CanUnblock(id *uuid.UUID) (bool, error) {
+	args := m.Called(id)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockStepExecutionService) Unblock(id *uuid.UUID) error {
+	args := m.Called(id)
+	return args.Error(0)
+}
+
 // MockWorkflowExecutionService is a mock for workflows.WorkflowExecutionService
 type MockWorkflowExecutionService struct {
 	mock.Mock
@@ -96,6 +106,22 @@ func (m *MockWorkflowStepDefinitionService) GetByWorkflowDefinitionID(workflowDe
 
 func (m *MockWorkflowStepDefinitionService) GetDependencies(stepID *uuid.UUID) ([]workflows.WorkflowStepDefinition, error) {
 	args := m.Called(stepID)
+	return args.Get(0).([]workflows.WorkflowStepDefinition), args.Error(1)
+}
+
+func (m *MockWorkflowStepDefinitionService) GetByID(id *uuid.UUID) (*workflows.WorkflowStepDefinition, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*workflows.WorkflowStepDefinition), args.Error(1)
+}
+
+func (m *MockWorkflowStepDefinitionService) GetDependentSteps(stepID *uuid.UUID) ([]workflows.WorkflowStepDefinition, error) {
+	args := m.Called(stepID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]workflows.WorkflowStepDefinition), args.Error(1)
 }
 
@@ -279,7 +305,7 @@ func TestIsExecutionComplete(t *testing.T) {
 	assert.True(t, executor.isExecutionComplete(state))
 }
 
-func TestExecuteWorkflow_Success(t *testing.T) {
+func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
@@ -316,9 +342,8 @@ func TestExecuteWorkflow_Success(t *testing.T) {
 	mockStepDefService.On("GetDependencies", &stepDefID1).Return([]workflows.WorkflowStepDefinition{}, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID2).Return([]workflows.WorkflowStepDefinition{workflows.WorkflowStepDefinition{UUIDModel: relational.UUIDModel{ID: &stepDefID1}}}, nil)
 	mockWorkflowExecService.On("UpdateStatus", &workflowExecutionID, "in_progress").Return(nil)
-	mockWorkflowExecService.On("UpdateStatus", &workflowExecutionID, "completed").Return(nil)
 
-	// Mock step execution creation and updates
+	// Mock step execution creation
 	mockStepExecService.On("Create", mock.MatchedBy(func(se *workflows.StepExecution) bool {
 		// Set the ID for the created step execution
 		if se.ID == nil {
@@ -327,19 +352,13 @@ func TestExecuteWorkflow_Success(t *testing.T) {
 		}
 		return true
 	})).Return(nil)
-	mockStepExecService.On("UpdateStatus", mock.AnythingOfType("*uuid.UUID"), "completed").Return(nil)
 
-	// Execute workflow
+	// Initialize workflow
 	ctx := context.Background()
-	result, err := executor.ExecuteWorkflow(ctx, &workflowExecutionID)
+	err := executor.InitializeWorkflow(ctx, &workflowExecutionID)
 
 	// Verify results
 	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.True(t, result.Success)
-	assert.Equal(t, 2, result.TotalSteps)
-	assert.Equal(t, 2, result.CompletedSteps)
-	assert.Equal(t, 0, result.FailedSteps)
 
 	// Verify all mocks were called
 	mockWorkflowExecService.AssertExpectations(t)
@@ -347,7 +366,7 @@ func TestExecuteWorkflow_Success(t *testing.T) {
 	mockStepExecService.AssertExpectations(t)
 }
 
-func TestExecuteWorkflow_Failure(t *testing.T) {
+func TestInitializeWorkflow_Failure(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
@@ -361,13 +380,12 @@ func TestExecuteWorkflow_Failure(t *testing.T) {
 	// Setup mocks - simulate failure in getting workflow definition
 	mockWorkflowExecService.On("GetByID", &workflowExecutionID).Return((*workflows.WorkflowExecution)(nil), fmt.Errorf("workflow execution not found"))
 
-	// Execute workflow
+	// Initialize workflow
 	ctx := context.Background()
-	result, err := executor.ExecuteWorkflow(ctx, &workflowExecutionID)
+	err := executor.InitializeWorkflow(ctx, &workflowExecutionID)
 
 	// Verify results - should fail due to workflow execution not found
 	require.Error(t, err)
-	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "workflow execution not found")
 
 	// Verify all mocks were called
@@ -464,41 +482,6 @@ func TestCancelExecution(t *testing.T) {
 	// Verify mocks were called
 	mockWorkflowExecService.AssertExpectations(t)
 	mockStepExecService.AssertExpectations(t)
-}
-
-func TestPerformStepExecution(t *testing.T) {
-	executor := createTestExecutor(t)
-
-	stepDefID := uuid.New()
-	stepExecID := uuid.New()
-
-	ctx := context.Background()
-	result, err := executor.performStepExecution(ctx, stepDefID, stepExecID)
-
-	// Verify results
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, stepDefID, result.StepDefinitionID)
-	assert.True(t, result.Success)
-	assert.Equal(t, "completed", result.Status)
-}
-
-func TestPerformStepExecution_Cancelled(t *testing.T) {
-	executor := createTestExecutor(t)
-
-	stepDefID := uuid.New()
-	stepExecID := uuid.New()
-
-	// Create a cancelled context
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	result, err := executor.performStepExecution(ctx, stepDefID, stepExecID)
-
-	// Verify results
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Equal(t, context.Canceled, err)
 }
 
 // Helper function to create a test executor

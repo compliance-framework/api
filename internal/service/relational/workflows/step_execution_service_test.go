@@ -12,7 +12,7 @@ import (
 // TestStepExecutionService_Create tests the Create method
 func TestStepExecutionService_Create(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -55,7 +55,7 @@ func TestStepExecutionService_Create(t *testing.T) {
 // TestStepExecutionService_GetByID tests the GetByID method
 func TestStepExecutionService_GetByID(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -92,7 +92,7 @@ func TestStepExecutionService_GetByID(t *testing.T) {
 // TestStepExecutionService_GetByWorkflowExecutionID tests the GetByWorkflowExecutionID method
 func TestStepExecutionService_GetByWorkflowExecutionID(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -128,7 +128,7 @@ func TestStepExecutionService_GetByWorkflowExecutionID(t *testing.T) {
 // TestStepExecutionService_Update tests the Update method
 func TestStepExecutionService_Update(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -181,7 +181,7 @@ func TestStepExecutionService_Update(t *testing.T) {
 // TestStepExecutionService_UpdateStatus tests the UpdateStatus method
 func TestStepExecutionService_UpdateStatus(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -237,7 +237,7 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 // TestStepExecutionService_Start tests the Start method
 func TestStepExecutionService_Start(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -271,7 +271,7 @@ func TestStepExecutionService_Start(t *testing.T) {
 // TestStepExecutionService_Complete tests the Complete method
 func TestStepExecutionService_Complete(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -305,7 +305,7 @@ func TestStepExecutionService_Complete(t *testing.T) {
 // TestStepExecutionService_Fail tests the Fail method
 func TestStepExecutionService_Fail(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -341,7 +341,7 @@ func TestStepExecutionService_Fail(t *testing.T) {
 // TestStepExecutionService_Block tests the Block method
 func TestStepExecutionService_Block(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -374,7 +374,7 @@ func TestStepExecutionService_Block(t *testing.T) {
 // TestStepExecutionService_Unblock tests the Unblock method
 func TestStepExecutionService_Unblock(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -408,7 +408,7 @@ func TestStepExecutionService_Unblock(t *testing.T) {
 // TestStepExecutionService_AssignTo tests the AssignTo method
 func TestStepExecutionService_AssignTo(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -445,7 +445,7 @@ func TestStepExecutionService_AssignTo(t *testing.T) {
 // TestStepExecutionService_GetPendingSteps tests the GetPendingSteps method
 func TestStepExecutionService_GetPendingSteps(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -485,7 +485,7 @@ func TestStepExecutionService_GetPendingSteps(t *testing.T) {
 // TestStepExecutionService_GetBlockedSteps tests the GetBlockedSteps method
 func TestStepExecutionService_GetBlockedSteps(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -526,7 +526,7 @@ func TestStepExecutionService_GetBlockedSteps(t *testing.T) {
 // TestStepExecutionService_GetCompletedSteps tests the GetCompletedSteps method
 func TestStepExecutionService_GetCompletedSteps(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -567,7 +567,7 @@ func TestStepExecutionService_GetCompletedSteps(t *testing.T) {
 // TestStepExecutionService_GetAssignedSteps tests the GetAssignedSteps method
 func TestStepExecutionService_GetAssignedSteps(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -639,7 +639,7 @@ func TestStepExecutionService_ValidateStepExecution(t *testing.T) {
 // TestStepExecutionService_CanUnblock tests the CanUnblock method
 func TestStepExecutionService_CanUnblock(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -682,7 +682,7 @@ func TestStepExecutionService_CanUnblock(t *testing.T) {
 // TestStepExecutionService_GetUnblockableSteps tests the GetUnblockableSteps method
 func TestStepExecutionService_GetUnblockableSteps(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create test data
 	workflowDef := createTestWorkflowDefinition()
@@ -721,7 +721,7 @@ func TestStepExecutionService_GetUnblockableSteps(t *testing.T) {
 // TestStepExecutionService_Integration tests integration scenarios
 func TestStepExecutionService_Integration(t *testing.T) {
 	db := setupTestDB(t)
-	service := NewStepExecutionService(db)
+	service := NewStepExecutionService(db, nil)
 
 	// Create complete test data
 	workflowDef := createTestWorkflowDefinition()

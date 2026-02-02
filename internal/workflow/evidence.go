@@ -9,8 +9,10 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -38,11 +40,16 @@ func NewEvidenceIntegration(
 		db:                    db,
 		logger:                logger,
 		workflowExecutionSvc:  workflows.NewWorkflowExecutionService(db),
-		stepExecutionSvc:      workflows.NewStepExecutionService(db),
+		stepExecutionSvc:      workflows.NewStepExecutionService(db, nil),
 		workflowInstanceSvc:   workflows.NewWorkflowInstanceService(db),
 		workflowDefinitionSvc: workflows.NewWorkflowDefinitionService(db),
 		stepDefinitionSvc:     workflows.NewWorkflowStepDefinitionService(db),
 	}
+}
+
+// SetWorkflowExecutionService sets the workflow execution service (to avoid circular dependency)
+func (e *EvidenceIntegration) SetWorkflowExecutionService(svc *workflows.WorkflowExecutionService) {
+	e.workflowExecutionSvc = svc
 }
 
 // GetOrCreateExecutionStream gets or creates the evidence stream for a workflow execution
@@ -150,9 +157,6 @@ func (e *EvidenceIntegration) GetOrCreateInstanceStream(ctx context.Context, wor
 		return nil, fmt.Errorf("failed to check for existing stream: %w", err)
 	}
 
-	// Create new evidence stream
-	labels := e.buildInstanceStreamLabels(definition, instance)
-
 	var systemID string
 	if instance.SystemSecurityPlanID != nil {
 		systemID = instance.SystemSecurityPlanID.String()
@@ -173,15 +177,6 @@ func (e *EvidenceIntegration) GetOrCreateInstanceStream(ctx context.Context, wor
 	id := uuid.New()
 	stream.ID = &id
 
-	if err := e.db.Create(stream).Error; err != nil {
-		return nil, fmt.Errorf("failed to create evidence stream: %w", err)
-	}
-
-	// Add labels via association
-	if err := e.db.Model(stream).Association("Labels").Append(labels); err != nil {
-		return nil, fmt.Errorf("failed to add labels to stream: %w", err)
-	}
-
 	e.logger.Infow("Instance evidence stream created",
 		"stream_uuid", streamUUID,
 		"stream_id", stream.ID,
@@ -189,6 +184,158 @@ func (e *EvidenceIntegration) GetOrCreateInstanceStream(ctx context.Context, wor
 	)
 
 	return stream, nil
+}
+
+// AddWorkflowExecutionEvidence adds a workflow execution evidence record to the instance stream
+func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, workflowExecutionID *uuid.UUID, status string) error {
+	// Get workflow execution
+	execution, err := e.workflowExecutionSvc.GetByID(workflowExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow execution: %w", err)
+	}
+
+	// Only add started evidence for pending executions (before transition to in_progress)
+	if execution.Status != "pending" && status == "started" {
+		return fmt.Errorf("workflow execution is not in pending status, status: %s", execution.Status)
+	}
+	if execution.Status != "in_progress" && status == "complete" {
+		return fmt.Errorf("workflow execution is not in  status, status: %s", execution.Status)
+	}
+
+	// Get or create instance stream (NOT execution stream)
+	stream, err := e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get instance stream: %w", err)
+	}
+
+	// Get workflow definition through the instance
+	instance, err := e.workflowInstanceSvc.GetByID(execution.WorkflowInstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow instance: %w", err)
+	}
+
+	definition, err := e.workflowDefinitionSvc.GetByID(instance.WorkflowDefinitionID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow definition: %w", err)
+	}
+	var title string
+	var description string
+	switch status {
+	case "started":
+		title = fmt.Sprintf("Workflow Execution Started: %s", definition.Name)
+		description = fmt.Sprintf("Workflow execution '%s' started at %s",
+			execution.ID.String(),
+			execution.StartedAt.Format(time.RFC3339),
+		)
+	case "completed":
+		title = fmt.Sprintf("Workflow Execution Completed: %s", definition.Name)
+		description = fmt.Sprintf("Workflow execution '%s' completed at %s",
+			execution.ID.String(),
+			execution.StartedAt.Format(time.RFC3339),
+		)
+	}
+	// Create evidence record
+	evidence := &relational.Evidence{
+		UUID:        stream.UUID, // Same stream UUID as the instance stream
+		Title:       title,
+		Description: description,
+		Start:       *execution.StartedAt,
+		End:         *execution.StartedAt,
+		Labels: []relational.Labels{
+			{Name: "workflow.execution.id", Value: execution.ID.String()},
+			{Name: "workflow.definition.id", Value: definition.ID.String()},
+			{Name: "workflow.definition.name", Value: definition.Name},
+			{Name: "workflow.instance.id", Value: execution.WorkflowInstanceID.String()},
+			{Name: "evidence.type", Value: "workflow_execution_" + status},
+		},
+	}
+
+	if status == "completed" {
+		evidence.Status = datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+			State: "satisfied",
+		})
+	}
+	if err := e.db.Create(&evidence).Error; err != nil {
+		return fmt.Errorf("failed to create workflow execution evidence: %w", err)
+	}
+
+	e.logger.Infow("Workflow execution started evidence created", "workflow_execution_id", execution.ID, "status", execution.Status)
+	return nil
+}
+
+// AddStepStartedEvidence adds a step started evidence record to the execution stream
+func (e *EvidenceIntegration) AddStepStartedEvidence(ctx context.Context, stepExecutionID *uuid.UUID) error {
+	// Get step execution
+	stepExecution, err := e.stepExecutionSvc.GetByID(stepExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get step execution: %w", err)
+	}
+
+	// Only add started evidence for steps transitioning to in_progress status
+	// This means the current stepExecution status must be pending
+	// This should only be called when a user/scheduler moves a step from pending -> in_progress
+	if stepExecution.Status != "pending" {
+		return fmt.Errorf("step execution is not in pending status, status: %s", stepExecution.Status)
+	}
+
+	// Get or create execution stream
+	stream, err := e.GetOrCreateExecutionStream(ctx, stepExecution.WorkflowExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get execution stream: %w", err)
+	}
+
+	// Get step definition
+	stepDef, err := e.stepDefinitionSvc.GetByID(stepExecution.WorkflowStepDefinitionID)
+	if err != nil {
+		return fmt.Errorf("failed to get step definition: %w", err)
+	}
+
+	// Build step started evidence description
+	description := fmt.Sprintf("Step '%s' started (transitioned from pending to in_progress)",
+		stepDef.Name,
+	)
+
+	if stepExecution.StartedAt != nil {
+		description += fmt.Sprintf("\nStarted: %s", stepExecution.StartedAt.Format(time.RFC3339))
+	}
+
+	evidence := &relational.Evidence{
+		UUID:        stream.UUID, // Same stream UUID
+		Title:       fmt.Sprintf("Step Started: %s", stepDef.Name),
+		Description: description,
+		Start:       time.Now(), // Use current time as evidence creation time
+		End:         time.Now(),
+	}
+
+	// Generate unique ID for this evidence record
+	id := uuid.New()
+	evidence.ID = &id
+
+	if err := e.db.Create(evidence).Error; err != nil {
+		return fmt.Errorf("failed to create step started evidence: %w", err)
+	}
+
+	// Add labels
+	labels := []relational.Labels{
+		{Name: "step.execution.id", Value: stepExecution.ID.String()},
+		{Name: "step.definition.id", Value: stepDef.ID.String()},
+		{Name: "step.name", Value: stepDef.Name},
+		{Name: "step.status", Value: stepExecution.Status},
+		{Name: "evidence.type", Value: "step_started"},
+	}
+
+	if err := e.db.Model(evidence).Association("Labels").Append(labels); err != nil {
+		return fmt.Errorf("failed to add labels: %w", err)
+	}
+
+	e.logger.Infow("Step started evidence added to execution stream",
+		"stream_uuid", stream.UUID,
+		"evidence_id", evidence.ID,
+		"step_execution_id", stepExecutionID,
+		"step_status", stepExecution.Status,
+	)
+
+	return nil
 }
 
 // AddStepCompletionEvidence adds a step completion evidence record to the execution stream

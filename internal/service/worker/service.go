@@ -113,7 +113,7 @@ func NewServiceWithDigest(
 	workers := Workers(emailSvc, digestSvc, logger)
 
 	// Create workflow services
-	stepExecService := workflows.NewStepExecutionService(db)
+	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 
@@ -130,8 +130,13 @@ func NewServiceWithDigest(
 	evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
 	executor.SetEvidenceIntegration(evidenceIntegration)
 
-	// Add workflow workers
-	workflowExecutionWorker := workflow.NewWorkflowExecutionWorker(executor, logger)
+	// Set evidence integration on step execution service
+	stepExecService.SetEvidenceCreator(evidenceIntegration)
+
+	// Set evidence integration on workflow execution service
+	workflowExecService.SetEvidenceCreator(evidenceIntegration)
+
+	workflowExecutionWorker := workflow.NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
 
 	stepExecutionWorker := workflow.NewStepExecutionWorker(stepExecService, logger)

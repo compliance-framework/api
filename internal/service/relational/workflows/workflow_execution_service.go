@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -8,18 +9,30 @@ import (
 	"gorm.io/gorm"
 )
 
+// WorkflowExecutionEvidenceCreator interface for creating workflow execution evidence
+type WorkflowExecutionEvidenceCreator interface {
+	AddWorkflowExecutionEvidence(ctx context.Context, workflowExecutionID *uuid.UUID, status string) error
+}
+
 // WorkflowExecutionService provides CRUD operations for WorkflowExecution
 type WorkflowExecutionService struct {
-	db   *gorm.DB
-	base *BaseService
+	db              *gorm.DB
+	base            *BaseService
+	evidenceCreator WorkflowExecutionEvidenceCreator
 }
 
 // NewWorkflowExecutionService creates a new WorkflowExecutionService
 func NewWorkflowExecutionService(db *gorm.DB) *WorkflowExecutionService {
 	return &WorkflowExecutionService{
-		db:   db,
-		base: NewBaseService(db),
+		db:              db,
+		base:            NewBaseService(db),
+		evidenceCreator: nil,
 	}
+}
+
+// SetEvidenceCreator sets the evidence creator for the workflow execution service
+func (s *WorkflowExecutionService) SetEvidenceCreator(evidenceCreator WorkflowExecutionEvidenceCreator) {
+	s.evidenceCreator = evidenceCreator
 }
 
 // Create creates a new workflow execution
@@ -122,9 +135,24 @@ func (s *WorkflowExecutionService) UpdateStatus(id *uuid.UUID, status string) er
 	now := time.Now()
 	switch status {
 	case "in_progress":
+		// Add workflow execution started evidence when transitioning to in_progress (while still pending)
+		if s.evidenceCreator != nil {
+			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(context.Background(), id, "started"); err != nil {
+				// Log error but don't fail the status update
+				// TODO: Add proper logging
+				_ = err // Suppress errcheck warning
+			}
+		}
 		updates["started_at"] = now
 	case "completed":
 		updates["completed_at"] = now
+		if s.evidenceCreator != nil {
+			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(context.Background(), id, "completed"); err != nil {
+				// Log error but don't fail the status update
+				// TODO: Add proper logging
+				_ = err // Suppress errcheck warning
+			}
+		}
 	case "failed":
 		updates["failed_at"] = now
 	}

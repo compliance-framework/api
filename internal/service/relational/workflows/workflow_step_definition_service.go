@@ -50,10 +50,11 @@ func (s *WorkflowStepDefinitionService) GetByID(id *uuid.UUID) (*WorkflowStepDef
 	return &step, nil
 }
 
-// GetByWorkflowDefinitionID retrieves all steps for a workflow definition
+// GetByWorkflowDefinitionID retrieves all steps for a workflow definition ordered by the order field
 func (s *WorkflowStepDefinitionService) GetByWorkflowDefinitionID(workflowDefID *uuid.UUID) ([]WorkflowStepDefinition, error) {
 	var steps []WorkflowStepDefinition
 	err := s.db.Where("workflow_definition_id = ?", workflowDefID).
+		Order("\"order\" ASC").
 		Preload("DependsOn").
 		Preload("DependsOn.DependsOnStep").
 		Preload("Triggers").
@@ -172,11 +173,12 @@ func (s *WorkflowStepDefinitionService) GetDependencies(stepID *uuid.UUID) ([]Wo
 	return dependencies, err
 }
 
-// GetDependentSteps retrieves all steps that depend on this step
+// GetDependentSteps retrieves all steps that depend on this step ordered by the order field
 func (s *WorkflowStepDefinitionService) GetDependentSteps(stepID *uuid.UUID) ([]WorkflowStepDefinition, error) {
 	var dependents []WorkflowStepDefinition
 	err := s.db.Joins("JOIN step_dependencies ON step_dependencies.workflow_step_definition_id = workflow_step_definitions.id").
 		Where("step_dependencies.depends_on_step_id = ?", stepID).
+		Order("workflow_step_definitions.\"order\" ASC").
 		Find(&dependents).Error
 
 	return dependents, err

@@ -18628,19 +18628,16 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workflows/step-executions/{id}/evidence": {
-            "post": {
-                "description": "Submit evidence for a step execution",
-                "consumes": [
-                    "application/json"
-                ],
+        "/workflows/step-executions/{id}/can-transition": {
+            "get": {
+                "description": "Check if a user has permission to transition a step execution",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Step Executions"
                 ],
-                "summary": "Submit evidence for step execution",
+                "summary": "Check if user can transition step",
                 "parameters": [
                     {
                         "type": "string",
@@ -18650,20 +18647,26 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Evidence submission",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/workflows.SubmitEvidenceRequest"
-                        }
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User Type (user, group, email)",
+                        "name": "user_type",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/workflows.StepExecutionResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -18672,8 +18675,55 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions/{id}/evidence-requirements": {
+            "get": {
+                "description": "Get the evidence requirements for a step execution",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "Get evidence requirements for step",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -18768,9 +18818,9 @@ const docTemplate = `{
                 ]
             }
         },
-        "/workflows/step-executions/{id}/status": {
+        "/workflows/step-executions/{id}/transition": {
             "put": {
-                "description": "Update the status of a step execution",
+                "description": "Transition a step execution status with role verification and evidence validation",
                 "consumes": [
                     "application/json"
                 ],
@@ -18780,7 +18830,7 @@ const docTemplate = `{
                 "tags": [
                     "Step Executions"
                 ],
-                "summary": "Update step execution status",
+                "summary": "Transition step execution status",
                 "parameters": [
                     {
                         "type": "string",
@@ -18790,12 +18840,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Status update",
+                        "description": "Transition request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/workflows.UpdateStepStatusRequest"
+                            "$ref": "#/definitions/workflows.TransitionStepRequest"
                         }
                     }
                 ],
@@ -18814,6 +18864,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -28613,6 +28669,43 @@ const docTemplate = `{
                 "Hour"
             ]
         },
+        "workflow.EvidenceSubmission": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "evidence-id": {
+                    "type": "string"
+                },
+                "evidence-type": {
+                    "type": "string"
+                },
+                "file-content": {
+                    "description": "Base64 encoded file content",
+                    "type": "string"
+                },
+                "file-hash": {
+                    "type": "string"
+                },
+                "file-path": {
+                    "type": "string"
+                },
+                "file-size": {
+                    "type": "integer"
+                },
+                "media-type": {
+                    "description": "MIME type (e.g., \"application/pdf\", \"image/png\")",
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "workflow.ExecutionMetrics": {
             "type": "object",
             "properties": {
@@ -28842,7 +28935,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "name",
-                "system-security-plan-id",
+                "system-id",
                 "workflow-definition-id"
             ],
             "properties": {
@@ -28858,7 +28951,7 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "system-security-plan-id": {
+                "system-id": {
                     "type": "string"
                 },
                 "workflow-definition-id": {
@@ -28888,7 +28981,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "evidence-required": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.EvidenceRequirement"
+                    }
                 },
                 "name": {
                     "type": "string"
@@ -28897,6 +28993,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workflow-definition-id": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.EvidenceRequirement": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -29187,17 +29297,40 @@ const docTemplate = `{
                 }
             }
         },
-        "workflows.SubmitEvidenceRequest": {
+        "workflows.TransitionStepRequest": {
             "type": "object",
             "required": [
-                "evidence-id"
+                "status",
+                "user-id",
+                "user-type"
             ],
             "properties": {
-                "evidence-id": {
-                    "type": "string"
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflow.EvidenceSubmission"
+                    }
                 },
                 "notes": {
                     "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "in_progress",
+                        "completed"
+                    ]
+                },
+                "user-id": {
+                    "type": "string"
+                },
+                "user-type": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "group",
+                        "email"
+                    ]
                 }
             }
         },
@@ -29222,17 +29355,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "assigned-to-type": {
-                    "type": "string"
-                }
-            }
-        },
-        "workflows.UpdateStepStatusRequest": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "status": {
                     "type": "string"
                 }
             }
@@ -29290,7 +29412,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "evidence-required": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.EvidenceRequirement"
+                    }
                 },
                 "name": {
                     "type": "string"
@@ -29605,7 +29730,10 @@ const docTemplate = `{
                 },
                 "evidence_required": {
                     "description": "JSON array of required evidence types",
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.EvidenceRequirement"
+                    }
                 },
                 "id": {
                     "type": "string"
@@ -29614,8 +29742,12 @@ const docTemplate = `{
                     "description": "Basic Information",
                     "type": "string"
                 },
-                "responsible_role": {
+                "order": {
                     "description": "Step Configuration",
+                    "type": "integer"
+                },
+                "responsible_role": {
+                    "description": "Role responsible for this step",
                     "type": "string"
                 },
                 "step_executions": {

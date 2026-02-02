@@ -45,8 +45,14 @@ func TestWorkflowStepDefinitionHandler_Create(t *testing.T) {
 			Name:                 "Security Review",
 			Description:          "Conduct security review",
 			ResponsibleRole:      "security_engineer",
-			EvidenceRequired:     `["security_report"]`,
-			EstimatedDuration:    120,
+			EvidenceRequired: []workflows.EvidenceRequirement{
+				{
+					Type:        "document",
+					Description: "Security Report",
+					Required:    true,
+				},
+			},
+			EstimatedDuration: 120,
 		}
 
 		body, err := json.Marshal(reqBody)

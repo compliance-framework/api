@@ -23,7 +23,7 @@ func NewServiceManager(db *gorm.DB) *ServiceManager {
 		WorkflowStep:        NewWorkflowStepDefinitionService(db),
 		WorkflowInstance:    NewWorkflowInstanceService(db),
 		WorkflowExecution:   NewWorkflowExecutionService(db),
-		StepExecution:       NewStepExecutionService(db),
+		StepExecution:       NewStepExecutionService(db, nil),
 		RoleAssignment:      NewRoleAssignmentService(db),
 		ControlRelationship: NewControlRelationshipService(db),
 		db:                  db,

@@ -6191,6 +6191,31 @@ definitions:
     - Second
     - Minute
     - Hour
+  workflow.EvidenceSubmission:
+    properties:
+      description:
+        type: string
+      evidence-id:
+        type: string
+      evidence-type:
+        type: string
+      file-content:
+        description: Base64 encoded file content
+        type: string
+      file-hash:
+        type: string
+      file-path:
+        type: string
+      file-size:
+        type: integer
+      media-type:
+        description: MIME type (e.g., "application/pdf", "image/png")
+        type: string
+      metadata:
+        type: string
+      name:
+        type: string
+    type: object
   workflow.ExecutionMetrics:
     properties:
       averageStepDuration:
@@ -6351,13 +6376,13 @@ definitions:
         type: boolean
       name:
         type: string
-      system-security-plan-id:
+      system-id:
         type: string
       workflow-definition-id:
         type: string
     required:
     - name
-    - system-security-plan-id
+    - system-id
     - workflow-definition-id
     type: object
   workflows.CreateWorkflowStepDefinitionRequest:
@@ -6372,7 +6397,9 @@ definitions:
       estimated-duration:
         type: integer
       evidence-required:
-        type: string
+        items:
+          $ref: '#/definitions/workflows.EvidenceRequirement'
+        type: array
       name:
         type: string
       responsible-role:
@@ -6383,6 +6410,15 @@ definitions:
     - name
     - responsible-role
     - workflow-definition-id
+    type: object
+  workflows.EvidenceRequirement:
+    properties:
+      description:
+        type: string
+      required:
+        type: boolean
+      type:
+        type: string
     type: object
   workflows.FailStepRequest:
     properties:
@@ -6570,14 +6606,31 @@ definitions:
       workflow_step_definition_id:
         type: string
     type: object
-  workflows.SubmitEvidenceRequest:
+  workflows.TransitionStepRequest:
     properties:
-      evidence-id:
-        type: string
+      evidence:
+        items:
+          $ref: '#/definitions/workflow.EvidenceSubmission'
+        type: array
       notes:
         type: string
+      status:
+        enum:
+        - in_progress
+        - completed
+        type: string
+      user-id:
+        type: string
+      user-type:
+        enum:
+        - user
+        - group
+        - email
+        type: string
     required:
-    - evidence-id
+    - status
+    - user-id
+    - user-type
     type: object
   workflows.UpdateControlRelationshipRequest:
     properties:
@@ -6594,13 +6647,6 @@ definitions:
         type: string
       assigned-to-type:
         type: string
-    type: object
-  workflows.UpdateStepStatusRequest:
-    properties:
-      status:
-        type: string
-    required:
-    - status
     type: object
   workflows.UpdateWorkflowDefinitionRequest:
     properties:
@@ -6637,7 +6683,9 @@ definitions:
       estimated-duration:
         type: integer
       evidence-required:
-        type: string
+        items:
+          $ref: '#/definitions/workflows.EvidenceRequirement'
+        type: array
       name:
         type: string
       responsible-role:
@@ -6846,14 +6894,19 @@ definitions:
         type: integer
       evidence_required:
         description: JSON array of required evidence types
-        type: string
+        items:
+          $ref: '#/definitions/workflows.EvidenceRequirement'
+        type: array
       id:
         type: string
       name:
         description: Basic Information
         type: string
-      responsible_role:
+      order:
         description: Step Configuration
+        type: integer
+      responsible_role:
+        description: Role responsible for this step
         type: string
       step_executions:
         items:
@@ -19039,36 +19092,35 @@ paths:
       summary: Get step execution
       tags:
       - Step Executions
-  /workflows/step-executions/{id}/evidence:
-    post:
-      consumes:
-      - application/json
-      description: Submit evidence for a step execution
+  /workflows/step-executions/{id}/can-transition:
+    get:
+      description: Check if a user has permission to transition a step execution
       parameters:
       - description: Step Execution ID
         in: path
         name: id
         required: true
         type: string
-      - description: Evidence submission
-        in: body
-        name: request
+      - description: User ID
+        in: query
+        name: user_id
         required: true
-        schema:
-          $ref: '#/definitions/workflows.SubmitEvidenceRequest'
+        type: string
+      - description: User Type (user, group, email)
+        in: query
+        name: user_type
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/workflows.StepExecutionResponse'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
           schema:
             $ref: '#/definitions/api.Error'
         "404":
@@ -19081,7 +19133,41 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Submit evidence for step execution
+      summary: Check if user can transition step
+      tags:
+      - Step Executions
+  /workflows/step-executions/{id}/evidence-requirements:
+    get:
+      description: Get the evidence requirements for a step execution
+      parameters:
+      - description: Step Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get evidence requirements for step
       tags:
       - Step Executions
   /workflows/step-executions/{id}/fail:
@@ -19129,23 +19215,24 @@ paths:
       summary: Fail step execution
       tags:
       - Step Executions
-  /workflows/step-executions/{id}/status:
+  /workflows/step-executions/{id}/transition:
     put:
       consumes:
       - application/json
-      description: Update the status of a step execution
+      description: Transition a step execution status with role verification and evidence
+        validation
       parameters:
       - description: Step Execution ID
         in: path
         name: id
         required: true
         type: string
-      - description: Status update
+      - description: Transition request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/workflows.UpdateStepStatusRequest'
+          $ref: '#/definitions/workflows.TransitionStepRequest'
       produces:
       - application/json
       responses:
@@ -19161,6 +19248,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/api.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
@@ -19171,7 +19262,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Update step execution status
+      summary: Transition step execution status
       tags:
       - Step Executions
   /workflows/steps:

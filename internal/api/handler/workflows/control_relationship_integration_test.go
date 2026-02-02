@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -37,8 +38,17 @@ func TestControlRelationshipHandler_Create(t *testing.T) {
 	}
 	require.NoError(t, db.Create(workflowDef).Error)
 
+	// Create a catalog for the test
+	catalog := uuid.New()
+	catalogRecord := &relational.Catalog{
+		UUIDModel: relational.UUIDModel{ID: &catalog},
+		Metadata: relational.Metadata{
+			Title: "Test Catalog",
+		},
+	}
+	require.NoError(t, db.Create(catalogRecord).Error)
+
 	t.Run("Success", func(t *testing.T) {
-		catalog := uuid.New()
 		reqBody := CreateControlRelationshipRequest{
 			WorkflowDefinitionID: workflowDef.ID,
 			ControlID:            "AC-2",

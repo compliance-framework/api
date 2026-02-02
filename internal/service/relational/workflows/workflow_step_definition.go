@@ -5,6 +5,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -21,9 +22,10 @@ type WorkflowStepDefinition struct {
 	Description string `gorm:"type:text" json:"description"`
 
 	// Step Configuration
-	ResponsibleRole   string `gorm:"not null;size:255" json:"responsible_role"` // Role responsible for this step
-	EvidenceRequired  string `gorm:"type:text" json:"evidence_required"`        // JSON array of required evidence types
-	EstimatedDuration int    `gorm:"default:0" json:"estimated_duration"`       // Estimated duration in minutes
+	Order             int                                      `gorm:"not null;default:0;index:idx_workflow_order" json:"order"` // Display order within workflow
+	ResponsibleRole   string                                   `gorm:"not null;size:255" json:"responsible_role"`                // Role responsible for this step
+	EvidenceRequired  datatypes.JSONSlice[EvidenceRequirement] `json:"evidence_required"`                                        // JSON array of required evidence types
+	EstimatedDuration int                                      `gorm:"default:0" json:"estimated_duration"`                      // Estimated duration in minutes
 
 	// Foreign Keys
 	WorkflowDefinitionID *uuid.UUID `gorm:"not null;index" json:"workflow_definition_id"`
@@ -34,6 +36,12 @@ type WorkflowStepDefinition struct {
 	DependentSteps     []StepDependency    `gorm:"foreignKey:DependsOnStepID;constraint:OnDelete:CASCADE" json:"dependent_steps,omitempty"`
 	StepExecutions     []StepExecution     `gorm:"foreignKey:WorkflowStepDefinitionID;constraint:OnDelete:CASCADE" json:"step_executions,omitempty"`
 	Triggers           []StepTrigger       `gorm:"foreignKey:WorkflowStepDefinitionID;constraint:OnDelete:CASCADE" json:"triggers,omitempty"`
+}
+
+type EvidenceRequirement struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Required    bool   `json:"required"`
 }
 
 // TableName specifies the table name for WorkflowStepDefinition

@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"log"
+
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler/workflows"
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
+	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/compliance-framework/api/internal/workflow"
 	"go.uber.org/zap"
@@ -61,9 +64,50 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		workflowExecutionHandler.Register(server.API().Group("/workflows/executions"))
 	}
 
-	// Step execution handler
-	stepExecutionHandler := workflows.NewStepExecutionHandler(logger, db)
-	stepExecutionHandler.Register(server.API().Group("/workflows/step-executions"))
+	// Step execution handler with transition service
+	if workflowManager != nil {
+		// Create services needed for step transition
+		stepExecService := workflowsvc.NewStepExecutionService(db, nil)
+		stepDefService := workflowsvc.NewWorkflowStepDefinitionService(db)
+		workflowExecService := workflowsvc.NewWorkflowExecutionService(db)
+		workflowInstanceService := workflowsvc.NewWorkflowInstanceService(db)
+		workflowDefinitionService := workflowsvc.NewWorkflowDefinitionService(db)
+		roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
+
+		// Create executor for step transition coordination
+		stdLogger := log.Default()
+		executor := workflow.NewDAGExecutor(
+			stepExecService,
+			workflowExecService,
+			stepDefService,
+			stdLogger,
+		)
+
+		// Create evidence integration for step evidence storage
+		evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
+
+		// Set evidence creator on step execution service
+		stepExecService.SetEvidenceCreator(evidenceIntegration)
+
+		// Set evidence creator on workflow execution service
+		workflowExecService.SetEvidenceCreator(evidenceIntegration)
+
+		// Create step transition service
+		transitionService := workflow.NewStepTransitionService(
+			stepExecService,
+			stepDefService,
+			workflowExecService,
+			roleAssignmentService,
+			workflowInstanceService,
+			workflowDefinitionService,
+			executor,
+			db,
+			evidenceIntegration,
+		)
+
+		stepExecutionHandler := workflows.NewStepExecutionHandler(logger, db, transitionService)
+		stepExecutionHandler.Register(server.API().Group("/workflows/step-executions"))
+	}
 
 	// Control relationship handler
 	controlRelationshipHandler := workflows.NewControlRelationshipHandler(logger, db)
