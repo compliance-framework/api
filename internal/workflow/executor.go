@@ -26,7 +26,7 @@ type StepExecutionServiceInterface interface {
 	Create(stepExecution *workflows.StepExecution) error
 	GetByID(id *uuid.UUID) (*workflows.StepExecution, error)
 	GetByWorkflowExecutionID(executionID *uuid.UUID) ([]workflows.StepExecution, error)
-	UpdateStatus(id *uuid.UUID, status string) error
+	UpdateStatus(ctx context.Context, id *uuid.UUID, status string) error
 	Fail(id *uuid.UUID, reason string) error
 	CanUnblock(id *uuid.UUID) (bool, error)
 	Unblock(id *uuid.UUID) error
@@ -36,7 +36,7 @@ type WorkflowExecutionServiceInterface interface {
 	Create(execution *workflows.WorkflowExecution) error
 	GetByID(id *uuid.UUID) (*workflows.WorkflowExecution, error)
 	GetByWorkflowInstanceID(instanceID *uuid.UUID) ([]workflows.WorkflowExecution, error)
-	UpdateStatus(id *uuid.UUID, status string) error
+	UpdateStatus(ctx context.Context, id *uuid.UUID, status string) error
 	Cancel(id *uuid.UUID) error
 	Fail(id *uuid.UUID, reason string) error
 }
@@ -146,9 +146,9 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 		dependencies, _ := e.stepDefinitionService.GetDependencies(stepDef.ID)
 
 		// Determine initial status based on dependencies
-		initialStatus := StatusPending
+		initialStatus := StatusPending.String()
 		if len(dependencies) > 0 {
-			initialStatus = StatusBlocked
+			initialStatus = StatusBlocked.String()
 		}
 
 		stepExecution := &workflows.StepExecution{
@@ -163,7 +163,7 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 	}
 
 	// Update workflow execution status to in_progress
-	if err := e.workflowExecutionService.UpdateStatus(workflowExecutionID, StatusInProgress); err != nil {
+	if err := e.workflowExecutionService.UpdateStatus(ctx, workflowExecutionID, StatusInProgress.String()); err != nil {
 		return fmt.Errorf("failed to update workflow execution status: %w", err)
 	}
 
@@ -195,7 +195,7 @@ func (e *DAGExecutor) initializeExecutionState(workflowExecutionID *uuid.UUID, s
 
 		stepState := &StepState{
 			StepDefinitionID: *stepDef.ID,
-			Status:           StatusPending,
+			Status:           StatusPending.String(),
 			Dependencies:     depIDs,
 		}
 
@@ -227,48 +227,8 @@ func (e *DAGExecutor) ProcessStepCompletion(ctx context.Context, stepExecutionID
 		return fmt.Errorf("failed to get dependent steps: %w", err)
 	}
 
-	// Find and unblock dependent steps that are now ready
-	unblockedCount := 0
-	for _, dependentStepDef := range dependentSteps {
-		// Find the step execution for this dependent step
-		allStepExecutions, err := e.stepExecutionService.GetByWorkflowExecutionID(stepExecution.WorkflowExecutionID)
-		if err != nil {
-			e.logger.Printf("Error getting step executions: %v", err)
-			continue
-		}
-
-		// Find the execution for this dependent step definition
-		var dependentStepExec *workflows.StepExecution
-		for i := range allStepExecutions {
-			if allStepExecutions[i].WorkflowStepDefinitionID != nil &&
-				*allStepExecutions[i].WorkflowStepDefinitionID == *dependentStepDef.ID {
-				dependentStepExec = &allStepExecutions[i]
-				break
-			}
-		}
-
-		if dependentStepExec == nil || dependentStepExec.Status != StatusBlocked {
-			continue
-		}
-
-		// Check if this dependent step can now be unblocked
-		canUnblock, err := e.stepExecutionService.CanUnblock(dependentStepExec.ID)
-		if err != nil {
-			e.logger.Printf("Error checking if step can be unblocked: %v", err)
-			continue
-		}
-
-		if canUnblock {
-			if err := e.stepExecutionService.Unblock(dependentStepExec.ID); err != nil {
-				e.logger.Printf("Failed to unblock step %s: %v", dependentStepExec.ID.String(), err)
-			} else {
-				e.logger.Printf("Unblocked step: %s", dependentStepExec.ID.String())
-				unblockedCount++
-				// TODO: Hook for notification - step is now ready for user action
-			}
-		}
-	}
-
+	// Unblock dependent steps that are now ready
+	unblockedCount := e.unblockDependentSteps(stepExecution, dependentSteps)
 	e.logger.Printf("Unblocked %d dependent steps", unblockedCount)
 
 	// Check if workflow is complete
@@ -279,6 +239,68 @@ func (e *DAGExecutor) ProcessStepCompletion(ctx context.Context, stepExecutionID
 	// TODO: Hook for automatic evidence check via step triggers
 
 	return nil
+}
+
+// unblockDependentSteps processes dependent steps and unblocks those that are ready
+func (e *DAGExecutor) unblockDependentSteps(stepExecution *workflows.StepExecution, dependentSteps []workflows.WorkflowStepDefinition) int {
+	unblockedCount := 0
+
+	for _, dependentStepDef := range dependentSteps {
+		dependentStepExec := e.findDependentStepExecution(stepExecution.WorkflowExecutionID, dependentStepDef.ID)
+		if dependentStepExec == nil {
+			continue
+		}
+
+		if e.tryUnblockStep(dependentStepExec) {
+			unblockedCount++
+		}
+	}
+
+	return unblockedCount
+}
+
+// findDependentStepExecution finds the step execution for a given step definition
+func (e *DAGExecutor) findDependentStepExecution(workflowExecutionID, stepDefinitionID *uuid.UUID) *workflows.StepExecution {
+	allStepExecutions, err := e.stepExecutionService.GetByWorkflowExecutionID(workflowExecutionID)
+	if err != nil {
+		e.logger.Printf("Error getting step executions: %v", err)
+		return nil
+	}
+
+	for i := range allStepExecutions {
+		if allStepExecutions[i].WorkflowStepDefinitionID != nil &&
+			*allStepExecutions[i].WorkflowStepDefinitionID == *stepDefinitionID {
+			return &allStepExecutions[i]
+		}
+	}
+
+	return nil
+}
+
+// tryUnblockStep attempts to unblock a step if it's blocked and all dependencies are satisfied
+func (e *DAGExecutor) tryUnblockStep(stepExec *workflows.StepExecution) bool {
+	if stepExec.Status != StatusBlocked.String() {
+		return false
+	}
+
+	canUnblock, err := e.stepExecutionService.CanUnblock(stepExec.ID)
+	if err != nil {
+		e.logger.Printf("Error checking if step can be unblocked: %v", err)
+		return false
+	}
+
+	if !canUnblock {
+		return false
+	}
+
+	if err := e.stepExecutionService.Unblock(stepExec.ID); err != nil {
+		e.logger.Printf("Failed to unblock step %s: %v", stepExec.ID.String(), err)
+		return false
+	}
+
+	e.logger.Printf("Unblocked step: %s", stepExec.ID.String())
+	// TODO: Hook for notification - step is now ready for user action
+	return true
 }
 
 // getReadySteps returns steps that are ready to be executed (dependencies satisfied)
@@ -343,9 +365,9 @@ func (e *DAGExecutor) checkWorkflowCompletion(ctx context.Context, workflowExecu
 	failedCount := 0
 	for _, stepExec := range stepExecutions {
 		switch stepExec.Status {
-		case StatusCompleted:
+		case StatusCompleted.String():
 			completedCount++
-		case StatusFailed:
+		case StatusFailed.String():
 			failedCount++
 		}
 	}
@@ -361,7 +383,7 @@ func (e *DAGExecutor) checkWorkflowCompletion(ctx context.Context, workflowExecu
 			e.logger.Printf("Workflow execution failed: %s", reason)
 		} else {
 			// All steps completed successfully
-			if err := e.workflowExecutionService.UpdateStatus(workflowExecutionID, StatusCompleted); err != nil {
+			if err := e.workflowExecutionService.UpdateStatus(ctx, workflowExecutionID, StatusCompleted.String()); err != nil {
 				return fmt.Errorf("failed to mark workflow as completed: %w", err)
 			}
 
@@ -419,13 +441,13 @@ func (e *DAGExecutor) GetExecutionStatus(workflowExecutionID *uuid.UUID) (*Execu
 		state.StepStates[*stepExec.WorkflowStepDefinitionID] = stepState
 
 		switch stepExec.Status {
-		case StatusCompleted:
+		case StatusCompleted.String():
 			state.CompletedSteps[*stepExec.WorkflowStepDefinitionID] = true
-		case StatusFailed:
+		case StatusFailed.String():
 			state.FailedSteps[*stepExec.WorkflowStepDefinitionID] = true
-		case StatusInProgress:
+		case StatusInProgress.String():
 			state.RunningSteps[*stepExec.WorkflowStepDefinitionID] = true
-		case StatusBlocked:
+		case StatusBlocked.String():
 			state.BlockedSteps[*stepExec.WorkflowStepDefinitionID] = true
 		}
 	}
@@ -438,7 +460,7 @@ func (e *DAGExecutor) CancelExecution(ctx context.Context, workflowExecutionID *
 	e.logger.Printf("Cancelling workflow execution: %s", workflowExecutionID.String())
 
 	// Update workflow execution status to cancelled
-	if err := e.workflowExecutionService.UpdateStatus(workflowExecutionID, StatusCancelled); err != nil {
+	if err := e.workflowExecutionService.UpdateStatus(ctx, workflowExecutionID, StatusCancelled.String()); err != nil {
 		return fmt.Errorf("failed to update workflow execution status: %w", err)
 	}
 
@@ -449,8 +471,8 @@ func (e *DAGExecutor) CancelExecution(ctx context.Context, workflowExecutionID *
 	}
 
 	for _, stepExec := range stepExecutions {
-		if stepExec.Status == StatusInProgress {
-			if err := e.stepExecutionService.UpdateStatus(stepExec.ID, StatusCancelled); err != nil {
+		if stepExec.Status == StatusInProgress.String() {
+			if err := e.stepExecutionService.UpdateStatus(ctx, stepExec.ID, StatusCancelled.String()); err != nil {
 				e.logger.Printf("Failed to cancel step execution %s: %v", stepExec.ID.String(), err)
 			}
 		}

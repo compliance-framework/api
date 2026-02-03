@@ -11,6 +11,7 @@ import (
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/compliance-framework/api/internal/workflow"
+	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -48,72 +49,86 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		digestHandler.Register(digestGroup)
 	}
 
-	// Workflow handlers
+	// Register workflow handlers
+	registerWorkflowHandlers(server, logger, db, config, workflowManager)
+}
+
+// registerWorkflowHandlers registers all workflow-related HTTP handlers with authentication
+func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, workflowManager *workflow.Manager) {
+	// Create workflow group with authentication middleware
+	workflowGroup := server.API().Group("/workflows")
+	workflowGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+
+	// Basic workflow handlers (no manager dependency)
 	workflowDefinitionHandler := workflows.NewWorkflowDefinitionHandler(logger, db)
-	workflowDefinitionHandler.Register(server.API().Group("/workflows/definitions"))
+	workflowDefinitionHandler.Register(workflowGroup.Group("/definitions"))
 
 	workflowStepDefinitionHandler := workflows.NewWorkflowStepDefinitionHandler(logger, db)
-	workflowStepDefinitionHandler.Register(server.API().Group("/workflows/steps"))
+	workflowStepDefinitionHandler.Register(workflowGroup.Group("/steps"))
 
 	workflowInstanceHandler := workflows.NewWorkflowInstanceHandler(logger, db)
-	workflowInstanceHandler.Register(server.API().Group("/workflows/instances"))
+	workflowInstanceHandler.Register(workflowGroup.Group("/instances"))
 
-	// Workflow execution handler requires the manager
+	controlRelationshipHandler := workflows.NewControlRelationshipHandler(logger, db)
+	controlRelationshipHandler.Register(workflowGroup.Group("/control-relationships"))
+
+	roleAssignmentHandler := workflows.NewRoleAssignmentHandler(logger, db)
+	roleAssignmentHandler.Register(workflowGroup.Group("/role-assignments"))
+
+	// Handlers that require workflow manager
 	if workflowManager != nil {
-		workflowExecutionHandler := workflows.NewWorkflowExecutionHandler(logger, db, workflowManager)
-		workflowExecutionHandler.Register(server.API().Group("/workflows/executions"))
+		registerWorkflowExecutionHandlers(workflowGroup, logger, db, workflowManager)
 	}
+}
+
+// registerWorkflowExecutionHandlers registers execution-related handlers that require the workflow manager
+func registerWorkflowExecutionHandlers(workflowGroup *echo.Group, logger *zap.SugaredLogger, db *gorm.DB, workflowManager *workflow.Manager) {
+	// Workflow execution handler
+	workflowExecutionHandler := workflows.NewWorkflowExecutionHandler(logger, db, workflowManager)
+	workflowExecutionHandler.Register(workflowGroup.Group("/executions"))
 
 	// Step execution handler with transition service
-	if workflowManager != nil {
-		// Create services needed for step transition
-		stepExecService := workflowsvc.NewStepExecutionService(db, nil)
-		stepDefService := workflowsvc.NewWorkflowStepDefinitionService(db)
-		workflowExecService := workflowsvc.NewWorkflowExecutionService(db)
-		workflowInstanceService := workflowsvc.NewWorkflowInstanceService(db)
-		workflowDefinitionService := workflowsvc.NewWorkflowDefinitionService(db)
-		roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
+	transitionService := createStepTransitionService(db, logger)
+	stepExecutionHandler := workflows.NewStepExecutionHandler(logger, db, transitionService)
+	stepExecutionHandler.Register(workflowGroup.Group("/step-executions"))
+}
 
-		// Create executor for step transition coordination
-		stdLogger := log.Default()
-		executor := workflow.NewDAGExecutor(
-			stepExecService,
-			workflowExecService,
-			stepDefService,
-			stdLogger,
-		)
+// createStepTransitionService creates and configures the step transition service with all dependencies
+func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger) *workflow.StepTransitionService {
+	// Create services needed for step transition
+	stepExecService := workflowsvc.NewStepExecutionService(db, nil)
+	stepDefService := workflowsvc.NewWorkflowStepDefinitionService(db)
+	workflowExecService := workflowsvc.NewWorkflowExecutionService(db)
+	workflowInstanceService := workflowsvc.NewWorkflowInstanceService(db)
+	workflowDefinitionService := workflowsvc.NewWorkflowDefinitionService(db)
+	roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
 
-		// Create evidence integration for step evidence storage
-		evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
+	// Create executor for step transition coordination
+	stdLogger := log.Default()
+	executor := workflow.NewDAGExecutor(
+		stepExecService,
+		workflowExecService,
+		stepDefService,
+		stdLogger,
+	)
 
-		// Set evidence creator on step execution service
-		stepExecService.SetEvidenceCreator(evidenceIntegration)
+	// Create evidence integration for step evidence storage
+	evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
 
-		// Set evidence creator on workflow execution service
-		workflowExecService.SetEvidenceCreator(evidenceIntegration)
+	// Set evidence creator on services
+	stepExecService.SetEvidenceCreator(evidenceIntegration)
+	workflowExecService.SetEvidenceCreator(evidenceIntegration)
 
-		// Create step transition service
-		transitionService := workflow.NewStepTransitionService(
-			stepExecService,
-			stepDefService,
-			workflowExecService,
-			roleAssignmentService,
-			workflowInstanceService,
-			workflowDefinitionService,
-			executor,
-			db,
-			evidenceIntegration,
-		)
-
-		stepExecutionHandler := workflows.NewStepExecutionHandler(logger, db, transitionService)
-		stepExecutionHandler.Register(server.API().Group("/workflows/step-executions"))
-	}
-
-	// Control relationship handler
-	controlRelationshipHandler := workflows.NewControlRelationshipHandler(logger, db)
-	controlRelationshipHandler.Register(server.API().Group("/workflows/control-relationships"))
-
-	// Role assignment handler
-	roleAssignmentHandler := workflows.NewRoleAssignmentHandler(logger, db)
-	roleAssignmentHandler.Register(server.API().Group("/workflows/role-assignments"))
+	// Create and return step transition service
+	return workflow.NewStepTransitionService(
+		stepExecService,
+		stepDefService,
+		workflowExecService,
+		roleAssignmentService,
+		workflowInstanceService,
+		workflowDefinitionService,
+		executor,
+		db,
+		evidenceIntegration,
+	)
 }

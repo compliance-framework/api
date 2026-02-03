@@ -24,15 +24,9 @@ func NewControlRelationshipService(db *gorm.DB) *ControlRelationshipService {
 
 // Create creates a new control relationship
 func (s *ControlRelationshipService) Create(relationship *ControlRelationship) error {
-	if relationship == nil {
-		return errors.New("control relationship cannot be nil")
-	}
-
-	if err := s.ValidateRelationship(relationship); err != nil {
-		return err
-	}
-
-	return s.db.Create(relationship).Error
+	return s.base.ValidateAndCreate(relationship, "control relationship", func() error {
+		return s.ValidateRelationship(relationship)
+	})
 }
 
 // GetByID retrieves a control relationship by ID
@@ -76,20 +70,8 @@ func (s *ControlRelationshipService) GetByControlSource(controlSource string) ([
 
 // Update updates an existing control relationship
 func (s *ControlRelationshipService) Update(id *uuid.UUID, updates *ControlRelationship) error {
-	if updates == nil {
-		return errors.New("updates cannot be nil")
-	}
-	if err := s.base.ValidateUpdatesNotNil(updates); err != nil {
-		return err
-	}
-
-	if err := s.ValidateRelationship(updates); err != nil {
-		return err
-	}
-
 	var existing ControlRelationship
-	updates.ID = id
-	return s.base.UpdateEntity(&existing, updates, id, "control relationship")
+	return s.base.ValidateAndUpdate(&existing, updates, id, "control relationship", nil)
 }
 
 // Delete soft deletes a control relationship

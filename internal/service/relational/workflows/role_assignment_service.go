@@ -24,15 +24,9 @@ func NewRoleAssignmentService(db *gorm.DB) *RoleAssignmentService {
 
 // Create creates a new role assignment
 func (s *RoleAssignmentService) Create(assignment *RoleAssignment) error {
-	if assignment == nil {
-		return errors.New("role assignment cannot be nil")
-	}
-
-	if err := s.ValidateAssignment(assignment); err != nil {
-		return err
-	}
-
-	return s.db.Create(assignment).Error
+	return s.base.ValidateAndCreate(assignment, "role assignment", func() error {
+		return s.ValidateAssignment(assignment)
+	})
 }
 
 // GetByID retrieves a role assignment by ID
@@ -76,20 +70,8 @@ func (s *RoleAssignmentService) GetByAssignee(assignedToType, assignedToID strin
 
 // Update updates an existing role assignment
 func (s *RoleAssignmentService) Update(id *uuid.UUID, updates *RoleAssignment) error {
-	if updates == nil {
-		return errors.New("updates cannot be nil")
-	}
-	if err := s.base.ValidateUpdatesNotNil(updates); err != nil {
-		return err
-	}
-
-	if err := s.ValidateAssignment(updates); err != nil {
-		return err
-	}
-
 	var existing RoleAssignment
-	updates.ID = id
-	return s.base.UpdateEntity(&existing, updates, id, "role assignment")
+	return s.base.ValidateAndUpdate(&existing, updates, id, "role assignment", nil)
 }
 
 // Delete deletes a role assignment

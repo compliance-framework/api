@@ -259,7 +259,7 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 
 	// Complete step 1 (user action)
 	step1Exec := stepExecMap[*stepDefs[0].ID]
-	err = stepExecService.UpdateStatus(step1Exec.ID, "completed")
+	err = stepExecService.UpdateStatus(context.Background(), step1Exec.ID, "completed")
 	require.NoError(t, err)
 
 	// Process step completion to unblock dependent steps

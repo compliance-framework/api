@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +20,7 @@ type StepExecutionService struct {
 	db              *gorm.DB
 	base            *BaseService
 	evidenceCreator StepEvidenceCreator
+	logger          *zap.SugaredLogger
 }
 
 // NewStepExecutionService creates a new StepExecutionService
@@ -27,7 +29,13 @@ func NewStepExecutionService(db *gorm.DB, evidenceCreator StepEvidenceCreator) *
 		db:              db,
 		base:            NewBaseService(db),
 		evidenceCreator: evidenceCreator,
+		logger:          zap.NewNop().Sugar(), // Default no-op logger
 	}
+}
+
+// SetLogger sets the logger for the service
+func (s *StepExecutionService) SetLogger(logger *zap.SugaredLogger) {
+	s.logger = logger
 }
 
 // SetEvidenceCreator sets the evidence creator (to avoid circular dependency)
@@ -37,28 +45,11 @@ func (s *StepExecutionService) SetEvidenceCreator(creator StepEvidenceCreator) {
 
 // Create creates a new step execution
 func (s *StepExecutionService) Create(stepExecution *StepExecution) error {
-	if stepExecution == nil {
-		return errors.New("step execution cannot be nil")
-	}
-
-	if err := ValidateStepExecution(stepExecution); err != nil {
-		return err
-	}
-
-	// Set default status if not provided
-	if stepExecution.Status == "" {
-		stepExecution.Status = "pending"
-	}
-
-	err := s.db.Create(stepExecution).Error
-	if err != nil {
-		return err
-	}
-
 	// Note: Step started evidence is only added when transitioning from pending -> in_progress
 	// not when creating the step with pending status
-
-	return nil
+	return s.base.ValidateAndCreate(stepExecution, "step execution", func() error {
+		return ValidateStepExecution(stepExecution)
+	})
 }
 
 // GetByID retrieves a step execution by ID
@@ -87,20 +78,12 @@ func (s *StepExecutionService) GetByWorkflowExecutionID(executionID *uuid.UUID) 
 
 // Update updates an existing step execution
 func (s *StepExecutionService) Update(id *uuid.UUID, updates *StepExecution) error {
-	if updates == nil {
-		return errors.New("updates cannot be nil")
-	}
-	if err := s.base.ValidateUpdatesNotNil(updates); err != nil {
-		return err
-	}
-
 	var existing StepExecution
-	updates.ID = id
-	return s.base.UpdateEntity(&existing, updates, id, "step execution")
+	return s.base.ValidateAndUpdate(&existing, updates, id, "step execution", nil)
 }
 
 // UpdateStatus updates the status of a step execution
-func (s *StepExecutionService) UpdateStatus(id *uuid.UUID, status string) error {
+func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, status string) error {
 	if err := ValidateStepExecutionStatus(status); err != nil {
 		return err
 	}
@@ -112,10 +95,11 @@ func (s *StepExecutionService) UpdateStatus(id *uuid.UUID, status string) error 
 		updates["started_at"] = now
 		// Add step started evidence when transitioning to in_progress
 		if s.evidenceCreator != nil {
-			if err := s.evidenceCreator.AddStepStartedEvidence(context.Background(), id); err != nil {
+			if err := s.evidenceCreator.AddStepStartedEvidence(ctx, id); err != nil {
 				// Log error but don't fail the status update
-				// TODO: Add proper logging
-				_ = err // Suppress errcheck warning
+				s.logger.Warnw("Failed to create step started evidence",
+					"step_execution_id", id,
+					"error", err)
 			}
 		}
 	case "completed":
@@ -142,8 +126,9 @@ func (s *StepExecutionService) Start(id *uuid.UUID) error {
 	if s.evidenceCreator != nil {
 		if err := s.evidenceCreator.AddStepStartedEvidence(context.Background(), id); err != nil {
 			// Log error but don't fail the start
-			// TODO: Add proper logging
-			_ = err // Suppress errcheck warning
+			s.logger.Warnw("Failed to create step started evidence",
+				"step_execution_id", id,
+				"error", err)
 		}
 	}
 

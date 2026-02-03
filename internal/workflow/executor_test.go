@@ -36,8 +36,8 @@ func (m *MockStepExecutionService) GetByWorkflowExecutionID(executionID *uuid.UU
 	return args.Get(0).([]workflows.StepExecution), args.Error(1)
 }
 
-func (m *MockStepExecutionService) UpdateStatus(id *uuid.UUID, status string) error {
-	args := m.Called(id, status)
+func (m *MockStepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, status string) error {
+	args := m.Called(ctx, id, status)
 	return args.Error(0)
 }
 
@@ -79,8 +79,8 @@ func (m *MockWorkflowExecutionService) GetByWorkflowInstanceID(instanceID *uuid.
 	return args.Get(0).([]workflows.WorkflowExecution), args.Error(1)
 }
 
-func (m *MockWorkflowExecutionService) UpdateStatus(id *uuid.UUID, status string) error {
-	args := m.Called(id, status)
+func (m *MockWorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, status string) error {
+	args := m.Called(ctx, id, status)
 	return args.Error(0)
 }
 
@@ -341,7 +341,7 @@ func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepDefService.On("GetByWorkflowDefinitionID", &workflowDefID).Return(stepDefinitions, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID1).Return([]workflows.WorkflowStepDefinition{}, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID2).Return([]workflows.WorkflowStepDefinition{workflows.WorkflowStepDefinition{UUIDModel: relational.UUIDModel{ID: &stepDefID1}}}, nil)
-	mockWorkflowExecService.On("UpdateStatus", &workflowExecutionID, "in_progress").Return(nil)
+	mockWorkflowExecService.On("UpdateStatus", mock.Anything, &workflowExecutionID, "in_progress").Return(nil)
 
 	// Mock step execution creation
 	mockStepExecService.On("Create", mock.MatchedBy(func(se *workflows.StepExecution) bool {
@@ -468,9 +468,9 @@ func TestCancelExecution(t *testing.T) {
 	}
 
 	// Setup mocks
-	mockWorkflowExecService.On("UpdateStatus", &workflowExecutionID, "cancelled").Return(nil)
+	mockWorkflowExecService.On("UpdateStatus", mock.Anything, &workflowExecutionID, "cancelled").Return(nil)
 	mockStepExecService.On("GetByWorkflowExecutionID", &workflowExecutionID).Return(stepExecutions, nil)
-	mockStepExecService.On("UpdateStatus", &stepExecID1, "cancelled").Return(nil)
+	mockStepExecService.On("UpdateStatus", mock.Anything, &stepExecID1, "cancelled").Return(nil)
 
 	// Cancel execution
 	ctx := context.Background()

@@ -198,7 +198,7 @@ func (m *Manager) CancelExecution(ctx context.Context, executionID *uuid.UUID, r
 	for _, step := range stepExecutions {
 		if step.Status == "in_progress" || step.Status == "pending" || step.Status == "blocked" {
 			// Update step status to cancelled
-			if err := m.stepExecutionService.UpdateStatus(step.ID, "cancelled"); err != nil {
+			if err := m.stepExecutionService.UpdateStatus(ctx, step.ID, "cancelled"); err != nil {
 				m.logger.Warnw("Failed to cancel step execution",
 					"step_execution_id", step.ID,
 					"error", err,

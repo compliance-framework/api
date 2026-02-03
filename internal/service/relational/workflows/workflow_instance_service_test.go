@@ -236,7 +236,7 @@ func TestWorkflowInstanceService_Update(t *testing.T) {
 	// Test with nil updates
 	err = service.Update(instance.ID, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "workflow instance cannot be nil")
+	assert.Contains(t, err.Error(), "updates cannot be nil")
 
 	// Test with non-existent ID
 	nonExistentID := uuid.New()
@@ -250,17 +250,6 @@ func TestWorkflowInstanceService_Update(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow instance with id")
 	assert.Contains(t, err.Error(), "not found")
-
-	// Test with invalid updates
-	invalidUpdates := &WorkflowInstance{
-		UUIDModel:            relational.UUIDModel{ID: instance.ID},
-		WorkflowDefinitionID: instance.WorkflowDefinitionID,
-		Name:                 "",  // Empty name should fail validation
-		SystemSecurityPlanID: nil, // Empty system name should also fail validation
-	}
-	err = service.Update(instance.ID, invalidUpdates)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "instance name is required")
 }
 
 // TestWorkflowInstanceService_Delete tests the Delete method

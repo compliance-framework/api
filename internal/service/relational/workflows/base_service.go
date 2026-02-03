@@ -3,6 +3,7 @@ package workflows
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -67,7 +68,55 @@ func (s *BaseService) ValidateUpdatesNotNil(updates interface{}) error {
 	if updates == nil {
 		return errors.New("updates cannot be nil")
 	}
+	// Check if it's a nil pointer (typed nil)
+	v := reflect.ValueOf(updates)
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		return errors.New("updates cannot be nil")
+	}
 	return nil
+}
+
+// ValidateEntityNotNil checks if an entity is nil and returns an appropriate error
+func (s *BaseService) ValidateEntityNotNil(entity interface{}, entityName string) error {
+	if entity == nil {
+		return fmt.Errorf("%s cannot be nil", entityName)
+	}
+	// Check if it's a nil pointer (typed nil)
+	v := reflect.ValueOf(entity)
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		return fmt.Errorf("%s cannot be nil", entityName)
+	}
+	return nil
+}
+
+// ValidateAndCreate validates an entity is not nil, runs custom validation if provided, then creates it
+func (s *BaseService) ValidateAndCreate(entity interface{}, entityName string, customValidate func() error) error {
+	if err := s.ValidateEntityNotNil(entity, entityName); err != nil {
+		return err
+	}
+
+	if customValidate != nil {
+		if err := customValidate(); err != nil {
+			return err
+		}
+	}
+
+	return s.db.Create(entity).Error
+}
+
+// ValidateAndUpdate validates updates are not nil, runs custom validation if provided, then updates the entity
+func (s *BaseService) ValidateAndUpdate(existing interface{}, updates interface{}, id *uuid.UUID, entityName string, customValidate func() error) error {
+	if err := s.ValidateUpdatesNotNil(updates); err != nil {
+		return err
+	}
+
+	if customValidate != nil {
+		if err := customValidate(); err != nil {
+			return err
+		}
+	}
+
+	return s.UpdateEntity(existing, updates, id, entityName)
 }
 
 // UpdateStatus updates a status field with timestamp management

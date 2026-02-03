@@ -13,16 +13,16 @@ import (
 )
 
 type WorkflowExecutionHandler struct {
-	sugar   *zap.SugaredLogger
+	*BaseHandler
 	manager *workflow.Manager
 	service *workflows.WorkflowExecutionService
 }
 
 func NewWorkflowExecutionHandler(sugar *zap.SugaredLogger, db *gorm.DB, manager *workflow.Manager) *WorkflowExecutionHandler {
 	return &WorkflowExecutionHandler{
-		sugar:   sugar,
-		manager: manager,
-		service: workflows.NewWorkflowExecutionService(db),
+		BaseHandler: NewBaseHandler(sugar),
+		manager:     manager,
+		service:     workflows.NewWorkflowExecutionService(db),
 	}
 }
 
@@ -78,17 +78,13 @@ type WorkflowExecutionMetricsResponse struct {
 //	@Router			/workflows/executions [post]
 func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
 	var req StartWorkflowExecutionRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	// Use the manager to start the workflow execution
+	// TODO: Consider adding timeout to context for long-running workflow operations
+	// Currently using request context directly - may want to add WithTimeout wrapper
 	executionID, err := h.manager.StartWorkflowExecution(
 		ctx.Request().Context(),
 		req.WorkflowInstanceID,
@@ -96,19 +92,17 @@ func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
 		req.TriggeredByID,
 	)
 	if err != nil {
-		h.sugar.Errorw("Failed to start workflow execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "start", "workflow execution")
 	}
 
 	// Get the created execution
 	execution, err := h.service.GetByID(executionID)
 	if err != nil {
-		h.sugar.Errorw("Failed to get workflow execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow execution")
 	}
 
 	h.sugar.Infow("Workflow execution started", "id", executionID)
-	return ctx.JSON(http.StatusCreated, WorkflowExecutionResponse{Data: execution})
+	return h.RespondCreated(ctx, WorkflowExecutionResponse{Data: execution})
 }
 
 // List godoc
@@ -134,8 +128,7 @@ func (h *WorkflowExecutionHandler) List(ctx echo.Context) error {
 
 	workflowInstanceID, err := uuid.Parse(workflowInstanceIDStr)
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "parse", "workflow instance ID")
 	}
 
 	// Parse pagination parameters (use defaults for now)
@@ -150,8 +143,7 @@ func (h *WorkflowExecutionHandler) List(ctx echo.Context) error {
 		offset,
 	)
 	if err != nil {
-		h.sugar.Errorw("Failed to list workflow executions", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "workflow executions")
 	}
 
 	// Convert to non-pointer slice
@@ -160,7 +152,7 @@ func (h *WorkflowExecutionHandler) List(ctx echo.Context) error {
 		result[i] = *exec
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowExecutionListResponse{Data: result})
+	return h.RespondOK(ctx, WorkflowExecutionListResponse{Data: result})
 }
 
 // Get godoc
@@ -178,23 +170,17 @@ func (h *WorkflowExecutionHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id} [get]
 func (h *WorkflowExecutionHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	execution, err := h.service.GetByID(&id)
+	execution, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow execution")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowExecutionResponse{Data: execution})
+	return h.RespondOK(ctx, WorkflowExecutionResponse{Data: execution})
 }
 
 // GetStatus godoc
@@ -212,24 +198,18 @@ func (h *WorkflowExecutionHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/status [get]
 func (h *WorkflowExecutionHandler) GetStatus(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Use the manager to get execution status
-	status, err := h.manager.GetExecutionStatus(ctx.Request().Context(), &id)
+	status, err := h.manager.GetExecutionStatus(ctx.Request().Context(), id)
 	if err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow execution status", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow execution status")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowExecutionStatusResponse{Data: status})
+	return h.RespondOK(ctx, WorkflowExecutionStatusResponse{Data: status})
 }
 
 // GetMetrics godoc
@@ -247,24 +227,18 @@ func (h *WorkflowExecutionHandler) GetStatus(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/metrics [get]
 func (h *WorkflowExecutionHandler) GetMetrics(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Use the manager to get execution metrics
-	metrics, err := h.manager.GetExecutionMetrics(ctx.Request().Context(), &id)
+	metrics, err := h.manager.GetExecutionMetrics(ctx.Request().Context(), id)
 	if err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow execution metrics", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow execution metrics")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowExecutionMetricsResponse{Data: metrics})
+	return h.RespondOK(ctx, WorkflowExecutionMetricsResponse{Data: metrics})
 }
 
 // Cancel godoc
@@ -284,17 +258,14 @@ func (h *WorkflowExecutionHandler) GetMetrics(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/cancel [put]
 func (h *WorkflowExecutionHandler) Cancel(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req CancelWorkflowExecutionRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	reason := req.Reason
@@ -303,23 +274,18 @@ func (h *WorkflowExecutionHandler) Cancel(ctx echo.Context) error {
 	}
 
 	// Use the manager to cancel the execution
-	if err := h.manager.CancelExecution(ctx.Request().Context(), &id, reason); err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to cancel workflow execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.manager.CancelExecution(ctx.Request().Context(), id, reason); err != nil {
+		return h.HandleServiceError(ctx, err, "cancel", "workflow execution")
 	}
 
 	// Get the updated execution
-	execution, err := h.service.GetByID(&id)
+	execution, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get workflow execution after cancellation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow execution after cancellation")
 	}
 
 	h.sugar.Infow("Workflow execution cancelled", "id", id)
-	return ctx.JSON(http.StatusOK, WorkflowExecutionResponse{Data: execution})
+	return h.RespondOK(ctx, WorkflowExecutionResponse{Data: execution})
 }
 
 // Retry godoc
@@ -337,30 +303,23 @@ func (h *WorkflowExecutionHandler) Cancel(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/executions/{id}/retry [post]
 func (h *WorkflowExecutionHandler) Retry(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Use the manager to retry the execution
-	newExecutionID, err := h.manager.RetryExecution(ctx.Request().Context(), &id)
+	newExecutionID, err := h.manager.RetryExecution(ctx.Request().Context(), id)
 	if err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to retry workflow execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "retry", "workflow execution")
 	}
 
 	// Get the new execution
 	execution, err := h.service.GetByID(newExecutionID)
 	if err != nil {
-		h.sugar.Errorw("Failed to get new workflow execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "new workflow execution")
 	}
 
 	h.sugar.Infow("Workflow execution retried", "original_id", id, "new_id", newExecutionID)
-	return ctx.JSON(http.StatusCreated, WorkflowExecutionResponse{Data: execution})
+	return h.RespondCreated(ctx, WorkflowExecutionResponse{Data: execution})
 }

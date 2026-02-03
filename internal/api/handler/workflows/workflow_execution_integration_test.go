@@ -349,6 +349,7 @@ func TestWorkflowExecutionHandler_GetMetrics(t *testing.T) {
 func TestWorkflowExecutionHandler_Cancel(t *testing.T) {
 	handler, db, _ := setupExecutionTestHandler(t)
 	e := echo.New()
+	e.Validator = middleware.NewValidator()
 
 	workflowDef := &workflows.WorkflowDefinition{
 		Name:    "Test Workflow",

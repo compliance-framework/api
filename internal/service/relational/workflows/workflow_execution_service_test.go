@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -265,7 +266,7 @@ func TestWorkflowExecutionService_Update(t *testing.T) {
 	// Test with nil updates
 	err = service.Update(execution.ID, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid value, should be pointer to struct or slice")
+	assert.Contains(t, err.Error(), "updates cannot be nil")
 
 	// Test with non-existent ID
 	nonExistentID := uuid.New()
@@ -302,7 +303,7 @@ func TestWorkflowExecutionService_UpdateStatus(t *testing.T) {
 	}
 
 	// Test updating to in_progress
-	err := service.UpdateStatus(execution.ID, "in_progress")
+	err := service.UpdateStatus(context.Background(), execution.ID, "in_progress")
 	require.NoError(t, err)
 
 	// Verify update and timestamp
@@ -313,7 +314,7 @@ func TestWorkflowExecutionService_UpdateStatus(t *testing.T) {
 	assert.NotNil(t, updated.StartedAt)
 
 	// Test updating to completed
-	err = service.UpdateStatus(execution.ID, "completed")
+	err = service.UpdateStatus(context.Background(), execution.ID, "completed")
 	require.NoError(t, err)
 
 	err = db.First(&updated, execution.ID).Error
@@ -322,7 +323,7 @@ func TestWorkflowExecutionService_UpdateStatus(t *testing.T) {
 	assert.NotNil(t, updated.CompletedAt)
 
 	// Test updating to failed
-	err = service.UpdateStatus(execution.ID, "failed")
+	err = service.UpdateStatus(context.Background(), execution.ID, "failed")
 	require.NoError(t, err)
 
 	err = db.First(&updated, execution.ID).Error
@@ -331,7 +332,7 @@ func TestWorkflowExecutionService_UpdateStatus(t *testing.T) {
 	assert.NotNil(t, updated.FailedAt)
 
 	// Test with invalid status
-	err = service.UpdateStatus(execution.ID, "invalid_status")
+	err = service.UpdateStatus(context.Background(), execution.ID, "invalid_status")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status")
 }

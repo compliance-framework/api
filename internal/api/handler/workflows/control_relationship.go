@@ -13,16 +13,16 @@ import (
 )
 
 type ControlRelationshipHandler struct {
-	sugar   *zap.SugaredLogger
+	*BaseHandler
 	db      *gorm.DB
 	service *workflows.ControlRelationshipService
 }
 
 func NewControlRelationshipHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ControlRelationshipHandler {
 	return &ControlRelationshipHandler{
-		sugar:   sugar,
-		db:      db,
-		service: workflows.NewControlRelationshipService(db),
+		BaseHandler: NewBaseHandler(sugar),
+		db:          db,
+		service:     workflows.NewControlRelationshipService(db),
 	}
 }
 
@@ -76,14 +76,8 @@ type ControlRelationshipListResponse struct {
 //	@Router			/workflows/control-relationships [post]
 func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 	var req CreateControlRelationshipRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 	relType := req.RelationshipType
 	if relType == "" {
@@ -107,8 +101,7 @@ func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 		var catalog relational.Catalog
 		err := h.db.Preload("Metadata").First(&catalog, "id = ?", catalogUUID).Error
 		if err != nil {
-			h.sugar.Errorw("Failed to get catalog", "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			return h.HandleServiceError(ctx, err, "get", "catalog")
 		}
 		if catalog.Metadata.Title != "" {
 			relationship.ControlSource = catalog.Metadata.Title
@@ -120,12 +113,11 @@ func (h *ControlRelationshipHandler) Create(ctx echo.Context) error {
 	}
 
 	if err := h.service.Create(relationship); err != nil {
-		h.sugar.Errorw("Failed to create control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "create", "control relationship")
 	}
 
 	h.sugar.Infow("Control relationship created", "id", relationship.ID)
-	return ctx.JSON(http.StatusCreated, ControlRelationshipResponse{Data: relationship})
+	return h.RespondCreated(ctx, ControlRelationshipResponse{Data: relationship})
 }
 
 // List godoc
@@ -152,8 +144,7 @@ func (h *ControlRelationshipHandler) List(ctx echo.Context) error {
 	if workflowDefIDStr != "" {
 		workflowDefID, parseErr := uuid.Parse(workflowDefIDStr)
 		if parseErr != nil {
-			h.sugar.Errorw("Invalid workflow definition ID", "error", parseErr)
-			return ctx.JSON(http.StatusBadRequest, api.NewError(parseErr))
+			return h.HandleServiceError(ctx, parseErr, "parse", "workflow definition ID")
 		}
 		relationships, err = h.service.GetByWorkflowDefinitionID(&workflowDefID)
 	} else if controlID != "" {
@@ -164,11 +155,10 @@ func (h *ControlRelationshipHandler) List(ctx echo.Context) error {
 	}
 
 	if err != nil {
-		h.sugar.Errorw("Failed to list control relationships", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "control relationships")
 	}
 
-	return ctx.JSON(http.StatusOK, ControlRelationshipListResponse{Data: relationships})
+	return h.RespondOK(ctx, ControlRelationshipListResponse{Data: relationships})
 }
 
 // Get godoc
@@ -186,23 +176,17 @@ func (h *ControlRelationshipHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id} [get]
 func (h *ControlRelationshipHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
-		h.sugar.Errorw("Invalid control relationship ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	relationship, err := h.service.GetByID(&id)
+	relationship, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "control relationship")
 	}
 
-	return ctx.JSON(http.StatusOK, ControlRelationshipResponse{Data: relationship})
+	return h.RespondOK(ctx, ControlRelationshipResponse{Data: relationship})
 }
 
 // Update godoc
@@ -222,17 +206,14 @@ func (h *ControlRelationshipHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id} [put]
 func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
-		h.sugar.Errorw("Invalid control relationship ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req UpdateControlRelationshipRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.Bind(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	// Build updates map with only provided fields
@@ -247,19 +228,17 @@ func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
 	// Use DB directly for partial updates
 	if len(updates) > 0 {
 		if err := h.db.Model(&workflows.ControlRelationship{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-			h.sugar.Errorw("Failed to update control relationship", "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			return h.HandleServiceError(ctx, err, "update", "control relationship")
 		}
 	}
 
-	relationship, err := h.service.GetByID(&id)
+	relationship, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get control relationship after update", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "control relationship after update")
 	}
 
 	h.sugar.Infow("Control relationship updated", "id", id)
-	return ctx.JSON(http.StatusOK, ControlRelationshipResponse{Data: relationship})
+	return h.RespondOK(ctx, ControlRelationshipResponse{Data: relationship})
 }
 
 // Delete godoc
@@ -276,23 +255,17 @@ func (h *ControlRelationshipHandler) Update(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id} [delete]
 func (h *ControlRelationshipHandler) Delete(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
-		h.sugar.Errorw("Invalid control relationship ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	if err := h.service.Delete(&id); err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to delete control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Delete(id); err != nil {
+		return h.HandleServiceError(ctx, err, "delete", "control relationship")
 	}
 
 	h.sugar.Infow("Control relationship deleted", "id", id)
-	return ctx.NoContent(http.StatusNoContent)
+	return h.RespondNoContent(ctx)
 }
 
 // Activate godoc
@@ -310,36 +283,28 @@ func (h *ControlRelationshipHandler) Delete(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id}/activate [put]
 func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
-		h.sugar.Errorw("Invalid control relationship ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Check if relationship exists first
-	_, err = h.service.GetByID(&id)
+	_, err = h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "control relationship")
 	}
 
-	if err := h.service.Activate(&id); err != nil {
-		h.sugar.Errorw("Failed to activate control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Activate(id); err != nil {
+		return h.HandleServiceError(ctx, err, "activate", "control relationship")
 	}
 
-	relationship, err := h.service.GetByID(&id)
+	relationship, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get control relationship after activation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "control relationship after activation")
 	}
 
 	h.sugar.Infow("Control relationship activated", "id", id)
-	return ctx.JSON(http.StatusOK, ControlRelationshipResponse{Data: relationship})
+	return h.RespondOK(ctx, ControlRelationshipResponse{Data: relationship})
 }
 
 // Deactivate godoc
@@ -357,34 +322,26 @@ func (h *ControlRelationshipHandler) Activate(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/control-relationships/{id}/deactivate [put]
 func (h *ControlRelationshipHandler) Deactivate(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "control relationship")
 	if err != nil {
-		h.sugar.Errorw("Invalid control relationship ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Check if relationship exists first
-	_, err = h.service.GetByID(&id)
+	_, err = h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "control relationship")
 	}
 
-	if err := h.service.Deactivate(&id); err != nil {
-		h.sugar.Errorw("Failed to deactivate control relationship", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Deactivate(id); err != nil {
+		return h.HandleServiceError(ctx, err, "deactivate", "control relationship")
 	}
 
-	relationship, err := h.service.GetByID(&id)
+	relationship, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get control relationship after deactivation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "control relationship after deactivation")
 	}
 
 	h.sugar.Infow("Control relationship deactivated", "id", id)
-	return ctx.JSON(http.StatusOK, ControlRelationshipResponse{Data: relationship})
+	return h.RespondOK(ctx, ControlRelationshipResponse{Data: relationship})
 }

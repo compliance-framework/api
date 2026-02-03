@@ -10,25 +10,23 @@ import (
 
 // WorkflowStepDefinitionService provides CRUD operations for WorkflowStepDefinition
 type WorkflowStepDefinitionService struct {
-	db *gorm.DB
+	db   *gorm.DB
+	base *BaseService
 }
 
 // NewWorkflowStepDefinitionService creates a new WorkflowStepDefinitionService
 func NewWorkflowStepDefinitionService(db *gorm.DB) *WorkflowStepDefinitionService {
-	return &WorkflowStepDefinitionService{db: db}
+	return &WorkflowStepDefinitionService{
+		db:   db,
+		base: NewBaseService(db),
+	}
 }
 
 // Create creates a new workflow step definition
 func (s *WorkflowStepDefinitionService) Create(step *WorkflowStepDefinition) error {
-	if step == nil {
-		return errors.New("workflow step definition cannot be nil")
-	}
-
-	if err := s.ValidateStep(step); err != nil {
-		return err
-	}
-
-	return s.db.Create(step).Error
+	return s.base.ValidateAndCreate(step, "workflow step definition", func() error {
+		return s.ValidateStep(step)
+	})
 }
 
 // GetByID retrieves a workflow step definition by ID
@@ -65,27 +63,8 @@ func (s *WorkflowStepDefinitionService) GetByWorkflowDefinitionID(workflowDefID 
 
 // Update updates an existing workflow step definition
 func (s *WorkflowStepDefinitionService) Update(id *uuid.UUID, updates *WorkflowStepDefinition) error {
-	if updates == nil {
-		return errors.New("updates cannot be nil")
-	}
-
-	// Check if step exists
 	var existing WorkflowStepDefinition
-	if err := s.db.First(&existing, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("workflow step definition with id %s not found", id.String())
-		}
-		return err
-	}
-
-	// Validate updates
-	if err := s.ValidateStep(updates); err != nil {
-		return err
-	}
-
-	// Update fields
-	updates.ID = id
-	return s.db.Model(&existing).Updates(updates).Error
+	return s.base.ValidateAndUpdate(&existing, updates, id, "workflow step definition", nil)
 }
 
 // Delete soft deletes a workflow step definition

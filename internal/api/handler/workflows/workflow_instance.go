@@ -1,9 +1,6 @@
 package workflows
 
 import (
-	"net/http"
-
-	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -12,14 +9,14 @@ import (
 )
 
 type WorkflowInstanceHandler struct {
-	sugar   *zap.SugaredLogger
+	*BaseHandler
 	service *workflows.WorkflowInstanceService
 }
 
 func NewWorkflowInstanceHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowInstanceHandler {
 	return &WorkflowInstanceHandler{
-		sugar:   sugar,
-		service: workflows.NewWorkflowInstanceService(db),
+		BaseHandler: NewBaseHandler(sugar),
+		service:     workflows.NewWorkflowInstanceService(db),
 	}
 }
 
@@ -73,19 +70,13 @@ type WorkflowInstanceListResponse struct {
 //	@Router			/workflows/instances [post]
 func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 	var req CreateWorkflowInstanceRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 	systemId, err := uuid.Parse(req.SystemSecurityPlanID)
 	if err != nil {
 		h.sugar.Errorw("Failed to parse system security plan ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "parse", "system security plan ID")
 	}
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: req.WorkflowDefinitionID,
@@ -101,12 +92,11 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 	}
 
 	if err := h.service.Create(instance); err != nil {
-		h.sugar.Errorw("Failed to create workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "create", "workflow instance")
 	}
 
 	h.sugar.Infow("Workflow instance created", "id", instance.ID)
-	return ctx.JSON(http.StatusCreated, WorkflowInstanceResponse{Data: instance})
+	return h.RespondCreated(ctx, WorkflowInstanceResponse{Data: instance})
 }
 
 // List godoc
@@ -136,16 +126,14 @@ func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 	if workflowDefIDStr != "" {
 		workflowDefID, parseErr := uuid.Parse(workflowDefIDStr)
 		if parseErr != nil {
-			h.sugar.Errorw("Invalid workflow definition ID", "error", parseErr)
-			return ctx.JSON(http.StatusBadRequest, api.NewError(parseErr))
+			return h.HandleServiceError(ctx, parseErr, "parse", "workflow definition ID")
 		}
 		filters["workflow_definition_id"] = workflowDefID
 	}
 	if systemSecurityPlanIDStr != "" {
 		systemSecurityPlanID, parseErr := uuid.Parse(systemSecurityPlanIDStr)
 		if parseErr != nil {
-			h.sugar.Errorw("Invalid system security plan ID", "error", parseErr)
-			return ctx.JSON(http.StatusBadRequest, api.NewError(parseErr))
+			return h.HandleServiceError(ctx, parseErr, "parse", "system security plan ID")
 		}
 		filters["system_security_plan_id"] = systemSecurityPlanID
 	}
@@ -153,8 +141,7 @@ func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 	instances, _, err = h.service.GetAll(1000, 0, filters)
 
 	if err != nil {
-		h.sugar.Errorw("Failed to list workflow instances", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "workflow instances")
 	}
 
 	// Filter by active status if provided
@@ -169,7 +156,7 @@ func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 		instances = filtered
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowInstanceListResponse{Data: instances})
+	return h.RespondOK(ctx, WorkflowInstanceListResponse{Data: instances})
 }
 
 // Get godoc
@@ -187,23 +174,17 @@ func (h *WorkflowInstanceHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id} [get]
 func (h *WorkflowInstanceHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	instance, err := h.service.GetByID(&id)
+	instance, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow instance")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowInstanceResponse{Data: instance})
+	return h.RespondOK(ctx, WorkflowInstanceResponse{Data: instance})
 }
 
 // Update godoc
@@ -223,26 +204,19 @@ func (h *WorkflowInstanceHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id} [put]
 func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req UpdateWorkflowInstanceRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.Bind(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
-	instance, err := h.service.GetByID(&id)
+	instance, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow instance")
 	}
 
 	if req.Name != nil {
@@ -258,13 +232,12 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 		instance.IsActive = *req.IsActive
 	}
 
-	if err := h.service.Update(&id, instance); err != nil {
-		h.sugar.Errorw("Failed to update workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Update(id, instance); err != nil {
+		return h.HandleServiceError(ctx, err, "update", "workflow instance")
 	}
 
 	h.sugar.Infow("Workflow instance updated", "id", instance.ID)
-	return ctx.JSON(http.StatusOK, WorkflowInstanceResponse{Data: instance})
+	return h.RespondOK(ctx, WorkflowInstanceResponse{Data: instance})
 }
 
 // Delete godoc
@@ -282,23 +255,17 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id} [delete]
 func (h *WorkflowInstanceHandler) Delete(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	if err := h.service.Delete(&id); err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to delete workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Delete(id); err != nil {
+		return h.HandleServiceError(ctx, err, "delete", "workflow instance")
 	}
 
 	h.sugar.Infow("Workflow instance deleted", "id", id)
-	return ctx.NoContent(http.StatusNoContent)
+	return h.RespondNoContent(ctx)
 }
 
 // Activate godoc
@@ -316,36 +283,28 @@ func (h *WorkflowInstanceHandler) Delete(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id}/activate [put]
 func (h *WorkflowInstanceHandler) Activate(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Check if instance exists first
-	_, err = h.service.GetByID(&id)
+	_, err = h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow instance")
 	}
 
-	if err := h.service.Activate(&id); err != nil {
-		h.sugar.Errorw("Failed to activate workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Activate(id); err != nil {
+		return h.HandleServiceError(ctx, err, "activate", "workflow instance")
 	}
 
-	instance, err := h.service.GetByID(&id)
+	instance, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get workflow instance after activation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow instance after activation")
 	}
 
 	h.sugar.Infow("Workflow instance activated", "id", id)
-	return ctx.JSON(http.StatusOK, WorkflowInstanceResponse{Data: instance})
+	return h.RespondOK(ctx, WorkflowInstanceResponse{Data: instance})
 }
 
 // Deactivate godoc
@@ -363,34 +322,26 @@ func (h *WorkflowInstanceHandler) Activate(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/instances/{id}/deactivate [put]
 func (h *WorkflowInstanceHandler) Deactivate(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow instance")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Check if instance exists first
-	_, err = h.service.GetByID(&id)
+	_, err = h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow instance")
 	}
 
-	if err := h.service.Deactivate(&id); err != nil {
-		h.sugar.Errorw("Failed to deactivate workflow instance", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Deactivate(id); err != nil {
+		return h.HandleServiceError(ctx, err, "deactivate", "workflow instance")
 	}
 
-	instance, err := h.service.GetByID(&id)
+	instance, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get workflow instance after deactivation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow instance after deactivation")
 	}
 
 	h.sugar.Infow("Workflow instance deactivated", "id", id)
-	return ctx.JSON(http.StatusOK, WorkflowInstanceResponse{Data: instance})
+	return h.RespondOK(ctx, WorkflowInstanceResponse{Data: instance})
 }

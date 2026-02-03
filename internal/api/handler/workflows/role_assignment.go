@@ -12,16 +12,16 @@ import (
 )
 
 type RoleAssignmentHandler struct {
-	sugar   *zap.SugaredLogger
+	*BaseHandler
 	db      *gorm.DB
 	service *workflows.RoleAssignmentService
 }
 
 func NewRoleAssignmentHandler(sugar *zap.SugaredLogger, db *gorm.DB) *RoleAssignmentHandler {
 	return &RoleAssignmentHandler{
-		sugar:   sugar,
-		db:      db,
-		service: workflows.NewRoleAssignmentService(db),
+		BaseHandler: NewBaseHandler(sugar),
+		db:          db,
+		service:     workflows.NewRoleAssignmentService(db),
 	}
 }
 
@@ -72,14 +72,8 @@ type RoleAssignmentListResponse struct {
 //	@Router			/workflows/role-assignments [post]
 func (h *RoleAssignmentHandler) Create(ctx echo.Context) error {
 	var req CreateRoleAssignmentRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	assignment := &workflows.RoleAssignment{
@@ -95,12 +89,11 @@ func (h *RoleAssignmentHandler) Create(ctx echo.Context) error {
 	}
 
 	if err := h.service.Create(assignment); err != nil {
-		h.sugar.Errorw("Failed to create role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "create", "role assignment")
 	}
 
 	h.sugar.Infow("Role assignment created", "id", assignment.ID)
-	return ctx.JSON(http.StatusCreated, RoleAssignmentResponse{Data: assignment})
+	return h.RespondCreated(ctx, RoleAssignmentResponse{Data: assignment})
 }
 
 // List godoc
@@ -127,8 +120,7 @@ func (h *RoleAssignmentHandler) List(ctx echo.Context) error {
 
 	workflowInstID, parseErr := uuid.Parse(workflowInstIDStr)
 	if parseErr != nil {
-		h.sugar.Errorw("Invalid workflow instance ID", "error", parseErr)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(parseErr))
+		return h.HandleServiceError(ctx, parseErr, "parse", "workflow instance ID")
 	}
 
 	var assignments []workflows.RoleAssignment
@@ -143,11 +135,10 @@ func (h *RoleAssignmentHandler) List(ctx echo.Context) error {
 	}
 
 	if err != nil {
-		h.sugar.Errorw("Failed to list role assignments", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "role assignments")
 	}
 
-	return ctx.JSON(http.StatusOK, RoleAssignmentListResponse{Data: assignments})
+	return h.RespondOK(ctx, RoleAssignmentListResponse{Data: assignments})
 }
 
 // Get godoc
@@ -165,23 +156,17 @@ func (h *RoleAssignmentHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id} [get]
 func (h *RoleAssignmentHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
-		h.sugar.Errorw("Invalid role assignment ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	assignment, err := h.service.GetByID(&id)
+	assignment, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "role assignment")
 	}
 
-	return ctx.JSON(http.StatusOK, RoleAssignmentResponse{Data: assignment})
+	return h.RespondOK(ctx, RoleAssignmentResponse{Data: assignment})
 }
 
 // Update godoc
@@ -201,17 +186,14 @@ func (h *RoleAssignmentHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id} [put]
 func (h *RoleAssignmentHandler) Update(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
-		h.sugar.Errorw("Invalid role assignment ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req UpdateRoleAssignmentRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.Bind(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	// Build updates map with only provided fields
@@ -226,19 +208,17 @@ func (h *RoleAssignmentHandler) Update(ctx echo.Context) error {
 	// Use DB directly for partial updates
 	if len(updates) > 0 {
 		if err := h.db.Model(&workflows.RoleAssignment{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-			h.sugar.Errorw("Failed to update role assignment", "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+			return h.HandleServiceError(ctx, err, "update", "role assignment")
 		}
 	}
 
-	assignment, err := h.service.GetByID(&id)
+	assignment, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get role assignment after update", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "role assignment after update")
 	}
 
 	h.sugar.Infow("Role assignment updated", "id", id)
-	return ctx.JSON(http.StatusOK, RoleAssignmentResponse{Data: assignment})
+	return h.RespondOK(ctx, RoleAssignmentResponse{Data: assignment})
 }
 
 // Delete godoc
@@ -255,23 +235,17 @@ func (h *RoleAssignmentHandler) Update(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id} [delete]
 func (h *RoleAssignmentHandler) Delete(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
-		h.sugar.Errorw("Invalid role assignment ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	if err := h.service.Delete(&id); err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to delete role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Delete(id); err != nil {
+		return h.HandleServiceError(ctx, err, "delete", "role assignment")
 	}
 
 	h.sugar.Infow("Role assignment deleted", "id", id)
-	return ctx.NoContent(http.StatusNoContent)
+	return h.RespondNoContent(ctx)
 }
 
 // Activate godoc
@@ -289,36 +263,28 @@ func (h *RoleAssignmentHandler) Delete(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id}/activate [put]
 func (h *RoleAssignmentHandler) Activate(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
-		h.sugar.Errorw("Invalid role assignment ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Check if assignment exists first
-	_, err = h.service.GetByID(&id)
+	_, err = h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "role assignment")
 	}
 
-	if err := h.service.Activate(&id); err != nil {
-		h.sugar.Errorw("Failed to activate role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Activate(id); err != nil {
+		return h.HandleServiceError(ctx, err, "activate", "role assignment")
 	}
 
-	assignment, err := h.service.GetByID(&id)
+	assignment, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get role assignment after activation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "role assignment after activation")
 	}
 
 	h.sugar.Infow("Role assignment activated", "id", id)
-	return ctx.JSON(http.StatusOK, RoleAssignmentResponse{Data: assignment})
+	return h.RespondOK(ctx, RoleAssignmentResponse{Data: assignment})
 }
 
 // Deactivate godoc
@@ -336,34 +302,26 @@ func (h *RoleAssignmentHandler) Activate(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/role-assignments/{id}/deactivate [put]
 func (h *RoleAssignmentHandler) Deactivate(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "role assignment")
 	if err != nil {
-		h.sugar.Errorw("Invalid role assignment ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	// Check if assignment exists first
-	_, err = h.service.GetByID(&id)
+	_, err = h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "role assignment")
 	}
 
-	if err := h.service.Deactivate(&id); err != nil {
-		h.sugar.Errorw("Failed to deactivate role assignment", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Deactivate(id); err != nil {
+		return h.HandleServiceError(ctx, err, "deactivate", "role assignment")
 	}
 
-	assignment, err := h.service.GetByID(&id)
+	assignment, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get role assignment after deactivation", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "role assignment after deactivation")
 	}
 
 	h.sugar.Infow("Role assignment deactivated", "id", id)
-	return ctx.JSON(http.StatusOK, RoleAssignmentResponse{Data: assignment})
+	return h.RespondOK(ctx, RoleAssignmentResponse{Data: assignment})
 }

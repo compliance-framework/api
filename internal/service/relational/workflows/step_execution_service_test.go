@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -201,7 +202,7 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 	require.NoError(t, db.Create(stepExecution).Error)
 
 	// Test updating to in_progress
-	err := service.UpdateStatus(stepExecution.ID, "in_progress")
+	err := service.UpdateStatus(context.Background(), stepExecution.ID, "in_progress")
 	require.NoError(t, err)
 
 	var updated StepExecution
@@ -211,7 +212,7 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 	assert.NotNil(t, updated.StartedAt)
 
 	// Test updating to completed
-	err = service.UpdateStatus(stepExecution.ID, "completed")
+	err = service.UpdateStatus(context.Background(), stepExecution.ID, "completed")
 	require.NoError(t, err)
 
 	err = db.First(&updated, stepExecution.ID).Error
@@ -220,7 +221,7 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 	assert.NotNil(t, updated.CompletedAt)
 
 	// Test updating to failed
-	err = service.UpdateStatus(stepExecution.ID, "failed")
+	err = service.UpdateStatus(context.Background(), stepExecution.ID, "failed")
 	require.NoError(t, err)
 
 	err = db.First(&updated, stepExecution.ID).Error
@@ -229,7 +230,7 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 	assert.NotNil(t, updated.FailedAt)
 
 	// Test with invalid status
-	err = service.UpdateStatus(stepExecution.ID, "invalid_status")
+	err = service.UpdateStatus(context.Background(), stepExecution.ID, "invalid_status")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status")
 }

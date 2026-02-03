@@ -23,15 +23,12 @@ func NewWorkflowDefinitionService(db *gorm.DB) *WorkflowDefinitionService {
 
 // Create creates a new workflow definition
 func (s *WorkflowDefinitionService) Create(definition *WorkflowDefinition) error {
-	if definition == nil {
-		return errors.New("workflow definition cannot be nil")
-	}
-
-	if definition.Name == "" {
-		return errors.New("workflow definition name is required")
-	}
-
-	return s.db.Create(definition).Error
+	return s.base.ValidateAndCreate(definition, "workflow definition", func() error {
+		if definition != nil && definition.Name == "" {
+			return errors.New("workflow definition name is required")
+		}
+		return nil
+	})
 }
 
 // GetByID retrieves a workflow definition by ID

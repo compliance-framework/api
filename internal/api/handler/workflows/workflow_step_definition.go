@@ -14,7 +14,7 @@ import (
 )
 
 type WorkflowStepDefinitionHandler struct {
-	sugar   *zap.SugaredLogger
+	*BaseHandler
 	service *workflows.WorkflowStepDefinitionService
 }
 
@@ -87,8 +87,8 @@ func dependencyServiceErrorStatus(err error) int {
 
 func NewWorkflowStepDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowStepDefinitionHandler {
 	return &WorkflowStepDefinitionHandler{
-		sugar:   sugar,
-		service: workflows.NewWorkflowStepDefinitionService(db),
+		BaseHandler: NewBaseHandler(sugar),
+		service:     workflows.NewWorkflowStepDefinitionService(db),
 	}
 }
 
@@ -144,14 +144,8 @@ type WorkflowStepDefinitionListResponse struct {
 //	@Router			/workflows/steps [post]
 func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
 	var req CreateWorkflowStepDefinitionRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	stepDef := &workflows.WorkflowStepDefinition{
@@ -164,8 +158,7 @@ func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
 	}
 
 	if err := h.service.Create(stepDef); err != nil {
-		h.sugar.Errorw("Failed to create workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "create", "workflow step definition")
 	}
 
 	// Add dependencies if provided
@@ -183,11 +176,10 @@ func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
 	}
 	output, err := h.service.GetByID(stepDef.ID)
 	if err != nil {
-		h.sugar.Errorw("Failed to get workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow step definition")
 	}
 	h.sugar.Infow("Workflow step definition created", "id", output.ID)
-	return ctx.JSON(http.StatusCreated, WorkflowStepDefinitionResponse{Data: output})
+	return h.RespondCreated(ctx, WorkflowStepDefinitionResponse{Data: output})
 }
 
 // ListByWorkflowDefinition godoc
@@ -211,17 +203,16 @@ func (h *WorkflowStepDefinitionHandler) ListByWorkflowDefinition(ctx echo.Contex
 
 	workflowDefID, err := uuid.Parse(workflowDefIDStr)
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow definition ID", "error", err)
+		h.sugar.Errorw("Invalid workflow definition ID", "error", err, "value", workflowDefIDStr)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	steps, err := h.service.GetByWorkflowDefinitionID(&workflowDefID)
 	if err != nil {
-		h.sugar.Errorw("Failed to list workflow step definitions", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "workflow step definitions")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowStepDefinitionListResponse{Data: steps})
+	return h.RespondOK(ctx, WorkflowStepDefinitionListResponse{Data: steps})
 }
 
 // Get godoc
@@ -239,23 +230,17 @@ func (h *WorkflowStepDefinitionHandler) ListByWorkflowDefinition(ctx echo.Contex
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id} [get]
 func (h *WorkflowStepDefinitionHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid step definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	stepDef, err := h.service.GetByID(&id)
+	stepDef, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow step definition")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowStepDefinitionResponse{Data: stepDef})
+	return h.RespondOK(ctx, WorkflowStepDefinitionResponse{Data: stepDef})
 }
 
 // Update godoc
@@ -275,26 +260,19 @@ func (h *WorkflowStepDefinitionHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id} [put]
 func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid step definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req UpdateWorkflowStepDefinitionRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.Bind(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
-	stepDef, err := h.service.GetByID(&id)
+	stepDef, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow step definition")
 	}
 
 	if req.Name != nil {
@@ -313,9 +291,8 @@ func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
 		stepDef.EstimatedDuration = *req.EstimatedDuration
 	}
 
-	if err := h.service.Update(&id, stepDef); err != nil {
-		h.sugar.Errorw("Failed to update workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Update(id, stepDef); err != nil {
+		return h.HandleServiceError(ctx, err, "update", "workflow step definition")
 	}
 
 	if req.DependsOn != nil {
@@ -327,14 +304,13 @@ func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
 	}
 
 	// Reload step definition to return fresh relationships
-	updatedStepDef, err := h.service.GetByID(&id)
+	updatedStepDef, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to reload workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "reload", "workflow step definition")
 	}
 
 	h.sugar.Infow("Workflow step definition updated", "id", updatedStepDef.ID)
-	return ctx.JSON(http.StatusOK, WorkflowStepDefinitionResponse{Data: updatedStepDef})
+	return h.RespondOK(ctx, WorkflowStepDefinitionResponse{Data: updatedStepDef})
 }
 
 // Delete godoc
@@ -352,23 +328,17 @@ func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id} [delete]
 func (h *WorkflowStepDefinitionHandler) Delete(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid step definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	if err := h.service.Delete(&id); err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to delete workflow step definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Delete(id); err != nil {
+		return h.HandleServiceError(ctx, err, "delete", "workflow step definition")
 	}
 
 	h.sugar.Infow("Workflow step definition deleted", "id", id)
-	return ctx.NoContent(http.StatusNoContent)
+	return h.RespondNoContent(ctx)
 }
 
 // GetDependencies godoc
@@ -386,21 +356,15 @@ func (h *WorkflowStepDefinitionHandler) Delete(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/steps/{id}/dependencies [get]
 func (h *WorkflowStepDefinitionHandler) GetDependencies(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid step definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	dependencies, err := h.service.GetDependencies(&id)
+	dependencies, err := h.service.GetDependencies(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get step dependencies", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "step dependencies")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowStepDefinitionListResponse{Data: dependencies})
+	return h.RespondOK(ctx, WorkflowStepDefinitionListResponse{Data: dependencies})
 }

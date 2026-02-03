@@ -24,7 +24,7 @@ func isPermissionError(err error) bool {
 }
 
 type StepExecutionHandler struct {
-	sugar             *zap.SugaredLogger
+	*BaseHandler
 	db                *gorm.DB
 	service           *workflows.StepExecutionService
 	transitionService *workflow.StepTransitionService
@@ -32,7 +32,7 @@ type StepExecutionHandler struct {
 
 func NewStepExecutionHandler(sugar *zap.SugaredLogger, db *gorm.DB, transitionService *workflow.StepTransitionService) *StepExecutionHandler {
 	return &StepExecutionHandler{
-		sugar:             sugar,
+		BaseHandler:       NewBaseHandler(sugar),
 		db:                db,
 		service:           transitionService.GetStepExecutionService(), // Use the same service as transition service
 		transitionService: transitionService,
@@ -89,17 +89,15 @@ func (h *StepExecutionHandler) List(ctx echo.Context) error {
 
 	workflowExecID, err := uuid.Parse(workflowExecIDStr)
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "parse", "workflow execution ID")
 	}
 
 	stepExecutions, err := h.service.GetByWorkflowExecutionID(&workflowExecID)
 	if err != nil {
-		h.sugar.Errorw("Failed to list step executions", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "step executions")
 	}
 
-	return ctx.JSON(http.StatusOK, StepExecutionListResponse{Data: stepExecutions})
+	return h.RespondOK(ctx, StepExecutionListResponse{Data: stepExecutions})
 }
 
 // Get godoc
@@ -117,23 +115,17 @@ func (h *StepExecutionHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id} [get]
 func (h *StepExecutionHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid step execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	stepExecution, err := h.service.GetByID(&id)
+	stepExecution, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get step execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "step execution")
 	}
 
-	return ctx.JSON(http.StatusOK, StepExecutionResponse{Data: stepExecution})
+	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
 }
 
 // TransitionStep godoc
@@ -154,22 +146,14 @@ func (h *StepExecutionHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/transition [put]
 func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid step execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req TransitionStepRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	// Convert to workflow.StepTransitionRequest
@@ -182,7 +166,7 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 	}
 
 	// Perform the transition with role verification and evidence validation
-	if err := h.transitionService.TransitionStepStatus(ctx.Request().Context(), &id, transitionReq); err != nil {
+	if err := h.transitionService.TransitionStepStatus(ctx.Request().Context(), id, transitionReq); err != nil {
 		if isNotFoundError(err) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -190,18 +174,16 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 		if isPermissionError(err) {
 			return ctx.JSON(http.StatusForbidden, api.NewError(err))
 		}
-		h.sugar.Errorw("Failed to transition step execution", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "transition", "step execution")
 	}
 
-	stepExecution, err := h.service.GetByID(&id)
+	stepExecution, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get step execution after transition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "step execution after transition")
 	}
 
 	h.sugar.Infow("Step execution transitioned", "id", id, "status", req.Status, "user", req.UserID)
-	return ctx.JSON(http.StatusOK, StepExecutionResponse{Data: stepExecution})
+	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
 }
 
 // GetEvidenceRequirements godoc
@@ -218,23 +200,17 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/evidence-requirements [get]
 func (h *StepExecutionHandler) GetEvidenceRequirements(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid step execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	requirements, err := h.transitionService.GetEvidenceRequirements(&id)
+	requirements, err := h.transitionService.GetEvidenceRequirements(id)
 	if err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get evidence requirements", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "evidence requirements")
 	}
 
-	return ctx.JSON(http.StatusOK, map[string]interface{}{
+	return h.RespondOK(ctx, map[string]interface{}{
 		"data": requirements,
 	})
 }
@@ -255,11 +231,9 @@ func (h *StepExecutionHandler) GetEvidenceRequirements(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/can-transition [get]
 func (h *StepExecutionHandler) CanTransition(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid step execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	userID := ctx.QueryParam("user_id")
@@ -269,16 +243,12 @@ func (h *StepExecutionHandler) CanTransition(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "user_id and user_type are required")))
 	}
 
-	canTransition, err := h.transitionService.CanUserTransitionStep(&id, userID, userType)
+	canTransition, err := h.transitionService.CanUserTransitionStep(id, userID, userType)
 	if err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to check transition permission", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "check", "transition permission")
 	}
 
-	return ctx.JSON(http.StatusOK, map[string]interface{}{
+	return h.RespondOK(ctx, map[string]interface{}{
 		"data": map[string]interface{}{
 			"can-transition": canTransition,
 			"user-id":        userID,
@@ -304,38 +274,25 @@ func (h *StepExecutionHandler) CanTransition(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/step-executions/{id}/fail [put]
 func (h *StepExecutionHandler) Fail(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "step execution")
 	if err != nil {
-		h.sugar.Errorw("Invalid step execution ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req FailStepRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.service.Fail(id, req.Reason); err != nil {
+		return h.HandleServiceError(ctx, err, "fail", "step execution")
 	}
 
-	if err := h.service.Fail(&id, req.Reason); err != nil {
-		if isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to mark step execution as failed", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	stepExecution, err := h.service.GetByID(&id)
+	stepExecution, err := h.service.GetByID(id)
 	if err != nil {
-		h.sugar.Errorw("Failed to get step execution after failure", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "step execution after failure")
 	}
 
 	h.sugar.Infow("Step execution marked as failed", "id", id, "reason", req.Reason)
-	return ctx.JSON(http.StatusOK, StepExecutionResponse{Data: stepExecution})
+	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
 }

@@ -130,7 +130,7 @@ func TestWorkflowDefinitionService_Update(t *testing.T) {
 	// Test with nil updates
 	err = service.Update(definition.ID, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid value, should be pointer to struct or slice")
+	assert.Contains(t, err.Error(), "updates cannot be nil")
 
 	// Test with non-existent ID
 	nonExistentID := uuid.New()

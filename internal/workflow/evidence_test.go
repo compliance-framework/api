@@ -713,7 +713,7 @@ func TestAddStepStartedEvidence(t *testing.T) {
 		require.NoError(t, db.Create(stepExecution).Error)
 
 		// Now use the UpdateStatus method to trigger evidence creation
-		err := evidenceIntegration.stepExecutionSvc.UpdateStatus(stepExecution.ID, "in_progress")
+		err := evidenceIntegration.stepExecutionSvc.UpdateStatus(context.Background(), stepExecution.ID, "in_progress")
 		require.NoError(t, err)
 
 		// Find the step started evidence

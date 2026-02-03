@@ -124,19 +124,19 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 	}
 
 	// If transitioning to completed, validate evidence requirements
-	if request.Status == StatusCompleted {
+	if request.Status == StatusCompleted.String() {
 		if err := s.validateEvidenceRequirements(stepDef, request.Evidence); err != nil {
 			return err
 		}
 	}
 
 	// Update the step status
-	if err := s.stepExecutionService.UpdateStatus(stepExecutionID, request.Status); err != nil {
+	if err := s.stepExecutionService.UpdateStatus(ctx, stepExecutionID, request.Status); err != nil {
 		return fmt.Errorf("failed to update step status: %w", err)
 	}
 
 	// If transitioning to completed, process the completion
-	if request.Status == StatusCompleted {
+	if request.Status == StatusCompleted.String() {
 		// Store submitted evidence
 		if err := s.storeStepEvidence(stepExecutionID, request.Evidence, request.UserID); err != nil {
 			return fmt.Errorf("failed to store evidence: %w", err)
@@ -183,11 +183,11 @@ func (s *StepTransitionService) verifyUserPermission(instanceID *uuid.UUID, resp
 func (s *StepTransitionService) validateTransition(currentStatus, newStatus string) error {
 	// Define allowed transitions
 	allowedTransitions := map[string][]string{
-		StatusPending:    {StatusInProgress},
-		StatusInProgress: {StatusCompleted},
-		StatusBlocked:    {}, // Blocked steps cannot be manually transitioned
-		StatusCompleted:  {}, // Completed steps cannot be changed
-		StatusFailed:     {}, // Failed steps cannot be manually changed (only by executor)
+		StatusPending.String():    {StatusInProgress.String()},
+		StatusInProgress.String(): {StatusCompleted.String()},
+		StatusBlocked.String():    {}, // Blocked steps cannot be manually transitioned
+		StatusCompleted.String():  {}, // Completed steps cannot be changed
+		StatusFailed.String():     {}, // Failed steps cannot be manually changed (only by executor)
 	}
 
 	allowed, exists := allowedTransitions[currentStatus]
@@ -238,99 +238,94 @@ func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, ev
 		return nil
 	}
 
-	// Get the step execution with timing information
-	stepExecution, err := s.stepExecutionService.GetByID(stepExecutionID)
+	// Gather all workflow context needed for evidence creation
+	ctx, err := s.gatherWorkflowContext(stepExecutionID)
 	if err != nil {
-		return fmt.Errorf("failed to get step execution: %w", err)
-	}
-
-	// Get the step definition for title and details
-	stepDef, err := s.stepDefinitionService.GetByID(stepExecution.WorkflowStepDefinitionID)
-	if err != nil {
-		return fmt.Errorf("failed to get step definition: %w", err)
-	}
-
-	// Get the workflow execution
-	workflowExecution, err := s.workflowExecutionService.GetByID(stepExecution.WorkflowExecutionID)
-	if err != nil {
-		return fmt.Errorf("failed to get workflow execution: %w", err)
-	}
-
-	// Get the workflow instance
-	instance, err := s.workflowInstanceService.GetByID(workflowExecution.WorkflowInstanceID)
-	if err != nil {
-		return fmt.Errorf("failed to get workflow instance: %w", err)
-	}
-
-	// Get the workflow definition
-	definition, err := s.workflowDefinitionService.GetByID(instance.WorkflowDefinitionID)
-	if err != nil {
-		return fmt.Errorf("failed to get workflow definition: %w", err)
+		return err
 	}
 
 	// Get or create the execution evidence stream
-	stream, err := s.evidenceIntegration.GetOrCreateExecutionStream(context.Background(), workflowExecution.ID)
+	stream, err := s.evidenceIntegration.GetOrCreateExecutionStream(context.Background(), ctx.workflowExecution.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get or create execution stream: %w", err)
 	}
 
 	// Build BackMatter resources and Links from evidence submissions
+	backMatter, evidenceLinks := s.buildBackMatterFromSubmissions(evidenceSubmissions)
+
+	// Create the evidence record
+	evidence := s.createEvidenceRecord(ctx, stream, backMatter, evidenceLinks, len(evidenceSubmissions))
+
+	// Save evidence to database
+	if err := s.db.Create(evidence).Error; err != nil {
+		return fmt.Errorf("failed to create step evidence: %w", err)
+	}
+
+	// Build and attach labels
+	labels := s.buildEvidenceLabels(ctx, completedBy, len(evidenceSubmissions))
+	if err := s.db.Model(evidence).Association("Labels").Append(labels); err != nil {
+		return fmt.Errorf("failed to add labels to evidence: %w", err)
+	}
+
+	return nil
+}
+
+// workflowContext holds all workflow-related entities needed for evidence creation
+type workflowContext struct {
+	stepExecution     *workflows.StepExecution
+	stepDef           *workflows.WorkflowStepDefinition
+	workflowExecution *workflows.WorkflowExecution
+	instance          *workflows.WorkflowInstance
+	definition        *workflows.WorkflowDefinition
+}
+
+// gatherWorkflowContext retrieves all workflow entities needed for evidence creation
+func (s *StepTransitionService) gatherWorkflowContext(stepExecutionID *uuid.UUID) (*workflowContext, error) {
+	stepExecution, err := s.stepExecutionService.GetByID(stepExecutionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get step execution: %w", err)
+	}
+
+	stepDef, err := s.stepDefinitionService.GetByID(stepExecution.WorkflowStepDefinitionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get step definition: %w", err)
+	}
+
+	workflowExecution, err := s.workflowExecutionService.GetByID(stepExecution.WorkflowExecutionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
+	}
+
+	instance, err := s.workflowInstanceService.GetByID(workflowExecution.WorkflowInstanceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow instance: %w", err)
+	}
+
+	definition, err := s.workflowDefinitionService.GetByID(instance.WorkflowDefinitionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow definition: %w", err)
+	}
+
+	return &workflowContext{
+		stepExecution:     stepExecution,
+		stepDef:           stepDef,
+		workflowExecution: workflowExecution,
+		instance:          instance,
+		definition:        definition,
+	}, nil
+}
+
+// buildBackMatterFromSubmissions creates BackMatter resources and Links from evidence submissions
+func (s *StepTransitionService) buildBackMatterFromSubmissions(evidenceSubmissions []EvidenceSubmission) (*relational.BackMatter, []relational.Link) {
 	var backMatterResources []relational.BackMatterResource
 	var evidenceLinks []relational.Link
 
 	for _, ev := range evidenceSubmissions {
 		resourceID := uuid.New()
-		resource := relational.BackMatterResource{
-			ID:          resourceID,
-			Title:       &ev.Name,
-			Description: &ev.Description,
-		}
-
-		// Store file content as base64 if present - this is what the UI expects for display/download
-		if ev.FileContent != "" {
-			filename := ev.Name
-			if ev.FilePath != "" {
-				// Extract filename from path if available
-				parts := strings.Split(ev.FilePath, "/")
-				if len(parts) > 0 {
-					filename = parts[len(parts)-1]
-				}
-			}
-
-			base64Data := relational.Base64{
-				Filename:  filename,
-				MediaType: ev.MediaType,
-				Value:     ev.FileContent,
-			}
-			resource.Base64 = &datatypes.JSONType[relational.Base64]{}
-			*resource.Base64 = datatypes.NewJSONType(base64Data)
-		}
-
-		// Add file hash as a document ID if present (for integrity verification)
-		if ev.FileHash != "" {
-			docIDs := []relational.DocumentID{
-				{
-					Scheme:     "sha256",
-					Identifier: ev.FileHash,
-				},
-			}
-			resource.DocumentIDs = docIDs
-		}
-
-		// Add metadata as props if present
-		if ev.Metadata != "" {
-			resource.Props = []relational.Prop{
-				{
-					Name:  "metadata",
-					Value: ev.Metadata,
-				},
-			}
-		}
-
+		resource := s.createBackMatterResource(ev, resourceID)
 		backMatterResources = append(backMatterResources, resource)
 
 		// Add a Link to this resource so the UI can find and display it
-		// The UI expects href to start with '#' followed by the resource UUID
 		evidenceLinks = append(evidenceLinks, relational.Link{
 			Href: fmt.Sprintf("#%s", resourceID.String()),
 			Rel:  "attachment",
@@ -338,7 +333,6 @@ func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, ev
 		})
 	}
 
-	// Create BackMatter if we have resources
 	var backMatter *relational.BackMatter
 	if len(backMatterResources) > 0 {
 		backMatter = &relational.BackMatter{
@@ -346,35 +340,86 @@ func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, ev
 		}
 	}
 
-	// Build description
+	return backMatter, evidenceLinks
+}
+
+// createBackMatterResource creates a single BackMatter resource from an evidence submission
+func (s *StepTransitionService) createBackMatterResource(ev EvidenceSubmission, resourceID uuid.UUID) relational.BackMatterResource {
+	resource := relational.BackMatterResource{
+		ID:          resourceID,
+		Title:       &ev.Name,
+		Description: &ev.Description,
+	}
+
+	// Store file content as base64 if present
+	if ev.FileContent != "" {
+		filename := ev.Name
+		if ev.FilePath != "" {
+			parts := strings.Split(ev.FilePath, "/")
+			if len(parts) > 0 {
+				filename = parts[len(parts)-1]
+			}
+		}
+
+		base64Data := relational.Base64{
+			Filename:  filename,
+			MediaType: ev.MediaType,
+			Value:     ev.FileContent,
+		}
+		resource.Base64 = &datatypes.JSONType[relational.Base64]{}
+		*resource.Base64 = datatypes.NewJSONType(base64Data)
+	}
+
+	// Add file hash as a document ID if present
+	if ev.FileHash != "" {
+		resource.DocumentIDs = []relational.DocumentID{
+			{
+				Scheme:     "sha256",
+				Identifier: ev.FileHash,
+			},
+		}
+	}
+
+	// Add metadata as props if present
+	if ev.Metadata != "" {
+		resource.Props = []relational.Prop{
+			{
+				Name:  "metadata",
+				Value: ev.Metadata,
+			},
+		}
+	}
+
+	return resource
+}
+
+// createEvidenceRecord creates the evidence record with all required fields
+func (s *StepTransitionService) createEvidenceRecord(ctx *workflowContext, stream *relational.Evidence, backMatter *relational.BackMatter, evidenceLinks []relational.Link, submissionCount int) *relational.Evidence {
 	description := fmt.Sprintf("Step '%s' completed successfully with %d evidence submission(s)",
-		stepDef.Name, len(evidenceSubmissions))
+		ctx.stepDef.Name, submissionCount)
 
 	// Determine start and end times
-	var startTime, endTime time.Time
-	if stepExecution.StartedAt != nil {
-		startTime = *stepExecution.StartedAt
-	} else {
-		startTime = time.Now()
+	startTime := time.Now()
+	if ctx.stepExecution.StartedAt != nil {
+		startTime = *ctx.stepExecution.StartedAt
 	}
-	if stepExecution.CompletedAt != nil {
-		endTime = *stepExecution.CompletedAt
-	} else {
-		endTime = time.Now()
+	endTime := time.Now()
+	if ctx.stepExecution.CompletedAt != nil {
+		endTime = *ctx.stepExecution.CompletedAt
 	}
 
-	// Create the evidence record with Links to resources (for UI rendering)
+	// Create the evidence record
 	evidence := &relational.Evidence{
-		UUID:        stream.UUID, // Same stream UUID for aggregation
-		Title:       fmt.Sprintf("Step '%s' completed successfully", stepDef.Name),
+		UUID:        stream.UUID,
+		Title:       fmt.Sprintf("Step '%s' completed successfully", ctx.stepDef.Name),
 		Description: description,
 		Start:       startTime,
 		End:         endTime,
 		BackMatter:  backMatter,
-		Props:       datatypes.JSONSlice[relational.Prop]{}, // Empty as per design
+		Props:       datatypes.JSONSlice[relational.Prop]{},
 	}
 
-	// Add Links if we have resources (required for UI to display media)
+	// Add Links if we have resources
 	if len(evidenceLinks) > 0 {
 		evidence.Links = evidenceLinks
 	}
@@ -383,53 +428,43 @@ func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, ev
 	status := oscalTypes_1_1_3.ObjectiveStatus{
 		State: "satisfied",
 	}
-	if stepExecution.Status != "completed" {
+	if ctx.stepExecution.Status != "completed" {
 		status.State = "not-satisfied"
 	}
 	evidence.Status = datatypes.NewJSONType(status)
 
-	// Generate unique ID for this evidence record
+	// Generate unique ID
 	id := uuid.New()
 	evidence.ID = &id
 
-	// Create the evidence record
-	if err := s.db.Create(evidence).Error; err != nil {
-		return fmt.Errorf("failed to create step evidence: %w", err)
-	}
+	return evidence
+}
 
-	// Build labels following the design document generational label pattern
+// buildEvidenceLabels creates labels for the evidence record
+func (s *StepTransitionService) buildEvidenceLabels(ctx *workflowContext, completedBy string, submissionCount int) []relational.Labels {
 	labels := []relational.Labels{
-		{Name: "workflow.definition.id", Value: definition.ID.String()},
-		{Name: "workflow.definition.name", Value: definition.Name},
-		{Name: "workflow.instance.id", Value: instance.ID.String()},
-		{Name: "workflow.execution.id", Value: workflowExecution.ID.String()},
-		{Name: "step.execution.id", Value: stepExecution.ID.String()},
-		{Name: "step.definition.id", Value: stepDef.ID.String()},
-		{Name: "step.name", Value: stepDef.Name},
-		{Name: "step.status", Value: stepExecution.Status},
+		{Name: "workflow.definition.id", Value: ctx.definition.ID.String()},
+		{Name: "workflow.definition.name", Value: ctx.definition.Name},
+		{Name: "workflow.instance.id", Value: ctx.instance.ID.String()},
+		{Name: "workflow.execution.id", Value: ctx.workflowExecution.ID.String()},
+		{Name: "step.execution.id", Value: ctx.stepExecution.ID.String()},
+		{Name: "step.definition.id", Value: ctx.stepDef.ID.String()},
+		{Name: "step.name", Value: ctx.stepDef.Name},
+		{Name: "step.status", Value: ctx.stepExecution.Status},
 		{Name: "evidence.type", Value: "step_submission"},
 		{Name: "evidence.submitted_by", Value: completedBy},
-		{Name: "evidence.submission_count", Value: fmt.Sprintf("%d", len(evidenceSubmissions))},
+		{Name: "evidence.submission_count", Value: fmt.Sprintf("%d", submissionCount)},
 	}
 
 	// Add system ID if available
-	if instance.SystemSecurityPlanID != nil {
+	if ctx.instance.SystemSecurityPlanID != nil {
 		labels = append(labels, relational.Labels{
 			Name:  "system.id",
-			Value: instance.SystemSecurityPlanID.String(),
+			Value: ctx.instance.SystemSecurityPlanID.String(),
 		})
 	}
 
-	// Add period label if available in workflow execution
-	// Note: PeriodLabel may be added to WorkflowExecution in the future
-	// For now, we skip this label as the field doesn't exist yet
-
-	// Add labels to evidence
-	if err := s.db.Model(evidence).Association("Labels").Append(labels); err != nil {
-		return fmt.Errorf("failed to add labels to evidence: %w", err)
-	}
-
-	return nil
+	return labels
 }
 
 // getStepDefinition retrieves a step definition by ID

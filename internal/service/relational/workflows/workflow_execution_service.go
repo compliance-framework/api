@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +20,7 @@ type WorkflowExecutionService struct {
 	db              *gorm.DB
 	base            *BaseService
 	evidenceCreator WorkflowExecutionEvidenceCreator
+	logger          *zap.SugaredLogger
 }
 
 // NewWorkflowExecutionService creates a new WorkflowExecutionService
@@ -27,7 +29,13 @@ func NewWorkflowExecutionService(db *gorm.DB) *WorkflowExecutionService {
 		db:              db,
 		base:            NewBaseService(db),
 		evidenceCreator: nil,
+		logger:          zap.NewNop().Sugar(), // Default no-op logger
 	}
+}
+
+// SetLogger sets the logger for the service
+func (s *WorkflowExecutionService) SetLogger(logger *zap.SugaredLogger) {
+	s.logger = logger
 }
 
 // SetEvidenceCreator sets the evidence creator for the workflow execution service
@@ -37,20 +45,9 @@ func (s *WorkflowExecutionService) SetEvidenceCreator(evidenceCreator WorkflowEx
 
 // Create creates a new workflow execution
 func (s *WorkflowExecutionService) Create(execution *WorkflowExecution) error {
-	if execution == nil {
-		return errors.New("workflow execution cannot be nil")
-	}
-
-	if err := s.ValidateExecution(execution); err != nil {
-		return err
-	}
-
-	// Set default status if not provided
-	if execution.Status == "" {
-		execution.Status = "pending"
-	}
-
-	return s.db.Create(execution).Error
+	return s.base.ValidateAndCreate(execution, "workflow execution", func() error {
+		return s.ValidateExecution(execution)
+	})
 }
 
 // GetByID retrieves a workflow execution by ID
@@ -126,7 +123,7 @@ func (s *WorkflowExecutionService) Update(id *uuid.UUID, updates *WorkflowExecut
 }
 
 // UpdateStatus updates the status of a workflow execution
-func (s *WorkflowExecutionService) UpdateStatus(id *uuid.UUID, status string) error {
+func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, status string) error {
 	if err := ValidateWorkflowExecutionStatus(status); err != nil {
 		return err
 	}
@@ -137,20 +134,22 @@ func (s *WorkflowExecutionService) UpdateStatus(id *uuid.UUID, status string) er
 	case "in_progress":
 		// Add workflow execution started evidence when transitioning to in_progress (while still pending)
 		if s.evidenceCreator != nil {
-			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(context.Background(), id, "started"); err != nil {
+			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "started"); err != nil {
 				// Log error but don't fail the status update
-				// TODO: Add proper logging
-				_ = err // Suppress errcheck warning
+				s.logger.Warnw("Failed to create workflow execution started evidence",
+					"workflow_execution_id", id,
+					"error", err)
 			}
 		}
 		updates["started_at"] = now
 	case "completed":
 		updates["completed_at"] = now
 		if s.evidenceCreator != nil {
-			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(context.Background(), id, "completed"); err != nil {
+			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "completed"); err != nil {
 				// Log error but don't fail the status update
-				// TODO: Add proper logging
-				_ = err // Suppress errcheck warning
+				s.logger.Warnw("Failed to create workflow execution completed evidence",
+					"workflow_execution_id", id,
+					"error", err)
 			}
 		}
 	case "failed":

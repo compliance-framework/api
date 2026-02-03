@@ -1,31 +1,21 @@
 package workflows
 
 import (
-	"net/http"
-	"strings"
-
-	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// isNotFoundError checks if an error is a "not found" error
-func isNotFoundError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "not found")
-}
-
 type WorkflowDefinitionHandler struct {
-	sugar   *zap.SugaredLogger
+	*BaseHandler
 	service *workflows.WorkflowDefinitionService
 }
 
 func NewWorkflowDefinitionHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowDefinitionHandler {
 	return &WorkflowDefinitionHandler{
-		sugar:   sugar,
-		service: workflows.NewWorkflowDefinitionService(db),
+		BaseHandler: NewBaseHandler(sugar),
+		service:     workflows.NewWorkflowDefinitionService(db),
 	}
 }
 
@@ -77,14 +67,8 @@ type WorkflowDefinitionListResponse struct {
 //	@Router			/workflows/definitions [post]
 func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
 	var req CreateWorkflowDefinitionRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-
-	if err := ctx.Validate(&req); err != nil {
-		h.sugar.Errorw("Failed to validate request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
 	definition := &workflows.WorkflowDefinition{
@@ -96,12 +80,11 @@ func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
 	}
 
 	if err := h.service.Create(definition); err != nil {
-		h.sugar.Errorw("Failed to create workflow definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "create", "workflow definition")
 	}
 
 	h.sugar.Infow("Workflow definition created", "id", definition.ID)
-	return ctx.JSON(http.StatusCreated, WorkflowDefinitionResponse{Data: definition})
+	return h.RespondCreated(ctx, WorkflowDefinitionResponse{Data: definition})
 }
 
 // List godoc
@@ -120,11 +103,10 @@ func (h *WorkflowDefinitionHandler) List(ctx echo.Context) error {
 	// TODO: Add pagination query parameters
 	definitions, _, err := h.service.GetAll(1000, 0)
 	if err != nil {
-		h.sugar.Errorw("Failed to list workflow definitions", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "list", "workflow definitions")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowDefinitionListResponse{Data: definitions})
+	return h.RespondOK(ctx, WorkflowDefinitionListResponse{Data: definitions})
 }
 
 // Get godoc
@@ -142,23 +124,17 @@ func (h *WorkflowDefinitionHandler) List(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions/{id} [get]
 func (h *WorkflowDefinitionHandler) Get(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	definition, err := h.service.GetByID(&id)
+	definition, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow definition")
 	}
 
-	return ctx.JSON(http.StatusOK, WorkflowDefinitionResponse{Data: definition})
+	return h.RespondOK(ctx, WorkflowDefinitionResponse{Data: definition})
 }
 
 // Update godoc
@@ -178,26 +154,19 @@ func (h *WorkflowDefinitionHandler) Get(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions/{id} [put]
 func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
 	var req UpdateWorkflowDefinitionRequest
-	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind request", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	if err := h.Bind(ctx, &req); err != nil {
+		return HandleError(err)
 	}
 
-	definition, err := h.service.GetByID(&id)
+	definition, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to get workflow definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.HandleServiceError(ctx, err, "get", "workflow definition")
 	}
 
 	if req.Name != nil {
@@ -216,13 +185,12 @@ func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
 		definition.EvidenceRequired = *req.EvidenceRequired
 	}
 
-	if err := h.service.Update(&id, definition); err != nil {
-		h.sugar.Errorw("Failed to update workflow definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Update(id, definition); err != nil {
+		return h.HandleServiceError(ctx, err, "update", "workflow definition")
 	}
 
 	h.sugar.Infow("Workflow definition updated", "id", definition.ID)
-	return ctx.JSON(http.StatusOK, WorkflowDefinitionResponse{Data: definition})
+	return h.RespondOK(ctx, WorkflowDefinitionResponse{Data: definition})
 }
 
 // Delete godoc
@@ -240,21 +208,15 @@ func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/workflows/definitions/{id} [delete]
 func (h *WorkflowDefinitionHandler) Delete(ctx echo.Context) error {
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := h.ParseUUID(ctx, "id", "workflow definition")
 	if err != nil {
-		h.sugar.Errorw("Invalid workflow definition ID", "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		return HandleError(err)
 	}
 
-	if err := h.service.Delete(&id); err != nil {
-		if err == gorm.ErrRecordNotFound || isNotFoundError(err) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
-		}
-		h.sugar.Errorw("Failed to delete workflow definition", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	if err := h.service.Delete(id); err != nil {
+		return h.HandleServiceError(ctx, err, "delete", "workflow definition")
 	}
 
 	h.sugar.Infow("Workflow definition deleted", "id", id)
-	return ctx.NoContent(http.StatusNoContent)
+	return h.RespondNoContent(ctx)
 }

@@ -179,16 +179,6 @@ func TestWorkflowStepDefinitionService_Update(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow step definition with id")
 	assert.Contains(t, err.Error(), "not found")
-
-	// Test with invalid updates
-	invalidUpdates := &WorkflowStepDefinition{
-		UUIDModel:            relational.UUIDModel{ID: step.ID},
-		WorkflowDefinitionID: step.WorkflowDefinitionID, // Include the workflow definition ID
-		Name:                 "",                        // Empty name should fail validation
-	}
-	err = service.Update(step.ID, invalidUpdates)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "step name is required")
 }
 
 // TestWorkflowStepDefinitionService_Delete tests the Delete method

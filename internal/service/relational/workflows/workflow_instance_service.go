@@ -24,21 +24,15 @@ func NewWorkflowInstanceService(db *gorm.DB) *WorkflowInstanceService {
 
 // Create creates a new workflow instance
 func (s *WorkflowInstanceService) Create(instance *WorkflowInstance) error {
-	if instance == nil {
-		return errors.New("workflow instance cannot be nil")
-	}
+	return s.base.ValidateAndCreate(instance, "workflow instance", func() error {
+		// Set next scheduled time if cadence is provided
+		if instance.Cadence != "" && instance.NextScheduledAt == nil {
+			nextSchedule := s.calculateNextSchedule(time.Now(), instance.Cadence)
+			instance.NextScheduledAt = &nextSchedule
+		}
 
-	if err := s.ValidateInstance(instance); err != nil {
-		return err
-	}
-
-	// Set next scheduled time if cadence is provided
-	if instance.Cadence != "" && instance.NextScheduledAt == nil {
-		nextSchedule := s.calculateNextSchedule(time.Now(), instance.Cadence)
-		instance.NextScheduledAt = &nextSchedule
-	}
-
-	return s.db.Create(instance).Error
+		return s.ValidateInstance(instance)
+	})
 }
 
 // GetByID retrieves a workflow instance by ID
