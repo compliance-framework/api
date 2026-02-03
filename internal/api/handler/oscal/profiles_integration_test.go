@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -517,7 +516,6 @@ func (suite *ProfileIntegrationSuite) TestAddImport() {
 
 		suite.server.E().ServeHTTP(rec, req)
 
-		fmt.Println("Response Body:", rec.Body.String())
 		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected status code 201 Created")
 
 		var response handler.GenericDataResponse[oscalTypes_1_1_3.Import]
@@ -575,6 +573,69 @@ func (suite *ProfileIntegrationSuite) TestUpdateImport() {
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Require().Equal(http.StatusNotFound, rec.Code, "Expected status code 404 Not Found")
 	})
+}
+
+func (suite *ProfileIntegrationSuite) TestBuildByPropsCreatesImportAndControls() {
+	suite.IntegrationTestSuite.Migrator.Refresh()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err, "Failed to get auth token")
+
+	// Seed a minimal catalog with one technical control
+	catID := uuid.New()
+	catalog := &relational.Catalog{
+		UUIDModel: relational.UUIDModel{ID: &catID},
+		Metadata:  relational.Metadata{Title: "Prop Match Test Catalog"},
+		Controls: []relational.Control{
+			{
+				ID:        "ac-1",
+				Title:     "Access Control 1",
+				CatalogID: catID,
+				Props:     []relational.Prop{{Name: "class", Value: "technical"}},
+			},
+		},
+	}
+	err = suite.DB.Create(catalog).Error
+	suite.Require().NoError(err, "Failed to seed test catalog")
+
+	// Build profile by props targeting the seeded catalog and rule
+	body := map[string]any{
+		"catalogId":     catID.String(),
+		"matchStrategy": "all",
+		"rules": []map[string]string{
+			{"name": "class", "operator": "equals", "value": "technical"},
+		},
+		"title":   "Prop-Matched Profile",
+		"version": "1.0.0",
+	}
+	payload, _ := json.Marshal(body)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+	var response handler.GenericDataResponse[struct {
+		ProfileID  uuid.UUID                `json:"profileId"`
+		ControlIDs []string                 `json:"controlIds"`
+		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+	}]
+	err = json.NewDecoder(rec.Body).Decode(&response)
+	suite.Require().NoError(err, "Failed to decode build-by-props response")
+	suite.Require().Len(response.Data.ControlIDs, 1, "Expected one matched control")
+	suite.Require().Equal("ac-1", response.Data.ControlIDs[0], "Expected matched control to be ac-1")
+
+	// Verify persisted import/back-matter can be listed
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/profiles/"+response.Data.ProfileID.String()+"/imports", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, "Expected 200 listing imports")
+	var list handler.GenericDataListResponse[oscalTypes_1_1_3.Import]
+	err = json.NewDecoder(rec.Body).Decode(&list)
+	suite.Require().NoError(err)
+	suite.Require().Len(list.Data, 1, "Expected a single import")
 }
 
 func (suite *ProfileIntegrationSuite) TestDeleteImport() {

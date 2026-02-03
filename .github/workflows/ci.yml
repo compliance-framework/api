@@ -45,8 +45,8 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: ${{ env.GOLANGCI_VERSION }}
-          skip-pkg-cache: true
-          skip-build-cache: true
+          skip-cache: true
+          skip-save-cache: true
           args: --timeout=30m
 
   check-diff:
