@@ -87,9 +87,12 @@ func (w WorkflowExecutionStatus) String() string {
 }
 
 // StepExecutionStatus represents the status of a step execution
+// Note: This type is mirrored by workflow.StepStatus in the orchestration layer.
+// Both types must be kept in sync. The string values are identical to ensure compatibility.
 type StepExecutionStatus string
 
 // Valid step execution statuses
+// These values match workflow.StepStatus constants
 const (
 	StepStatusPending    StepExecutionStatus = "pending"
 	StepStatusBlocked    StepExecutionStatus = "blocked"
