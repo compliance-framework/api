@@ -116,7 +116,7 @@ func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
 	}
 
 	if req.CatalogID == "" || len(req.Rules) == 0 {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalogId and rules are required")))
+		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalog-id and rules are required")))
 	}
 
 	// Filter out invalid rules and validate operators
