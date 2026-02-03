@@ -6,7 +6,7 @@ const (
 	MaxDescriptionLength   = 1000
 	MaxRoleNameLength      = 255
 	MaxControlIDLength     = 255
-	MaxControlSourceLength = 100
+	MaxControlSourceLength = 255
 	MaxAssignedToIDLength  = 255
 )
 

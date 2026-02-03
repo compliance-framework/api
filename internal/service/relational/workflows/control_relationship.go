@@ -18,7 +18,7 @@ type ControlRelationship struct {
 
 	// Control Information
 	ControlID     string `gorm:"not null;size:255;index;index:idx_control_rel_workflow_control,priority:2" json:"control_id"` // e.g., "AC-2", "A.9.2.5"
-	ControlSource string `gorm:"not null;size:100" json:"control_source"`                                                     // e.g., "NIST 800-53 Rev 5", "ISO 27001"
+	ControlSource string `gorm:"not null;size:255" json:"control_source"`                                                     // e.g., "NIST 800-53 Rev 5", "ISO 27001"
 	CatalogID     string `gorm:"size:255;index" json:"catalog_id"`                                                            // Link to catalog if available
 
 	// Relationship Information
