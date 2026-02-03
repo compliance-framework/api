@@ -1,7 +1,6 @@
 package oscal
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,11 +25,41 @@ type ProfileHandler struct {
 	db    *gorm.DB
 }
 
+type RuleOperator string
+
+const (
+	RuleOperatorEquals   RuleOperator = "equals"
+	RuleOperatorContains RuleOperator = "contains"
+	RuleOperatorRegex    RuleOperator = "regex"
+	RuleOperatorIn       RuleOperator = "in"
+)
+
+type MatchStrategy string
+
+const (
+	MatchStrategyAll MatchStrategy = "all"
+	MatchStrategyAny MatchStrategy = "any"
+)
+
 type rule struct {
-	Name     string `json:"name"`
-	Ns       string `json:"ns"`
-	Operator string `json:"operator"` // equals | contains | regex | in
-	Value    string `json:"value"`
+	Name     string       `json:"name" example:"class"`
+	Ns       string       `json:"ns" example:"http://csrc.nist.gov/ns/oscal"`
+	Operator RuleOperator `json:"operator" binding:"required" example:"equals"`
+	Value    string       `json:"value" binding:"required" example:"technical"`
+}
+
+type BuildByPropsRequest struct {
+	CatalogID     string        `json:"catalog-id" binding:"required" example:"9b0c9c43-2722-4bbb-b132-13d34fb94d45"`
+	MatchStrategy MatchStrategy `json:"match-strategy" binding:"required" example:"all"`
+	Rules         []rule        `json:"rules" binding:"required,min=1"`
+	Title         string        `json:"title" binding:"required" example:"My Custom Profile"`
+	Version       string        `json:"version" example:"1.0.0"`
+}
+
+type BuildByPropsResponse struct {
+	ProfileID  uuid.UUID                `json:"profile-id"`
+	ControlIDs []string                 `json:"control-ids"`
+	Profile    oscalTypes_1_1_3.Profile `json:"profile"`
 }
 
 func NewProfileHandler(sugar *zap.SugaredLogger, db *gorm.DB) *ProfileHandler {
@@ -71,8 +100,8 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Tags			Profile
 //	@Accept			json
 //	@Produce		json
-//	@Param			request	body		oscal.ProfileHandler.BuildByProps.request	true	"Prop matching request"
-//	@Success		201		{object}	handler.GenericDataResponse[oscal.ProfileHandler.BuildByProps.response]
+//	@Param			request	body		oscal.BuildByPropsRequest	true	"Prop matching request"
+//	@Success		201		{object}	handler.GenericDataResponse[oscal.BuildByPropsResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		404		{object}	api.Error
@@ -80,181 +109,172 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 //	@Security		OAuth2Password
 //	@Router			/oscal/profiles/build-props [post]
 func (h *ProfileHandler) BuildByProps(ctx echo.Context) error {
-	type request struct {
-		CatalogID     string `json:"catalogId"`
-		MatchStrategy string `json:"matchStrategy"` // all | any
-		Rules         []rule `json:"rules"`
-		Title         string `json:"title"`
-		Version       string `json:"version"`
-	}
-	type response struct {
-		ProfileID  uuid.UUID                `json:"profileId"`
-		ControlIDs []string                 `json:"controlIds"`
-		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
-	}
-	var req request
-	var raw map[string]any
-	if err := json.NewDecoder(ctx.Request().Body).Decode(&raw); err != nil {
-		h.sugar.Warnw("failed to decode BuildByProps request", "error", err)
+	var req BuildByPropsRequest
+	if err := ctx.Bind(&req); err != nil {
+		h.sugar.Warnw("failed to bind BuildByProps request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	// Accept both camelCase and kebab-case keys
-	getStr := func(m map[string]any, keys ...string) string {
-		for _, k := range keys {
-			if v, ok := m[k]; ok {
-				if s, ok := v.(string); ok {
-					return s
-				}
-			}
-		}
-		return ""
-	}
-	req.CatalogID = getStr(raw, "catalogId", "catalog-id")
-	req.MatchStrategy = getStr(raw, "matchStrategy", "match-strategy")
-	req.Title = getStr(raw, "title")
-	req.Version = getStr(raw, "version")
-	if rv, ok := raw["rules"]; ok {
-		if arr, ok := rv.([]any); ok {
-			out := make([]rule, 0, len(arr))
-			for _, it := range arr {
-				if mm, ok := it.(map[string]any); ok {
-					out = append(out, rule{
-						Name:     getStr(mm, "name"),
-						Ns:       getStr(mm, "ns"),
-						Operator: getStr(mm, "operator"),
-						Value:    getStr(mm, "value"),
-					})
-				}
-			}
-			req.Rules = out
-		}
-	}
+
 	if req.CatalogID == "" || len(req.Rules) == 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("catalogId and rules are required")))
 	}
-	// filter out invalid rules (empty operator or value)
+
+	// Filter out invalid rules and validate operators
 	validRules := make([]rule, 0, len(req.Rules))
 	for _, r := range req.Rules {
-		if strings.TrimSpace(r.Operator) != "" && strings.TrimSpace(r.Value) != "" {
+		if strings.TrimSpace(string(r.Operator)) != "" && strings.TrimSpace(r.Value) != "" {
 			validRules = append(validRules, r)
 		}
 	}
 	if len(validRules) == 0 {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(errors.New("rules must include non-empty operator and value")))
 	}
+
+	// Pre-compile regex patterns and validate
+	regexCache := make(map[string]*regexp.Regexp)
+	for _, r := range validRules {
+		if r.Operator == RuleOperatorRegex {
+			re, err := regexp.Compile(r.Value)
+			if err != nil {
+				h.sugar.Warnw("invalid regex pattern", "pattern", r.Value, "error", err)
+				return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid regex pattern '%s': %w", r.Value, err)))
+			}
+			regexCache[r.Value] = re
+		}
+	}
+
 	catUUID, err := uuid.Parse(req.CatalogID)
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	var controls []relational.Control
-	if err := h.db.Where("catalog_id = ?", catUUID).Find(&controls).Error; err != nil {
+
+	// Check if catalog exists
+	var catalog relational.Catalog
+	if err := h.db.Preload("Metadata").First(&catalog, "id = ?", catUUID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
+		h.sugar.Errorw("failed to load catalog metadata", "catalogId", req.CatalogID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	var controls []relational.Control
+	if err := h.db.Where("catalog_id = ?", catUUID).Find(&controls).Error; err != nil {
 		h.sugar.Errorw("failed to list catalog controls", "catalogId", req.CatalogID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	matchAll := strings.ToLower(req.MatchStrategy) == "all"
+
+	// Check if controls were found
+	if len(controls) == 0 {
+		return ctx.JSON(http.StatusNotFound, api.NewError(errors.New("no controls found in catalog")))
+	}
+
+	matchAll := req.MatchStrategy == MatchStrategyAll
 	matched := make([]relational.Control, 0, len(controls))
 	matchedIDs := make([]string, 0, len(controls))
 	for i := range controls {
-		if matchControlByProps(&controls[i], validRules, matchAll) {
+		if matchControlByProps(&controls[i], validRules, matchAll, regexCache) {
 			matched = append(matched, controls[i])
 			matchedIDs = append(matchedIDs, controls[i].ID)
 		}
 	}
-	now := time.Now()
-	// build BackMatter resource and Import pointing to the catalog
-	var catalog relational.Catalog
-	if err := h.db.Preload("Metadata").First(&catalog, "id = ?", catUUID).Error; err != nil {
-		h.sugar.Warnw("failed to load catalog metadata", "catalogId", req.CatalogID, "error", err)
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-	resourceUUID := uuid.New()
-	title := catalog.Metadata.Title
-	resource := relational.BackMatterResource{
-		ID:    resourceUUID,
-		Title: &title,
-		RLinks: []relational.ResourceLink{
-			{
-				Href:      "#" + req.CatalogID,
-				MediaType: "application/ccf+oscal+json",
+
+	// Wrap the entire build flow in a transaction
+	var profileID uuid.UUID
+	var oscalProfile *oscalTypes_1_1_3.Profile
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		resourceUUID := uuid.New()
+		title := catalog.Metadata.Title
+		resource := relational.BackMatterResource{
+			ID:    resourceUUID,
+			Title: &title,
+			RLinks: []relational.ResourceLink{
+				{
+					Href:      "#" + req.CatalogID,
+					MediaType: "application/ccf+oscal+json",
+				},
 			},
-		},
-	}
-	includeGroup := relational.SelectControlById{
-		WithChildControls: "",
-		WithIds:           datatypes.NewJSONSlice(matchedIDs),
-	}
-	newImport := relational.Import{
-		Href: "#" + resourceUUID.String(),
-	}
-	profile := &relational.Profile{
-		Metadata: relational.Metadata{
-			Title:        req.Title,
-			Version:      req.Version,
-			OscalVersion: versioning.GetLatestSupportedVersion(),
-			LastModified: &now,
-		},
-		Controls: matched,
-	}
-	if err := h.db.Create(profile).Error; err != nil {
-		h.sugar.Errorw("failed to create profile from props", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	// Persist BackMatter and resource under this profile
-	parentID := profile.ID.String()
-	parentType := "profiles"
-	bmRecord := &relational.BackMatter{
-		ParentID:   &parentID,
-		ParentType: &parentType,
-	}
-	if err := h.db.Create(bmRecord).Error; err != nil {
-		h.sugar.Errorw("failed to create backmatter for profile", "profileId", profile.ID, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if bmRecord.ID != nil {
-		resource.BackMatterID = *bmRecord.ID
-	}
-	if err := h.db.Create(&resource).Error; err != nil {
-		h.sugar.Errorw("failed to create backmatter resource", "profileId", profile.ID, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	// Persist import and include-controls
-	newImport.ProfileID = *profile.ID
-	if err := h.db.Create(&newImport).Error; err != nil {
-		h.sugar.Errorw("failed to create import", "profileId", profile.ID, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if len(matchedIDs) > 0 && newImport.ID != nil {
-		includeGroup.ParentID = *newImport.ID
-		includeGroup.ParentType = "included"
-		if err := h.db.Create(&includeGroup).Error; err != nil {
-			h.sugar.Errorw("failed to create include-controls", "profileId", profile.ID, "error", err)
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
-	}
-	if _, err := SyncProfileControls(h.db, *profile.ID); err != nil {
-		h.sugar.Errorw("failed to sync profile controls", "profileId", profile.ID, "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	// Reload full profile with associations for response
-	fullProfile, err := FindFullProfile(h.db, *profile.ID)
+		includeGroup := relational.SelectControlById{
+			WithChildControls: "",
+			WithIds:           datatypes.NewJSONSlice(matchedIDs),
+		}
+		newImport := relational.Import{
+			Href: "#" + resourceUUID.String(),
+		}
+		profile := &relational.Profile{
+			Metadata: relational.Metadata{
+				Title:        req.Title,
+				Version:      req.Version,
+				OscalVersion: versioning.GetLatestSupportedVersion(),
+				LastModified: &now,
+			},
+			Controls: matched,
+		}
+		if err := tx.Create(profile).Error; err != nil {
+			return fmt.Errorf("failed to create profile: %w", err)
+		}
+		profileID = *profile.ID
+
+		// Persist BackMatter and resource under this profile
+		parentID := profile.ID.String()
+		parentType := "profiles"
+		bmRecord := &relational.BackMatter{
+			ParentID:   &parentID,
+			ParentType: &parentType,
+		}
+		if err := tx.Create(bmRecord).Error; err != nil {
+			return fmt.Errorf("failed to create backmatter: %w", err)
+		}
+		if bmRecord.ID != nil {
+			resource.BackMatterID = *bmRecord.ID
+		}
+		if err := tx.Create(&resource).Error; err != nil {
+			return fmt.Errorf("failed to create backmatter resource: %w", err)
+		}
+
+		// Persist import and include-controls
+		newImport.ProfileID = *profile.ID
+		if err := tx.Create(&newImport).Error; err != nil {
+			return fmt.Errorf("failed to create import: %w", err)
+		}
+		if len(matchedIDs) > 0 && newImport.ID != nil {
+			includeGroup.ParentID = *newImport.ID
+			includeGroup.ParentType = "included"
+			if err := tx.Create(&includeGroup).Error; err != nil {
+				return fmt.Errorf("failed to create include-controls: %w", err)
+			}
+		}
+
+		if _, err := SyncProfileControls(tx, *profile.ID); err != nil {
+			return fmt.Errorf("failed to sync profile controls: %w", err)
+		}
+
+		// Reload full profile with associations for response
+		fullProfile, err := FindFullProfile(tx, *profile.ID)
+		if err != nil {
+			return fmt.Errorf("failed to reload full profile: %w", err)
+		}
+		oscalProfile = fullProfile.MarshalOscal()
+		return nil
+	})
+
 	if err != nil {
-		h.sugar.Errorw("failed to reload full profile", "profileId", profile.ID, "error", err)
+		h.sugar.Errorw("failed to build profile by props", "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
-	oscalProfile := fullProfile.MarshalOscal()
-	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[response]{
-		Data: response{
-			ProfileID:  *profile.ID,
+
+	return ctx.JSON(http.StatusCreated, handler.GenericDataResponse[BuildByPropsResponse]{
+		Data: BuildByPropsResponse{
+			ProfileID:  profileID,
 			ControlIDs: matchedIDs,
 			Profile:    *oscalProfile,
 		},
 	})
 }
 
-func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool) bool {
+func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool, regexCache map[string]*regexp.Regexp) bool {
 	if len(rules) == 0 {
 		return false
 	}
@@ -265,22 +285,17 @@ func matchControlByProps(ctl *relational.Control, rules []rule, matchAll bool) b
 		if r.Ns != "" && !strings.EqualFold(r.Ns, p.Ns) {
 			return false
 		}
-		switch strings.ToLower(r.Operator) {
-		case "equals":
+		switch r.Operator {
+		case RuleOperatorEquals:
 			return strings.EqualFold(p.Value, r.Value)
-		case "contains":
+		case RuleOperatorContains:
 			return strings.Contains(strings.ToLower(p.Value), strings.ToLower(r.Value))
-		case "regex":
-			m, _ := func() (bool, error) {
-				// simple regex match
-				re, err := regexp.Compile(r.Value)
-				if err != nil {
-					return false, err
-				}
-				return re.MatchString(p.Value), nil
-			}()
-			return m
-		case "in":
+		case RuleOperatorRegex:
+			if re, ok := regexCache[r.Value]; ok {
+				return re.MatchString(p.Value)
+			}
+			return false
+		case RuleOperatorIn:
 			parts := strings.Split(r.Value, ",")
 			for _, v := range parts {
 				if strings.EqualFold(strings.TrimSpace(v), p.Value) {

@@ -11724,7 +11724,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscal.ProfileHandler"
+                            "$ref": "#/definitions/oscal.BuildByPropsRequest"
                         }
                     }
                 ],
@@ -11732,7 +11732,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_ProfileHandler"
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_BuildByPropsResponse"
                         }
                     },
                     "400": {
@@ -18406,6 +18406,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_BuildByPropsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.BuildByPropsResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_ImportResponse": {
             "type": "object",
             "properties": {
@@ -18712,6 +18725,61 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.BuildByPropsRequest": {
+            "type": "object",
+            "required": [
+                "catalog-id",
+                "match-strategy",
+                "rules",
+                "title"
+            ],
+            "properties": {
+                "catalog-id": {
+                    "type": "string",
+                    "example": "9b0c9c43-2722-4bbb-b132-13d34fb94d45"
+                },
+                "match-strategy": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.MatchStrategy"
+                        }
+                    ],
+                    "example": "all"
+                },
+                "rules": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/oscal.rule"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "example": "My Custom Profile"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.0.0"
+                }
+            }
+        },
+        "oscal.BuildByPropsResponse": {
+            "type": "object",
+            "properties": {
+                "control-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "profile": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
+                },
+                "profile-id": {
+                    "type": "string"
+                }
+            }
+        },
         "oscal.CreateInventoryItemRequest": {
             "type": "object",
             "properties": {
@@ -18814,8 +18882,63 @@ const docTemplate = `{
                 }
             }
         },
+        "oscal.MatchStrategy": {
+            "type": "string",
+            "enum": [
+                "all",
+                "any"
+            ],
+            "x-enum-varnames": [
+                "MatchStrategyAll",
+                "MatchStrategyAny"
+            ]
+        },
         "oscal.ProfileHandler": {
             "type": "object"
+        },
+        "oscal.RuleOperator": {
+            "type": "string",
+            "enum": [
+                "equals",
+                "contains",
+                "regex",
+                "in"
+            ],
+            "x-enum-varnames": [
+                "RuleOperatorEquals",
+                "RuleOperatorContains",
+                "RuleOperatorRegex",
+                "RuleOperatorIn"
+            ]
+        },
+        "oscal.rule": {
+            "type": "object",
+            "required": [
+                "operator",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "class"
+                },
+                "ns": {
+                    "type": "string",
+                    "example": "http://csrc.nist.gov/ns/oscal"
+                },
+                "operator": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.RuleOperator"
+                        }
+                    ],
+                    "example": "equals"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "technical"
+                }
+            }
         },
         "oscalTypes_1_1_3.Action": {
             "type": "object",
