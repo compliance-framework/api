@@ -39,12 +39,16 @@ func setupStepExecutionTestHandler(t *testing.T) (*StepExecutionHandler, *gorm.D
 	// Set the workflow execution service on evidence integration to use the same instance
 	evidenceIntegration.SetWorkflowExecutionService(workflowExecService)
 
+	// Create assignment service
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService)
+
 	// Create executor for step transition coordination
 	stdLogger := log.Default()
 	executor := workflow.NewDAGExecutor(
 		stepExecService,
 		workflowExecService,
 		stepDefService,
+		assignmentService,
 		stdLogger,
 	)
 

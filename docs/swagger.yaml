@@ -6792,6 +6792,9 @@ definitions:
       evidence_required:
         description: JSON array of required evidence types
         type: string
+      grace_period_days:
+        description: Override global default if set
+        type: integer
       id:
         type: string
       instances:
@@ -6839,11 +6842,16 @@ definitions:
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
+      due_date:
+        type: string
       failed-at:
         type: string
       failure_reason:
         type: string
       id:
+        type: string
+      period_label:
+        description: Scheduling Context
         type: string
       started-at:
         type: string
@@ -6912,6 +6920,9 @@ definitions:
         items:
           $ref: '#/definitions/workflows.WorkflowExecution'
         type: array
+      grace_period_days:
+        description: Override definition/global default if set
+        type: integer
       id:
         type: string
       is_active:

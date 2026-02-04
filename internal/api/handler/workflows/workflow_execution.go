@@ -85,11 +85,15 @@ func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
 	// Use the manager to start the workflow execution
 	// TODO: Consider adding timeout to context for long-running workflow operations
 	// Currently using request context directly - may want to add WithTimeout wrapper
+	opts := workflow.StartWorkflowOptions{
+		TriggeredBy:   req.TriggeredBy,
+		TriggeredByID: req.TriggeredByID,
+	}
+
 	executionID, err := h.manager.StartWorkflowExecution(
 		ctx.Request().Context(),
 		req.WorkflowInstanceID,
-		req.TriggeredBy,
-		req.TriggeredByID,
+		opts,
 	)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "start", "workflow execution")

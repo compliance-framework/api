@@ -26,6 +26,10 @@ type WorkflowExecution struct {
 	TriggeredBy   string `gorm:"size:50" json:"triggered_by"`     // manual, scheduled, automatic
 	TriggeredByID string `gorm:"size:255" json:"triggered_by_id"` // User ID or system identifier
 
+	// Scheduling Context
+	PeriodLabel string     `gorm:"size:50;index" json:"period_label,omitempty"` // e.g., "2023-10", "2023-W42"
+	DueDate     *time.Time `gorm:"index" json:"due_date,omitempty"`
+
 	// Audit Fields
 	CreatedByID *uuid.UUID `gorm:"index" json:"created_by_id,omitempty"`
 	UpdatedByID *uuid.UUID `gorm:"index" json:"updated_by_id,omitempty"`

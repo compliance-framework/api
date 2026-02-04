@@ -172,10 +172,12 @@ func TestDAGExecutor_Integration_InitializeWorkflow(t *testing.T) {
 	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
+	roleAssignmentService := workflows.NewRoleAssignmentService(db)
+	assignmentService := NewAssignmentService(roleAssignmentService)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
 
 	// Create test workflow
 	workflowDef, stepDefs := createTestWorkflow(t, db)
@@ -232,10 +234,12 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
+	roleAssignmentService := workflows.NewRoleAssignmentService(db)
+	assignmentService := NewAssignmentService(roleAssignmentService)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
 
 	// Create test workflow
 	workflowDef, stepDefs := createTestWorkflow(t, db)
@@ -293,10 +297,12 @@ func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
 	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
+	roleAssignmentService := workflows.NewRoleAssignmentService(db)
+	assignmentService := NewAssignmentService(roleAssignmentService)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
 
 	// Create test workflow
 	workflowDef, stepDefs := createTestWorkflow(t, db)
@@ -350,10 +356,12 @@ func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
+	roleAssignmentService := workflows.NewRoleAssignmentService(db)
+	assignmentService := NewAssignmentService(roleAssignmentService)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
 
 	// Create workflow with parallel steps (no dependencies)
 	workflowDefID := uuid.New()

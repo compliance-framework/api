@@ -29637,6 +29637,10 @@ const docTemplate = `{
                     "description": "JSON array of required evidence types",
                     "type": "string"
                 },
+                "grace_period_days": {
+                    "description": "Override global default if set",
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -29707,6 +29711,9 @@ const docTemplate = `{
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
+                "due_date": {
+                    "type": "string"
+                },
                 "failed-at": {
                     "type": "string"
                 },
@@ -29714,6 +29721,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "period_label": {
+                    "description": "Scheduling Context",
                     "type": "string"
                 },
                 "started-at": {
@@ -29817,6 +29828,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/workflows.WorkflowExecution"
                     }
+                },
+                "grace_period_days": {
+                    "description": "Override definition/global default if set",
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"

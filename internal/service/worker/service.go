@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -38,9 +39,21 @@ type Service struct {
 
 	// Workflow services
 	workflowExecutor         interface{}
+	workflowManager          *workflow.Manager
 	stepExecutionService     interface{}
 	workflowExecutionService interface{}
 	stepDefinitionService    interface{}
+}
+
+type riverClientProxy struct {
+	client *river.Client[pgx.Tx]
+}
+
+func (p *riverClientProxy) InsertMany(ctx context.Context, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("river client not initialized")
+	}
+	return p.client.InsertMany(ctx, params)
 }
 
 // NewService creates a new worker service
@@ -109,13 +122,15 @@ func NewServiceWithDigest(
 	}
 	pgxPool = pool
 
-	// Register workers with dependencies injected
-	workers := Workers(emailSvc, digestSvc, logger)
-
 	// Create workflow services
 	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
+	workflowInstService := workflows.NewWorkflowInstanceService(db)
+	roleAssignmentService := workflows.NewRoleAssignmentService(db)
+
+	// Create assignment service
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService)
 
 	// Create workflow executor
 	workflowLogger := log.New(os.Stdout, "[WORKFLOW] ", log.LstdFlags)
@@ -123,6 +138,7 @@ func NewServiceWithDigest(
 		stepExecService,
 		workflowExecService,
 		stepDefService,
+		assignmentService,
 		workflowLogger,
 	)
 
@@ -136,43 +152,63 @@ func NewServiceWithDigest(
 	// Set evidence integration on workflow execution service
 	workflowExecService.SetEvidenceCreator(evidenceIntegration)
 
+	// Create workflow workers
 	workflowExecutionWorker := workflow.NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
-	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
-
 	stepExecutionWorker := workflow.NewStepExecutionWorker(stepExecService, logger)
+
+	// Create a proxy for RiverClient to handle circular dependency
+	clientProxy := &riverClientProxy{}
+
+	// Create Manager with proxy
+	workflowManager := workflow.NewManager(
+		clientProxy,
+		workflowExecService,
+		workflowInstService,
+		stepExecService,
+		logger,
+	)
+
+	schedulerWorker := workflow.NewWorkflowSchedulerWorker(
+		workflowManager,
+		workflowInstService,
+		logger,
+		digestCfg.Workflow.GracePeriodDays,
+	)
+
+	// Register workers with dependencies injected
+	// We start with the email/digest workers
+	workers := Workers(emailSvc, digestSvc, logger)
+
+	// Add workflow workers
+	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
+	river.AddWorker(workers, river.WorkFunc(schedulerWorker.Work))
+
+	// Only create and register the global digest worker if the digest service is available
+	if digestSvc != nil {
+		sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestSvc, logger)
+		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
+	}
+	// Also register email workers
+	sendEmailWorker := NewSendEmailWorker(emailSvc, logger)
+	sendEmailFromWorker := NewSendEmailFromWorker(emailSvc, logger)
+	river.AddWorker(workers, river.WorkFunc(sendEmailWorker.Work))
+	river.AddWorker(workers, river.WorkFunc(sendEmailFromWorker.Work))
 
 	// Configure periodic jobs
-	var periodicJobs []*river.PeriodicJob
-	if digestCfg != nil && digestCfg.DigestEnabled {
-		periodicJobs = append(periodicJobs, NewDigestPeriodicJob(digestCfg.DigestSchedule, logger))
-	}
+	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
 
 	// Create River client with pgxv5 driver
-	riverConfig := river.Config{
-		Queues: map[string]river.QueueConfig{
-			"email": {
-				MaxWorkers: cfg.Workers,
-			},
-			"digest": {
-				MaxWorkers: 1, // Only one digest worker to avoid duplicates
-			},
-			"workflow": {
-				MaxWorkers: 2, // Limit concurrent workflow executions
-			},
-			"steps": {
-				MaxWorkers: 10, // Allow more parallel step executions
-			},
-		},
-		Workers:      workers,
-		PeriodicJobs: periodicJobs,
-	}
+	riverConfig := buildRiverConfig(cfg, workers, periodicJobs)
 
 	// Create the client
 	client, err := river.NewClient(riverpgxv5.New(pgxPool), &riverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create River client: %w", err)
 	}
+
+	// Update proxy with actual client
+	clientProxy.client = client
 
 	service := &Service{
 		client:    client,
@@ -187,12 +223,18 @@ func NewServiceWithDigest(
 
 		// Store workflow services
 		workflowExecutor:         executor,
+		workflowManager:          workflowManager,
 		stepExecutionService:     stepExecService,
 		workflowExecutionService: workflowExecService,
 		stepDefinitionService:    stepDefService,
 	}
 
 	return service, nil
+}
+
+// GetWorkflowManager returns the workflow manager
+func (s *Service) GetWorkflowManager() *workflow.Manager {
+	return s.workflowManager
 }
 
 // Start starts the worker service
@@ -296,14 +338,7 @@ func (s *Service) Migrate(ctx context.Context) error {
 
 // NewDigestPeriodicJob creates a periodic job for digest scheduling
 func NewDigestPeriodicJob(cronSchedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
-	// Parse the cron schedule using robfig/cron
-	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
-	schedule, err := parser.Parse(cronSchedule)
-	if err != nil {
-		logger.Errorw("Failed to parse digest cron schedule, using default @weekly", "schedule", cronSchedule, "error", err)
-		// Fallback to weekly schedule
-		schedule, _ = parser.Parse("@weekly")
-	}
+	schedule := parseCronScheduleWithFallback(cronSchedule, "@weekly", "digest", logger)
 
 	return river.NewPeriodicJob(
 		schedule,
@@ -317,6 +352,70 @@ func NewDigestPeriodicJob(cronSchedule string, logger *zap.SugaredLogger) *river
 			RunOnStart: false, // Don't run immediately on startup
 		},
 	)
+}
+
+func NewWorkflowSchedulerPeriodicJob(cronSchedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	schedule := parseCronScheduleWithFallback(cronSchedule, "@every 15m", "workflow scheduler", logger)
+
+	return river.NewPeriodicJob(
+		schedule,
+		workflowSchedulerPeriodicJobConstructor,
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
+func workflowSchedulerPeriodicJobConstructor() (river.JobArgs, *river.InsertOpts) {
+	return &workflow.ScheduleWorkflowsArgs{}, workflow.JobInsertOptionsForScheduler()
+}
+
+func parseCronScheduleWithFallback(cronSchedule string, fallback string, jobName string, logger *zap.SugaredLogger) cron.Schedule {
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	schedule, err := parser.Parse(cronSchedule)
+	if err != nil {
+		logger.Errorw("Failed to parse cron schedule, using fallback", "job", jobName, "schedule", cronSchedule, "fallback", fallback, "error", err)
+		schedule, _ = parser.Parse(fallback)
+	}
+	return schedule
+}
+
+func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*river.PeriodicJob {
+	var periodicJobs []*river.PeriodicJob
+	if cfg == nil {
+		return periodicJobs
+	}
+	if cfg.DigestEnabled {
+		periodicJobs = append(periodicJobs, NewDigestPeriodicJob(cfg.DigestSchedule, logger))
+	}
+	if cfg.Workflow.SchedulerEnabled {
+		periodicJobs = append(periodicJobs, NewWorkflowSchedulerPeriodicJob(cfg.Workflow.Schedule, logger))
+	}
+	return periodicJobs
+}
+
+func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodicJobs []*river.PeriodicJob) river.Config {
+	return river.Config{
+		Queues: map[string]river.QueueConfig{
+			"email": {
+				MaxWorkers: cfg.Workers,
+			},
+			"digest": {
+				MaxWorkers: 1,
+			},
+			"scheduler": {
+				MaxWorkers: 1,
+			},
+			"workflow": {
+				MaxWorkers: 2,
+			},
+			"steps": {
+				MaxWorkers: 10,
+			},
+		},
+		Workers:      workers,
+		PeriodicJobs: periodicJobs,
+	}
 }
 
 // EnqueueSendEmail enqueues a send email job

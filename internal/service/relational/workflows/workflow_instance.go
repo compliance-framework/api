@@ -21,8 +21,9 @@ type WorkflowInstance struct {
 	Description string `gorm:"type:text" json:"description"`
 
 	// Instance Configuration
-	Cadence  string `gorm:"size:50" json:"cadence"` // daily, weekly, monthly, quarterly, annually
-	IsActive bool   `gorm:"default:true" json:"is_active"`
+	Cadence         string `gorm:"size:50" json:"cadence"` // daily, weekly, monthly, quarterly, annually
+	IsActive        bool   `gorm:"default:true" json:"is_active"`
+	GracePeriodDays *int   `json:"grace_period_days,omitempty"` // Override definition/global default if set
 
 	// Scheduling
 	NextScheduledAt *time.Time `json:"next-scheduled-at,omitempty"`

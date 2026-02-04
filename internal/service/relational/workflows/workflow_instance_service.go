@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -125,25 +126,50 @@ func (s *WorkflowInstanceService) Deactivate(id *uuid.UUID) error {
 }
 
 // UpdateSchedule updates the next scheduled time for an instance
-func (s *WorkflowInstanceService) UpdateSchedule(id *uuid.UUID, nextSchedule time.Time) error {
-	return s.db.Model(&WorkflowInstance{}).
+func (s *WorkflowInstanceService) UpdateSchedule(ctx context.Context, id *uuid.UUID, nextSchedule time.Time) error {
+	return s.db.WithContext(ctx).Model(&WorkflowInstance{}).
 		Where("id = ?", id).
 		Update("next_scheduled_at", nextSchedule).Error
 }
 
 // UpdateLastExecuted updates the last executed time for an instance
-func (s *WorkflowInstanceService) UpdateLastExecuted(id *uuid.UUID, lastExecuted time.Time) error {
-	return s.db.Model(&WorkflowInstance{}).
+func (s *WorkflowInstanceService) UpdateLastExecuted(ctx context.Context, id *uuid.UUID, lastExecuted time.Time) error {
+	return s.db.WithContext(ctx).Model(&WorkflowInstance{}).
 		Where("id = ?", id).
 		Update("last_executed_at", lastExecuted).Error
 }
 
+// AdvanceSchedule updates the last executed time to now and calculates the next scheduled time
+func (s *WorkflowInstanceService) AdvanceSchedule(ctx context.Context, id *uuid.UUID) error {
+	instance, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+
+	// If NextScheduledAt is set, calculate next from there to avoid drift, otherwise from now
+	baseTime := now
+	if instance.NextScheduledAt != nil {
+		baseTime = *instance.NextScheduledAt
+	}
+
+	nextSchedule := s.CalculateNextSchedule(baseTime, instance.Cadence)
+
+	return s.db.WithContext(ctx).Model(&WorkflowInstance{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"last_executed_at":  now,
+			"next_scheduled_at": nextSchedule,
+		}).Error
+}
+
 // GetDueInstances retrieves all instances that are due for execution
-func (s *WorkflowInstanceService) GetDueInstances() ([]WorkflowInstance, error) {
+func (s *WorkflowInstanceService) GetDueInstances(ctx context.Context) ([]WorkflowInstance, error) {
 	var instances []WorkflowInstance
 	now := time.Now()
 
-	err := s.db.Where("is_active = ? AND next_scheduled_at <= ?", true, now).
+	err := s.db.WithContext(ctx).Where("is_active = ? AND next_scheduled_at <= ?", true, now).
 		Preload("WorkflowDefinition").
 		Preload("WorkflowDefinition.Steps").
 		Preload("RoleAssignments").
@@ -167,22 +193,27 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 	)
 }
 
-// calculateNextSchedule calculates the next scheduled time based on cadence
-func (s *WorkflowInstanceService) calculateNextSchedule(from time.Time, cadence string) time.Time {
-	switch cadence {
-	case "daily":
+// CalculateNextSchedule calculates the next scheduled time based on cadence
+func (s *WorkflowInstanceService) CalculateNextSchedule(from time.Time, cadence string) time.Time {
+	switch CadenceType(cadence) {
+	case CadenceDaily:
 		return from.AddDate(0, 0, 1)
-	case "weekly":
+	case CadenceWeekly:
 		return from.AddDate(0, 0, 7)
-	case "monthly":
+	case CadenceMonthly:
 		return from.AddDate(0, 1, 0)
-	case "quarterly":
+	case CadenceQuarterly:
 		return from.AddDate(0, 3, 0)
-	case "annually":
+	case CadenceAnnually:
 		return from.AddDate(1, 0, 0)
 	default:
 		return from.AddDate(0, 1, 0) // Default to monthly
 	}
+}
+
+// calculateNextSchedule calculates the next scheduled time based on cadence (deprecated, use CalculateNextSchedule)
+func (s *WorkflowInstanceService) calculateNextSchedule(from time.Time, cadence string) time.Time {
+	return s.CalculateNextSchedule(from, cadence)
 }
 
 // GetBySystemId retrieves all instances for a specific system
