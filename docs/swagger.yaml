@@ -792,6 +792,13 @@ definitions:
         - $ref: '#/definitions/handler.UserHandler'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscal_BuildByPropsResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.BuildByPropsResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_ImportResponse:
     properties:
       data:
@@ -1347,6 +1354,43 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  oscal.BuildByPropsRequest:
+    properties:
+      catalog-id:
+        example: 9b0c9c43-2722-4bbb-b132-13d34fb94d45
+        type: string
+      match-strategy:
+        allOf:
+        - $ref: '#/definitions/oscal.MatchStrategy'
+        example: all
+      rules:
+        items:
+          $ref: '#/definitions/oscal.rule'
+        minItems: 1
+        type: array
+      title:
+        example: My Custom Profile
+        type: string
+      version:
+        example: 1.0.0
+        type: string
+    required:
+    - catalog-id
+    - match-strategy
+    - rules
+    - title
+    type: object
+  oscal.BuildByPropsResponse:
+    properties:
+      control-ids:
+        items:
+          type: string
+        type: array
+      profile:
+        $ref: '#/definitions/oscalTypes_1_1_3.Profile'
+      profile-id:
+        type: string
+    type: object
   oscal.CreateInventoryItemRequest:
     properties:
       destination:
@@ -1414,7 +1458,46 @@ definitions:
       uuid:
         type: string
     type: object
+  oscal.MatchStrategy:
+    enum:
+    - all
+    - any
+    type: string
+    x-enum-varnames:
+    - MatchStrategyAll
+    - MatchStrategyAny
   oscal.ProfileHandler:
+    type: object
+  oscal.RuleOperator:
+    enum:
+    - equals
+    - contains
+    - regex
+    - in
+    type: string
+    x-enum-varnames:
+    - RuleOperatorEquals
+    - RuleOperatorContains
+    - RuleOperatorRegex
+    - RuleOperatorIn
+  oscal.rule:
+    properties:
+      name:
+        example: class
+        type: string
+      ns:
+        example: http://csrc.nist.gov/ns/oscal
+        type: string
+      operator:
+        allOf:
+        - $ref: '#/definitions/oscal.RuleOperator'
+        example: equals
+      value:
+        example: technical
+        type: string
+    required:
+    - operator
+    - value
     type: object
   oscalTypes_1_1_3.Action:
     properties:
@@ -15119,6 +15202,47 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get Resolved Profile
+      tags:
+      - Profile
+  /oscal/profiles/build-props:
+    post:
+      consumes:
+      - application/json
+      description: Generates a Profile selecting controls from a catalog based on
+        prop matching rules. Returns the created Profile and the matched control IDs.
+      parameters:
+      - description: Prop matching request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.BuildByPropsRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_BuildByPropsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Build Profile by Control Props
       tags:
       - Profile
   /oscal/roles:

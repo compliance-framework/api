@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -517,7 +516,6 @@ func (suite *ProfileIntegrationSuite) TestAddImport() {
 
 		suite.server.E().ServeHTTP(rec, req)
 
-		fmt.Println("Response Body:", rec.Body.String())
 		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected status code 201 Created")
 
 		var response handler.GenericDataResponse[oscalTypes_1_1_3.Import]
@@ -574,6 +572,300 @@ func (suite *ProfileIntegrationSuite) TestUpdateImport() {
 
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Require().Equal(http.StatusNotFound, rec.Code, "Expected status code 404 Not Found")
+	})
+}
+
+func (suite *ProfileIntegrationSuite) TestBuildByPropsCreatesImportAndControls() {
+	suite.IntegrationTestSuite.Migrator.Refresh()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err, "Failed to get auth token")
+
+	// Seed a minimal catalog with one technical control
+	catID := uuid.New()
+	catalog := &relational.Catalog{
+		UUIDModel: relational.UUIDModel{ID: &catID},
+		Metadata:  relational.Metadata{Title: "Prop Match Test Catalog"},
+		Controls: []relational.Control{
+			{
+				ID:        "ac-1",
+				Title:     "Access Control 1",
+				CatalogID: catID,
+				Props:     []relational.Prop{{Name: "class", Value: "technical"}},
+			},
+		},
+	}
+	err = suite.DB.Create(catalog).Error
+	suite.Require().NoError(err, "Failed to seed test catalog")
+
+	// Build profile by props targeting the seeded catalog and rule
+	body := map[string]any{
+		"catalog-id":     catID.String(),
+		"match-strategy": "all",
+		"rules": []map[string]string{
+			{"name": "class", "operator": "equals", "value": "technical"},
+		},
+		"title":   "Prop-Matched Profile",
+		"version": "1.0.0",
+	}
+	payload, _ := json.Marshal(body)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+	var response handler.GenericDataResponse[struct {
+		ProfileID  uuid.UUID                `json:"profile-id"`
+		ControlIDs []string                 `json:"control-ids"`
+		Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+	}]
+	err = json.NewDecoder(rec.Body).Decode(&response)
+	suite.Require().NoError(err, "Failed to decode build-by-props response")
+	suite.Require().Len(response.Data.ControlIDs, 1, "Expected one matched control")
+	suite.Require().Equal("ac-1", response.Data.ControlIDs[0], "Expected matched control to be ac-1")
+
+	// Verify persisted import/back-matter can be listed
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/oscal/profiles/"+response.Data.ProfileID.String()+"/imports", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Require().Equal(http.StatusOK, rec.Code, "Expected 200 listing imports")
+	var list handler.GenericDataListResponse[oscalTypes_1_1_3.Import]
+	err = json.NewDecoder(rec.Body).Decode(&list)
+	suite.Require().NoError(err)
+	suite.Require().Len(list.Data, 1, "Expected a single import")
+}
+
+func (suite *ProfileIntegrationSuite) TestBuildByPropsOperators() {
+	suite.IntegrationTestSuite.Migrator.Refresh()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err, "Failed to get auth token")
+
+	// Seed a catalog with multiple controls with different props
+	catID := uuid.New()
+	catalog := &relational.Catalog{
+		UUIDModel: relational.UUIDModel{ID: &catID},
+		Metadata:  relational.Metadata{Title: "Operator Test Catalog"},
+		Controls: []relational.Control{
+			{
+				ID:        "ac-1",
+				Title:     "Access Control 1",
+				CatalogID: catID,
+				Props: []relational.Prop{
+					{Name: "class", Value: "technical"},
+					{Name: "priority", Value: "P1"},
+				},
+			},
+			{
+				ID:        "ac-2",
+				Title:     "Access Control 2",
+				CatalogID: catID,
+				Props: []relational.Prop{
+					{Name: "class", Value: "operational"},
+					{Name: "priority", Value: "P2"},
+				},
+			},
+			{
+				ID:        "ac-3",
+				Title:     "Access Control 3",
+				CatalogID: catID,
+				Props: []relational.Prop{
+					{Name: "class", Value: "management"},
+					{Name: "priority", Value: "P1-critical"},
+				},
+			},
+			{
+				ID:        "sc-1",
+				Title:     "System and Communications Protection 1",
+				CatalogID: catID,
+				Props: []relational.Prop{
+					{Name: "class", Value: "technical"},
+					{Name: "family", Value: "SC"},
+				},
+			},
+		},
+	}
+	err = suite.DB.Create(catalog).Error
+	suite.Require().NoError(err, "Failed to seed test catalog")
+
+	suite.Run("Regex operator - match controls with priority starting with P1", func() {
+		body := map[string]any{
+			"catalog-id":     catID.String(),
+			"match-strategy": "any",
+			"rules": []map[string]string{
+				{"name": "priority", "operator": "regex", "value": "^P1"},
+			},
+			"title":   "Regex Test Profile",
+			"version": "1.0.0",
+		}
+		payload, _ := json.Marshal(body)
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+		var response handler.GenericDataResponse[struct {
+			ProfileID  uuid.UUID                `json:"profile-id"`
+			ControlIDs []string                 `json:"control-ids"`
+			Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+		}]
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		suite.Require().NoError(err, "Failed to decode response")
+		suite.Require().Len(response.Data.ControlIDs, 2, "Expected two matched controls (ac-1, ac-3)")
+		suite.Require().Contains(response.Data.ControlIDs, "ac-1")
+		suite.Require().Contains(response.Data.ControlIDs, "ac-3")
+	})
+
+	suite.Run("In operator - match controls with class in list", func() {
+		body := map[string]any{
+			"catalog-id":     catID.String(),
+			"match-strategy": "any",
+			"rules": []map[string]string{
+				{"name": "class", "operator": "in", "value": "technical,operational"},
+			},
+			"title":   "In Operator Test Profile",
+			"version": "1.0.0",
+		}
+		payload, _ := json.Marshal(body)
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+		var response handler.GenericDataResponse[struct {
+			ProfileID  uuid.UUID                `json:"profile-id"`
+			ControlIDs []string                 `json:"control-ids"`
+			Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+		}]
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		suite.Require().NoError(err, "Failed to decode response")
+		suite.Require().Len(response.Data.ControlIDs, 3, "Expected three matched controls (ac-1, ac-2, sc-1)")
+		suite.Require().Contains(response.Data.ControlIDs, "ac-1")
+		suite.Require().Contains(response.Data.ControlIDs, "ac-2")
+		suite.Require().Contains(response.Data.ControlIDs, "sc-1")
+	})
+
+	suite.Run("Contains operator - match controls with class containing 'tech'", func() {
+		body := map[string]any{
+			"catalog-id":     catID.String(),
+			"match-strategy": "any",
+			"rules": []map[string]string{
+				{"name": "class", "operator": "contains", "value": "tech"},
+			},
+			"title":   "Contains Operator Test Profile",
+			"version": "1.0.0",
+		}
+		payload, _ := json.Marshal(body)
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+		var response handler.GenericDataResponse[struct {
+			ProfileID  uuid.UUID                `json:"profile-id"`
+			ControlIDs []string                 `json:"control-ids"`
+			Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+		}]
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		suite.Require().NoError(err, "Failed to decode response")
+		suite.Require().Len(response.Data.ControlIDs, 2, "Expected two matched controls (ac-1, sc-1)")
+		suite.Require().Contains(response.Data.ControlIDs, "ac-1")
+		suite.Require().Contains(response.Data.ControlIDs, "sc-1")
+	})
+
+	suite.Run("Invalid regex pattern returns 400", func() {
+		body := map[string]any{
+			"catalog-id":     catID.String(),
+			"match-strategy": "any",
+			"rules": []map[string]string{
+				{"name": "priority", "operator": "regex", "value": "[invalid(regex"},
+			},
+			"title":   "Invalid Regex Test",
+			"version": "1.0.0",
+		}
+		payload, _ := json.Marshal(body)
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusBadRequest, rec.Code, "Expected 400 for invalid regex")
+		suite.Require().Contains(rec.Body.String(), "invalid regex pattern")
+	})
+
+	suite.Run("Match strategy 'all' requires all rules to match", func() {
+		body := map[string]any{
+			"catalog-id":     catID.String(),
+			"match-strategy": "all",
+			"rules": []map[string]string{
+				{"name": "class", "operator": "equals", "value": "technical"},
+				{"name": "priority", "operator": "equals", "value": "P1"},
+			},
+			"title":   "Match All Strategy Test",
+			"version": "1.0.0",
+		}
+		payload, _ := json.Marshal(body)
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+		var response handler.GenericDataResponse[struct {
+			ProfileID  uuid.UUID                `json:"profile-id"`
+			ControlIDs []string                 `json:"control-ids"`
+			Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+		}]
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		suite.Require().NoError(err, "Failed to decode response")
+		suite.Require().Len(response.Data.ControlIDs, 1, "Expected only one control matching both rules (ac-1)")
+		suite.Require().Equal("ac-1", response.Data.ControlIDs[0])
+	})
+
+	suite.Run("Match strategy 'any' matches if any rule matches", func() {
+		body := map[string]any{
+			"catalog-id":     catID.String(),
+			"match-strategy": "any",
+			"rules": []map[string]string{
+				{"name": "class", "operator": "equals", "value": "technical"},
+				{"name": "family", "operator": "equals", "value": "SC"},
+			},
+			"title":   "Match Any Strategy Test",
+			"version": "1.0.0",
+		}
+		payload, _ := json.Marshal(body)
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/oscal/profiles/build-props", bytes.NewReader(payload))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusCreated, rec.Code, "Expected 201 from build-by-props")
+
+		var response handler.GenericDataResponse[struct {
+			ProfileID  uuid.UUID                `json:"profile-id"`
+			ControlIDs []string                 `json:"control-ids"`
+			Profile    oscalTypes_1_1_3.Profile `json:"profile"`
+		}]
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		suite.Require().NoError(err, "Failed to decode response")
+		suite.Require().Len(response.Data.ControlIDs, 2, "Expected two controls (ac-1 and sc-1)")
+		suite.Require().Contains(response.Data.ControlIDs, "ac-1")
+		suite.Require().Contains(response.Data.ControlIDs, "sc-1")
 	})
 }
 
