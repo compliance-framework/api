@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -93,57 +94,6 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 
 		periodLabel := GeneratePeriodLabel(instance.Cadence, refTime)
 
-		// Check for existing execution for this period to ensure idempotency
-		// This is a safety check in addition to the DB unique constraint if any
-		existingExecutions, err := w.manager.ListExecutions(ctx, instance.ID, 100, 0)
-		if err != nil {
-			w.logger.Errorw("Failed to check existing executions",
-				"instance_id", instance.ID,
-				"error", err,
-			)
-			errorCount++
-			continue
-		}
-
-		// Check if we already have an execution for this period triggered by scheduler
-		alreadyExecuted := false
-		for _, exec := range existingExecutions {
-			// We check if triggered by scheduler and if the period matches
-			if exec.TriggeredBy == workflows.TriggerScheduled.String() {
-				// 1. Check strict match on PeriodLabel (new executions)
-				if exec.PeriodLabel == periodLabel {
-					alreadyExecuted = true
-					break
-				}
-
-				// 2. Fallback check: if execution started within the same period window (legacy/fallback)
-				// Only if PeriodLabel is missing (backward compatibility)
-				if exec.PeriodLabel == "" && exec.StartedAt != nil {
-					execLabel := GeneratePeriodLabel(instance.Cadence, *exec.StartedAt)
-					if execLabel == periodLabel {
-						alreadyExecuted = true
-						break
-					}
-				}
-			}
-		}
-
-		if alreadyExecuted {
-			w.logger.Infow("Skipping already executed workflow instance for this period",
-				"instance_id", instance.ID,
-				"period_label", periodLabel,
-			)
-
-			// Still need to update next schedule if it's in the past
-			if err := w.workflowInstanceService.AdvanceSchedule(ctx, instance.ID); err != nil {
-				w.logger.Errorw("Failed to update schedule for skipped instance",
-					"instance_id", instance.ID,
-					"error", err,
-				)
-			}
-			continue
-		}
-
 		// Determine grace period
 		gracePeriod := w.defaultGracePeriod
 		if instance.GracePeriodDays != nil {
@@ -159,13 +109,29 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 
 		// Start workflow execution
 		options := StartWorkflowOptions{
-			TriggeredBy: workflows.TriggerScheduled.String(),
-			PeriodLabel: periodLabel,
-			DueDate:     &dueDate,
+			TriggeredBy:   workflows.TriggerScheduled.String(),
+			TriggeredByID: "workflow-scheduler",
+			PeriodLabel:   periodLabel,
+			DueDate:       &dueDate,
 		}
 
 		executionID, err := w.manager.StartWorkflowExecution(ctx, instance.ID, options)
 		if err != nil {
+			if errors.Is(err, ErrWorkflowExecutionAlreadyExists) {
+				w.logger.Infow("Skipping already executed workflow instance for this period",
+					"instance_id", instance.ID,
+					"period_label", periodLabel,
+				)
+
+				// Still need to update next schedule if it's in the past
+				if err := w.workflowInstanceService.AdvanceSchedule(ctx, instance.ID); err != nil {
+					w.logger.Errorw("Failed to update schedule for skipped instance",
+						"instance_id", instance.ID,
+						"error", err,
+					)
+				}
+				continue
+			}
 			w.logger.Errorw("Failed to start workflow execution",
 				"instance_id", instance.ID,
 				"error", err,

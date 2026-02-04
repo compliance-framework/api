@@ -2,15 +2,19 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
+
+var ErrWorkflowExecutionAlreadyExists = errors.New("workflow execution already exists for instance and period")
 
 // Manager orchestrates workflow execution lifecycle using River for async operations
 type Manager struct {
@@ -96,6 +100,10 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 	}
 
 	if err := m.workflowExecutionService.Create(execution); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && opts.TriggeredBy == workflows.TriggerScheduled.String() && opts.PeriodLabel != "" {
+			return nil, fmt.Errorf("%w", ErrWorkflowExecutionAlreadyExists)
+		}
 		return nil, fmt.Errorf("failed to create workflow execution: %w", err)
 	}
 

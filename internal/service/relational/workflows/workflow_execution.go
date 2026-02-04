@@ -23,11 +23,11 @@ type WorkflowExecution struct {
 	FailureReason string     `gorm:"type:text" json:"failure_reason,omitempty"`
 
 	// Execution Context
-	TriggeredBy   string `gorm:"size:50" json:"triggered_by"`     // manual, scheduled, automatic
-	TriggeredByID string `gorm:"size:255" json:"triggered_by_id"` // User ID or system identifier
+	TriggeredBy   string `gorm:"size:50;uniqueIndex:uidx_workflow_exec_scheduled_instance_period,priority:2,where:triggered_by = 'scheduled'" json:"triggered_by"` // manual, scheduled, automatic
+	TriggeredByID string `gorm:"size:255" json:"triggered_by_id"`                                                                                                  // User ID or system identifier
 
 	// Scheduling Context
-	PeriodLabel string     `gorm:"size:50;index" json:"period_label,omitempty"` // e.g., "2023-10", "2023-W42"
+	PeriodLabel string     `gorm:"size:50;index;uniqueIndex:uidx_workflow_exec_scheduled_instance_period,priority:3,where:triggered_by = 'scheduled'" json:"period_label,omitempty"` // e.g., "2023-10", "2023-W42"
 	DueDate     *time.Time `gorm:"index" json:"due_date,omitempty"`
 
 	// Audit Fields
@@ -35,7 +35,7 @@ type WorkflowExecution struct {
 	UpdatedByID *uuid.UUID `gorm:"index" json:"updated_by_id,omitempty"`
 
 	// Foreign Keys
-	WorkflowInstanceID *uuid.UUID `gorm:"not null;index;index:idx_workflow_exec_instance_status,priority:1" json:"workflow_instance_id"`
+	WorkflowInstanceID *uuid.UUID `gorm:"not null;index;index:idx_workflow_exec_instance_status,priority:1;uniqueIndex:uidx_workflow_exec_scheduled_instance_period,priority:1,where:triggered_by = 'scheduled'" json:"workflow_instance_id"`
 
 	// Relationships
 	WorkflowInstance *WorkflowInstance `gorm:"foreignKey:WorkflowInstanceID" json:"workflow_instance,omitempty"`
