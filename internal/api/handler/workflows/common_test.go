@@ -19,6 +19,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	err = db.AutoMigrate(
 		&relational.Metadata{},
 		&relational.Catalog{},
+		&relational.User{},
 		&workflows.WorkflowDefinition{},
 		&workflows.WorkflowStepDefinition{},
 		&workflows.StepDependency{},

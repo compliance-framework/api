@@ -224,6 +224,66 @@ func (s *StepExecutionService) GetAssignedSteps(assignedToType, assignedToID str
 	return stepExecutions, err
 }
 
+// MyAssignmentsFilter contains filter options for GetMyAssignments
+type MyAssignmentsFilter struct {
+	Status               string     // Filter by step execution status
+	DueBefore            *time.Time // Filter by due date before
+	DueAfter             *time.Time // Filter by due date after
+	WorkflowDefinitionID *uuid.UUID // Filter by workflow definition ID
+}
+
+// GetMyAssignments retrieves step executions assigned to a user with filters and pagination
+// It queries by both user ID (for type "user") and email (for type "email")
+func (s *StepExecutionService) GetMyAssignments(userID, userEmail string, filter MyAssignmentsFilter, limit, offset int) ([]StepExecution, int64, error) {
+	var stepExecutions []StepExecution
+	var total int64
+
+	query := s.db.Model(&StepExecution{}).
+		Joins("JOIN workflow_executions ON workflow_executions.id = step_executions.workflow_execution_id").
+		Joins("JOIN workflow_instances ON workflow_instances.id = workflow_executions.workflow_instance_id").
+		Where("((step_executions.assigned_to_type = ? AND step_executions.assigned_to_id = ?) OR (step_executions.assigned_to_type = ? AND step_executions.assigned_to_id = ?))",
+			"user", userID, "email", userEmail).
+		Where("workflow_executions.status IN ?", []string{"pending", "in_progress"})
+
+	// Apply status filter - default to active statuses if not specified
+	if filter.Status != "" {
+		query = query.Where("step_executions.status = ?", filter.Status)
+	} else {
+		query = query.Where("step_executions.status IN ?", []string{"pending", "in_progress"})
+	}
+
+	// Apply due date filters (on workflow execution)
+	if filter.DueBefore != nil {
+		query = query.Where("workflow_executions.due_date <= ?", filter.DueBefore)
+	}
+	if filter.DueAfter != nil {
+		query = query.Where("workflow_executions.due_date >= ?", filter.DueAfter)
+	}
+
+	// Apply workflow definition filter
+	if filter.WorkflowDefinitionID != nil {
+		query = query.Where("workflow_instances.workflow_definition_id = ?", filter.WorkflowDefinitionID)
+	}
+
+	// Get total count
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Apply pagination and fetch results
+	err := query.
+		Preload("WorkflowExecution").
+		Preload("WorkflowExecution.WorkflowInstance").
+		Preload("WorkflowExecution.WorkflowInstance.WorkflowDefinition").
+		Preload("WorkflowStepDefinition").
+		Order("workflow_executions.due_date ASC NULLS LAST, step_executions.created_at ASC").
+		Limit(limit).
+		Offset(offset).
+		Find(&stepExecutions).Error
+
+	return stepExecutions, total, err
+}
+
 // ValidateStepExecution validates a step execution
 func ValidateStepExecution(stepExecution *StepExecution) error {
 	if err := ValidateNotNil(stepExecution, "step execution"); err != nil {

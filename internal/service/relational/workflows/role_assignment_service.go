@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrRoleAssignmentNotFound = errors.New("role assignment not found")
+
 // RoleAssignmentService provides CRUD operations for RoleAssignment
 type RoleAssignmentService struct {
 	db   *gorm.DB
@@ -174,7 +176,7 @@ func (s *RoleAssignmentService) FindAssigneeForRole(instanceID *uuid.UUID, roleN
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("no active assignment found for role %s in instance %d", roleName, instanceID)
+			return nil, fmt.Errorf("no active assignment found for role %s in instance %s: %w", roleName, instanceID, ErrRoleAssignmentNotFound)
 		}
 		return nil, err
 	}

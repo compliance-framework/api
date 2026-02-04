@@ -9,8 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -431,5 +434,387 @@ func TestStepExecutionHandler_Fail(t *testing.T) {
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Equal(t, "failed", response.Data.Status)
+	})
+}
+
+func TestStepExecutionHandler_ListMy(t *testing.T) {
+	handler, db := setupStepExecutionTestHandler(t)
+	e := echo.New()
+
+	// Create test users
+	testUser1 := &relational.User{
+		Email:     "testuser1@example.com",
+		FirstName: "Test",
+		LastName:  "User1",
+	}
+	require.NoError(t, db.Create(testUser1).Error)
+
+	testUser2 := &relational.User{
+		Email:     "testuser2@example.com",
+		FirstName: "Test",
+		LastName:  "User2",
+	}
+	require.NoError(t, db.Create(testUser2).Error)
+
+	// Create workflow definition
+	workflowDef := &workflows.WorkflowDefinition{
+		Name:    "Test Workflow",
+		Version: "1.0",
+	}
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	// Create another workflow definition for filtering tests
+	workflowDef2 := &workflows.WorkflowDefinition{
+		Name:    "Test Workflow 2",
+		Version: "1.0",
+	}
+	require.NoError(t, db.Create(workflowDef2).Error)
+
+	sysId := uuid.New()
+	instance := &workflows.WorkflowInstance{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Test Instance",
+		SystemSecurityPlanID: &sysId,
+	}
+	require.NoError(t, db.Create(instance).Error)
+
+	instance2 := &workflows.WorkflowInstance{
+		WorkflowDefinitionID: workflowDef2.ID,
+		Name:                 "Test Instance 2",
+		SystemSecurityPlanID: &sysId,
+	}
+	require.NoError(t, db.Create(instance2).Error)
+
+	// Create executions with different due dates
+	now := time.Now()
+	dueDatePast := now.Add(-24 * time.Hour)
+	dueDateFuture := now.Add(24 * time.Hour)
+
+	execution := &workflows.WorkflowExecution{
+		WorkflowInstanceID: instance.ID,
+		Status:             "in_progress",
+		TriggeredBy:        "manual",
+		DueDate:            &dueDateFuture,
+	}
+	require.NoError(t, db.Create(execution).Error)
+
+	execution2 := &workflows.WorkflowExecution{
+		WorkflowInstanceID: instance2.ID,
+		Status:             "in_progress",
+		TriggeredBy:        "manual",
+		DueDate:            &dueDatePast,
+	}
+	require.NoError(t, db.Create(execution2).Error)
+
+	stepDef := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Step 1",
+		ResponsibleRole:      "engineer",
+	}
+	require.NoError(t, db.Create(stepDef).Error)
+
+	stepDef2 := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef2.ID,
+		Name:                 "Step 2",
+		ResponsibleRole:      "reviewer",
+	}
+	require.NoError(t, db.Create(stepDef2).Error)
+
+	// Create step executions assigned to test user 1 (by user ID)
+	assignedAt := time.Now()
+	stepExec1 := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDef.ID,
+		Status:                   "pending",
+		AssignedToType:           "user",
+		AssignedToID:             testUser1.ID.String(),
+		AssignedAt:               &assignedAt,
+	}
+	require.NoError(t, db.Create(stepExec1).Error)
+
+	stepExec2 := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDef.ID,
+		Status:                   "in_progress",
+		AssignedToType:           "user",
+		AssignedToID:             testUser1.ID.String(),
+		AssignedAt:               &assignedAt,
+	}
+	require.NoError(t, db.Create(stepExec2).Error)
+
+	// Create step execution assigned to test user 1 by email
+	stepExec3 := &workflows.StepExecution{
+		WorkflowExecutionID:      execution2.ID,
+		WorkflowStepDefinitionID: stepDef2.ID,
+		Status:                   "blocked",
+		AssignedToType:           "email",
+		AssignedToID:             testUser1.Email,
+		AssignedAt:               &assignedAt,
+	}
+	require.NoError(t, db.Create(stepExec3).Error)
+
+	// Create step execution assigned to different user
+	stepExec4 := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDef.ID,
+		Status:                   "pending",
+		AssignedToType:           "user",
+		AssignedToID:             testUser2.ID.String(),
+		AssignedAt:               &assignedAt,
+	}
+	require.NoError(t, db.Create(stepExec4).Error)
+
+	// Helper to create context with JWT claims
+	createContextWithClaims := func(req *http.Request, rec *httptest.ResponseRecorder, email string) echo.Context {
+		c := e.NewContext(req, rec)
+		c.Set("user", &authn.UserClaims{
+			GivenName:  "Test",
+			FamilyName: "User",
+		})
+		// Set the Subject (email) in claims
+		claims := c.Get("user").(*authn.UserClaims)
+		claims.Subject = email
+		return c
+	}
+
+	t.Run("Success_BasicQuery", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), response.Total)
+		assert.Len(t, response.Data, 3)
+		assert.Equal(t, 20, response.Limit)
+		assert.Equal(t, 0, response.Offset)
+		assert.False(t, response.HasMore)
+	})
+
+	t.Run("Success_FilterByStatus", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?status=pending", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), response.Total)
+		assert.Len(t, response.Data, 1)
+		assert.Equal(t, "pending", response.Data[0].Status)
+	})
+
+	t.Run("Success_FilterByWorkflowDefinition", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?workflow_definition_id="+workflowDef.ID.String(), nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), response.Total)
+		assert.Len(t, response.Data, 2)
+	})
+
+	t.Run("Success_FilterByDueBefore", func(t *testing.T) {
+		dueBefore := now.Format(time.RFC3339)
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?due_before="+dueBefore, nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), response.Total)
+	})
+
+	t.Run("Success_FilterByDueAfter", func(t *testing.T) {
+		dueAfter := now.Format(time.RFC3339)
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?due_after="+dueAfter, nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), response.Total)
+	})
+
+	t.Run("Success_Pagination", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?limit=2&offset=0", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), response.Total)
+		assert.Len(t, response.Data, 2)
+		assert.Equal(t, 2, response.Limit)
+		assert.Equal(t, 0, response.Offset)
+		assert.True(t, response.HasMore)
+	})
+
+	t.Run("Success_PaginationOffset", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?limit=2&offset=2", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), response.Total)
+		assert.Len(t, response.Data, 1)
+		assert.False(t, response.HasMore)
+	})
+
+	t.Run("Success_LimitCappedAt100", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?limit=200", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, 100, response.Limit)
+	})
+
+	t.Run("Success_DifferentUser", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser2.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response MyAssignmentsResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), response.Total)
+		assert.Len(t, response.Data, 1)
+	})
+
+	t.Run("Error_MissingClaims", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("Error_UserNotFound", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, "nonexistent@example.com")
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("Error_InvalidDueBefore", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?due_before=invalid", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_InvalidDueAfter", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?due_after=invalid", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_InvalidWorkflowDefinitionID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?workflow_definition_id=invalid", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_InvalidLimit", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?limit=invalid", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_InvalidOffset", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?offset=invalid", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_NegativeOffset", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?offset=-1", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_ZeroLimit", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?limit=0", nil)
+		rec := httptest.NewRecorder()
+		c := createContextWithClaims(req, rec, testUser1.Email)
+
+		err := handler.ListMy(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 }

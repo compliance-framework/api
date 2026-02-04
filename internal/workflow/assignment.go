@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
@@ -38,10 +40,10 @@ func (s *AssignmentService) ResolveStepAssignees(ctx context.Context, instance *
 		// Look up role assignment
 		roleAssignment, err := s.roleAssignmentService.FindAssigneeForRole(instance.ID, stepDef.ResponsibleRole)
 		if err != nil {
-			// Log warning or handle error?
-			// For now, we'll just skip assignment if role is not found, allowing manual assignment later
-			// ideally we should log this warning
-			continue
+			if errors.Is(err, workflows.ErrRoleAssignmentNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to find assignee for role %s: %w", stepDef.ResponsibleRole, err)
 		}
 
 		if roleAssignment != nil && roleAssignment.IsActive {

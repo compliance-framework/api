@@ -204,22 +204,22 @@ func JobInsertOptionsForScheduler() *river.InsertOpts {
 	}
 }
 
-// WorkflowWorkers returns workflow workers with dependencies injected
-func WorkflowWorkers(
-	executor *DAGExecutor,
-	evidenceIntegration *EvidenceIntegration,
-	stepExecutionService StepExecutionServiceInterface,
-	logger Logger,
-) *river.Workers {
-	workers := river.NewWorkers()
+// // WorkflowWorkers returns workflow workers with dependencies injected
+// func WorkflowWorkers(
+// 	executor *DAGExecutor,
+// 	evidenceIntegration *EvidenceIntegration,
+// 	stepExecutionService StepExecutionServiceInterface,
+// 	logger Logger,
+// ) *river.Workers {
+// 	workers := river.NewWorkers()
 
-	// Create worker instances with dependencies
-	workflowExecutionWorker := NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
-	stepExecutionWorker := NewStepExecutionWorker(stepExecutionService, logger)
+// 	// Create worker instances with dependencies
+// 	workflowExecutionWorker := NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
+// 	stepExecutionWorker := NewStepExecutionWorker(stepExecutionService, logger)
 
-	// Register workers with their Work methods
-	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
-	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
+// 	// Register workers with their Work methods
+// 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
+// 	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
 
-	return workers
-}
+// 	return workers
+// }

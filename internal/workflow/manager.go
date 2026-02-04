@@ -257,7 +257,7 @@ func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*
 
 	// Start new execution (use "manual" as trigger type, with original execution ID as triggered_by_id)
 	opts := StartWorkflowOptions{
-		TriggeredBy:   "manual",
+		TriggeredBy:   workflows.TriggerManual.String(),
 		TriggeredByID: executionID.String(),
 		// We could carry over DueDate and PeriodLabel from original execution if desired,
 		// but for a retry, usually we treat it as a new run.

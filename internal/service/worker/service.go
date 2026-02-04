@@ -168,11 +168,17 @@ func NewServiceWithDigest(
 		logger,
 	)
 
+	// Determine grace period days for the workflow scheduler, with safe defaults.
+	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
+	if digestCfg != nil && digestCfg.Workflow != nil {
+		gracePeriodDays = digestCfg.Workflow.GracePeriodDays
+	}
+
 	schedulerWorker := workflow.NewWorkflowSchedulerWorker(
 		workflowManager,
 		workflowInstService,
 		logger,
-		digestCfg.Workflow.GracePeriodDays,
+		gracePeriodDays,
 	)
 
 	// Register workers with dependencies injected
@@ -183,17 +189,6 @@ func NewServiceWithDigest(
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(schedulerWorker.Work))
-
-	// Only create and register the global digest worker if the digest service is available
-	if digestSvc != nil {
-		sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestSvc, logger)
-		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
-	}
-	// Also register email workers
-	sendEmailWorker := NewSendEmailWorker(emailSvc, logger)
-	sendEmailFromWorker := NewSendEmailFromWorker(emailSvc, logger)
-	river.AddWorker(workers, river.WorkFunc(sendEmailWorker.Work))
-	river.AddWorker(workers, river.WorkFunc(sendEmailFromWorker.Work))
 
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
@@ -388,7 +383,7 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	if cfg.DigestEnabled {
 		periodicJobs = append(periodicJobs, NewDigestPeriodicJob(cfg.DigestSchedule, logger))
 	}
-	if cfg.Workflow.SchedulerEnabled {
+	if cfg.Workflow != nil && cfg.Workflow.SchedulerEnabled {
 		periodicJobs = append(periodicJobs, NewWorkflowSchedulerPeriodicJob(cfg.Workflow.Schedule, logger))
 	}
 	return periodicJobs
