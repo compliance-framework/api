@@ -48,6 +48,7 @@ func (h *CatalogHandler) Register(api *echo.Group) {
 	api.GET("/:id/groups/:group/controls", h.GetGroupControls)
 	api.POST("/:id/groups/:group/controls", h.CreateGroupControl)
 	api.GET("/:id/controls", h.GetControls)
+	api.GET("/:id/all-controls", h.GetAllControls)
 	api.POST("/:id/controls", h.CreateControl)
 	api.GET("/:id/controls/:control", h.GetControl)
 	api.PUT("/:id/controls/:control", h.UpdateControl)
@@ -967,6 +968,44 @@ func (h *CatalogHandler) GetControls(ctx echo.Context) error {
 	var catalog relational.Catalog
 	if err := h.db.
 		Preload("Controls", "parent_id IS NULL").
+		First(&catalog, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load catalog controls", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	oscalControls := make([]oscalTypes_1_1_3.Control, len(catalog.Controls))
+	for i, ctl := range catalog.Controls {
+		oscalControls[i] = *ctl.MarshalOscal()
+	}
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[oscalTypes_1_1_3.Control]{Data: oscalControls})
+}
+
+// GetControls godoc
+
+// @Summary		List controls for a Catalog
+// @Description	Retrieves the top-level controls for a given Catalog.
+// @Tags			Catalog
+// @Produce		json
+// @Param			id	path		string	true	"Catalog ID"
+// @Success		200	{object}	handler.GenericDataListResponse[oscalTypes_1_1_3.Control]
+// @Failure		400	{object}	api.Error
+// @Failure		404	{object}	api.Error
+// @Failure		401	{object}	api.Error
+// @Failure		500	{object}	api.Error
+// @Security		OAuth2Password
+// @Router			/oscal/catalogs/{id}/all-controls [get]
+func (h *CatalogHandler) GetAllControls(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid catalog id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	var catalog relational.Catalog
+	if err := h.db.
+		Preload("Controls").
 		First(&catalog, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))

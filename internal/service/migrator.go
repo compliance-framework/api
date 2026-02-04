@@ -2,10 +2,13 @@ package service
 
 import (
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"gorm.io/gorm"
 )
 
 func MigrateUp(db *gorm.DB) error {
+	workflowEntities := workflows.GetWorkflowEntities()
+
 	err := db.AutoMigrate(
 		&relational.ResponsiblePartyParties{},
 		&relational.Location{},
@@ -55,7 +58,6 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.NetworkArchitecture{},
 		&relational.DataFlow{},
 		&relational.Diagram{},
-
 		&relational.AssessmentPlan{},
 		&relational.LocalDefinitions{},
 		&relational.LocalObjective{},
@@ -112,6 +114,14 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Filter{},
 		&relational.Step{},
 	)
+
+	// Add workflow entities separately to avoid argument limit
+	for _, entity := range workflowEntities {
+		if err := db.AutoMigrate(entity); err != nil {
+			return err
+		}
+	}
+
 	return err
 }
 
@@ -260,6 +270,17 @@ func MigrateDown(db *gorm.DB) error {
 
 		&relational.Attestation{},
 		"attestation_responsible_parties",
+
+		// Implementation Workflows
 	)
+
+	// Drop workflow tables separately
+	workflowTables := workflows.GetWorkflowTables()
+	for _, table := range workflowTables {
+		if err := db.Migrator().DropTable(table); err != nil {
+			return err
+		}
+	}
+
 	return err
 }
