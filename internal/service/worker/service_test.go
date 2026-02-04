@@ -7,7 +7,6 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email/types"
-	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/riverqueue/river"
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
@@ -373,7 +372,7 @@ func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
 	args, opts := workflowSchedulerPeriodicJobConstructor()
 	assert.NotNil(t, args)
 	assert.NotNil(t, opts)
-	assert.Equal(t, workflows.TriggerScheduled.String(), opts.Queue)
+	assert.Equal(t, "scheduler", opts.Queue)
 	assert.Equal(t, 3, opts.MaxAttempts)
 	assert.Equal(t, 1, opts.Priority)
 	assert.Equal(t, "schedule_workflows", args.Kind())
