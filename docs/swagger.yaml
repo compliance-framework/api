@@ -6510,6 +6510,21 @@ definitions:
     required:
     - reason
     type: object
+  workflows.MyAssignmentsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/workflows.StepExecution'
+        type: array
+      has-more:
+        type: boolean
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
   workflows.RoleAssignment:
     properties:
       assigned_to_id:
@@ -19398,6 +19413,59 @@ paths:
       security:
       - OAuth2Password: []
       summary: Transition step execution status
+      tags:
+      - Step Executions
+  /workflows/step-executions/my:
+    get:
+      description: List all step executions assigned to the current user with optional
+        filters and pagination
+      parameters:
+      - description: Filter by status (pending, in_progress, blocked)
+        in: query
+        name: status
+        type: string
+      - description: Filter by due date before (RFC3339 format)
+        in: query
+        name: due_before
+        type: string
+      - description: Filter by due date after (RFC3339 format)
+        in: query
+        name: due_after
+        type: string
+      - description: Filter by workflow definition ID
+        in: query
+        name: workflow_definition_id
+        type: string
+      - description: Limit (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.MyAssignmentsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List my step assignments
       tags:
       - Step Executions
   /workflows/steps:
