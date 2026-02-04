@@ -109,7 +109,7 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 		alreadyExecuted := false
 		for _, exec := range existingExecutions {
 			// We check if triggered by scheduler and if the period matches
-			if exec.TriggeredBy == "scheduler" {
+			if exec.TriggeredBy == workflows.TriggerScheduled.String() {
 				// 1. Check strict match on PeriodLabel (new executions)
 				if exec.PeriodLabel == periodLabel {
 					alreadyExecuted = true
@@ -159,7 +159,7 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 
 		// Start workflow execution
 		options := StartWorkflowOptions{
-			TriggeredBy: "scheduler",
+			TriggeredBy: workflows.TriggerScheduled.String(),
 			PeriodLabel: periodLabel,
 			DueDate:     &dueDate,
 		}
