@@ -13,6 +13,9 @@ const (
 // CadenceType represents a workflow scheduling cadence
 type CadenceType string
 
+// CronPrefix is the prefix for custom cron expressions
+const CronPrefix = "cron:"
+
 // Valid cadence values for workflow scheduling
 const (
 	CadenceDaily     CadenceType = "daily"
@@ -28,7 +31,25 @@ func (c CadenceType) IsValid() bool {
 	case CadenceDaily, CadenceWeekly, CadenceMonthly, CadenceQuarterly, CadenceAnnually:
 		return true
 	}
+	// Check if it's a custom cron expression
+	if c.IsCron() {
+		return true
+	}
 	return false
+}
+
+// IsCron checks if the cadence is a custom cron expression
+func (c CadenceType) IsCron() bool {
+	return len(c) > len(CronPrefix) && string(c)[:len(CronPrefix)] == CronPrefix
+}
+
+// CronExpression extracts the cron expression from a cron cadence
+// Returns empty string if not a cron cadence
+func (c CadenceType) CronExpression() string {
+	if !c.IsCron() {
+		return ""
+	}
+	return string(c)[len(CronPrefix):]
 }
 
 // String returns the string representation

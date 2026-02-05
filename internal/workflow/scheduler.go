@@ -35,7 +35,14 @@ func NewWorkflowSchedulerWorker(
 
 // GeneratePeriodLabel generates a label for the period based on cadence and time
 func GeneratePeriodLabel(cadence string, t time.Time) string {
-	switch workflows.CadenceType(cadence) {
+	cadenceType := workflows.CadenceType(cadence)
+
+	// Handle custom cron expressions - use timestamp format
+	if cadenceType.IsCron() {
+		return t.Format("2006-01-02T15:04:05")
+	}
+
+	switch cadenceType {
 	case workflows.CadenceDaily:
 		return t.Format("2006-01-02")
 	case workflows.CadenceWeekly:
@@ -50,7 +57,7 @@ func GeneratePeriodLabel(cadence string, t time.Time) string {
 	case workflows.CadenceAnnually:
 		return t.Format("2006")
 	default:
-		// Fallback for custom or unknown cadences - use daily format
+		// Fallback for unknown cadences - use daily format
 		return t.Format("2006-01-02")
 	}
 }
