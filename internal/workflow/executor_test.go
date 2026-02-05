@@ -125,10 +125,24 @@ func (m *MockWorkflowStepDefinitionService) GetDependentSteps(stepID *uuid.UUID)
 	return args.Get(0).([]workflows.WorkflowStepDefinition), args.Error(1)
 }
 
+// MockAssignmentService is a mock for AssignmentServiceInterface
+type MockAssignmentService struct {
+	mock.Mock
+}
+
+func (m *MockAssignmentService) ResolveStepAssignees(ctx context.Context, instance *workflows.WorkflowInstance, stepDefinitions []workflows.WorkflowStepDefinition) (map[uuid.UUID]Assignee, error) {
+	args := m.Called(ctx, instance, stepDefinitions)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[uuid.UUID]Assignee), args.Error(1)
+}
+
 func TestNewDAGExecutor(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.Default()
 
 	// Create executor using interfaces
@@ -136,6 +150,7 @@ func TestNewDAGExecutor(t *testing.T) {
 		mockStepExecService,
 		mockWorkflowExecService,
 		mockStepDefService,
+		mockAssignmentService,
 		logger,
 	)
 
@@ -143,6 +158,7 @@ func TestNewDAGExecutor(t *testing.T) {
 	assert.Equal(t, mockStepExecService, executor.stepExecutionService)
 	assert.Equal(t, mockWorkflowExecService, executor.workflowExecutionService)
 	assert.Equal(t, mockStepDefService, executor.stepDefinitionService)
+	assert.Equal(t, mockAssignmentService, executor.assignmentService)
 	assert.Equal(t, logger, executor.logger)
 }
 
@@ -150,9 +166,10 @@ func TestInitializeExecutionState(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
 
-	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, logger)
+	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, mockAssignmentService, logger)
 
 	// Create test step definitions
 	stepDefID1 := uuid.New()
@@ -309,9 +326,10 @@ func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
 
-	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, logger)
+	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, mockAssignmentService, logger)
 
 	// Setup test data
 	workflowExecutionID := uuid.New()
@@ -343,6 +361,9 @@ func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepDefService.On("GetDependencies", &stepDefID2).Return([]workflows.WorkflowStepDefinition{workflows.WorkflowStepDefinition{UUIDModel: relational.UUIDModel{ID: &stepDefID1}}}, nil)
 	mockWorkflowExecService.On("UpdateStatus", mock.Anything, &workflowExecutionID, "in_progress").Return(nil)
 
+	// Mock assignment service
+	mockAssignmentService.On("ResolveStepAssignees", mock.Anything, mock.Anything, mock.Anything).Return(map[uuid.UUID]Assignee{}, nil)
+
 	// Mock step execution creation
 	mockStepExecService.On("Create", mock.MatchedBy(func(se *workflows.StepExecution) bool {
 		// Set the ID for the created step execution
@@ -364,15 +385,17 @@ func TestInitializeWorkflow_Success(t *testing.T) {
 	mockWorkflowExecService.AssertExpectations(t)
 	mockStepDefService.AssertExpectations(t)
 	mockStepExecService.AssertExpectations(t)
+	mockAssignmentService.AssertExpectations(t)
 }
 
 func TestInitializeWorkflow_Failure(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
 
-	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, logger)
+	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, mockAssignmentService, logger)
 
 	// Setup test data
 	workflowExecutionID := uuid.New()
@@ -396,9 +419,10 @@ func TestGetExecutionStatus(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
 
-	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, logger)
+	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, mockAssignmentService, logger)
 
 	// Setup test data
 	workflowExecutionID := uuid.New()
@@ -449,9 +473,10 @@ func TestCancelExecution(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
 
-	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, logger)
+	executor := NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, mockAssignmentService, logger)
 
 	// Setup test data
 	workflowExecutionID := uuid.New()
@@ -489,9 +514,10 @@ func createTestExecutor(t *testing.T) *DAGExecutor {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
 	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
 	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
 
-	return NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, logger)
+	return NewDAGExecutor(mockStepExecService, mockWorkflowExecService, mockStepDefService, mockAssignmentService, logger)
 }
 
 // Benchmark tests

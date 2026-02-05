@@ -18633,6 +18633,87 @@ const docTemplate = `{
                 ]
             }
         },
+        "/workflows/step-executions/my": {
+            "get": {
+                "description": "List all step executions assigned to the current user with optional filters and pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "List my step assignments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by status (pending, in_progress, blocked)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by due date before (RFC3339 format)",
+                        "name": "due_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by due date after (RFC3339 format)",
+                        "name": "due_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by workflow definition ID",
+                        "name": "workflow_definition_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.MyAssignmentsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/workflows/step-executions/{id}": {
             "get": {
                 "description": "Get step execution by ID",
@@ -29208,6 +29289,29 @@ const docTemplate = `{
                 }
             }
         },
+        "workflows.MyAssignmentsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepExecution"
+                    }
+                },
+                "has-more": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "workflows.RoleAssignment": {
             "type": "object",
             "properties": {
@@ -29637,6 +29741,10 @@ const docTemplate = `{
                     "description": "JSON array of required evidence types",
                     "type": "string"
                 },
+                "grace_period_days": {
+                    "description": "Override global default if set",
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -29707,6 +29815,9 @@ const docTemplate = `{
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
+                "due_date": {
+                    "type": "string"
+                },
                 "failed-at": {
                     "type": "string"
                 },
@@ -29714,6 +29825,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "period_label": {
+                    "description": "Scheduling Context",
                     "type": "string"
                 },
                 "started-at": {
@@ -29817,6 +29932,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/workflows.WorkflowExecution"
                     }
+                },
+                "grace_period_days": {
+                    "description": "Override definition/global default if set",
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"

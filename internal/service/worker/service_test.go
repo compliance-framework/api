@@ -3,10 +3,12 @@ package worker
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/riverqueue/river"
+	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -328,6 +330,52 @@ func TestJobInsertOptions(t *testing.T) {
 
 	assert.Equal(t, "email", opts.Queue)
 	assert.Equal(t, 5, opts.MaxAttempts)
+}
+
+func TestParseCronScheduleWithFallback_InvalidUsesFallback(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	schedule := parseCronScheduleWithFallback("not-a-cron", "@weekly", "test", logger)
+
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	fallbackSchedule, err := parser.Parse("@weekly")
+	assert.NoError(t, err)
+
+	assert.Equal(t, fallbackSchedule.Next(from), schedule.Next(from))
+}
+
+func TestPeriodicJobsFromConfig_WorkflowSchedulerEnabledGuard(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	jobs := periodicJobsFromConfig(&config.Config{
+		DigestEnabled: false,
+		Workflow: &config.WorkflowConfig{
+			SchedulerEnabled: false,
+			Schedule:         "@every 15m",
+		},
+	}, logger)
+	assert.Len(t, jobs, 0)
+
+	jobs = periodicJobsFromConfig(&config.Config{
+		DigestEnabled: false,
+		Workflow: &config.WorkflowConfig{
+			SchedulerEnabled: true,
+			Schedule:         "@every 15m",
+		},
+	}, logger)
+	assert.Len(t, jobs, 1)
+}
+
+func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
+	args, opts := workflowSchedulerPeriodicJobConstructor()
+	assert.NotNil(t, args)
+	assert.NotNil(t, opts)
+	assert.Equal(t, "scheduler", opts.Queue)
+	assert.Equal(t, 3, opts.MaxAttempts)
+	assert.Equal(t, 1, opts.Priority)
+	assert.Equal(t, "schedule_workflows", args.Kind())
 }
 
 func TestJobInsertOptionsWithQueue(t *testing.T) {

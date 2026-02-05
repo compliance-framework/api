@@ -24,6 +24,7 @@ type WorkflowDefinition struct {
 	// Workflow Configuration
 	SuggestedCadence string `gorm:"size:50" json:"suggested_cadence"`   // daily, weekly, monthly, quarterly, annually
 	EvidenceRequired string `gorm:"type:text" json:"evidence_required"` // JSON array of required evidence types
+	GracePeriodDays  *int   `json:"grace_period_days,omitempty"`        // Override global default if set
 
 	// Audit Fields
 	CreatedByID *uuid.UUID `gorm:"index" json:"created_by_id,omitempty"`

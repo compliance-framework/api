@@ -37,6 +37,7 @@ type Config struct {
 	EvidenceDefaultExpiryMonths int    // Default expiration in months for evidence without explicit expiry
 	DigestEnabled               bool   // Enable or disable the digest scheduler
 	DigestSchedule              string // Cron schedule for digest emails
+	Workflow                    *WorkflowConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -163,6 +164,16 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		digestSchedule = "@weekly"
 	}
 
+	workflowConfigPath := viper.GetString("workflow_config")
+	if workflowConfigPath == "" {
+		workflowConfigPath = "workflow.yaml"
+	}
+	workflowConfig, err := LoadWorkflowConfig(workflowConfigPath)
+	if err != nil {
+		logger.Warnw("Failed to load workflow config, scheduler will be disabled", "error", err, "path", workflowConfigPath)
+		workflowConfig = &WorkflowConfig{SchedulerEnabled: false}
+	}
+
 	// Worker configuration
 	workerConfig := DefaultWorkerConfig()
 	if viper.IsSet("worker_enabled") {
@@ -194,6 +205,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		EvidenceDefaultExpiryMonths: evidenceDefaultExpiryMonths,
 		DigestEnabled:               digestEnabled,
 		DigestSchedule:              digestSchedule,
+		Workflow:                    workflowConfig,
 	}
 
 }

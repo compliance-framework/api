@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -157,6 +158,24 @@ func (s *BaseService) BulkCreate(entities interface{}, validateFn func(int) erro
 // GetByIDWithPreload retrieves an entity by ID with preloading
 func (s *BaseService) GetByIDWithPreload(entity interface{}, id *uuid.UUID, entityName string, preloads ...string) error {
 	query := s.db
+	for _, preload := range preloads {
+		query = query.Preload(preload)
+	}
+
+	err := query.First(entity, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("%s with id %s not found", entityName, id.String())
+		}
+		return fmt.Errorf("failed to retrieve %s: %w", entityName, err)
+	}
+
+	return nil
+}
+
+// GetByIDWithPreloadAndContext retrieves an entity by ID with preloading and context
+func (s *BaseService) GetByIDWithPreloadAndContext(ctx context.Context, entity interface{}, id *uuid.UUID, entityName string, preloads ...string) error {
+	query := s.db.WithContext(ctx)
 	for _, preload := range preloads {
 		query = query.Preload(preload)
 	}
