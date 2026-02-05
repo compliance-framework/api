@@ -91,6 +91,24 @@ func TestGeneratePeriodLabel(t *testing.T) {
 			time:     time.Date(2023, 10, 15, 10, 0, 0, 0, time.UTC),
 			expected: "2023-10-15",
 		},
+		{
+			name:     "Cron cadence - uses timestamp format",
+			cadence:  "cron:0 0 9 * * *",
+			time:     time.Date(2023, 10, 15, 9, 0, 0, 0, time.UTC),
+			expected: "2023-10-15T09:00:00",
+		},
+		{
+			name:     "Cron cadence - different time",
+			cadence:  "cron:0 30 14 * * *",
+			time:     time.Date(2023, 10, 15, 14, 30, 0, 0, time.UTC),
+			expected: "2023-10-15T14:30:00",
+		},
+		{
+			name:     "Cron cadence - with seconds",
+			cadence:  "cron:30 0 9 * * *",
+			time:     time.Date(2023, 10, 15, 9, 0, 30, 0, time.UTC),
+			expected: "2023-10-15T09:00:30",
+		},
 	}
 
 	for _, tt := range tests {

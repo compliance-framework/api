@@ -1,5 +1,7 @@
 package workflows
 
+import "github.com/robfig/cron/v3"
+
 // Field length constraints
 const (
 	MaxNameLength          = 255
@@ -31,11 +33,28 @@ func (c CadenceType) IsValid() bool {
 	case CadenceDaily, CadenceWeekly, CadenceMonthly, CadenceQuarterly, CadenceAnnually:
 		return true
 	}
-	// Check if it's a custom cron expression
+	// Check if it's a valid custom cron expression by actually parsing it
 	if c.IsCron() {
-		return true
+		return c.ValidateCronExpression() == nil
 	}
 	return false
+}
+
+// ValidateCronExpression parses and validates the cron expression.
+// Returns nil if valid, or an error describing the parsing failure.
+// NOTE: This parser expects a 6-field cron expression including seconds:
+//
+//	second minute hour day-of-month month day-of-week
+//
+// For example, "0 0 9 * * *" means "daily at 9 AM". This differs from the standard
+// 5-field Unix cron format (minute hour day-of-month month day-of-week).
+func (c CadenceType) ValidateCronExpression() error {
+	if !c.IsCron() {
+		return nil
+	}
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	_, err := parser.Parse(c.CronExpression())
+	return err
 }
 
 // IsCron checks if the cadence is a custom cron expression
