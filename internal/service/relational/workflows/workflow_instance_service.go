@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
@@ -116,7 +117,18 @@ func (s *WorkflowInstanceService) Update(id *uuid.UUID, updates *WorkflowInstanc
 		return err
 	}
 
+	// Fetch existing instance once for both cadence check and update
 	var existing WorkflowInstance
+	if err := s.db.First(&existing, "id = ?", id).Error; err != nil {
+		return s.base.HandleRecordNotFoundError(err, id, "workflow instance")
+	}
+
+	// If cadence is being updated, recalculate next scheduled time
+	if updates.Cadence != "" && existing.Cadence != updates.Cadence {
+		nextSchedule := s.calculateNextSchedule(time.Now(), updates.Cadence)
+		updates.NextScheduledAt = &nextSchedule
+	}
+
 	updates.ID = id
 	return s.base.UpdateEntity(&existing, updates, id, "workflow instance")
 }
@@ -206,7 +218,14 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 
 // CalculateNextSchedule calculates the next scheduled time based on cadence
 func (s *WorkflowInstanceService) CalculateNextSchedule(from time.Time, cadence string) time.Time {
-	switch CadenceType(cadence) {
+	cadenceType := CadenceType(cadence)
+
+	// Handle custom cron expressions
+	if cadenceType.IsCron() {
+		return s.calculateNextCronSchedule(from, cadenceType.CronExpression())
+	}
+
+	switch cadenceType {
 	case CadenceDaily:
 		return from.AddDate(0, 0, 1)
 	case CadenceWeekly:
@@ -220,6 +239,27 @@ func (s *WorkflowInstanceService) CalculateNextSchedule(from time.Time, cadence 
 	default:
 		return from.AddDate(0, 1, 0) // Default to monthly
 	}
+}
+
+// calculateNextCronSchedule calculates the next scheduled time based on a cron expression.
+// NOTE: This parser expects a 6-field cron expression including seconds:
+//
+//	second minute hour day-of-month month day-of-week
+//
+// For example, "0 0 9 * * *" means "daily at 9 AM". This differs from the standard
+// 5-field Unix cron format (minute hour day-of-month month day-of-week).
+//
+// If parsing fails (which should not happen if validation passed), it defaults to monthly
+// as a defensive fallback.
+func (s *WorkflowInstanceService) calculateNextCronSchedule(from time.Time, cronExpr string) time.Time {
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	schedule, err := parser.Parse(cronExpr)
+	if err != nil {
+		// This should not happen if the cron expression was validated during creation.
+		// Defaulting to monthly as a defensive fallback.
+		return from.AddDate(0, 1, 0)
+	}
+	return schedule.Next(from)
 }
 
 // calculateNextSchedule calculates the next scheduled time based on cadence (deprecated, use CalculateNextSchedule)

@@ -615,6 +615,78 @@ func TestWorkflowInstanceService_calculateNextSchedule(t *testing.T) {
 	next = service.calculateNextSchedule(baseTime, "invalid")
 	expected = baseTime.AddDate(0, 1, 0)
 	assert.Equal(t, expected, next)
+
+	// Test valid cron expression (6-field format: second minute hour day-of-month month day-of-week)
+	// "0 0 9 * * *" means daily at 9:00:00 AM
+	next = service.calculateNextSchedule(baseTime, "cron:0 0 9 * * *")
+	// baseTime is 2024-01-15 10:00:00, so next 9 AM is 2024-01-16 09:00:00
+	expected = time.Date(2024, 1, 16, 9, 0, 0, 0, time.UTC)
+	assert.Equal(t, expected, next)
+
+	// Test cron expression that matches later same day
+	morningTime := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	next = service.calculateNextSchedule(morningTime, "cron:0 0 9 * * *")
+	// 8 AM, so next 9 AM is same day
+	expected = time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
+	assert.Equal(t, expected, next)
+
+	// Test weekly cron (every Monday at 9 AM)
+	// "0 0 9 * * 1" = second 0, minute 0, hour 9, any day-of-month, any month, Monday
+	next = service.calculateNextSchedule(baseTime, "cron:0 0 9 * * 1")
+	// 2024-01-15 is Monday, 10 AM, so next Monday 9 AM is 2024-01-22
+	expected = time.Date(2024, 1, 22, 9, 0, 0, 0, time.UTC)
+	assert.Equal(t, expected, next)
+}
+
+// TestWorkflowInstanceService_CronValidation tests cron expression validation
+func TestWorkflowInstanceService_CronValidation(t *testing.T) {
+	// Test valid cron expressions
+	validCrons := []string{
+		"cron:0 0 9 * * *",   // Daily at 9 AM
+		"cron:0 30 14 * * *", // Daily at 2:30 PM
+		"cron:0 0 0 1 * *",   // First of every month at midnight
+		"cron:0 0 9 * * 1",   // Every Monday at 9 AM
+		"cron:0 0 9 * * 1-5", // Weekdays at 9 AM
+		"cron:0 0 */2 * * *", // Every 2 hours
+	}
+
+	for _, cronStr := range validCrons {
+		cadence := CadenceType(cronStr)
+		assert.True(t, cadence.IsValid(), "Expected %s to be valid", cronStr)
+		assert.Nil(t, cadence.ValidateCronExpression(), "Expected %s to have no validation error", cronStr)
+	}
+
+	// Test invalid cron expressions
+	invalidCrons := []string{
+		"cron:invalid",      // Not a valid cron format
+		"cron:* * *",        // Too few fields (3 instead of 6)
+		"cron:0 0 25 * * *", // Invalid hour (25)
+		"cron:0 60 9 * * *", // Invalid minute (60)
+		"cron:0 0 9 32 * *", // Invalid day-of-month (32)
+	}
+
+	for _, cronStr := range invalidCrons {
+		cadence := CadenceType(cronStr)
+		assert.False(t, cadence.IsValid(), "Expected %s to be invalid", cronStr)
+		assert.NotNil(t, cadence.ValidateCronExpression(), "Expected %s to have validation error", cronStr)
+	}
+}
+
+// TestWorkflowInstanceService_CronHelperMethods tests IsCron and CronExpression methods
+func TestWorkflowInstanceService_CronHelperMethods(t *testing.T) {
+	// Test IsCron
+	assert.True(t, CadenceType("cron:0 0 9 * * *").IsCron())
+	assert.True(t, CadenceType("cron:anything").IsCron())
+	assert.False(t, CadenceType("daily").IsCron())
+	assert.False(t, CadenceType("monthly").IsCron())
+	assert.False(t, CadenceType("cron:").IsCron()) // Empty expression after prefix
+	assert.False(t, CadenceType("cron").IsCron())  // No colon
+
+	// Test CronExpression extraction
+	assert.Equal(t, "0 0 9 * * *", CadenceType("cron:0 0 9 * * *").CronExpression())
+	assert.Equal(t, "anything", CadenceType("cron:anything").CronExpression())
+	assert.Equal(t, "", CadenceType("daily").CronExpression())
+	assert.Equal(t, "", CadenceType("monthly").CronExpression())
 }
 
 // TestWorkflowInstanceService_Integration tests integration scenarios
