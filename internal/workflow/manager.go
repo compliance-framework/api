@@ -101,7 +101,7 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 
 	if err := m.workflowExecutionService.Create(execution); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" && opts.TriggeredBy == workflows.TriggerScheduled.String() && opts.PeriodLabel != "" {
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && opts.TriggeredBy == workflows.TriggerScheduled.String() {
 			return nil, fmt.Errorf("%w", ErrWorkflowExecutionAlreadyExists)
 		}
 		return nil, fmt.Errorf("failed to create workflow execution: %w", err)
