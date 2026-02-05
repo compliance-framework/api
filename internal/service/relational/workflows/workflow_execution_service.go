@@ -55,6 +55,7 @@ func (s *WorkflowExecutionService) GetByID(id *uuid.UUID) (*WorkflowExecution, e
 	var execution WorkflowExecution
 	err := s.base.GetByIDWithPreload(&execution, id, "workflow execution",
 		"WorkflowInstance", "WorkflowInstance.WorkflowDefinition", "WorkflowInstance.WorkflowDefinition.Steps",
+		"WorkflowInstance.RoleAssignments",
 		"StepExecutions", "StepExecutions.WorkflowStepDefinition", "StepExecutions.StepEvidence")
 	if err != nil {
 		return nil, err

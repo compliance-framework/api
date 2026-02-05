@@ -103,12 +103,16 @@ func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger) *workfl
 	workflowDefinitionService := workflowsvc.NewWorkflowDefinitionService(db)
 	roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
 
+	// Create assignment service
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService)
+
 	// Create executor for step transition coordination
 	stdLogger := log.Default()
 	executor := workflow.NewDAGExecutor(
 		stepExecService,
 		workflowExecService,
 		stepDefService,
+		assignmentService,
 		stdLogger,
 	)
 

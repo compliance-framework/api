@@ -19,8 +19,9 @@ type Logger interface {
 
 // Job types for workflow processing
 const (
-	JobTypeExecuteWorkflow = "execute_workflow"
-	JobTypeExecuteStep     = "execute_step"
+	JobTypeExecuteWorkflow   = "execute_workflow"
+	JobTypeExecuteStep       = "execute_step"
+	JobTypeScheduleWorkflows = "schedule_workflows"
 )
 
 // ExecuteWorkflowArgs represents the arguments for executing a workflow
@@ -28,6 +29,11 @@ type ExecuteWorkflowArgs struct {
 	WorkflowExecutionID uuid.UUID `json:"workflow_execution_id"`
 	TriggeredBy         string    `json:"triggered_by"`
 	TriggeredByID       string    `json:"triggered_by_id"`
+}
+
+// ScheduleWorkflowsArgs represents the arguments for the periodic scheduler job
+type ScheduleWorkflowsArgs struct {
+	// No arguments needed for the periodic scheduler job
 }
 
 // ExecuteStepArgs represents the arguments for executing a single workflow step
@@ -39,6 +45,9 @@ type ExecuteStepArgs struct {
 
 // Kind returns the job kind for River
 func (ExecuteWorkflowArgs) Kind() string { return JobTypeExecuteWorkflow }
+
+// Kind returns the job kind for River
+func (ScheduleWorkflowsArgs) Kind() string { return JobTypeScheduleWorkflows }
 
 // Kind returns the job kind for River
 func (ExecuteStepArgs) Kind() string { return JobTypeExecuteStep }
@@ -186,22 +195,11 @@ func JobInsertOptionsForStep() *river.InsertOpts {
 	}
 }
 
-// WorkflowWorkers returns workflow workers with dependencies injected
-func WorkflowWorkers(
-	executor *DAGExecutor,
-	evidenceIntegration *EvidenceIntegration,
-	stepExecutionService StepExecutionServiceInterface,
-	logger Logger,
-) *river.Workers {
-	workers := river.NewWorkers()
-
-	// Create worker instances with dependencies
-	workflowExecutionWorker := NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
-	stepExecutionWorker := NewStepExecutionWorker(stepExecutionService, logger)
-
-	// Register workers with their Work methods
-	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
-	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
-
-	return workers
+// JobInsertOptionsForScheduler returns insert options for the scheduler job
+func JobInsertOptionsForScheduler() *river.InsertOpts {
+	return &river.InsertOpts{
+		Queue:       "scheduler",
+		MaxAttempts: 3,
+		Priority:    1,
+	}
 }

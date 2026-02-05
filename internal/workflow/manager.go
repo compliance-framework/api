@@ -2,15 +2,19 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
+
+var ErrWorkflowExecutionAlreadyExists = errors.New("workflow execution already exists for instance and period")
 
 // Manager orchestrates workflow execution lifecycle using River for async operations
 type Manager struct {
@@ -55,18 +59,32 @@ func NewManagerWithRiver(
 	)
 }
 
+// StartWorkflowOptions contains options for starting a workflow execution
+type StartWorkflowOptions struct {
+	TriggeredBy   string
+	TriggeredByID string
+	PeriodLabel   string
+	DueDate       *time.Time
+}
+
 // StartWorkflowExecution creates and starts a workflow execution via River
-func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID *uuid.UUID, triggeredBy, triggeredByID string) (*uuid.UUID, error) {
+func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID *uuid.UUID, opts StartWorkflowOptions) (*uuid.UUID, error) {
 	m.logger.Infow("Starting workflow execution",
 		"workflow_instance_id", workflowInstanceID,
-		"triggered_by", triggeredBy,
-		"triggered_by_id", triggeredByID,
+		"triggered_by", opts.TriggeredBy,
+		"triggered_by_id", opts.TriggeredByID,
+		"period_label", opts.PeriodLabel,
 	)
 
 	// Get workflow instance
-	_, err := m.workflowInstanceService.GetByID(workflowInstanceID)
+	instance, err := m.workflowInstanceService.GetByID(workflowInstanceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workflow instance: %w", err)
+	}
+
+	// Check if instance is active
+	if !instance.IsActive {
+		return nil, fmt.Errorf("cannot start execution for inactive workflow instance")
 	}
 
 	// Create workflow execution record
@@ -74,12 +92,18 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 	execution := &workflows.WorkflowExecution{
 		WorkflowInstanceID: workflowInstanceID,
 		Status:             "pending",
-		TriggeredBy:        triggeredBy,
-		TriggeredByID:      triggeredByID,
+		TriggeredBy:        opts.TriggeredBy,
+		TriggeredByID:      opts.TriggeredByID,
 		StartedAt:          &now,
+		PeriodLabel:        opts.PeriodLabel,
+		DueDate:            opts.DueDate,
 	}
 
 	if err := m.workflowExecutionService.Create(execution); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && opts.TriggeredBy == workflows.TriggerScheduled.String() {
+			return nil, fmt.Errorf("%w", ErrWorkflowExecutionAlreadyExists)
+		}
 		return nil, fmt.Errorf("failed to create workflow execution: %w", err)
 	}
 
@@ -91,8 +115,8 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 	// Enqueue workflow execution job via River
 	args := &ExecuteWorkflowArgs{
 		WorkflowExecutionID: *execution.ID,
-		TriggeredBy:         triggeredBy,
-		TriggeredByID:       triggeredByID,
+		TriggeredBy:         opts.TriggeredBy,
+		TriggeredByID:       opts.TriggeredByID,
 	}
 
 	_, err = m.riverClient.InsertMany(ctx, []river.InsertManyParams{
@@ -232,11 +256,18 @@ func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*
 	}
 
 	// Start new execution (use "manual" as trigger type, with original execution ID as triggered_by_id)
+	// For retries, we intentionally do NOT carry over the original PeriodLabel, so that the retry is
+	// treated as a distinct, ad-hoc run and cannot be confused with the original scheduled execution
+	// for that period.
+	opts := StartWorkflowOptions{
+		TriggeredBy:   workflows.TriggerManual.String(),
+		TriggeredByID: executionID.String(),
+	}
+
 	newExecutionID, err := m.StartWorkflowExecution(
 		ctx,
 		execution.WorkflowInstanceID,
-		"manual",
-		executionID.String(),
+		opts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start retry execution: %w", err)

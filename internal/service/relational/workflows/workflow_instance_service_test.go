@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -366,7 +367,7 @@ func TestWorkflowInstanceService_UpdateSchedule(t *testing.T) {
 
 	// Test schedule update
 	newSchedule := time.Now().Add(24 * time.Hour)
-	err := service.UpdateSchedule(instance.ID, newSchedule)
+	err := service.UpdateSchedule(context.Background(), instance.ID, newSchedule)
 	require.NoError(t, err)
 
 	// Verify update
@@ -394,7 +395,7 @@ func TestWorkflowInstanceService_UpdateLastExecuted(t *testing.T) {
 
 	// Test last executed update
 	lastExecuted := time.Now()
-	err := service.UpdateLastExecuted(instance.ID, lastExecuted)
+	err := service.UpdateLastExecuted(context.Background(), instance.ID, lastExecuted)
 	require.NoError(t, err)
 
 	// Verify update
@@ -458,7 +459,7 @@ func TestWorkflowInstanceService_GetDueInstances(t *testing.T) {
 	// Note: inactiveInstance was already created above
 
 	// Test getting due instances
-	dueInstances, err := service.GetDueInstances()
+	dueInstances, err := service.GetDueInstances(context.Background())
 	require.NoError(t, err)
 
 	// Debug: Print what we actually got
@@ -682,7 +683,7 @@ func TestWorkflowInstanceService_Integration(t *testing.T) {
 
 	// Test schedule management
 	newSchedule := time.Now().Add(30 * 24 * time.Hour) // 30 days from now
-	err = service.UpdateSchedule(instance.ID, newSchedule)
+	err = service.UpdateSchedule(context.Background(), instance.ID, newSchedule)
 	require.NoError(t, err)
 
 	// Verify schedule update

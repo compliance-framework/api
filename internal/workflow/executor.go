@@ -17,6 +17,7 @@ type DAGExecutor struct {
 	stepExecutionService     StepExecutionServiceInterface
 	workflowExecutionService WorkflowExecutionServiceInterface
 	stepDefinitionService    WorkflowStepDefinitionServiceInterface
+	assignmentService        AssignmentServiceInterface
 	evidenceIntegration      *EvidenceIntegration // Optional: for evidence stream integration
 	logger                   *log.Logger
 }
@@ -50,6 +51,13 @@ type WorkflowStepDefinitionServiceInterface interface {
 
 type WorkflowInstanceServiceInterface interface {
 	GetByID(id *uuid.UUID) (*workflows.WorkflowInstance, error)
+	GetDueInstances(ctx context.Context) ([]workflows.WorkflowInstance, error)
+	AdvanceSchedule(ctx context.Context, id *uuid.UUID) error
+	UpdateSchedule(ctx context.Context, id *uuid.UUID, nextSchedule time.Time) error
+}
+
+type AssignmentServiceInterface interface {
+	ResolveStepAssignees(ctx context.Context, instance *workflows.WorkflowInstance, stepDefinitions []workflows.WorkflowStepDefinition) (map[uuid.UUID]Assignee, error)
 }
 
 // NewDAGExecutor creates a new DAG executor instance
@@ -57,6 +65,7 @@ func NewDAGExecutor(
 	stepExecutionService StepExecutionServiceInterface,
 	workflowExecutionService WorkflowExecutionServiceInterface,
 	stepDefinitionService WorkflowStepDefinitionServiceInterface,
+	assignmentService AssignmentServiceInterface,
 	logger *log.Logger,
 ) *DAGExecutor {
 	if logger == nil {
@@ -67,6 +76,7 @@ func NewDAGExecutor(
 		stepExecutionService:     stepExecutionService,
 		workflowExecutionService: workflowExecutionService,
 		stepDefinitionService:    stepDefinitionService,
+		assignmentService:        assignmentService,
 		logger:                   logger,
 	}
 }
@@ -140,6 +150,17 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 		return fmt.Errorf("no steps defined for workflow")
 	}
 
+	// Resolve step assignments if assignment service is available
+	var assignments map[uuid.UUID]Assignee
+	if e.assignmentService != nil && workflowExecution.WorkflowInstance != nil {
+		var err error
+		assignments, err = e.assignmentService.ResolveStepAssignees(ctx, workflowExecution.WorkflowInstance, stepDefinitions)
+		if err != nil {
+			e.logger.Printf("Warning: failed to resolve step assignees: %v", err)
+			// Continue without assignments
+		}
+	}
+
 	// Create step execution records for each step definition
 	for _, stepDef := range stepDefinitions {
 		// Get dependencies for this step
@@ -155,6 +176,14 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 			WorkflowExecutionID:      workflowExecutionID,
 			WorkflowStepDefinitionID: stepDef.ID,
 			Status:                   initialStatus,
+		}
+
+		// Apply assignment if resolved
+		if assignee, ok := assignments[*stepDef.ID]; ok {
+			stepExecution.AssignedToType = assignee.Type
+			stepExecution.AssignedToID = assignee.ID
+			now := time.Now()
+			stepExecution.AssignedAt = &now
 		}
 
 		if err := e.stepExecutionService.Create(stepExecution); err != nil {

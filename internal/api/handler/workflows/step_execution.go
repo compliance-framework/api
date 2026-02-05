@@ -1,10 +1,15 @@
 package workflows
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -41,6 +46,7 @@ func NewStepExecutionHandler(sugar *zap.SugaredLogger, db *gorm.DB, transitionSe
 
 func (h *StepExecutionHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
+	api.GET("/my", h.ListMy)
 	api.GET("/:id", h.Get)
 	api.PUT("/:id/transition", h.TransitionStep)
 	api.GET("/:id/evidence-requirements", h.GetEvidenceRequirements)
@@ -66,6 +72,122 @@ type StepExecutionResponse struct {
 
 type StepExecutionListResponse struct {
 	Data []workflows.StepExecution `json:"data"`
+}
+
+type MyAssignmentsResponse struct {
+	Data    []workflows.StepExecution `json:"data"`
+	Total   int64                     `json:"total"`
+	Limit   int                       `json:"limit"`
+	Offset  int                       `json:"offset"`
+	HasMore bool                      `json:"has-more"`
+}
+
+// ListMy godoc
+//
+//	@Summary		List my step assignments
+//	@Description	List all step executions assigned to the current user with optional filters and pagination
+//	@Tags			Step Executions
+//	@Produce		json
+//	@Param			status					query		string	false	"Filter by status (pending, in_progress, blocked)"
+//	@Param			due_before				query		string	false	"Filter by due date before (RFC3339 format)"
+//	@Param			due_after				query		string	false	"Filter by due date after (RFC3339 format)"
+//	@Param			workflow_definition_id	query		string	false	"Filter by workflow definition ID"
+//	@Param			limit					query		int		false	"Limit (default 20, max 100)"
+//	@Param			offset					query		int		false	"Offset (default 0)"
+//	@Success		200						{object}	MyAssignmentsResponse
+//	@Failure		400						{object}	api.Error
+//	@Failure		401						{object}	api.Error
+//	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/workflows/step-executions/my [get]
+func (h *StepExecutionHandler) ListMy(ctx echo.Context) error {
+	// Get user from JWT claims
+	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
+	if !ok || userClaims == nil {
+		return ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims")))
+	}
+
+	// Look up user by email to get their ID
+	email := userClaims.Subject
+	var user relational.User
+	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(echo.NewHTTPError(http.StatusNotFound, "user not found")))
+		}
+		h.sugar.Errorw("Failed to get user by email", "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Build filter
+	filter := workflows.MyAssignmentsFilter{
+		Status: ctx.QueryParam("status"),
+	}
+
+	// Parse due_before
+	if dueBefore := ctx.QueryParam("due_before"); dueBefore != "" {
+		t, err := time.Parse(time.RFC3339, dueBefore)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid due_before format, expected RFC3339")))
+		}
+		filter.DueBefore = &t
+	}
+
+	// Parse due_after
+	if dueAfter := ctx.QueryParam("due_after"); dueAfter != "" {
+		t, err := time.Parse(time.RFC3339, dueAfter)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid due_after format, expected RFC3339")))
+		}
+		filter.DueAfter = &t
+	}
+
+	// Parse workflow_definition_id
+	if wfDefID := ctx.QueryParam("workflow_definition_id"); wfDefID != "" {
+		id, err := uuid.Parse(wfDefID)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid workflow_definition_id format")))
+		}
+		filter.WorkflowDefinitionID = &id
+	}
+
+	// Parse pagination
+	limit := 20
+	offset := 0
+
+	if limitStr := ctx.QueryParam("limit"); limitStr != "" {
+		l, err := strconv.Atoi(limitStr)
+		if err != nil || l < 1 {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid limit parameter")))
+		}
+		if l > 100 {
+			l = 100
+		}
+		limit = l
+	}
+
+	if offsetStr := ctx.QueryParam("offset"); offsetStr != "" {
+		o, err := strconv.Atoi(offsetStr)
+		if err != nil || o < 0 {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid offset parameter")))
+		}
+		offset = o
+	}
+
+	// Query by user ID (for type "user") and email (for type "email")
+	stepExecutions, total, err := h.service.GetMyAssignments(user.ID.String(), email, filter, limit, offset)
+	if err != nil {
+		return h.HandleServiceError(ctx, err, "list", "my assignments")
+	}
+
+	hasMore := int64(offset+len(stepExecutions)) < total
+
+	return h.RespondOK(ctx, MyAssignmentsResponse{
+		Data:    stepExecutions,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+		HasMore: hasMore,
+	})
 }
 
 // List godoc
