@@ -124,7 +124,7 @@ func (h *StepExecutionHandler) ListMy(ctx echo.Context) error {
 	}
 
 	// Parse due_before
-	if dueBefore := ctx.QueryParam("due-before"); dueBefore != "" {
+	if dueBefore := ctx.QueryParam("due_before"); dueBefore != "" {
 		t, err := time.Parse(time.RFC3339, dueBefore)
 		if err != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid due_before format, expected RFC3339")))
@@ -133,7 +133,7 @@ func (h *StepExecutionHandler) ListMy(ctx echo.Context) error {
 	}
 
 	// Parse due_after
-	if dueAfter := ctx.QueryParam("due-after"); dueAfter != "" {
+	if dueAfter := ctx.QueryParam("due_after"); dueAfter != "" {
 		t, err := time.Parse(time.RFC3339, dueAfter)
 		if err != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid due_after format, expected RFC3339")))
@@ -142,7 +142,7 @@ func (h *StepExecutionHandler) ListMy(ctx echo.Context) error {
 	}
 
 	// Parse workflow_definition_id
-	if wfDefID := ctx.QueryParam("workflow-definition-id"); wfDefID != "" {
+	if wfDefID := ctx.QueryParam("workflow_definition_id"); wfDefID != "" {
 		id, err := uuid.Parse(wfDefID)
 		if err != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(echo.NewHTTPError(http.StatusBadRequest, "invalid workflow_definition_id format")))

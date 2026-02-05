@@ -256,16 +256,12 @@ func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*
 	}
 
 	// Start new execution (use "manual" as trigger type, with original execution ID as triggered_by_id)
+	// For retries, we intentionally do NOT carry over the original PeriodLabel, so that the retry is
+	// treated as a distinct, ad-hoc run and cannot be confused with the original scheduled execution
+	// for that period.
 	opts := StartWorkflowOptions{
 		TriggeredBy:   workflows.TriggerManual.String(),
 		TriggeredByID: executionID.String(),
-		// We could carry over DueDate and PeriodLabel from original execution if desired,
-		// but for a retry, usually we treat it as a new run.
-		// However, if it's a retry of a scheduled job, maybe we should keep the period label?
-		// For now, let's keep it simple.
-	}
-	if execution.PeriodLabel != "" {
-		opts.PeriodLabel = execution.PeriodLabel
 	}
 
 	newExecutionID, err := m.StartWorkflowExecution(

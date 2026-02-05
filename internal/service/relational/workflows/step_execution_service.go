@@ -245,11 +245,9 @@ func (s *StepExecutionService) GetMyAssignments(userID, userEmail string, filter
 			"user", userID, "email", userEmail).
 		Where("workflow_executions.status IN ?", []string{"pending", "in_progress"})
 
-	// Apply status filter - default to active statuses if not specified
+	// Apply step status filter only when explicitly specified; otherwise rely on workflow execution status filter above.
 	if filter.Status != "" {
 		query = query.Where("step_executions.status = ?", filter.Status)
-	} else {
-		query = query.Where("step_executions.status IN ?", []string{"pending", "in_progress"})
 	}
 
 	// Apply due date filters (on workflow execution)

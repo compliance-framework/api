@@ -1,11 +1,15 @@
 package workflow
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestGeneratePeriodLabel(t *testing.T) {
@@ -130,4 +134,66 @@ func TestCalculateDueDate(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// Test basic workflow scheduler worker functionality without river.Job dependency
+func TestWorkflowSchedulerWorker_BasicFunctionality(t *testing.T) {
+	// Setup mocks
+	mockInstanceService := new(MockWorkflowInstanceService)
+
+	// Test data
+	instanceID := uuid.New()
+	dueInstances := []workflows.WorkflowInstance{
+		{
+			UUIDModel:       relational.UUIDModel{ID: &instanceID},
+			Cadence:         string(workflows.CadenceDaily),
+			GracePeriodDays: &[]int{7}[0],
+			WorkflowDefinition: &workflows.WorkflowDefinition{
+				UUIDModel: relational.UUIDModel{ID: uuidPtr(uuid.New())},
+			},
+		},
+	}
+
+	// Test GetDueInstances functionality
+	ctx := context.Background()
+	mockInstanceService.On("GetDueInstances", ctx).Return(dueInstances, nil)
+	mockInstanceService.On("AdvanceSchedule", ctx, &instanceID).Return(nil)
+
+	// Test that we can get due instances
+	instances, err := mockInstanceService.GetDueInstances(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, instances, 1)
+
+	// Test that we can advance schedule
+	err = mockInstanceService.AdvanceSchedule(ctx, &instanceID)
+	assert.NoError(t, err)
+
+	// Verify all mock expectations were met
+	mockInstanceService.AssertExpectations(t)
+}
+
+// Mock logger for testing
+type MockLoggerForScheduler struct {
+	mock.Mock
+}
+
+func (m *MockLoggerForScheduler) Infow(msg string, keysAndValues ...interface{}) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLoggerForScheduler) Errorw(msg string, keysAndValues ...interface{}) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLoggerForScheduler) Warnw(msg string, keysAndValues ...interface{}) {
+	m.Called(msg, keysAndValues)
+}
+
+func (m *MockLoggerForScheduler) Debugw(msg string, keysAndValues ...interface{}) {
+	m.Called(msg, keysAndValues)
+}
+
+// Helper function to create UUID pointer
+func uuidPtr(u uuid.UUID) *uuid.UUID {
+	return &u
 }

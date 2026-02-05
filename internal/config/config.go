@@ -170,7 +170,8 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	}
 	workflowConfig, err := LoadWorkflowConfig(workflowConfigPath)
 	if err != nil {
-		logger.Fatalw("Failed to load workflow config", "error", err)
+		logger.Warnw("Failed to load workflow config, scheduler will be disabled", "error", err, "path", workflowConfigPath)
+		workflowConfig = &WorkflowConfig{SchedulerEnabled: false}
 	}
 
 	// Worker configuration

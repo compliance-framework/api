@@ -47,6 +47,17 @@ func (s *WorkflowInstanceService) GetByID(id *uuid.UUID) (*WorkflowInstance, err
 	return &instance, nil
 }
 
+// GetByIDWithContext retrieves a workflow instance by ID with context
+func (s *WorkflowInstanceService) GetByIDWithContext(ctx context.Context, id *uuid.UUID) (*WorkflowInstance, error) {
+	var instance WorkflowInstance
+	err := s.base.GetByIDWithPreloadAndContext(ctx, &instance, id, "workflow instance",
+		"WorkflowDefinition", "WorkflowDefinition.Steps", "RoleAssignments", "Executions")
+	if err != nil {
+		return nil, err
+	}
+	return &instance, nil
+}
+
 // GetAll retrieves all workflow instances with optional filters
 func (s *WorkflowInstanceService) GetAll(limit, offset int, filters map[string]interface{}) ([]WorkflowInstance, int64, error) {
 	var instances []WorkflowInstance
@@ -141,7 +152,7 @@ func (s *WorkflowInstanceService) UpdateLastExecuted(ctx context.Context, id *uu
 
 // AdvanceSchedule updates the last executed time to now and calculates the next scheduled time
 func (s *WorkflowInstanceService) AdvanceSchedule(ctx context.Context, id *uuid.UUID) error {
-	instance, err := s.GetByID(id)
+	instance, err := s.GetByIDWithContext(ctx, id)
 	if err != nil {
 		return err
 	}
