@@ -460,7 +460,7 @@ func (h *StepExecutionHandler) Reassign(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	reassignedByUserID, reassignedByEmail, err := h.getActorFromClaims(ctx)
+	reassignedByUserID, reassignedByEmail, err := h.GetActorFromClaims(ctx, h.db)
 	if err != nil {
 		return HandleError(err)
 	}
@@ -489,32 +489,4 @@ func (h *StepExecutionHandler) Reassign(ctx echo.Context) error {
 
 	h.sugar.Infow("Step execution reassigned", "id", id, "assigned_to_type", req.AssignedToType, "assigned_to_id", req.AssignedToID)
 	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
-}
-
-func (h *StepExecutionHandler) getActorFromClaims(ctx echo.Context) (*uuid.UUID, string, error) {
-	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
-	if !ok || userClaims == nil {
-		if err := ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims"))); err != nil {
-			return nil, "", err
-		}
-		return nil, "", ErrResponseSent
-	}
-
-	email := userClaims.Subject
-	var user relational.User
-	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if err := ctx.JSON(http.StatusNotFound, api.NewError(echo.NewHTTPError(http.StatusNotFound, "user not found"))); err != nil {
-				return nil, "", err
-			}
-			return nil, "", ErrResponseSent
-		}
-		h.sugar.Errorw("Failed to get user by email", "error", err)
-		if err := ctx.JSON(http.StatusInternalServerError, api.NewError(err)); err != nil {
-			return nil, "", err
-		}
-		return nil, "", ErrResponseSent
-	}
-
-	return user.ID, email, nil
 }

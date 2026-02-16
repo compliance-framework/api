@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -133,4 +135,33 @@ func (b *BaseHandler) RespondNoContent(ctx echo.Context) error {
 // isNotFoundError checks if an error is a "not found" error
 func isNotFoundError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found")
+}
+
+// GetActorFromClaims resolves the authenticated actor from JWT claims.
+func (b *BaseHandler) GetActorFromClaims(ctx echo.Context, db *gorm.DB) (*uuid.UUID, string, error) {
+	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
+	if !ok || userClaims == nil {
+		if err := ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims"))); err != nil {
+			return nil, "", err
+		}
+		return nil, "", ErrResponseSent
+	}
+
+	email := userClaims.Subject
+	var user relational.User
+	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := ctx.JSON(http.StatusNotFound, api.NewError(echo.NewHTTPError(http.StatusNotFound, "user not found"))); err != nil {
+				return nil, "", err
+			}
+			return nil, "", ErrResponseSent
+		}
+		b.sugar.Errorw("Failed to get user by email", "error", err)
+		if err := ctx.JSON(http.StatusInternalServerError, api.NewError(err)); err != nil {
+			return nil, "", err
+		}
+		return nil, "", ErrResponseSent
+	}
+
+	return user.ID, email, nil
 }

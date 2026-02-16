@@ -5,8 +5,6 @@ import (
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
-	"github.com/compliance-framework/api/internal/authn"
-	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -386,7 +384,7 @@ func (h *WorkflowExecutionHandler) ReassignRole(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	reassignedByUserID, reassignedByEmail, err := h.getActorFromClaims(ctx)
+	reassignedByUserID, reassignedByEmail, err := h.GetActorFromClaims(ctx, h.db)
 	if err != nil {
 		return HandleError(err)
 	}
@@ -421,31 +419,4 @@ func (h *WorkflowExecutionHandler) ReassignRole(ctx echo.Context) error {
 			ReassignedStepExecutionIDs: result.ReassignedStepExecIDs,
 		},
 	})
-}
-
-func (h *WorkflowExecutionHandler) getActorFromClaims(ctx echo.Context) (*uuid.UUID, string, error) {
-	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
-	if !ok || userClaims == nil {
-		if err := ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims"))); err != nil {
-			return nil, "", err
-		}
-		return nil, "", ErrResponseSent
-	}
-
-	email := userClaims.Subject
-	var user relational.User
-	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if err := ctx.JSON(http.StatusNotFound, api.NewError(echo.NewHTTPError(http.StatusNotFound, "user not found"))); err != nil {
-				return nil, "", err
-			}
-			return nil, "", ErrResponseSent
-		}
-		if err := ctx.JSON(http.StatusInternalServerError, api.NewError(err)); err != nil {
-			return nil, "", err
-		}
-		return nil, "", ErrResponseSent
-	}
-
-	return user.ID, email, nil
 }

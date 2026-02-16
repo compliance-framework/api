@@ -26,14 +26,10 @@ type AssignmentService struct {
 }
 
 // NewAssignmentService creates a new assignment service
-func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db ...*gorm.DB) *AssignmentService {
-	var database *gorm.DB
-	if len(db) > 0 {
-		database = db[0]
-	}
+func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db *gorm.DB) *AssignmentService {
 	return &AssignmentService{
 		roleAssignmentService: roleAssignmentService,
-		db:                    database,
+		db:                    db,
 	}
 }
 
@@ -258,9 +254,11 @@ func (s *AssignmentService) validateAssigneeExists(tx *gorm.DB, assignee Assigne
 		return nil
 	}
 
+	// UUID format is validated in validateAssignee; this parse is a defensive check
+	// to guard against future call sites that might bypass that validation.
 	userID, err := uuid.Parse(assignee.ID)
 	if err != nil {
-		return fmt.Errorf("%w: user assigned-to-id must be a valid UUID", ErrInvalidAssignee)
+		return fmt.Errorf("%w: internal error: user assigned-to-id failed UUID parse after validation", ErrInvalidAssignee)
 	}
 
 	var user relational.User

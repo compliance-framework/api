@@ -62,7 +62,7 @@ func TestResolveStepAssignees(t *testing.T) {
 	}
 
 	mockRoleService := new(MockRoleAssignmentService)
-	assignmentService := NewAssignmentService(mockRoleService)
+	assignmentService := NewAssignmentService(mockRoleService, nil)
 
 	// Mock responses
 	// Step 1: Role "admin" -> User "user-1"
@@ -128,7 +128,7 @@ func TestResolveStepAssignees_NoRole(t *testing.T) {
 	}
 
 	mockRoleService := new(MockRoleAssignmentService)
-	assignmentService := NewAssignmentService(mockRoleService)
+	assignmentService := NewAssignmentService(mockRoleService, nil)
 
 	assignments, err := assignmentService.ResolveStepAssignees(context.Background(), instance, steps)
 	assert.NoError(t, err)

@@ -174,7 +174,7 @@ func TestDAGExecutor_Integration_InitializeWorkflow(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService)
+	assignmentService := NewAssignmentService(roleAssignmentService, db)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -236,7 +236,7 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService)
+	assignmentService := NewAssignmentService(roleAssignmentService, db)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -299,7 +299,7 @@ func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService)
+	assignmentService := NewAssignmentService(roleAssignmentService, db)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -358,7 +358,7 @@ func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService)
+	assignmentService := NewAssignmentService(roleAssignmentService, db)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
