@@ -30,7 +30,14 @@ RUN make swag
 # Build it
 RUN GOOS=linux go build -o /api
 
-FROM gcr.io/distroless/base-debian12 AS production
+
+# Runtime image with a shell for IaC and operational one-off commands.
+FROM debian:bookworm-slim AS production
+
+# Install CA certificates (TLS) and minimal tzdata, then clean apt cache.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates tzdata \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /api /api
 # Open port 8080 to traffic
