@@ -130,7 +130,7 @@ func NewServiceWithDigest(
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
 
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
 
 	// Create workflow executor
 	workflowLogger := log.New(os.Stdout, "[WORKFLOW] ", log.LstdFlags)

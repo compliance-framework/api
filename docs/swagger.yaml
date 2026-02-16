@@ -6341,6 +6341,24 @@ definitions:
       totalSteps:
         type: integer
     type: object
+  workflows.BulkReassignRoleResponse:
+    properties:
+      data:
+        $ref: '#/definitions/workflows.BulkReassignRoleResponseData'
+    type: object
+  workflows.BulkReassignRoleResponseData:
+    properties:
+      execution-id:
+        type: string
+      reassigned-count:
+        type: integer
+      reassigned-step-execution-ids:
+        items:
+          type: string
+        type: array
+      role-name:
+        type: string
+    type: object
   workflows.CancelWorkflowExecutionRequest:
     properties:
       reason:
@@ -6525,6 +6543,41 @@ definitions:
       total:
         type: integer
     type: object
+  workflows.ReassignRoleRequest:
+    properties:
+      new-assigned-to-id:
+        type: string
+      new-assigned-to-type:
+        enum:
+        - user
+        - group
+        - email
+        type: string
+      reason:
+        type: string
+      role-name:
+        type: string
+    required:
+    - new-assigned-to-id
+    - new-assigned-to-type
+    - role-name
+    type: object
+  workflows.ReassignStepRequest:
+    properties:
+      assigned-to-id:
+        type: string
+      assigned-to-type:
+        enum:
+        - user
+        - group
+        - email
+        type: string
+      reason:
+        type: string
+    required:
+    - assigned-to-id
+    - assigned-to-type
+    type: object
   workflows.RoleAssignment:
     properties:
       assigned_to_id:
@@ -6650,6 +6703,10 @@ definitions:
         type: string
       id:
         type: string
+      reassignment_history:
+        items:
+          $ref: '#/definitions/workflows.StepReassignmentHistory'
+        type: array
       started-at:
         type: string
       status:
@@ -6684,6 +6741,37 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/workflows.StepExecution'
+    type: object
+  workflows.StepReassignmentHistory:
+    properties:
+      created-at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: string
+      new_assigned_to_id:
+        type: string
+      new_assigned_to_type:
+        type: string
+      previous_assigned_to_id:
+        type: string
+      previous_assigned_to_type:
+        type: string
+      reason:
+        type: string
+      reassigned_by_email:
+        type: string
+      reassigned_by_user_id:
+        type: string
+      step_execution:
+        $ref: '#/definitions/workflows.StepExecution'
+      step_execution_id:
+        type: string
+      updated-at:
+        type: string
+      workflow_execution_id:
+        type: string
     type: object
   workflows.StepTrigger:
     properties:
@@ -18580,6 +18668,51 @@ paths:
       summary: Get workflow execution metrics
       tags:
       - Workflow Executions
+  /workflows/executions/{id}/reassign-role:
+    put:
+      consumes:
+      - application/json
+      description: Reassign eligible steps in an execution for a given role
+      parameters:
+      - description: Workflow Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Bulk reassignment details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.ReassignRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.BulkReassignRoleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Bulk reassign steps by role
+      tags:
+      - Workflow Executions
   /workflows/executions/{id}/retry:
     post:
       description: Create a new execution to retry a failed workflow
@@ -19363,6 +19496,51 @@ paths:
       security:
       - OAuth2Password: []
       summary: Fail step execution
+      tags:
+      - Step Executions
+  /workflows/step-executions/{id}/reassign:
+    put:
+      consumes:
+      - application/json
+      description: Reassign a step execution to a new assignee
+      parameters:
+      - description: Step Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reassignment details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/workflows.ReassignStepRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workflows.StepExecutionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Reassign step execution
       tags:
       - Step Executions
   /workflows/step-executions/{id}/transition:

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -45,6 +47,8 @@ func setupExecutionTestHandler(t *testing.T) (*WorkflowExecutionHandler, *gorm.D
 	stepExecService := workflows.NewStepExecutionService(db, nil)
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
+	roleAssignmentService := workflows.NewRoleAssignmentService(db)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
 
 	// Create a mock river client for testing
 	mockRiver := &MockRiverClient{}
@@ -59,7 +63,7 @@ func setupExecutionTestHandler(t *testing.T) (*WorkflowExecutionHandler, *gorm.D
 		logger,
 	)
 
-	handler := NewWorkflowExecutionHandler(logger, db, manager)
+	handler := NewWorkflowExecutionHandler(logger, db, manager, assignmentService)
 	return handler, db, manager
 }
 
@@ -237,6 +241,189 @@ func TestWorkflowExecutionHandler_Get(t *testing.T) {
 		c.SetParamValues(nonExistentID.String())
 
 		err := handler.Get(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+}
+
+func TestWorkflowExecutionHandler_ReassignRole(t *testing.T) {
+	handler, db, _ := setupExecutionTestHandler(t)
+	e := echo.New()
+	e.Validator = middleware.NewValidator()
+
+	actor := &relational.User{
+		Email:      "bulk-actor@example.com",
+		FirstName:  "Bulk",
+		LastName:   "Actor",
+		AuthMethod: "local",
+		IsActive:   true,
+	}
+	require.NoError(t, db.Create(actor).Error)
+
+	newAssignee := &relational.User{
+		Email:      "bulk-new@example.com",
+		FirstName:  "Bulk",
+		LastName:   "Owner",
+		AuthMethod: "local",
+		IsActive:   true,
+	}
+	require.NoError(t, db.Create(newAssignee).Error)
+
+	workflowDef := &workflows.WorkflowDefinition{
+		Name:    "Bulk Workflow",
+		Version: "1.0",
+	}
+	require.NoError(t, db.Create(workflowDef).Error)
+	sysID := uuid.New()
+	instance := &workflows.WorkflowInstance{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Bulk Instance",
+		SystemSecurityPlanID: &sysID,
+	}
+	require.NoError(t, db.Create(instance).Error)
+
+	execution := &workflows.WorkflowExecution{
+		WorkflowInstanceID: instance.ID,
+		Status:             "in_progress",
+		TriggeredBy:        "manual",
+	}
+	require.NoError(t, db.Create(execution).Error)
+
+	stepDefTarget := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Target Step",
+		ResponsibleRole:      "it-ops",
+	}
+	require.NoError(t, db.Create(stepDefTarget).Error)
+
+	stepDefOther := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Other Step",
+		ResponsibleRole:      "reviewer",
+	}
+	require.NoError(t, db.Create(stepDefOther).Error)
+
+	eligibleStep := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDefTarget.ID,
+		Status:                   "pending",
+		AssignedToType:           "group",
+		AssignedToID:             "old-group",
+	}
+	require.NoError(t, db.Create(eligibleStep).Error)
+
+	ineligibleStep := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDefTarget.ID,
+		Status:                   "completed",
+		AssignedToType:           "group",
+		AssignedToID:             "old-completed",
+	}
+	require.NoError(t, db.Create(ineligibleStep).Error)
+
+	otherRoleStep := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: stepDefOther.ID,
+		Status:                   "pending",
+		AssignedToType:           "group",
+		AssignedToID:             "other-role",
+	}
+	require.NoError(t, db.Create(otherRoleStep).Error)
+
+	createContext := func(req *http.Request, rec *httptest.ResponseRecorder, executionID string) echo.Context {
+		c := e.NewContext(req, rec)
+		c.Set("user", &authn.UserClaims{
+			GivenName:  actor.FirstName,
+			FamilyName: actor.LastName,
+		})
+		claims := c.Get("user").(*authn.UserClaims)
+		claims.Subject = actor.Email
+		c.SetParamNames("id")
+		c.SetParamValues(executionID)
+		return c
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		reqBody := ReassignRoleRequest{
+			RoleName:          "it-ops",
+			NewAssignedToType: "user",
+			NewAssignedToID:   newAssignee.ID.String(),
+			Reason:            "team rotation",
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPut, "/workflows/executions/"+execution.ID.String()+"/reassign-role", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := createContext(req, rec, execution.ID.String())
+
+		err = handler.ReassignRole(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var response BulkReassignRoleResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+		assert.Equal(t, *execution.ID, response.Data.ExecutionID)
+		assert.Equal(t, "it-ops", response.Data.RoleName)
+		assert.Equal(t, 1, response.Data.ReassignedCount)
+		require.Len(t, response.Data.ReassignedStepExecutionIDs, 1)
+		assert.Equal(t, *eligibleStep.ID, response.Data.ReassignedStepExecutionIDs[0])
+
+		var updated workflows.StepExecution
+		require.NoError(t, db.First(&updated, eligibleStep.ID).Error)
+		assert.Equal(t, "user", updated.AssignedToType)
+		assert.Equal(t, newAssignee.ID.String(), updated.AssignedToID)
+
+		var unchangedCompleted workflows.StepExecution
+		require.NoError(t, db.First(&unchangedCompleted, ineligibleStep.ID).Error)
+		assert.Equal(t, "old-completed", unchangedCompleted.AssignedToID)
+
+		var unchangedOtherRole workflows.StepExecution
+		require.NoError(t, db.First(&unchangedOtherRole, otherRoleStep.ID).Error)
+		assert.Equal(t, "other-role", unchangedOtherRole.AssignedToID)
+
+		var history []workflows.StepReassignmentHistory
+		require.NoError(t, db.Where("step_execution_id = ?", eligibleStep.ID).Find(&history).Error)
+		require.Len(t, history, 1)
+		assert.Equal(t, actor.Email, history[0].ReassignedByEmail)
+	})
+
+	t.Run("Error_InvalidAssignee", func(t *testing.T) {
+		reqBody := map[string]string{
+			"role-name":            "it-ops",
+			"new-assigned-to-type": "invalid",
+			"new-assigned-to-id":   "x",
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPut, "/workflows/executions/"+execution.ID.String()+"/reassign-role", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := createContext(req, rec, execution.ID.String())
+
+		err = handler.ReassignRole(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("Error_NotFound", func(t *testing.T) {
+		nonExistentID := uuid.New()
+		reqBody := ReassignRoleRequest{
+			RoleName:          "it-ops",
+			NewAssignedToType: "group",
+			NewAssignedToID:   "group-2",
+		}
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPut, "/workflows/executions/"+nonExistentID.String()+"/reassign-role", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := createContext(req, rec, nonExistentID.String())
+
+		err = handler.ReassignRole(c)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})

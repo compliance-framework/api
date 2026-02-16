@@ -33,14 +33,21 @@ type StepExecutionHandler struct {
 	db                *gorm.DB
 	service           *workflows.StepExecutionService
 	transitionService *workflow.StepTransitionService
+	assignmentService *workflow.AssignmentService
 }
 
-func NewStepExecutionHandler(sugar *zap.SugaredLogger, db *gorm.DB, transitionService *workflow.StepTransitionService) *StepExecutionHandler {
+func NewStepExecutionHandler(
+	sugar *zap.SugaredLogger,
+	db *gorm.DB,
+	transitionService *workflow.StepTransitionService,
+	assignmentService *workflow.AssignmentService,
+) *StepExecutionHandler {
 	return &StepExecutionHandler{
 		BaseHandler:       NewBaseHandler(sugar),
 		db:                db,
 		service:           transitionService.GetStepExecutionService(), // Use the same service as transition service
 		transitionService: transitionService,
+		assignmentService: assignmentService,
 	}
 }
 
@@ -52,6 +59,7 @@ func (h *StepExecutionHandler) Register(api *echo.Group) {
 	api.GET("/:id/evidence-requirements", h.GetEvidenceRequirements)
 	api.GET("/:id/can-transition", h.CanTransition)
 	api.PUT("/:id/fail", h.Fail)
+	api.PUT("/:id/reassign", h.Reassign)
 }
 
 type TransitionStepRequest struct {
@@ -64,6 +72,12 @@ type TransitionStepRequest struct {
 
 type FailStepRequest struct {
 	Reason string `json:"reason" validate:"required"`
+}
+
+type ReassignStepRequest struct {
+	AssignedToType string `json:"assigned-to-type" validate:"required,oneof=user group email"`
+	AssignedToID   string `json:"assigned-to-id" validate:"required"`
+	Reason         string `json:"reason,omitempty"`
 }
 
 type StepExecutionResponse struct {
@@ -416,5 +430,63 @@ func (h *StepExecutionHandler) Fail(ctx echo.Context) error {
 	}
 
 	h.sugar.Infow("Step execution marked as failed", "id", id, "reason", req.Reason)
+	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
+}
+
+// Reassign godoc
+//
+//	@Summary		Reassign step execution
+//	@Description	Reassign a step execution to a new assignee
+//	@Tags			Step Executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"Step Execution ID"
+//	@Param			request	body		ReassignStepRequest	true	"Reassignment details"
+//	@Success		200		{object}	StepExecutionResponse
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/workflows/step-executions/{id}/reassign [put]
+func (h *StepExecutionHandler) Reassign(ctx echo.Context) error {
+	id, err := h.ParseUUID(ctx, "id", "step execution")
+	if err != nil {
+		return HandleError(err)
+	}
+
+	var req ReassignStepRequest
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
+	}
+
+	reassignedByUserID, reassignedByEmail, err := h.GetActorFromClaims(ctx, h.db)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	if err := h.assignmentService.ReassignStep(
+		ctx.Request().Context(),
+		*id,
+		workflow.Assignee{Type: req.AssignedToType, ID: req.AssignedToID},
+		req.Reason,
+		reassignedByUserID,
+		reassignedByEmail,
+	); err != nil {
+		if errors.Is(err, workflow.ErrInvalidAssignee) || errors.Is(err, workflow.ErrReassignmentNotAllowed) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) || isNotFoundError(err) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return h.HandleServiceError(ctx, err, "reassign", "step execution")
+	}
+
+	stepExecution, err := h.service.GetByID(id)
+	if err != nil {
+		return h.HandleServiceError(ctx, err, "get", "step execution after reassignment")
+	}
+
+	h.sugar.Infow("Step execution reassigned", "id", id, "assigned_to_type", req.AssignedToType, "assigned_to_id", req.AssignedToID)
 	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
 }
