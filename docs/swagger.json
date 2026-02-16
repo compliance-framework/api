@@ -17648,6 +17648,76 @@
                 ]
             }
         },
+        "/workflows/executions/{id}/reassign-role": {
+            "put": {
+                "description": "Reassign eligible steps in an execution for a given role",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workflow Executions"
+                ],
+                "summary": "Bulk reassign steps by role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workflow Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Bulk reassignment details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ReassignRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.BulkReassignRoleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/workflows/executions/{id}/retry": {
             "post": {
                 "description": "Create a new execution to retry a failed workflow",
@@ -18914,6 +18984,76 @@
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/workflows.FailStepRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workflows.StepExecutionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/workflows/step-executions/{id}/reassign": {
+            "put": {
+                "description": "Reassign a step execution to a new assignee",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Step Executions"
+                ],
+                "summary": "Reassign step execution",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Step Execution ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reassignment details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workflows.ReassignStepRequest"
                         }
                     }
                 ],
@@ -29031,6 +29171,34 @@
                 }
             }
         },
+        "workflows.BulkReassignRoleResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/workflows.BulkReassignRoleResponseData"
+                }
+            }
+        },
+        "workflows.BulkReassignRoleResponseData": {
+            "type": "object",
+            "properties": {
+                "execution-id": {
+                    "type": "string"
+                },
+                "reassigned-count": {
+                    "type": "integer"
+                },
+                "reassigned-step-execution-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "role-name": {
+                    "type": "string"
+                }
+            }
+        },
         "workflows.CancelWorkflowExecutionRequest": {
             "type": "object",
             "properties": {
@@ -29306,6 +29474,56 @@
                 }
             }
         },
+        "workflows.ReassignRoleRequest": {
+            "type": "object",
+            "required": [
+                "new-assigned-to-id",
+                "new-assigned-to-type",
+                "role-name"
+            ],
+            "properties": {
+                "new-assigned-to-id": {
+                    "type": "string"
+                },
+                "new-assigned-to-type": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "group",
+                        "email"
+                    ]
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "role-name": {
+                    "type": "string"
+                }
+            }
+        },
+        "workflows.ReassignStepRequest": {
+            "type": "object",
+            "required": [
+                "assigned-to-id",
+                "assigned-to-type"
+            ],
+            "properties": {
+                "assigned-to-id": {
+                    "type": "string"
+                },
+                "assigned-to-type": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "group",
+                        "email"
+                    ]
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
         "workflows.RoleAssignment": {
             "type": "object",
             "properties": {
@@ -29496,6 +29714,12 @@
                 "id": {
                     "type": "string"
                 },
+                "reassignment_history": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workflows.StepReassignmentHistory"
+                    }
+                },
                 "started-at": {
                     "type": "string"
                 },
@@ -29548,6 +29772,53 @@
             "properties": {
                 "data": {
                     "$ref": "#/definitions/workflows.StepExecution"
+                }
+            }
+        },
+        "workflows.StepReassignmentHistory": {
+            "type": "object",
+            "properties": {
+                "created-at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "new_assigned_to_id": {
+                    "type": "string"
+                },
+                "new_assigned_to_type": {
+                    "type": "string"
+                },
+                "previous_assigned_to_id": {
+                    "type": "string"
+                },
+                "previous_assigned_to_type": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "reassigned_by_email": {
+                    "type": "string"
+                },
+                "reassigned_by_user_id": {
+                    "type": "string"
+                },
+                "step_execution": {
+                    "$ref": "#/definitions/workflows.StepExecution"
+                },
+                "step_execution_id": {
+                    "type": "string"
+                },
+                "updated-at": {
+                    "type": "string"
+                },
+                "workflow_execution_id": {
+                    "type": "string"
                 }
             }
         },

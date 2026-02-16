@@ -30,6 +30,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&workflows.WorkflowExecution{},
 		&workflows.StepExecution{},
 		&workflows.StepEvidence{},
+		&workflows.StepReassignmentHistory{},
 	)
 	require.NoError(t, err)
 

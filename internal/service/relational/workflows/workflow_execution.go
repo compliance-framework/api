@@ -71,9 +71,10 @@ type StepExecution struct {
 	WorkflowStepDefinitionID *uuid.UUID `gorm:"not null;index;index:idx_step_exec_step_status,priority:1" json:"workflow_step_definition_id"`
 
 	// Relationships
-	WorkflowExecution      *WorkflowExecution      `gorm:"foreignKey:WorkflowExecutionID" json:"workflow_execution,omitempty"`
-	WorkflowStepDefinition *WorkflowStepDefinition `gorm:"foreignKey:WorkflowStepDefinitionID" json:"workflow_step_definition,omitempty"`
-	StepEvidence           []StepEvidence          `gorm:"foreignKey:StepExecutionID;constraint:OnDelete:CASCADE" json:"step_evidence,omitempty"`
+	WorkflowExecution      *WorkflowExecution        `gorm:"foreignKey:WorkflowExecutionID" json:"workflow_execution,omitempty"`
+	WorkflowStepDefinition *WorkflowStepDefinition   `gorm:"foreignKey:WorkflowStepDefinitionID" json:"workflow_step_definition,omitempty"`
+	StepEvidence           []StepEvidence            `gorm:"foreignKey:StepExecutionID;constraint:OnDelete:CASCADE" json:"step_evidence,omitempty"`
+	ReassignmentHistory    []StepReassignmentHistory `gorm:"foreignKey:StepExecutionID;constraint:OnDelete:CASCADE" json:"reassignment_history,omitempty"`
 }
 
 // TableName specifies the table name for StepExecution

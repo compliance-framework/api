@@ -1,9 +1,12 @@
 package workflows
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -14,15 +17,24 @@ import (
 
 type WorkflowExecutionHandler struct {
 	*BaseHandler
-	manager *workflow.Manager
-	service *workflows.WorkflowExecutionService
+	db                *gorm.DB
+	manager           *workflow.Manager
+	service           *workflows.WorkflowExecutionService
+	assignmentService *workflow.AssignmentService
 }
 
-func NewWorkflowExecutionHandler(sugar *zap.SugaredLogger, db *gorm.DB, manager *workflow.Manager) *WorkflowExecutionHandler {
+func NewWorkflowExecutionHandler(
+	sugar *zap.SugaredLogger,
+	db *gorm.DB,
+	manager *workflow.Manager,
+	assignmentService *workflow.AssignmentService,
+) *WorkflowExecutionHandler {
 	return &WorkflowExecutionHandler{
-		BaseHandler: NewBaseHandler(sugar),
-		manager:     manager,
-		service:     workflows.NewWorkflowExecutionService(db),
+		BaseHandler:       NewBaseHandler(sugar),
+		db:                db,
+		manager:           manager,
+		service:           workflows.NewWorkflowExecutionService(db),
+		assignmentService: assignmentService,
 	}
 }
 
@@ -34,6 +46,7 @@ func (h *WorkflowExecutionHandler) Register(api *echo.Group) {
 	api.GET("/:id/metrics", h.GetMetrics)
 	api.PUT("/:id/cancel", h.Cancel)
 	api.POST("/:id/retry", h.Retry)
+	api.PUT("/:id/reassign-role", h.ReassignRole)
 }
 
 type StartWorkflowExecutionRequest struct {
@@ -44,6 +57,13 @@ type StartWorkflowExecutionRequest struct {
 
 type CancelWorkflowExecutionRequest struct {
 	Reason string `json:"reason"`
+}
+
+type ReassignRoleRequest struct {
+	RoleName          string `json:"role-name" validate:"required"`
+	NewAssignedToType string `json:"new-assigned-to-type" validate:"required,oneof=user group email"`
+	NewAssignedToID   string `json:"new-assigned-to-id" validate:"required"`
+	Reason            string `json:"reason,omitempty"`
 }
 
 type WorkflowExecutionResponse struct {
@@ -60,6 +80,17 @@ type WorkflowExecutionStatusResponse struct {
 
 type WorkflowExecutionMetricsResponse struct {
 	Data *workflow.ExecutionMetrics `json:"data"`
+}
+
+type BulkReassignRoleResponse struct {
+	Data BulkReassignRoleResponseData `json:"data"`
+}
+
+type BulkReassignRoleResponseData struct {
+	ExecutionID                uuid.UUID   `json:"execution-id"`
+	RoleName                   string      `json:"role-name"`
+	ReassignedCount            int         `json:"reassigned-count"`
+	ReassignedStepExecutionIDs []uuid.UUID `json:"reassigned-step-execution-ids"`
 }
 
 // Start godoc
@@ -326,4 +357,95 @@ func (h *WorkflowExecutionHandler) Retry(ctx echo.Context) error {
 
 	h.sugar.Infow("Workflow execution retried", "original_id", id, "new_id", newExecutionID)
 	return h.RespondCreated(ctx, WorkflowExecutionResponse{Data: execution})
+}
+
+// ReassignRole godoc
+//
+//	@Summary		Bulk reassign steps by role
+//	@Description	Reassign eligible steps in an execution for a given role
+//	@Tags			Workflow Executions
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"Workflow Execution ID"
+//	@Param			request	body		ReassignRoleRequest	true	"Bulk reassignment details"
+//	@Success		200		{object}	BulkReassignRoleResponse
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/workflows/executions/{id}/reassign-role [put]
+func (h *WorkflowExecutionHandler) ReassignRole(ctx echo.Context) error {
+	id, err := h.ParseUUID(ctx, "id", "workflow execution")
+	if err != nil {
+		return HandleError(err)
+	}
+
+	var req ReassignRoleRequest
+	if err := h.BindAndValidate(ctx, &req); err != nil {
+		return HandleError(err)
+	}
+
+	reassignedByUserID, reassignedByEmail, err := h.getActorFromClaims(ctx)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	result, err := h.assignmentService.BulkReassignByRole(
+		ctx.Request().Context(),
+		*id,
+		req.RoleName,
+		workflow.Assignee{
+			Type: req.NewAssignedToType,
+			ID:   req.NewAssignedToID,
+		},
+		req.Reason,
+		reassignedByUserID,
+		reassignedByEmail,
+	)
+	if err != nil {
+		if errors.Is(err, workflow.ErrInvalidAssignee) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) || isNotFoundError(err) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return h.HandleServiceError(ctx, err, "bulk reassign", "workflow execution")
+	}
+
+	return h.RespondOK(ctx, BulkReassignRoleResponse{
+		Data: BulkReassignRoleResponseData{
+			ExecutionID:                result.ExecutionID,
+			RoleName:                   result.RoleName,
+			ReassignedCount:            result.ReassignedCount,
+			ReassignedStepExecutionIDs: result.ReassignedStepExecIDs,
+		},
+	})
+}
+
+func (h *WorkflowExecutionHandler) getActorFromClaims(ctx echo.Context) (*uuid.UUID, string, error) {
+	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
+	if !ok || userClaims == nil {
+		if err := ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims"))); err != nil {
+			return nil, "", err
+		}
+		return nil, "", ErrResponseSent
+	}
+
+	email := userClaims.Subject
+	var user relational.User
+	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := ctx.JSON(http.StatusNotFound, api.NewError(echo.NewHTTPError(http.StatusNotFound, "user not found"))); err != nil {
+				return nil, "", err
+			}
+			return nil, "", ErrResponseSent
+		}
+		if err := ctx.JSON(http.StatusInternalServerError, api.NewError(err)); err != nil {
+			return nil, "", err
+		}
+		return nil, "", ErrResponseSent
+	}
+
+	return user.ID, email, nil
 }

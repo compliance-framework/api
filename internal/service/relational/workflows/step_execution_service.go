@@ -56,7 +56,7 @@ func (s *StepExecutionService) Create(stepExecution *StepExecution) error {
 func (s *StepExecutionService) GetByID(id *uuid.UUID) (*StepExecution, error) {
 	var stepExecution StepExecution
 	err := s.base.GetByIDWithPreload(&stepExecution, id, "step execution",
-		"WorkflowExecution", "WorkflowStepDefinition", "StepEvidence")
+		"WorkflowExecution", "WorkflowStepDefinition", "StepEvidence", "ReassignmentHistory")
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +71,7 @@ func (s *StepExecutionService) GetByWorkflowExecutionID(executionID *uuid.UUID) 
 		Order("workflow_step_definitions.\"order\" ASC").
 		Preload("WorkflowStepDefinition").
 		Preload("StepEvidence").
+		Preload("ReassignmentHistory").
 		Find(&stepExecutions).Error
 
 	return stepExecutions, err

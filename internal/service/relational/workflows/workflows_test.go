@@ -11,7 +11,7 @@ func TestWorkflowEntities(t *testing.T) {
 	entities := GetWorkflowEntities()
 
 	// Verify we have the expected number of entities
-	expectedCount := 10
+	expectedCount := 11
 	if len(entities) != expectedCount {
 		t.Errorf("Expected %d entities, got %d", expectedCount, len(entities))
 	}
@@ -43,6 +43,8 @@ func TestWorkflowEntities(t *testing.T) {
 		case *StepEvidence:
 			v.Name = "Test Evidence"
 			v.EvidenceType = "document"
+		case *StepReassignmentHistory:
+			// Just test instantiation
 		case *ControlRelationship:
 			v.ControlID = "AC-1"
 			v.ControlSource = "NIST 800-53"
@@ -66,6 +68,7 @@ func TestWorkflowTables(t *testing.T) {
 		"workflow_executions",
 		"step_executions",
 		"step_evidence",
+		"step_reassignment_history",
 		"control_relationships",
 	}
 

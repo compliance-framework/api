@@ -30,6 +30,7 @@ func setupEvidenceTestDB(t *testing.T) *gorm.DB {
 		&workflows.WorkflowExecution{},
 		&workflows.StepExecution{},
 		&workflows.StepEvidence{},
+		&workflows.StepReassignmentHistory{},
 		&workflows.ControlRelationship{},
 		&relational.Evidence{},
 		&relational.Labels{},

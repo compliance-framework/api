@@ -27,6 +27,7 @@ func GetWorkflowEntities() []interface{} {
 		&WorkflowExecution{},
 		&StepExecution{},
 		&StepEvidence{},
+		&StepReassignmentHistory{},
 		&ControlRelationship{},
 	}
 }
@@ -43,6 +44,7 @@ func GetWorkflowTables() []string {
 		"workflow_executions",
 		"step_executions",
 		"step_evidence",
+		"step_reassignment_history",
 		"control_relationships",
 	}
 }
