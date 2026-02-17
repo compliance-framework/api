@@ -108,6 +108,7 @@ type CreateWorkflowStepDefinitionRequest struct {
 	ResponsibleRole      string                          `json:"responsible-role" validate:"required"`
 	EvidenceRequired     []workflows.EvidenceRequirement `json:"evidence-required"`
 	EstimatedDuration    int                             `json:"estimated-duration"`
+	GracePeriodDays      *int                            `json:"grace-period-days"`
 	DependsOn            []string                        `json:"depends-on"` // Array of step IDs this step depends on
 }
 
@@ -117,6 +118,7 @@ type UpdateWorkflowStepDefinitionRequest struct {
 	ResponsibleRole   *string                          `json:"responsible-role"`
 	EvidenceRequired  *[]workflows.EvidenceRequirement `json:"evidence-required"`
 	EstimatedDuration *int                             `json:"estimated-duration"`
+	GracePeriodDays   *int                             `json:"grace-period-days"`
 	DependsOn         *[]string                        `json:"depends-on"`
 }
 
@@ -155,6 +157,7 @@ func (h *WorkflowStepDefinitionHandler) Create(ctx echo.Context) error {
 		ResponsibleRole:      req.ResponsibleRole,
 		EvidenceRequired:     req.EvidenceRequired,
 		EstimatedDuration:    req.EstimatedDuration,
+		GracePeriodDays:      req.GracePeriodDays,
 	}
 
 	if err := h.service.Create(stepDef); err != nil {
@@ -289,6 +292,9 @@ func (h *WorkflowStepDefinitionHandler) Update(ctx echo.Context) error {
 	}
 	if req.EstimatedDuration != nil {
 		stepDef.EstimatedDuration = *req.EstimatedDuration
+	}
+	if req.GracePeriodDays != nil {
+		stepDef.GracePeriodDays = req.GracePeriodDays
 	}
 
 	if err := h.service.Update(id, stepDef); err != nil {

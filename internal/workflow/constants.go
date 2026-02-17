@@ -26,6 +26,7 @@ const (
 	StatusPending    StepStatus = "pending"
 	StatusBlocked    StepStatus = "blocked"
 	StatusInProgress StepStatus = "in_progress"
+	StatusOverdue    StepStatus = "overdue"
 	StatusCompleted  StepStatus = "completed"
 	StatusFailed     StepStatus = "failed"
 	StatusSkipped    StepStatus = "skipped"
@@ -35,7 +36,7 @@ const (
 // IsValid checks if the step status is valid
 func (s StepStatus) IsValid() bool {
 	switch s {
-	case StatusPending, StatusBlocked, StatusInProgress, StatusCompleted, StatusFailed, StatusSkipped, StatusCancelled:
+	case StatusPending, StatusBlocked, StatusInProgress, StatusOverdue, StatusCompleted, StatusFailed, StatusSkipped, StatusCancelled:
 		return true
 	}
 	return false

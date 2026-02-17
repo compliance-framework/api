@@ -206,6 +206,9 @@ func (s *WorkflowInstanceService) ValidateInstance(instance *WorkflowInstance) e
 	if instance == nil {
 		return errors.New("workflow instance cannot be nil")
 	}
+	if instance.GracePeriodDays != nil && *instance.GracePeriodDays < 0 {
+		return errors.New("grace period days must be non-negative")
+	}
 
 	return CombineErrors(
 		ValidateStringRequired(instance.Name, "instance name"),

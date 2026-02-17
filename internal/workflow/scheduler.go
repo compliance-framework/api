@@ -14,6 +14,8 @@ import (
 type WorkflowSchedulerWorker struct {
 	manager                 *Manager
 	workflowInstanceService WorkflowInstanceServiceInterface
+	overdueService          *OverdueService
+	overdueCheckEnabled     bool
 	logger                  Logger
 	defaultGracePeriod      int
 }
@@ -22,12 +24,16 @@ type WorkflowSchedulerWorker struct {
 func NewWorkflowSchedulerWorker(
 	manager *Manager,
 	workflowInstanceService WorkflowInstanceServiceInterface,
+	overdueService *OverdueService,
+	overdueCheckEnabled bool,
 	logger Logger,
 	defaultGracePeriod int,
 ) *WorkflowSchedulerWorker {
 	return &WorkflowSchedulerWorker{
 		manager:                 manager,
 		workflowInstanceService: workflowInstanceService,
+		overdueService:          overdueService,
+		overdueCheckEnabled:     overdueCheckEnabled,
 		logger:                  logger,
 		defaultGracePeriod:      defaultGracePeriod,
 	}
@@ -175,6 +181,18 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 		"processed", processedCount,
 		"errors", errorCount,
 	)
+
+	if w.overdueCheckEnabled && w.overdueService != nil {
+		if _, err := w.overdueService.CheckOverdueSteps(ctx); err != nil {
+			w.logger.Errorw("Failed to check overdue steps", "error", err)
+		}
+		if _, err := w.overdueService.CheckOverdueExecutions(ctx); err != nil {
+			w.logger.Errorw("Failed to check overdue executions", "error", err)
+		}
+		if _, err := w.overdueService.CheckFailedExecutions(ctx); err != nil {
+			w.logger.Errorw("Failed to check failed executions", "error", err)
+		}
+	}
 
 	return nil
 }

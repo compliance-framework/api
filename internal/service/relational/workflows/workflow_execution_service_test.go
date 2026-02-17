@@ -335,6 +335,25 @@ func TestWorkflowExecutionService_UpdateStatus(t *testing.T) {
 	err = service.UpdateStatus(context.Background(), execution.ID, "invalid_status")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status")
+
+	// Test overdue transition
+	execution2 := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(execution2).Error)
+	err = service.UpdateStatus(context.Background(), execution2.ID, "overdue")
+	require.NoError(t, err)
+	var updatedOverdue WorkflowExecution
+	err = db.First(&updatedOverdue, execution2.ID).Error
+	require.NoError(t, err)
+	assert.Equal(t, "overdue", updatedOverdue.Status)
+	assert.NotNil(t, updatedOverdue.OverdueAt)
+
+	// Test overdue -> completed transition
+	err = service.UpdateStatus(context.Background(), execution2.ID, "completed")
+	require.NoError(t, err)
+	err = db.First(&updatedOverdue, execution2.ID).Error
+	require.NoError(t, err)
+	assert.Equal(t, "completed", updatedOverdue.Status)
+	assert.NotNil(t, updatedOverdue.CompletedAt)
 }
 
 // TestWorkflowExecutionService_Start tests the Start method

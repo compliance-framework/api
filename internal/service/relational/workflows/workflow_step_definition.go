@@ -26,6 +26,7 @@ type WorkflowStepDefinition struct {
 	ResponsibleRole   string                                   `gorm:"not null;size:255" json:"responsible_role"`                // Role responsible for this step
 	EvidenceRequired  datatypes.JSONSlice[EvidenceRequirement] `json:"evidence_required"`                                        // JSON array of required evidence types
 	EstimatedDuration int                                      `gorm:"default:0" json:"estimated_duration"`                      // Estimated duration in minutes
+	GracePeriodDays   *int                                     `json:"grace-period-days,omitempty"`                              // Override default grace for this specific step
 
 	// Foreign Keys
 	WorkflowDefinitionID *uuid.UUID `gorm:"not null;index" json:"workflow_definition_id"`

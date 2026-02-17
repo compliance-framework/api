@@ -188,6 +188,9 @@ func (s *WorkflowStepDefinitionService) ValidateStep(step *WorkflowStepDefinitio
 	if step.WorkflowDefinitionID == nil {
 		return errors.New("workflow definition ID is required")
 	}
+	if step.GracePeriodDays != nil && *step.GracePeriodDays < 0 {
+		return errors.New("grace period days must be non-negative")
+	}
 
 	return nil
 }

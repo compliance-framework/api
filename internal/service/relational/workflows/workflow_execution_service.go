@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,9 @@ type WorkflowExecutionService struct {
 	evidenceCreator WorkflowExecutionEvidenceCreator
 	logger          *zap.SugaredLogger
 }
+
+var ErrInvalidWorkflowExecutionStatusTransition = errors.New("invalid workflow execution status transition")
+var ErrWorkflowExecutionStatusTransitionConflict = errors.New("workflow execution status transition conflict")
 
 // NewWorkflowExecutionService creates a new WorkflowExecutionService
 func NewWorkflowExecutionService(db *gorm.DB) *WorkflowExecutionService {
@@ -129,14 +133,21 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 		return err
 	}
 
+	var current WorkflowExecution
+	if err := s.db.WithContext(ctx).Select("status").First(&current, "id = ?", id).Error; err != nil {
+		return err
+	}
+	if !isValidExecutionStatusTransition(current.Status, status) {
+		return fmt.Errorf("%w: %s -> %s", ErrInvalidWorkflowExecutionStatusTransition, current.Status, status)
+	}
+
 	updates := map[string]interface{}{"status": status}
 	now := time.Now()
 	switch status {
 	case "in_progress":
-		// Add workflow execution started evidence when transitioning to in_progress (while still pending)
+		// Keep behavior: create started evidence while execution is still pending.
 		if s.evidenceCreator != nil {
 			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "started"); err != nil {
-				// Log error but don't fail the status update
 				s.logger.Warnw("Failed to create workflow execution started evidence",
 					"workflow_execution_id", id,
 					"error", err)
@@ -144,20 +155,66 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 		}
 		updates["started_at"] = now
 	case "completed":
-		updates["completed_at"] = now
+		// Keep behavior: create completed evidence prior to status update.
 		if s.evidenceCreator != nil {
 			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "completed"); err != nil {
-				// Log error but don't fail the status update
 				s.logger.Warnw("Failed to create workflow execution completed evidence",
 					"workflow_execution_id", id,
 					"error", err)
 			}
 		}
+		updates["completed_at"] = now
+	case "overdue":
+		updates["overdue_at"] = now
 	case "failed":
 		updates["failed_at"] = now
 	}
 
-	return s.base.UpdateStatus(&WorkflowExecution{}, id, status, "status", updates)
+	result := s.db.WithContext(ctx).
+		Model(&WorkflowExecution{}).
+		Where("id = ? AND status = ?", id, current.Status).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		var latest WorkflowExecution
+		if err := s.db.WithContext(ctx).Select("status").First(&latest, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if !isValidExecutionStatusTransition(latest.Status, status) {
+			return fmt.Errorf("%w: %s -> %s", ErrInvalidWorkflowExecutionStatusTransition, latest.Status, status)
+		}
+		return fmt.Errorf("%w: %s -> %s", ErrWorkflowExecutionStatusTransitionConflict, current.Status, status)
+	}
+
+	return nil
+}
+
+func isValidExecutionStatusTransition(current, next string) bool {
+	switch current {
+	case WorkflowStatusPending.String():
+		return next == WorkflowStatusPending.String() ||
+			next == WorkflowStatusInProgress.String() ||
+			next == WorkflowStatusOverdue.String() ||
+			next == WorkflowStatusCancelled.String() ||
+			next == WorkflowStatusFailed.String()
+	case WorkflowStatusInProgress.String():
+		return next == WorkflowStatusInProgress.String() ||
+			next == WorkflowStatusCompleted.String() ||
+			next == WorkflowStatusFailed.String() ||
+			next == WorkflowStatusOverdue.String() ||
+			next == WorkflowStatusCancelled.String()
+	case WorkflowStatusOverdue.String():
+		return next == WorkflowStatusOverdue.String() ||
+			next == WorkflowStatusFailed.String() ||
+			next == WorkflowStatusCompleted.String() ||
+			next == WorkflowStatusCancelled.String()
+	case WorkflowStatusCompleted.String(), WorkflowStatusFailed.String(), WorkflowStatusCancelled.String():
+		return next == current || (current == WorkflowStatusCompleted.String() && next == WorkflowStatusFailed.String())
+	default:
+		return false
+	}
 }
 
 // Start marks a workflow execution as started

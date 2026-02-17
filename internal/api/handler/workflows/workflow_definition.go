@@ -33,6 +33,7 @@ type CreateWorkflowDefinitionRequest struct {
 	Version          string `json:"version"`
 	SuggestedCadence string `json:"suggested-cadence"`
 	EvidenceRequired string `json:"evidence-required"`
+	GracePeriodDays  *int   `json:"grace-period-days"`
 }
 
 type UpdateWorkflowDefinitionRequest struct {
@@ -41,6 +42,7 @@ type UpdateWorkflowDefinitionRequest struct {
 	Version          *string `json:"version"`
 	SuggestedCadence *string `json:"suggested-cadence"`
 	EvidenceRequired *string `json:"evidence-required"`
+	GracePeriodDays  *int    `json:"grace-period-days"`
 }
 
 type WorkflowDefinitionResponse struct {
@@ -77,6 +79,7 @@ func (h *WorkflowDefinitionHandler) Create(ctx echo.Context) error {
 		Version:          req.Version,
 		SuggestedCadence: req.SuggestedCadence,
 		EvidenceRequired: req.EvidenceRequired,
+		GracePeriodDays:  req.GracePeriodDays,
 	}
 
 	if err := h.service.Create(definition); err != nil {
@@ -183,6 +186,9 @@ func (h *WorkflowDefinitionHandler) Update(ctx echo.Context) error {
 	}
 	if req.EvidenceRequired != nil {
 		definition.EvidenceRequired = *req.EvidenceRequired
+	}
+	if req.GracePeriodDays != nil {
+		definition.GracePeriodDays = req.GracePeriodDays
 	}
 
 	if err := h.service.Update(id, definition); err != nil {

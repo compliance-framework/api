@@ -29163,6 +29163,9 @@ const docTemplate = `{
                 "inProgressSteps": {
                     "type": "integer"
                 },
+                "overdueSteps": {
+                    "type": "integer"
+                },
                 "pendingSteps": {
                     "type": "integer"
                 },
@@ -29355,6 +29358,9 @@ const docTemplate = `{
                 "evidence-required": {
                     "type": "string"
                 },
+                "grace-period-days": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -29379,6 +29385,9 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "is-active": {
                     "type": "boolean"
@@ -29420,6 +29429,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/workflows.EvidenceRequirement"
                     }
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
@@ -29711,6 +29723,9 @@ const docTemplate = `{
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
+                "due_date": {
+                    "type": "string"
+                },
                 "failed-at": {
                     "type": "string"
                 },
@@ -29718,6 +29733,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "overdue-at": {
                     "type": "string"
                 },
                 "reassignment_history": {
@@ -29929,6 +29947,9 @@ const docTemplate = `{
                 "evidence-required": {
                     "type": "string"
                 },
+                "grace-period-days": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -29948,6 +29969,9 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "is-active": {
                     "type": "boolean"
@@ -29977,6 +30001,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/workflows.EvidenceRequirement"
                     }
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
@@ -30012,7 +30039,7 @@ const docTemplate = `{
                     "description": "JSON array of required evidence types",
                     "type": "string"
                 },
-                "grace_period_days": {
+                "grace-period-days": {
                     "description": "Override global default if set",
                     "type": "integer"
                 },
@@ -30096,6 +30123,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "overdue-at": {
                     "type": "string"
                 },
                 "period_label": {
@@ -30204,7 +30234,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/workflows.WorkflowExecution"
                     }
                 },
-                "grace_period_days": {
+                "grace-period-days": {
                     "description": "Override definition/global default if set",
                     "type": "integer"
                 },
@@ -30310,6 +30340,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/workflows.EvidenceRequirement"
                     }
+                },
+                "grace-period-days": {
+                    "description": "Override default grace for this specific step",
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"

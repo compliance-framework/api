@@ -3,8 +3,10 @@ package workflows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -22,6 +24,9 @@ type StepExecutionService struct {
 	evidenceCreator StepEvidenceCreator
 	logger          *zap.SugaredLogger
 }
+
+var ErrInvalidStepExecutionStatusTransition = errors.New("invalid step execution status transition")
+var ErrStepExecutionStatusTransitionConflict = errors.New("step execution status transition conflict")
 
 // NewStepExecutionService creates a new StepExecutionService
 func NewStepExecutionService(db *gorm.DB, evidenceCreator StepEvidenceCreator) *StepExecutionService {
@@ -89,12 +94,22 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 		return err
 	}
 
+	var current StepExecution
+	if err := s.db.WithContext(ctx).Select("status").First(&current, "id = ?", id).Error; err != nil {
+		return err
+	}
+	if !isValidStepStatusTransition(current.Status, status) {
+		return fmt.Errorf("%w: %s -> %s", ErrInvalidStepExecutionStatusTransition, current.Status, status)
+	}
+
 	updates := map[string]interface{}{"status": status}
 	now := time.Now()
+	if err := s.setDueDateIfNeeded(id, &current, status, now, updates); err != nil {
+		return err
+	}
 	switch status {
 	case "in_progress":
 		updates["started_at"] = now
-		// Add step started evidence when transitioning to in_progress
 		if s.evidenceCreator != nil {
 			if err := s.evidenceCreator.AddStepStartedEvidence(ctx, id); err != nil {
 				// Log error but don't fail the status update
@@ -105,35 +120,98 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 		}
 	case "completed":
 		updates["completed_at"] = now
+	case "overdue":
+		updates["overdue_at"] = now
 	case "failed":
 		updates["failed_at"] = now
 	}
 
-	return s.base.UpdateStatus(&StepExecution{}, id, status, "status", updates)
+	result := s.db.WithContext(ctx).
+		Model(&StepExecution{}).
+		Where("id = ? AND status = ?", id, current.Status).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		var latest StepExecution
+		if err := s.db.WithContext(ctx).Select("status").First(&latest, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if !isValidStepStatusTransition(latest.Status, status) {
+			return fmt.Errorf("%w: %s -> %s", ErrInvalidStepExecutionStatusTransition, latest.Status, status)
+		}
+		return fmt.Errorf("%w: %s -> %s", ErrStepExecutionStatusTransitionConflict, current.Status, status)
+	}
+
+	return nil
+}
+
+func (s *StepExecutionService) setDueDateIfNeeded(
+	stepExecutionID *uuid.UUID,
+	current *StepExecution,
+	nextStatus string,
+	now time.Time,
+	updates map[string]interface{},
+) error {
+	if current == nil || current.DueDate != nil {
+		return nil
+	}
+	if current.Status != StepStatusBlocked.String() &&
+		nextStatus != StepStatusInProgress.String() {
+		return nil
+	}
+	if nextStatus != StepStatusPending.String() &&
+		nextStatus != StepStatusInProgress.String() {
+		return nil
+	}
+
+	dueDate, err := s.resolveStepDueDate(stepExecutionID, now)
+	if err != nil {
+		return err
+	}
+	if dueDate != nil {
+		updates["due_date"] = *dueDate
+	}
+	return nil
+}
+
+func isValidStepStatusTransition(current, next string) bool {
+	switch current {
+	case StepStatusPending.String():
+		return next == StepStatusPending.String() ||
+			next == StepStatusInProgress.String() ||
+			next == StepStatusCompleted.String() ||
+			next == StepStatusOverdue.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String()
+	case StepStatusBlocked.String():
+		return next == StepStatusBlocked.String() ||
+			next == StepStatusPending.String() ||
+			next == StepStatusOverdue.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String()
+	case StepStatusInProgress.String():
+		return next == StepStatusInProgress.String() ||
+			next == StepStatusCompleted.String() ||
+			next == StepStatusOverdue.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String()
+	case StepStatusOverdue.String():
+		return next == StepStatusOverdue.String() ||
+			next == StepStatusCompleted.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String()
+	case StepStatusCompleted.String(), StepStatusFailed.String(), StepStatusSkipped.String():
+		return next == current || (current == StepStatusCompleted.String() && next == StepStatusFailed.String())
+	default:
+		return false
+	}
 }
 
 // Start marks a step execution as started
 func (s *StepExecutionService) Start(id *uuid.UUID) error {
-	now := time.Now()
-	err := s.base.UpdateStatus(&StepExecution{}, id, "in_progress", "status", map[string]interface{}{
-		"status":     "in_progress",
-		"started_at": now,
-	})
-	if err != nil {
-		return err
-	}
-
-	// Add step started evidence for in_progress steps
-	if s.evidenceCreator != nil {
-		if err := s.evidenceCreator.AddStepStartedEvidence(context.Background(), id); err != nil {
-			// Log error but don't fail the start
-			s.logger.Warnw("Failed to create step started evidence",
-				"step_execution_id", id,
-				"error", err)
-		}
-	}
-
-	return nil
+	return s.UpdateStatus(context.Background(), id, StepStatusInProgress.String())
 }
 
 // Complete marks a step execution as completed
@@ -164,9 +242,40 @@ func (s *StepExecutionService) Block(id *uuid.UUID) error {
 
 // Unblock marks a step execution as unblocked (pending)
 func (s *StepExecutionService) Unblock(id *uuid.UUID) error {
-	return s.db.Model(&StepExecution{}).
-		Where("id = ?", id).
-		Update("status", "pending").Error
+	return s.UpdateStatus(context.Background(), id, StepStatusPending.String())
+}
+
+func (s *StepExecutionService) resolveStepDueDate(stepExecutionID *uuid.UUID, from time.Time) (*time.Time, error) {
+	type graceResult struct {
+		StepGrace       *int
+		InstanceGrace   *int
+		DefinitionGrace *int
+	}
+
+	var grace graceResult
+	err := s.db.Model(&StepExecution{}).
+		Select("workflow_step_definitions.grace_period_days AS step_grace, workflow_instances.grace_period_days AS instance_grace, workflow_definitions.grace_period_days AS definition_grace").
+		Joins("JOIN workflow_step_definitions ON workflow_step_definitions.id = step_executions.workflow_step_definition_id").
+		Joins("JOIN workflow_executions ON workflow_executions.id = step_executions.workflow_execution_id").
+		Joins("JOIN workflow_instances ON workflow_instances.id = workflow_executions.workflow_instance_id").
+		Joins("JOIN workflow_definitions ON workflow_definitions.id = workflow_instances.workflow_definition_id").
+		Where("step_executions.id = ?", stepExecutionID).
+		Take(&grace).Error
+	if err != nil {
+		return nil, err
+	}
+
+	graceDays := config.DefaultWorkflowConfig().GracePeriodDays
+	if grace.StepGrace != nil {
+		graceDays = *grace.StepGrace
+	} else if grace.InstanceGrace != nil {
+		graceDays = *grace.InstanceGrace
+	} else if grace.DefinitionGrace != nil {
+		graceDays = *grace.DefinitionGrace
+	}
+
+	dueDate := from.AddDate(0, 0, graceDays)
+	return &dueDate, nil
 }
 
 // AssignTo assigns a step execution to a user or group
@@ -215,7 +324,7 @@ func (s *StepExecutionService) GetCompletedSteps(executionID *uuid.UUID) ([]Step
 func (s *StepExecutionService) GetAssignedSteps(assignedToType, assignedToID string) ([]StepExecution, error) {
 	var stepExecutions []StepExecution
 	err := s.db.Where("assigned_to_type = ? AND assigned_to_id = ? AND status IN ?",
-		assignedToType, assignedToID, []string{"pending", "in_progress", "blocked"}).
+		assignedToType, assignedToID, []string{"pending", "in_progress", "blocked", "overdue"}).
 		Preload("WorkflowExecution").
 		Preload("WorkflowExecution.WorkflowInstance").
 		Preload("WorkflowStepDefinition").
@@ -244,7 +353,7 @@ func (s *StepExecutionService) GetMyAssignments(userID, userEmail string, filter
 		Joins("JOIN workflow_instances ON workflow_instances.id = workflow_executions.workflow_instance_id").
 		Where("((step_executions.assigned_to_type = ? AND step_executions.assigned_to_id = ?) OR (step_executions.assigned_to_type = ? AND step_executions.assigned_to_id = ?))",
 			"user", userID, "email", userEmail).
-		Where("workflow_executions.status IN ?", []string{"pending", "in_progress"})
+		Where("workflow_executions.status IN ?", []string{"pending", "in_progress", "overdue"})
 
 	// Apply step status filter only when explicitly specified; otherwise rely on workflow execution status filter above.
 	if filter.Status != "" {

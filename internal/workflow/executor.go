@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 )
@@ -139,6 +140,12 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 	if err != nil {
 		return fmt.Errorf("failed to get workflow execution: %w", err)
 	}
+	// Early guard to avoid unnecessary work when initialization is no longer valid.
+	// We intentionally re-check this again later (after DB writes) to protect against races.
+	if workflowExecution.Status != StatusPending.String() {
+		e.logger.Printf("Skipping workflow initialization for execution %s in status %s", workflowExecutionID.String(), workflowExecution.Status)
+		return nil
+	}
 
 	// Get all step definitions for this workflow
 	stepDefinitions, err := e.stepDefinitionService.GetByWorkflowDefinitionID(workflowExecution.WorkflowInstance.WorkflowDefinitionID)
@@ -161,8 +168,29 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 		}
 	}
 
+	retryCompletedSteps := e.resolveRetryCompletedStepDefinitions(workflowExecution)
+	existingStepExecutions, err := e.stepExecutionService.GetByWorkflowExecutionID(workflowExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing step executions: %w", err)
+	}
+	existingByStepDef := make(map[uuid.UUID]workflows.StepExecution, len(existingStepExecutions))
+	for _, existing := range existingStepExecutions {
+		if existing.WorkflowStepDefinitionID != nil {
+			existingByStepDef[*existing.WorkflowStepDefinitionID] = existing
+		}
+	}
+
 	// Create step execution records for each step definition
+	executionStart := time.Now()
+	if workflowExecution.StartedAt != nil {
+		executionStart = *workflowExecution.StartedAt
+	}
+
 	for _, stepDef := range stepDefinitions {
+		if _, exists := existingByStepDef[*stepDef.ID]; exists {
+			continue
+		}
+
 		// Get dependencies for this step
 		dependencies, _ := e.stepDefinitionService.GetDependencies(stepDef.ID)
 
@@ -171,11 +199,19 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 		if len(dependencies) > 0 {
 			initialStatus = StatusBlocked.String()
 		}
+		if retryCompletedSteps[*stepDef.ID] {
+			initialStatus = StatusCompleted.String()
+		}
 
 		stepExecution := &workflows.StepExecution{
 			WorkflowExecutionID:      workflowExecutionID,
 			WorkflowStepDefinitionID: stepDef.ID,
 			Status:                   initialStatus,
+		}
+		if initialStatus != StatusBlocked.String() {
+			graceDays := resolveStepGraceDays(workflowExecution, stepDef)
+			dueDate := executionStart.AddDate(0, 0, graceDays)
+			stepExecution.DueDate = &dueDate
 		}
 
 		// Apply assignment if resolved
@@ -185,10 +221,30 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 			now := time.Now()
 			stepExecution.AssignedAt = &now
 		}
+		if initialStatus == StatusCompleted.String() {
+			stepExecution.StartedAt = &executionStart
+			stepExecution.CompletedAt = &executionStart
+		}
 
 		if err := e.stepExecutionService.Create(stepExecution); err != nil {
 			return fmt.Errorf("failed to create step execution for step %s: %w", stepDef.ID.String(), err)
 		}
+	}
+
+	if len(retryCompletedSteps) > 0 {
+		if err := e.unblockReadySteps(workflowExecutionID); err != nil {
+			e.logger.Printf("Warning: failed to unblock ready steps: %v", err)
+		}
+	}
+
+	// Re-check status to avoid stale transitions if another worker changed it concurrently.
+	workflowExecution, err = e.workflowExecutionService.GetByID(workflowExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to reload workflow execution: %w", err)
+	}
+	if workflowExecution.Status != StatusPending.String() {
+		e.logger.Printf("Skipping in_progress transition for execution %s now in status %s", workflowExecutionID.String(), workflowExecution.Status)
+		return nil
 	}
 
 	// Update workflow execution status to in_progress
@@ -197,6 +253,49 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 	}
 
 	e.logger.Printf("Workflow execution initialized with %d steps", len(stepDefinitions))
+	return nil
+}
+
+func (e *DAGExecutor) resolveRetryCompletedStepDefinitions(workflowExecution *workflows.WorkflowExecution) map[uuid.UUID]bool {
+	completed := make(map[uuid.UUID]bool)
+	if workflowExecution == nil || workflowExecution.TriggeredBy != workflows.TriggerManual.String() {
+		return completed
+	}
+
+	retrySourceID, err := uuid.Parse(workflowExecution.TriggeredByID)
+	if err != nil {
+		return completed
+	}
+
+	sourceExecution, err := e.workflowExecutionService.GetByID(&retrySourceID)
+	if err != nil || sourceExecution == nil || sourceExecution.WorkflowInstanceID == nil ||
+		workflowExecution.WorkflowInstanceID == nil ||
+		*sourceExecution.WorkflowInstanceID != *workflowExecution.WorkflowInstanceID {
+		return completed
+	}
+
+	sourceSteps, err := e.stepExecutionService.GetByWorkflowExecutionID(sourceExecution.ID)
+	if err != nil {
+		return completed
+	}
+
+	for _, step := range sourceSteps {
+		if step.Status == workflows.StepStatusCompleted.String() && step.WorkflowStepDefinitionID != nil {
+			completed[*step.WorkflowStepDefinitionID] = true
+		}
+	}
+
+	return completed
+}
+
+func (e *DAGExecutor) unblockReadySteps(workflowExecutionID *uuid.UUID) error {
+	stepExecutions, err := e.stepExecutionService.GetByWorkflowExecutionID(workflowExecutionID)
+	if err != nil {
+		return err
+	}
+	for i := range stepExecutions {
+		_ = e.tryUnblockStep(&stepExecutions[i])
+	}
 	return nil
 }
 
@@ -268,6 +367,50 @@ func (e *DAGExecutor) ProcessStepCompletion(ctx context.Context, stepExecutionID
 	// TODO: Hook for automatic evidence check via step triggers
 
 	return nil
+}
+
+// ProcessStepFailure propagates a failed step through dependent steps and reevaluates workflow completion.
+func (e *DAGExecutor) ProcessStepFailure(ctx context.Context, stepExecutionID *uuid.UUID) error {
+	stepExecution, err := e.stepExecutionService.GetByID(stepExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get step execution: %w", err)
+	}
+
+	visited := make(map[uuid.UUID]bool)
+	var skipDependents func(stepDefID *uuid.UUID) error
+	skipDependents = func(stepDefID *uuid.UUID) error {
+		dependents, err := e.stepDefinitionService.GetDependentSteps(stepDefID)
+		if err != nil {
+			return err
+		}
+		for _, dep := range dependents {
+			if dep.ID == nil || visited[*dep.ID] {
+				continue
+			}
+			visited[*dep.ID] = true
+
+			depExec := e.findDependentStepExecution(stepExecution.WorkflowExecutionID, dep.ID)
+			if depExec != nil && depExec.Status != StatusCompleted.String() &&
+				depExec.Status != StatusFailed.String() &&
+				depExec.Status != StatusSkipped.String() &&
+				depExec.Status != StatusCancelled.String() {
+				if err := e.stepExecutionService.UpdateStatus(ctx, depExec.ID, StatusSkipped.String()); err != nil {
+					e.logger.Printf("Failed to skip dependent step %s: %v", depExec.ID.String(), err)
+				}
+			}
+
+			if err := skipDependents(dep.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := skipDependents(stepExecution.WorkflowStepDefinitionID); err != nil {
+		return fmt.Errorf("failed to propagate step failure: %w", err)
+	}
+
+	return e.checkWorkflowCompletion(ctx, stepExecution.WorkflowExecutionID)
 }
 
 // unblockDependentSteps processes dependent steps and unblocks those that are ready
@@ -391,18 +534,21 @@ func (e *DAGExecutor) checkWorkflowCompletion(ctx context.Context, workflowExecu
 	}
 
 	completedCount := 0
+	skippedCount := 0
 	failedCount := 0
 	for _, stepExec := range stepExecutions {
 		switch stepExec.Status {
 		case StatusCompleted.String():
 			completedCount++
+		case StatusSkipped.String():
+			skippedCount++
 		case StatusFailed.String():
 			failedCount++
 		}
 	}
 
-	// Check if all steps are completed or failed
-	if completedCount+failedCount == len(stepExecutions) {
+	// Check if all steps are in terminal states
+	if completedCount+failedCount+skippedCount == len(stepExecutions) {
 		if failedCount > 0 {
 			// Workflow failed
 			reason := fmt.Sprintf("%d of %d steps failed", failedCount, len(stepExecutions))
@@ -411,7 +557,7 @@ func (e *DAGExecutor) checkWorkflowCompletion(ctx context.Context, workflowExecu
 			}
 			e.logger.Printf("Workflow execution failed: %s", reason)
 		} else {
-			// All steps completed successfully
+			// All steps reached successful terminal states (completed/skipped)
 			if err := e.workflowExecutionService.UpdateStatus(ctx, workflowExecutionID, StatusCompleted.String()); err != nil {
 				return fmt.Errorf("failed to mark workflow as completed: %w", err)
 			}
@@ -428,6 +574,22 @@ func (e *DAGExecutor) checkWorkflowCompletion(ctx context.Context, workflowExecu
 	}
 
 	return nil
+}
+
+func resolveStepGraceDays(workflowExecution *workflows.WorkflowExecution, stepDef workflows.WorkflowStepDefinition) int {
+	if stepDef.GracePeriodDays != nil {
+		return *stepDef.GracePeriodDays
+	}
+	if workflowExecution.WorkflowInstance != nil && workflowExecution.WorkflowInstance.GracePeriodDays != nil {
+		return *workflowExecution.WorkflowInstance.GracePeriodDays
+	}
+	if workflowExecution.WorkflowInstance != nil && workflowExecution.WorkflowInstance.WorkflowDefinition != nil &&
+		workflowExecution.WorkflowInstance.WorkflowDefinition.GracePeriodDays != nil {
+		return *workflowExecution.WorkflowInstance.WorkflowDefinition.GracePeriodDays
+	}
+	// Step due-date initialization uses global workflow defaults from config.
+	// Execution failure grace in OverdueService can use an injected default to support worker-level overrides.
+	return config.DefaultWorkflowConfig().GracePeriodDays
 }
 
 // CheckAutomaticTriggers checks if a step has automatic triggers configured

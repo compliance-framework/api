@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -26,6 +27,8 @@ type StepTransitionService struct {
 	db                        *gorm.DB
 	evidenceIntegration       *EvidenceIntegration
 }
+
+var ErrInvalidStepTransition = errors.New("invalid step transition")
 
 // WorkflowDefinitionServiceInterface defines the interface for workflow definition operations
 type WorkflowDefinitionServiceInterface interface {
@@ -157,6 +160,19 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 	return nil
 }
 
+// FailStep marks a step as failed and propagates failure through dependent steps.
+func (s *StepTransitionService) FailStep(ctx context.Context, stepExecutionID *uuid.UUID, reason string) error {
+	if err := s.stepExecutionService.Fail(stepExecutionID, reason); err != nil {
+		return err
+	}
+	if s.executor != nil {
+		if err := s.executor.ProcessStepFailure(ctx, stepExecutionID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // verifyUserPermission checks if the user has permission to transition the step
 func (s *StepTransitionService) verifyUserPermission(instanceID *uuid.UUID, responsibleRole, userID, userType string) error {
 	// Find the role assignment for the responsible role
@@ -185,6 +201,7 @@ func (s *StepTransitionService) validateTransition(currentStatus, newStatus stri
 	allowedTransitions := map[string][]string{
 		StatusPending.String():    {StatusInProgress.String()},
 		StatusInProgress.String(): {StatusCompleted.String()},
+		StatusOverdue.String():    {StatusCompleted.String()},
 		StatusBlocked.String():    {}, // Blocked steps cannot be manually transitioned
 		StatusCompleted.String():  {}, // Completed steps cannot be changed
 		StatusFailed.String():     {}, // Failed steps cannot be manually changed (only by executor)
@@ -192,7 +209,7 @@ func (s *StepTransitionService) validateTransition(currentStatus, newStatus stri
 
 	allowed, exists := allowedTransitions[currentStatus]
 	if !exists {
-		return fmt.Errorf("invalid current status: %s", currentStatus)
+		return fmt.Errorf("%w: invalid current status: %s", ErrInvalidStepTransition, currentStatus)
 	}
 
 	// Check if the new status is in the allowed list
@@ -202,7 +219,7 @@ func (s *StepTransitionService) validateTransition(currentStatus, newStatus stri
 		}
 	}
 
-	return fmt.Errorf("transition from %s to %s is not allowed", currentStatus, newStatus)
+	return fmt.Errorf("%w: transition from %s to %s is not allowed", ErrInvalidStepTransition, currentStatus, newStatus)
 }
 
 // validateEvidenceRequirements validates that all required evidence has been submitted

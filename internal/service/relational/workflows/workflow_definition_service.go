@@ -109,6 +109,9 @@ func (s *WorkflowDefinitionService) ValidateDefinition(definition *WorkflowDefin
 	if definition == nil {
 		return errors.New("workflow definition cannot be nil")
 	}
+	if definition.GracePeriodDays != nil && *definition.GracePeriodDays < 0 {
+		return errors.New("grace period days must be non-negative")
+	}
 
 	return CombineErrors(
 		ValidateStringRequired(definition.Name, "workflow definition name"),

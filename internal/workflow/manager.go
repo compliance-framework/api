@@ -153,7 +153,7 @@ func (m *Manager) GetExecutionStatus(ctx context.Context, executionID *uuid.UUID
 	}
 
 	// Count steps by status
-	var pending, blocked, inProgress, completed, failed, cancelled int
+	var pending, blocked, inProgress, overdue, completed, failed, cancelled int
 	for _, step := range stepExecutions {
 		switch step.Status {
 		case "pending":
@@ -162,6 +162,8 @@ func (m *Manager) GetExecutionStatus(ctx context.Context, executionID *uuid.UUID
 			blocked++
 		case "in_progress":
 			inProgress++
+		case "overdue":
+			overdue++
 		case "completed":
 			completed++
 		case "failed":
@@ -178,6 +180,7 @@ func (m *Manager) GetExecutionStatus(ctx context.Context, executionID *uuid.UUID
 		PendingSteps:    pending,
 		BlockedSteps:    blocked,
 		InProgressSteps: inProgress,
+		OverdueSteps:    overdue,
 		CompletedSteps:  completed,
 		FailedSteps:     failed,
 		CancelledSteps:  cancelled,
@@ -364,6 +367,7 @@ type ExecutionStatus struct {
 	PendingSteps    int
 	BlockedSteps    int
 	InProgressSteps int
+	OverdueSteps    int
 	CompletedSteps  int
 	FailedSteps     int
 	CancelledSteps  int

@@ -322,6 +322,30 @@ func TestIsExecutionComplete(t *testing.T) {
 	assert.True(t, executor.isExecutionComplete(state))
 }
 
+func TestResolveStepGraceDays_Preference(t *testing.T) {
+	defGrace := 9
+	instanceGrace := 5
+	stepGrace := 2
+
+	workflowExecution := &workflows.WorkflowExecution{
+		WorkflowInstance: &workflows.WorkflowInstance{
+			GracePeriodDays: &instanceGrace,
+			WorkflowDefinition: &workflows.WorkflowDefinition{
+				GracePeriodDays: &defGrace,
+			},
+		},
+	}
+
+	stepWithOverride := workflows.WorkflowStepDefinition{GracePeriodDays: &stepGrace}
+	assert.Equal(t, stepGrace, resolveStepGraceDays(workflowExecution, stepWithOverride))
+
+	stepWithoutOverride := workflows.WorkflowStepDefinition{}
+	assert.Equal(t, instanceGrace, resolveStepGraceDays(workflowExecution, stepWithoutOverride))
+
+	workflowExecution.WorkflowInstance.GracePeriodDays = nil
+	assert.Equal(t, defGrace, resolveStepGraceDays(workflowExecution, stepWithoutOverride))
+}
+
 func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
@@ -359,6 +383,7 @@ func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepDefService.On("GetByWorkflowDefinitionID", &workflowDefID).Return(stepDefinitions, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID1).Return([]workflows.WorkflowStepDefinition{}, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID2).Return([]workflows.WorkflowStepDefinition{workflows.WorkflowStepDefinition{UUIDModel: relational.UUIDModel{ID: &stepDefID1}}}, nil)
+	mockStepExecService.On("GetByWorkflowExecutionID", &workflowExecutionID).Return([]workflows.StepExecution{}, nil)
 	mockWorkflowExecService.On("UpdateStatus", mock.Anything, &workflowExecutionID, "in_progress").Return(nil)
 
 	// Mock assignment service

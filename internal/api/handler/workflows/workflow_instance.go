@@ -37,13 +37,15 @@ type CreateWorkflowInstanceRequest struct {
 	SystemSecurityPlanID string     `json:"system-id" validate:"required"`
 	Cadence              string     `json:"cadence"`
 	IsActive             *bool      `json:"is-active"`
+	GracePeriodDays      *int       `json:"grace-period-days"`
 }
 
 type UpdateWorkflowInstanceRequest struct {
-	Name        *string `json:"name"`
-	Description *string `json:"description"`
-	Cadence     *string `json:"cadence"`
-	IsActive    *bool   `json:"is-active"`
+	Name            *string `json:"name"`
+	Description     *string `json:"description"`
+	Cadence         *string `json:"cadence"`
+	IsActive        *bool   `json:"is-active"`
+	GracePeriodDays *int    `json:"grace-period-days"`
 }
 
 type WorkflowInstanceResponse struct {
@@ -85,6 +87,7 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 		SystemSecurityPlanID: &systemId,
 		Cadence:              req.Cadence,
 		IsActive:             true, // Default to active
+		GracePeriodDays:      req.GracePeriodDays,
 	}
 
 	if req.IsActive != nil {
@@ -230,6 +233,9 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 	}
 	if req.IsActive != nil {
 		instance.IsActive = *req.IsActive
+	}
+	if req.GracePeriodDays != nil {
+		instance.GracePeriodDays = req.GracePeriodDays
 	}
 
 	if err := h.service.Update(id, instance); err != nil {

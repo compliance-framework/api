@@ -38,6 +38,7 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 			Version:          "1.0",
 			SuggestedCadence: "quarterly",
 			EvidenceRequired: `["vulnerability_scan", "penetration_test"]`,
+			GracePeriodDays:  intPtr(10),
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -61,6 +62,8 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 		assert.Equal(t, "Quarterly security assessment process", response.Data.Description)
 		assert.Equal(t, "1.0", response.Data.Version)
 		assert.Equal(t, "quarterly", response.Data.SuggestedCadence)
+		require.NotNil(t, response.Data.GracePeriodDays)
+		assert.Equal(t, 10, *response.Data.GracePeriodDays)
 	})
 
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
@@ -91,6 +94,7 @@ func TestWorkflowDefinitionHandler_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+
 }
 
 func TestWorkflowDefinitionHandler_List(t *testing.T) {
@@ -201,9 +205,11 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		newName := "Updated Name"
 		newDescription := "Updated description"
+		newGrace := 14
 		reqBody := UpdateWorkflowDefinitionRequest{
-			Name:        &newName,
-			Description: &newDescription,
+			Name:            &newName,
+			Description:     &newDescription,
+			GracePeriodDays: &newGrace,
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -226,6 +232,8 @@ func TestWorkflowDefinitionHandler_Update(t *testing.T) {
 		assert.Equal(t, "Updated Name", response.Data.Name)
 		assert.Equal(t, "Updated description", response.Data.Description)
 		assert.Equal(t, "1.0", response.Data.Version) // Unchanged
+		require.NotNil(t, response.Data.GracePeriodDays)
+		assert.Equal(t, 14, *response.Data.GracePeriodDays)
 	})
 
 	t.Run("PartialUpdate", func(t *testing.T) {
