@@ -206,3 +206,29 @@ func TestOverdueService_CheckFailedExecutions(t *testing.T) {
 	assert.Equal(t, "overdue - grace period expired", stepAfter.FailureReason)
 	require.NotNil(t, stepAfter.FailedAt)
 }
+
+func TestOverdueService_CheckOverdueSteps_DoesNotMarkBlockedSteps(t *testing.T) {
+	db := setupOverdueTestDB(t)
+	_, _, _, step := createOverdueFixture(t, db)
+
+	pastDue := time.Now().Add(-24 * time.Hour)
+	require.NoError(t, db.Model(&workflows.StepExecution{}).
+		Where("id = ?", step.ID).
+		Updates(map[string]interface{}{
+			"status":   workflows.StepStatusBlocked.String(),
+			"due_date": pastDue,
+		}).Error)
+
+	workflowExecSvc := workflows.NewWorkflowExecutionService(db)
+	stepExecSvc := workflows.NewStepExecutionService(db, nil)
+	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 7)
+
+	updatedSteps, err := svc.CheckOverdueSteps(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, updatedSteps)
+
+	var stepAfter workflows.StepExecution
+	require.NoError(t, db.First(&stepAfter, step.ID).Error)
+	assert.Equal(t, workflows.StepStatusBlocked.String(), stepAfter.Status)
+	assert.Nil(t, stepAfter.OverdueAt)
+}

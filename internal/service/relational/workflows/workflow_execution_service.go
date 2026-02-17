@@ -25,6 +25,7 @@ type WorkflowExecutionService struct {
 }
 
 var ErrInvalidWorkflowExecutionStatusTransition = errors.New("invalid workflow execution status transition")
+var ErrWorkflowExecutionStatusTransitionConflict = errors.New("workflow execution status transition conflict")
 
 // NewWorkflowExecutionService creates a new WorkflowExecutionService
 func NewWorkflowExecutionService(db *gorm.DB) *WorkflowExecutionService {
@@ -144,10 +145,9 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 	now := time.Now()
 	switch status {
 	case "in_progress":
-		// Add workflow execution started evidence when transitioning to in_progress (while still pending)
+		// Keep behavior: create started evidence while execution is still pending.
 		if s.evidenceCreator != nil {
 			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "started"); err != nil {
-				// Log error but don't fail the status update
 				s.logger.Warnw("Failed to create workflow execution started evidence",
 					"workflow_execution_id", id,
 					"error", err)
@@ -155,22 +155,40 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 		}
 		updates["started_at"] = now
 	case "completed":
-		updates["completed_at"] = now
+		// Keep behavior: create completed evidence prior to status update.
 		if s.evidenceCreator != nil {
 			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "completed"); err != nil {
-				// Log error but don't fail the status update
 				s.logger.Warnw("Failed to create workflow execution completed evidence",
 					"workflow_execution_id", id,
 					"error", err)
 			}
 		}
+		updates["completed_at"] = now
 	case "overdue":
 		updates["overdue_at"] = now
 	case "failed":
 		updates["failed_at"] = now
 	}
 
-	return s.base.UpdateStatus(&WorkflowExecution{}, id, status, "status", updates)
+	result := s.db.WithContext(ctx).
+		Model(&WorkflowExecution{}).
+		Where("id = ? AND status = ?", id, current.Status).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		var latest WorkflowExecution
+		if err := s.db.WithContext(ctx).Select("status").First(&latest, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if !isValidExecutionStatusTransition(latest.Status, status) {
+			return fmt.Errorf("%w: %s -> %s", ErrInvalidWorkflowExecutionStatusTransition, latest.Status, status)
+		}
+		return fmt.Errorf("%w: %s -> %s", ErrWorkflowExecutionStatusTransitionConflict, current.Status, status)
+	}
+
+	return nil
 }
 
 func isValidExecutionStatusTransition(current, next string) bool {

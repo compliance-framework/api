@@ -206,9 +206,11 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 			WorkflowStepDefinitionID: stepDef.ID,
 			Status:                   initialStatus,
 		}
-		graceDays := resolveStepGraceDays(workflowExecution, stepDef)
-		dueDate := executionStart.AddDate(0, 0, graceDays)
-		stepExecution.DueDate = &dueDate
+		if initialStatus != StatusBlocked.String() {
+			graceDays := resolveStepGraceDays(workflowExecution, stepDef)
+			dueDate := executionStart.AddDate(0, 0, graceDays)
+			stepExecution.DueDate = &dueDate
+		}
 
 		// Apply assignment if resolved
 		if assignee, ok := assignments[*stepDef.ID]; ok {

@@ -428,6 +428,38 @@ func TestStepExecutionService_Unblock(t *testing.T) {
 	assert.Equal(t, "pending", unblocked.Status)
 }
 
+func TestStepExecutionService_UnblockSetsDueDateWhenMissing(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewStepExecutionService(db, nil)
+
+	workflowDef := createTestWorkflowDefinition()
+	require.NoError(t, db.Create(workflowDef).Error)
+
+	instance := createTestWorkflowInstance(workflowDef.ID)
+	require.NoError(t, db.Create(instance).Error)
+
+	execution := createTestWorkflowExecution(instance.ID)
+	require.NoError(t, db.Create(execution).Error)
+
+	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
+	zero := 0
+	stepDef.GracePeriodDays = &zero
+	require.NoError(t, db.Create(stepDef).Error)
+
+	stepExecution := createTestStepExecution(execution.ID, stepDef.ID)
+	stepExecution.Status = StepStatusBlocked.String()
+	stepExecution.DueDate = nil
+	require.NoError(t, db.Create(stepExecution).Error)
+
+	err := service.Unblock(stepExecution.ID)
+	require.NoError(t, err)
+
+	var updated StepExecution
+	require.NoError(t, db.First(&updated, stepExecution.ID).Error)
+	assert.Equal(t, StepStatusPending.String(), updated.Status)
+	require.NotNil(t, updated.DueDate)
+}
+
 // TestStepExecutionService_AssignTo tests the AssignTo method
 func TestStepExecutionService_AssignTo(t *testing.T) {
 	db := setupTestDB(t)

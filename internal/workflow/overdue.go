@@ -71,7 +71,6 @@ func (s *OverdueService) CheckOverdueSteps(ctx context.Context) (int, error) {
 	if err := s.db.WithContext(ctx).
 		Where("status IN ? AND due_date IS NOT NULL AND due_date < ?", []string{
 			workflows.StepStatusPending.String(),
-			workflows.StepStatusBlocked.String(),
 			workflows.StepStatusInProgress.String(),
 		}, now).
 		Find(&steps).Error; err != nil {
@@ -141,17 +140,23 @@ func (s *OverdueService) resolveExecutionGraceDays(execution *workflows.Workflow
 func (s *OverdueService) failExecutionAndSteps(ctx context.Context, execution *workflows.WorkflowExecution) error {
 	now := time.Now()
 	failureReason := "overdue - grace period expired"
+	executionFailed := false
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&workflows.WorkflowExecution{}).
+		execResult := tx.Model(&workflows.WorkflowExecution{}).
 			Where("id = ? AND status = ?", execution.ID, workflows.WorkflowStatusOverdue.String()).
 			Updates(map[string]interface{}{
 				"status":         workflows.WorkflowStatusFailed.String(),
 				"failed_at":      now,
 				"failure_reason": failureReason,
-			}).Error; err != nil {
-			return err
+			})
+		if execResult.Error != nil {
+			return execResult.Error
 		}
+		if execResult.RowsAffected == 0 {
+			return nil
+		}
+		executionFailed = true
 
 		if err := tx.Model(&workflows.StepExecution{}).
 			Where("workflow_execution_id = ? AND status IN ?", execution.ID, []string{
@@ -171,6 +176,9 @@ func (s *OverdueService) failExecutionAndSteps(ctx context.Context, execution *w
 		return nil
 	}); err != nil {
 		return err
+	}
+	if !executionFailed {
+		return nil
 	}
 
 	if s.evidenceIntegration != nil {
