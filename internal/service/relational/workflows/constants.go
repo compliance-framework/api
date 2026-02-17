@@ -107,6 +107,7 @@ type WorkflowExecutionStatus string
 const (
 	WorkflowStatusPending    WorkflowExecutionStatus = "pending"
 	WorkflowStatusInProgress WorkflowExecutionStatus = "in_progress"
+	WorkflowStatusOverdue    WorkflowExecutionStatus = "overdue"
 	WorkflowStatusCompleted  WorkflowExecutionStatus = "completed"
 	WorkflowStatusFailed     WorkflowExecutionStatus = "failed"
 	WorkflowStatusCancelled  WorkflowExecutionStatus = "cancelled"
@@ -115,7 +116,7 @@ const (
 // IsValid checks if the workflow execution status is valid
 func (w WorkflowExecutionStatus) IsValid() bool {
 	switch w {
-	case WorkflowStatusPending, WorkflowStatusInProgress, WorkflowStatusCompleted, WorkflowStatusFailed, WorkflowStatusCancelled:
+	case WorkflowStatusPending, WorkflowStatusInProgress, WorkflowStatusOverdue, WorkflowStatusCompleted, WorkflowStatusFailed, WorkflowStatusCancelled:
 		return true
 	}
 	return false
@@ -137,6 +138,7 @@ const (
 	StepStatusPending    StepExecutionStatus = "pending"
 	StepStatusBlocked    StepExecutionStatus = "blocked"
 	StepStatusInProgress StepExecutionStatus = "in_progress"
+	StepStatusOverdue    StepExecutionStatus = "overdue"
 	StepStatusCompleted  StepExecutionStatus = "completed"
 	StepStatusFailed     StepExecutionStatus = "failed"
 	StepStatusSkipped    StepExecutionStatus = "skipped"
@@ -145,7 +147,7 @@ const (
 // IsValid checks if the step execution status is valid
 func (s StepExecutionStatus) IsValid() bool {
 	switch s {
-	case StepStatusPending, StepStatusBlocked, StepStatusInProgress, StepStatusCompleted, StepStatusFailed, StepStatusSkipped:
+	case StepStatusPending, StepStatusBlocked, StepStatusInProgress, StepStatusOverdue, StepStatusCompleted, StepStatusFailed, StepStatusSkipped:
 		return true
 	}
 	return false

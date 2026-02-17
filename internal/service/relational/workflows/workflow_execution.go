@@ -18,6 +18,7 @@ type WorkflowExecution struct {
 	// Execution Information
 	Status        string     `gorm:"size:50;index:idx_workflow_exec_instance_status,priority:2;index:idx_workflow_exec_status_created" json:"status"` // pending, in_progress, completed, failed, cancelled
 	StartedAt     *time.Time `json:"started-at,omitempty"`
+	OverdueAt     *time.Time `json:"overdue-at,omitempty"`
 	CompletedAt   *time.Time `json:"completed-at,omitempty"`
 	FailedAt      *time.Time `json:"failed-at,omitempty"`
 	FailureReason string     `gorm:"type:text" json:"failure_reason,omitempty"`
@@ -57,6 +58,8 @@ type StepExecution struct {
 	// Execution Information
 	Status        string     `gorm:"size:50;index:idx_step_exec_workflow_status,priority:2;index:idx_step_exec_step_status,priority:2" json:"status"` // pending, blocked, in_progress, completed, failed, skipped
 	StartedAt     *time.Time `json:"started-at,omitempty"`
+	OverdueAt     *time.Time `json:"overdue-at,omitempty"`
+	DueDate       *time.Time `gorm:"index" json:"due_date,omitempty"`
 	CompletedAt   *time.Time `json:"completed-at,omitempty"`
 	FailedAt      *time.Time `json:"failed-at,omitempty"`
 	FailureReason string     `gorm:"type:text" json:"failure_reason,omitempty"`
@@ -67,8 +70,8 @@ type StepExecution struct {
 	AssignedAt     *time.Time `json:"assigned-at,omitempty"`
 
 	// Foreign Keys
-	WorkflowExecutionID      *uuid.UUID `gorm:"not null;index;index:idx_step_exec_workflow_status,priority:1" json:"workflow_execution_id"`
-	WorkflowStepDefinitionID *uuid.UUID `gorm:"not null;index;index:idx_step_exec_step_status,priority:1" json:"workflow_step_definition_id"`
+	WorkflowExecutionID      *uuid.UUID `gorm:"not null;index;index:idx_step_exec_workflow_status,priority:1;uniqueIndex:uidx_step_exec_workflow_step,priority:1" json:"workflow_execution_id"`
+	WorkflowStepDefinitionID *uuid.UUID `gorm:"not null;index;index:idx_step_exec_step_status,priority:1;uniqueIndex:uidx_step_exec_workflow_step,priority:2" json:"workflow_step_definition_id"`
 
 	// Relationships
 	WorkflowExecution      *WorkflowExecution        `gorm:"foreignKey:WorkflowExecutionID" json:"workflow_execution,omitempty"`

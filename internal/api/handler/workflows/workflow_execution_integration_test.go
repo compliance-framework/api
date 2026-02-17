@@ -295,6 +295,12 @@ func TestWorkflowExecutionHandler_ReassignRole(t *testing.T) {
 		ResponsibleRole:      "it-ops",
 	}
 	require.NoError(t, db.Create(stepDefTarget).Error)
+	stepDefTargetCompleted := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Target Step Completed",
+		ResponsibleRole:      "it-ops",
+	}
+	require.NoError(t, db.Create(stepDefTargetCompleted).Error)
 
 	stepDefOther := &workflows.WorkflowStepDefinition{
 		WorkflowDefinitionID: workflowDef.ID,
@@ -314,7 +320,7 @@ func TestWorkflowExecutionHandler_ReassignRole(t *testing.T) {
 
 	ineligibleStep := &workflows.StepExecution{
 		WorkflowExecutionID:      execution.ID,
-		WorkflowStepDefinitionID: stepDefTarget.ID,
+		WorkflowStepDefinitionID: stepDefTargetCompleted.ID,
 		Status:                   "completed",
 		AssignedToType:           "group",
 		AssignedToID:             "old-completed",

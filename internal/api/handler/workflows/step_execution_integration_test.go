@@ -307,6 +307,43 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		require.NotNil(t, response.Data)
 		assert.Equal(t, "completed", response.Data.Status)
 	})
+
+	t.Run("OverdueToInProgressReturnsBadRequest", func(t *testing.T) {
+		overdueStepDef := &workflows.WorkflowStepDefinition{
+			WorkflowDefinitionID: workflowDef.ID,
+			Name:                 "Overdue Step",
+			ResponsibleRole:      "engineer",
+			EvidenceRequired:     []workflows.EvidenceRequirement{},
+		}
+		require.NoError(t, db.Create(overdueStepDef).Error)
+
+		overdueStep := &workflows.StepExecution{
+			WorkflowExecutionID:      execution.ID,
+			WorkflowStepDefinitionID: overdueStepDef.ID,
+			Status:                   workflows.StepStatusOverdue.String(),
+		}
+		require.NoError(t, db.Create(overdueStep).Error)
+
+		reqBody := TransitionStepRequest{
+			Status:   "in_progress",
+			UserID:   "test-user",
+			UserType: "user",
+		}
+
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPut, "/workflows/step-executions/"+overdueStep.ID.String()+"/transition", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetParamNames("id")
+		c.SetParamValues(overdueStep.ID.String())
+
+		err = handler.TransitionStep(c)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
 }
 
 func TestStepExecutionHandler_GetEvidenceRequirements(t *testing.T) {
@@ -519,6 +556,18 @@ func TestStepExecutionHandler_ListMy(t *testing.T) {
 		ResponsibleRole:      "reviewer",
 	}
 	require.NoError(t, db.Create(stepDef2).Error)
+	stepDef3 := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Step 3",
+		ResponsibleRole:      "engineer",
+	}
+	require.NoError(t, db.Create(stepDef3).Error)
+	stepDef4 := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: workflowDef.ID,
+		Name:                 "Step 4",
+		ResponsibleRole:      "engineer",
+	}
+	require.NoError(t, db.Create(stepDef4).Error)
 
 	// Create step executions assigned to test user 1 (by user ID)
 	assignedAt := time.Now()
@@ -534,7 +583,7 @@ func TestStepExecutionHandler_ListMy(t *testing.T) {
 
 	stepExec2 := &workflows.StepExecution{
 		WorkflowExecutionID:      execution.ID,
-		WorkflowStepDefinitionID: stepDef.ID,
+		WorkflowStepDefinitionID: stepDef3.ID,
 		Status:                   "in_progress",
 		AssignedToType:           "user",
 		AssignedToID:             testUser1.ID.String(),
@@ -556,7 +605,7 @@ func TestStepExecutionHandler_ListMy(t *testing.T) {
 	// Create step execution assigned to different user
 	stepExec4 := &workflows.StepExecution{
 		WorkflowExecutionID:      execution.ID,
-		WorkflowStepDefinitionID: stepDef.ID,
+		WorkflowStepDefinitionID: stepDef4.ID,
 		Status:                   "pending",
 		AssignedToType:           "user",
 		AssignedToID:             testUser2.ID.String(),

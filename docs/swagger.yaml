@@ -6332,6 +6332,8 @@ definitions:
         type: string
       inProgressSteps:
         type: integer
+      overdueSteps:
+        type: integer
       pendingSteps:
         type: integer
       startedAt:
@@ -6458,6 +6460,8 @@ definitions:
         type: string
       evidence-required:
         type: string
+      grace-period-days:
+        type: integer
       name:
         type: string
       suggested-cadence:
@@ -6473,6 +6477,8 @@ definitions:
         type: string
       description:
         type: string
+      grace-period-days:
+        type: integer
       is-active:
         type: boolean
       name:
@@ -6501,6 +6507,8 @@ definitions:
         items:
           $ref: '#/definitions/workflows.EvidenceRequirement'
         type: array
+      grace-period-days:
+        type: integer
       name:
         type: string
       responsible-role:
@@ -6697,11 +6705,15 @@ definitions:
         type: string
       deleted_at:
         $ref: '#/definitions/gorm.DeletedAt'
+      due_date:
+        type: string
       failed-at:
         type: string
       failure_reason:
         type: string
       id:
+        type: string
+      overdue-at:
         type: string
       reassignment_history:
         items:
@@ -6840,6 +6852,8 @@ definitions:
         type: string
       evidence-required:
         type: string
+      grace-period-days:
+        type: integer
       name:
         type: string
       suggested-cadence:
@@ -6853,6 +6867,8 @@ definitions:
         type: string
       description:
         type: string
+      grace-period-days:
+        type: integer
       is-active:
         type: boolean
       name:
@@ -6872,6 +6888,8 @@ definitions:
         items:
           $ref: '#/definitions/workflows.EvidenceRequirement'
         type: array
+      grace-period-days:
+        type: integer
       name:
         type: string
       responsible-role:
@@ -6895,7 +6913,7 @@ definitions:
       evidence_required:
         description: JSON array of required evidence types
         type: string
-      grace_period_days:
+      grace-period-days:
         description: Override global default if set
         type: integer
       id:
@@ -6952,6 +6970,8 @@ definitions:
       failure_reason:
         type: string
       id:
+        type: string
+      overdue-at:
         type: string
       period_label:
         description: Scheduling Context
@@ -7023,7 +7043,7 @@ definitions:
         items:
           $ref: '#/definitions/workflows.WorkflowExecution'
         type: array
-      grace_period_days:
+      grace-period-days:
         description: Override definition/global default if set
         type: integer
       id:
@@ -7094,6 +7114,9 @@ definitions:
         items:
           $ref: '#/definitions/workflows.EvidenceRequirement'
         type: array
+      grace-period-days:
+        description: Override default grace for this specific step
+        type: integer
       id:
         type: string
       name:

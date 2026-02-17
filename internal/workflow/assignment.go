@@ -221,7 +221,8 @@ func (s *AssignmentService) BulkReassignByRole(
 func isReassignableStatus(status string) bool {
 	return status == workflows.StepStatusPending.String() ||
 		status == workflows.StepStatusBlocked.String() ||
-		status == workflows.StepStatusInProgress.String()
+		status == workflows.StepStatusInProgress.String() ||
+		status == workflows.StepStatusOverdue.String()
 }
 
 func (s *AssignmentService) validateAssignee(assignee Assignee) error {

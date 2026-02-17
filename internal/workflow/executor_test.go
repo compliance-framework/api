@@ -359,6 +359,7 @@ func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepDefService.On("GetByWorkflowDefinitionID", &workflowDefID).Return(stepDefinitions, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID1).Return([]workflows.WorkflowStepDefinition{}, nil)
 	mockStepDefService.On("GetDependencies", &stepDefID2).Return([]workflows.WorkflowStepDefinition{workflows.WorkflowStepDefinition{UUIDModel: relational.UUIDModel{ID: &stepDefID1}}}, nil)
+	mockStepExecService.On("GetByWorkflowExecutionID", &workflowExecutionID).Return([]workflows.StepExecution{}, nil)
 	mockWorkflowExecService.On("UpdateStatus", mock.Anything, &workflowExecutionID, "in_progress").Return(nil)
 
 	// Mock assignment service

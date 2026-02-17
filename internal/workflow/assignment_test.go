@@ -274,6 +274,31 @@ func TestReassignStep_RejectsInvalidStatus(t *testing.T) {
 	}
 }
 
+func TestReassignStep_AllowsOverdueStatus(t *testing.T) {
+	db := setupAssignmentServiceTestDB(t)
+	roleService := new(MockRoleAssignmentService)
+	service := NewAssignmentService(roleService, db)
+
+	_, _, stepExec := createAssignmentServiceGraph(t, db)
+	stepExec.Status = workflows.StepStatusOverdue.String()
+	require.NoError(t, db.Save(stepExec).Error)
+
+	err := service.ReassignStep(
+		context.Background(),
+		*stepExec.ID,
+		Assignee{Type: "group", ID: "new-group"},
+		"",
+		nil,
+		"actor@example.com",
+	)
+	require.NoError(t, err)
+
+	var updated workflows.StepExecution
+	require.NoError(t, db.First(&updated, stepExec.ID).Error)
+	assert.Equal(t, "group", updated.AssignedToType)
+	assert.Equal(t, "new-group", updated.AssignedToID)
+}
+
 func TestReassignStep_RejectsInvalidAssigneeAndMissingUser(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)

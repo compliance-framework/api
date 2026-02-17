@@ -19,6 +19,10 @@ import (
 	"gorm.io/gorm"
 )
 
+func intPtr(v int) *int {
+	return &v
+}
+
 func setupStepTestHandler(t *testing.T) (*WorkflowStepDefinitionHandler, *gorm.DB) {
 	db := setupTestDB(t)
 	logger := zap.NewNop().Sugar()
@@ -45,6 +49,7 @@ func TestWorkflowStepDefinitionHandler_Create(t *testing.T) {
 			Name:                 "Security Review",
 			Description:          "Conduct security review",
 			ResponsibleRole:      "security_engineer",
+			GracePeriodDays:      intPtr(5),
 			EvidenceRequired: []workflows.EvidenceRequirement{
 				{
 					Type:        "document",
@@ -75,6 +80,8 @@ func TestWorkflowStepDefinitionHandler_Create(t *testing.T) {
 		assert.Equal(t, "Security Review", response.Data.Name)
 		assert.Equal(t, "security_engineer", response.Data.ResponsibleRole)
 		assert.Equal(t, 120, response.Data.EstimatedDuration)
+		require.NotNil(t, response.Data.GracePeriodDays)
+		assert.Equal(t, 5, *response.Data.GracePeriodDays)
 	})
 
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
@@ -273,9 +280,11 @@ func TestWorkflowStepDefinitionHandler_Update(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		newName := "Updated Name"
 		newDuration := 90
+		newGracePeriod := 3
 		reqBody := UpdateWorkflowStepDefinitionRequest{
 			Name:              &newName,
 			EstimatedDuration: &newDuration,
+			GracePeriodDays:   &newGracePeriod,
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -297,6 +306,8 @@ func TestWorkflowStepDefinitionHandler_Update(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Name", response.Data.Name)
 		assert.Equal(t, 90, response.Data.EstimatedDuration)
+		require.NotNil(t, response.Data.GracePeriodDays)
+		assert.Equal(t, 3, *response.Data.GracePeriodDays)
 		assert.Equal(t, "engineer", response.Data.ResponsibleRole) // Unchanged
 	})
 

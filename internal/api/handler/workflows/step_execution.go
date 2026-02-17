@@ -306,6 +306,9 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 		if isNotFoundError(err) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
+		if errors.Is(err, workflow.ErrInvalidStepTransition) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
 		// Check if it's a permission error
 		if isPermissionError(err) {
 			return ctx.JSON(http.StatusForbidden, api.NewError(err))
@@ -420,7 +423,7 @@ func (h *StepExecutionHandler) Fail(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
-	if err := h.service.Fail(id, req.Reason); err != nil {
+	if err := h.transitionService.FailStep(ctx.Request().Context(), id, req.Reason); err != nil {
 		return h.HandleServiceError(ctx, err, "fail", "step execution")
 	}
 

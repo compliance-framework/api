@@ -29157,6 +29157,9 @@
                 "inProgressSteps": {
                     "type": "integer"
                 },
+                "overdueSteps": {
+                    "type": "integer"
+                },
                 "pendingSteps": {
                     "type": "integer"
                 },
@@ -29349,6 +29352,9 @@
                 "evidence-required": {
                     "type": "string"
                 },
+                "grace-period-days": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -29373,6 +29379,9 @@
                 },
                 "description": {
                     "type": "string"
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "is-active": {
                     "type": "boolean"
@@ -29414,6 +29423,9 @@
                     "items": {
                         "$ref": "#/definitions/workflows.EvidenceRequirement"
                     }
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
@@ -29705,6 +29717,9 @@
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
+                "due_date": {
+                    "type": "string"
+                },
                 "failed-at": {
                     "type": "string"
                 },
@@ -29712,6 +29727,9 @@
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "overdue-at": {
                     "type": "string"
                 },
                 "reassignment_history": {
@@ -29923,6 +29941,9 @@
                 "evidence-required": {
                     "type": "string"
                 },
+                "grace-period-days": {
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -29942,6 +29963,9 @@
                 },
                 "description": {
                     "type": "string"
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "is-active": {
                     "type": "boolean"
@@ -29971,6 +29995,9 @@
                     "items": {
                         "$ref": "#/definitions/workflows.EvidenceRequirement"
                     }
+                },
+                "grace-period-days": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
@@ -30006,7 +30033,7 @@
                     "description": "JSON array of required evidence types",
                     "type": "string"
                 },
-                "grace_period_days": {
+                "grace-period-days": {
                     "description": "Override global default if set",
                     "type": "integer"
                 },
@@ -30090,6 +30117,9 @@
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "overdue-at": {
                     "type": "string"
                 },
                 "period_label": {
@@ -30198,7 +30228,7 @@
                         "$ref": "#/definitions/workflows.WorkflowExecution"
                     }
                 },
-                "grace_period_days": {
+                "grace-period-days": {
                     "description": "Override definition/global default if set",
                     "type": "integer"
                 },
@@ -30304,6 +30334,10 @@
                     "items": {
                         "$ref": "#/definitions/workflows.EvidenceRequirement"
                     }
+                },
+                "grace-period-days": {
+                    "description": "Override default grace for this specific step",
+                    "type": "integer"
                 },
                 "id": {
                     "type": "string"

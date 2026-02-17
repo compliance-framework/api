@@ -170,13 +170,24 @@ func NewServiceWithDigest(
 
 	// Determine grace period days for the workflow scheduler, with safe defaults.
 	gracePeriodDays := config.DefaultWorkflowConfig().GracePeriodDays
+	overdueCheckEnabled := config.DefaultWorkflowConfig().OverdueCheckEnabled
 	if digestCfg != nil && digestCfg.Workflow != nil {
 		gracePeriodDays = digestCfg.Workflow.GracePeriodDays
+		overdueCheckEnabled = digestCfg.Workflow.OverdueCheckEnabled
 	}
 
 	schedulerWorker := workflow.NewWorkflowSchedulerWorker(
 		workflowManager,
 		workflowInstService,
+		workflow.NewOverdueService(
+			db,
+			workflowExecService,
+			stepExecService,
+			evidenceIntegration,
+			logger,
+			gracePeriodDays,
+		),
+		overdueCheckEnabled,
 		logger,
 		gracePeriodDays,
 	)

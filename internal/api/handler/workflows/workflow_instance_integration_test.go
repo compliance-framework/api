@@ -47,6 +47,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 			Description:          "Security assessment for production environment",
 			SystemSecurityPlanID: sysId.String(),
 			Cadence:              "quarterly",
+			GracePeriodDays:      intPtr(21),
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -70,6 +71,8 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		assert.Equal(t, sysId, *response.Data.SystemSecurityPlanID)
 		assert.Equal(t, "quarterly", response.Data.Cadence)
 		assert.True(t, response.Data.IsActive)
+		require.NotNil(t, response.Data.GracePeriodDays)
+		assert.Equal(t, 21, *response.Data.GracePeriodDays)
 	})
 
 	t.Run("ValidationError_MissingName", func(t *testing.T) {
@@ -117,6 +120,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, response.Data)
 	})
+
 }
 
 func TestWorkflowInstanceHandler_List(t *testing.T) {
@@ -295,9 +299,11 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		newName := "Updated Name"
 		newCadence := "quarterly"
+		newGrace := 7
 		reqBody := UpdateWorkflowInstanceRequest{
-			Name:    &newName,
-			Cadence: &newCadence,
+			Name:            &newName,
+			Cadence:         &newCadence,
+			GracePeriodDays: &newGrace,
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -320,6 +326,10 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 		assert.Equal(t, "Updated Name", response.Data.Name)
 		assert.Equal(t, "quarterly", response.Data.Cadence)
 		assert.Equal(t, sspID, *response.Data.SystemSecurityPlanID) // Unchanged
+		var updated workflows.WorkflowInstance
+		require.NoError(t, db.First(&updated, "id = ?", instance.ID).Error)
+		require.NotNil(t, updated.GracePeriodDays)
+		assert.Equal(t, 7, *updated.GracePeriodDays)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

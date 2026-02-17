@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -506,6 +507,135 @@ func (e *EvidenceIntegration) AddExecutionCompletionEvidence(ctx context.Context
 	)
 
 	return nil
+}
+
+// AddExecutionFailureEvidence adds workflow execution failure evidence to both execution and instance streams.
+func (e *EvidenceIntegration) AddExecutionFailureEvidence(ctx context.Context, workflowExecutionID *uuid.UUID) error {
+	execution, err := e.workflowExecutionSvc.GetByID(workflowExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get workflow execution: %w", err)
+	}
+	if execution.Status != workflows.WorkflowStatusFailed.String() {
+		return fmt.Errorf("workflow execution is not failed, status: %s", execution.Status)
+	}
+
+	stepExecutions, err := e.stepExecutionSvc.GetByWorkflowExecutionID(workflowExecutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get step executions: %w", err)
+	}
+
+	completedCount := 0
+	failedCount := 0
+	overdueCount := 0
+	unresolvedAssignees := make(map[string]struct{})
+	for _, step := range stepExecutions {
+		switch step.Status {
+		case workflows.StepStatusCompleted.String():
+			completedCount++
+		case workflows.StepStatusOverdue.String():
+			overdueCount++
+		case workflows.StepStatusFailed.String():
+			failedCount++
+		}
+
+		if step.Status != workflows.StepStatusCompleted.String() {
+			key := step.AssignedToType + ":" + step.AssignedToID
+			if step.AssignedToID != "" {
+				unresolvedAssignees[key] = struct{}{}
+			}
+		}
+	}
+
+	assignees := make([]string, 0, len(unresolvedAssignees))
+	for key := range unresolvedAssignees {
+		assignees = append(assignees, key)
+	}
+
+	description := fmt.Sprintf(
+		"Workflow Execution Failed\nExecution ID: %s\nStarted: %s\nFailed: %s\nCompleted Steps: %d\nFailed Steps: %d\nOverdue Steps: %d\nUnresolved Assignees: %s",
+		execution.ID,
+		formatOptionalTime(execution.StartedAt),
+		formatOptionalTime(execution.FailedAt),
+		completedCount,
+		failedCount,
+		overdueCount,
+		strings.Join(assignees, ","),
+	)
+
+	if err := e.addFailureEvidenceToStream(ctx, execution, description, completedCount, failedCount, overdueCount, assignees, true); err != nil {
+		return err
+	}
+	if err := e.addFailureEvidenceToStream(ctx, execution, description, completedCount, failedCount, overdueCount, assignees, false); err != nil {
+		return err
+	}
+
+	e.logger.Infow("Execution failure evidence added",
+		"workflow_execution_id", workflowExecutionID,
+		"failed_steps", failedCount,
+		"overdue_steps", overdueCount,
+	)
+	return nil
+}
+
+func (e *EvidenceIntegration) addFailureEvidenceToStream(
+	ctx context.Context,
+	execution *workflows.WorkflowExecution,
+	description string,
+	completedCount int,
+	failedCount int,
+	overdueCount int,
+	unresolvedAssignees []string,
+	executionStream bool,
+) error {
+	var stream *relational.Evidence
+	var err error
+	if executionStream {
+		stream, err = e.GetOrCreateExecutionStream(ctx, execution.ID)
+	} else {
+		stream, err = e.GetOrCreateInstanceStream(ctx, execution.WorkflowInstanceID)
+	}
+	if err != nil {
+		return err
+	}
+
+	evidence := &relational.Evidence{
+		UUID:        stream.UUID,
+		Title:       "Workflow Execution Failed",
+		Description: description,
+		Start:       nowOrValue(execution.StartedAt),
+		End:         nowOrValue(execution.FailedAt),
+	}
+	id := uuid.New()
+	evidence.ID = &id
+	if err := e.db.Create(evidence).Error; err != nil {
+		return err
+	}
+
+	labels := []relational.Labels{
+		{Name: "workflow.execution.id", Value: execution.ID.String()},
+		{Name: "workflow.execution.status", Value: execution.Status},
+		{Name: "evidence.type", Value: "execution_failure"},
+		{Name: "workflow.failed_steps", Value: fmt.Sprintf("%d", failedCount)},
+		{Name: "workflow.overdue_steps", Value: fmt.Sprintf("%d", overdueCount)},
+		{Name: "workflow.completed_steps", Value: fmt.Sprintf("%d", completedCount)},
+		{Name: "workflow.unresolved_assignees", Value: strings.Join(unresolvedAssignees, ",")},
+	}
+
+	return e.db.Model(evidence).Association("Labels").Append(labels)
+}
+
+func formatOptionalTime(ts *time.Time) string {
+	if ts == nil {
+		return "unknown"
+	}
+	return ts.Format(time.RFC3339)
+}
+
+func nowOrValue(ts *time.Time) time.Time {
+	if ts == nil {
+		return time.Now()
+	}
+	return *ts
 }
 
 // generateExecutionStreamUUID generates a deterministic UUID for an execution stream based on labels

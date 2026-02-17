@@ -89,6 +89,14 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 		return err
 	}
 
+	var current StepExecution
+	if err := s.db.WithContext(ctx).Select("status").First(&current, "id = ?", id).Error; err != nil {
+		return err
+	}
+	if !isValidStepStatusTransition(current.Status, status) {
+		return errors.New("invalid step execution status transition")
+	}
+
 	updates := map[string]interface{}{"status": status}
 	now := time.Now()
 	switch status {
@@ -105,11 +113,50 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 		}
 	case "completed":
 		updates["completed_at"] = now
+	case "overdue":
+		updates["overdue_at"] = now
 	case "failed":
 		updates["failed_at"] = now
 	}
 
 	return s.base.UpdateStatus(&StepExecution{}, id, status, "status", updates)
+}
+
+func isValidStepStatusTransition(current, next string) bool {
+	switch current {
+	case StepStatusPending.String():
+		return next == StepStatusPending.String() ||
+			next == StepStatusInProgress.String() ||
+			next == StepStatusCompleted.String() ||
+			next == StepStatusOverdue.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String() ||
+			next == "cancelled"
+	case StepStatusBlocked.String():
+		return next == StepStatusBlocked.String() ||
+			next == StepStatusPending.String() ||
+			next == StepStatusOverdue.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String() ||
+			next == "cancelled"
+	case StepStatusInProgress.String():
+		return next == StepStatusInProgress.String() ||
+			next == StepStatusCompleted.String() ||
+			next == StepStatusOverdue.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String() ||
+			next == "cancelled"
+	case StepStatusOverdue.String():
+		return next == StepStatusOverdue.String() ||
+			next == StepStatusCompleted.String() ||
+			next == StepStatusFailed.String() ||
+			next == StepStatusSkipped.String() ||
+			next == "cancelled"
+	case StepStatusCompleted.String(), StepStatusFailed.String(), StepStatusSkipped.String(), "cancelled":
+		return next == current || (current == StepStatusCompleted.String() && next == StepStatusFailed.String())
+	default:
+		return false
+	}
 }
 
 // Start marks a step execution as started
@@ -215,7 +262,7 @@ func (s *StepExecutionService) GetCompletedSteps(executionID *uuid.UUID) ([]Step
 func (s *StepExecutionService) GetAssignedSteps(assignedToType, assignedToID string) ([]StepExecution, error) {
 	var stepExecutions []StepExecution
 	err := s.db.Where("assigned_to_type = ? AND assigned_to_id = ? AND status IN ?",
-		assignedToType, assignedToID, []string{"pending", "in_progress", "blocked"}).
+		assignedToType, assignedToID, []string{"pending", "in_progress", "blocked", "overdue"}).
 		Preload("WorkflowExecution").
 		Preload("WorkflowExecution.WorkflowInstance").
 		Preload("WorkflowStepDefinition").
@@ -244,7 +291,7 @@ func (s *StepExecutionService) GetMyAssignments(userID, userEmail string, filter
 		Joins("JOIN workflow_instances ON workflow_instances.id = workflow_executions.workflow_instance_id").
 		Where("((step_executions.assigned_to_type = ? AND step_executions.assigned_to_id = ?) OR (step_executions.assigned_to_type = ? AND step_executions.assigned_to_id = ?))",
 			"user", userID, "email", userEmail).
-		Where("workflow_executions.status IN ?", []string{"pending", "in_progress"})
+		Where("workflow_executions.status IN ?", []string{"pending", "in_progress", "overdue"})
 
 	// Apply step status filter only when explicitly specified; otherwise rely on workflow execution status filter above.
 	if filter.Status != "" {

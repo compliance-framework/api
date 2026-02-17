@@ -129,6 +129,14 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 		return err
 	}
 
+	var current WorkflowExecution
+	if err := s.db.WithContext(ctx).Select("status").First(&current, "id = ?", id).Error; err != nil {
+		return err
+	}
+	if !isValidExecutionStatusTransition(current.Status, status) {
+		return errors.New("invalid workflow execution status transition")
+	}
+
 	updates := map[string]interface{}{"status": status}
 	now := time.Now()
 	switch status {
@@ -153,11 +161,39 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 					"error", err)
 			}
 		}
+	case "overdue":
+		updates["overdue_at"] = now
 	case "failed":
 		updates["failed_at"] = now
 	}
 
 	return s.base.UpdateStatus(&WorkflowExecution{}, id, status, "status", updates)
+}
+
+func isValidExecutionStatusTransition(current, next string) bool {
+	switch current {
+	case WorkflowStatusPending.String():
+		return next == WorkflowStatusPending.String() ||
+			next == WorkflowStatusInProgress.String() ||
+			next == WorkflowStatusOverdue.String() ||
+			next == WorkflowStatusCancelled.String() ||
+			next == WorkflowStatusFailed.String()
+	case WorkflowStatusInProgress.String():
+		return next == WorkflowStatusInProgress.String() ||
+			next == WorkflowStatusCompleted.String() ||
+			next == WorkflowStatusFailed.String() ||
+			next == WorkflowStatusOverdue.String() ||
+			next == WorkflowStatusCancelled.String()
+	case WorkflowStatusOverdue.String():
+		return next == WorkflowStatusOverdue.String() ||
+			next == WorkflowStatusFailed.String() ||
+			next == WorkflowStatusCompleted.String() ||
+			next == WorkflowStatusCancelled.String()
+	case WorkflowStatusCompleted.String(), WorkflowStatusFailed.String(), WorkflowStatusCancelled.String():
+		return next == current || (current == WorkflowStatusCompleted.String() && next == WorkflowStatusFailed.String())
+	default:
+		return false
+	}
 }
 
 // Start marks a workflow execution as started

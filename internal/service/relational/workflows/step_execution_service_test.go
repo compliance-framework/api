@@ -107,10 +107,12 @@ func TestStepExecutionService_GetByWorkflowExecutionID(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
 
 	// Create multiple step executions
 	stepExec1 := createTestStepExecution(execution.ID, stepDef.ID)
-	stepExec2 := createTestStepExecution(execution.ID, stepDef.ID)
+	stepExec2 := createTestStepExecution(execution.ID, stepDef2.ID)
 	require.NoError(t, db.Create(stepExec1).Error)
 	require.NoError(t, db.Create(stepExec2).Error)
 
@@ -196,6 +198,8 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
 
 	// Create a test step execution
 	stepExecution := createTestStepExecution(execution.ID, stepDef.ID)
@@ -233,6 +237,20 @@ func TestStepExecutionService_UpdateStatus(t *testing.T) {
 	err = service.UpdateStatus(context.Background(), stepExecution.ID, "invalid_status")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status")
+
+	// Test overdue -> completed transition
+	stepExecution2 := createTestStepExecution(execution.ID, stepDef2.ID)
+	require.NoError(t, db.Create(stepExecution2).Error)
+	err = service.UpdateStatus(context.Background(), stepExecution2.ID, "overdue")
+	require.NoError(t, err)
+	err = service.UpdateStatus(context.Background(), stepExecution2.ID, "completed")
+	require.NoError(t, err)
+	var updatedOverdue StepExecution
+	err = db.First(&updatedOverdue, stepExecution2.ID).Error
+	require.NoError(t, err)
+	assert.Equal(t, "completed", updatedOverdue.Status)
+	assert.NotNil(t, updatedOverdue.OverdueAt)
+	assert.NotNil(t, updatedOverdue.CompletedAt)
 }
 
 // TestStepExecutionService_Start tests the Start method
@@ -252,6 +270,10 @@ func TestStepExecutionService_Start(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
+	stepDef3 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef3).Error)
 
 	// Create a test step execution
 	stepExecution := createTestStepExecution(execution.ID, stepDef.ID)
@@ -460,11 +482,15 @@ func TestStepExecutionService_GetPendingSteps(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
+	stepDef3 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef3).Error)
 
 	// Create step executions with different statuses
 	pendingStep1 := createTestStepExecution(execution.ID, stepDef.ID)
-	pendingStep2 := createTestStepExecution(execution.ID, stepDef.ID)
-	inProgressStep := createTestStepExecution(execution.ID, stepDef.ID)
+	pendingStep2 := createTestStepExecution(execution.ID, stepDef2.ID)
+	inProgressStep := createTestStepExecution(execution.ID, stepDef3.ID)
 	inProgressStep.Status = "in_progress"
 
 	require.NoError(t, db.Create(pendingStep1).Error)
@@ -500,13 +526,17 @@ func TestStepExecutionService_GetBlockedSteps(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
+	stepDef3 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef3).Error)
 
 	// Create step executions with different statuses
 	blockedStep1 := createTestStepExecution(execution.ID, stepDef.ID)
 	blockedStep1.Status = "blocked"
-	blockedStep2 := createTestStepExecution(execution.ID, stepDef.ID)
+	blockedStep2 := createTestStepExecution(execution.ID, stepDef2.ID)
 	blockedStep2.Status = "blocked"
-	pendingStep := createTestStepExecution(execution.ID, stepDef.ID)
+	pendingStep := createTestStepExecution(execution.ID, stepDef3.ID)
 
 	require.NoError(t, db.Create(blockedStep1).Error)
 	require.NoError(t, db.Create(blockedStep2).Error)
@@ -541,13 +571,17 @@ func TestStepExecutionService_GetCompletedSteps(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
+	stepDef3 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef3).Error)
 
 	// Create step executions with different statuses
 	completedStep1 := createTestStepExecution(execution.ID, stepDef.ID)
 	completedStep1.Status = "completed"
-	completedStep2 := createTestStepExecution(execution.ID, stepDef.ID)
+	completedStep2 := createTestStepExecution(execution.ID, stepDef2.ID)
 	completedStep2.Status = "completed"
-	pendingStep := createTestStepExecution(execution.ID, stepDef.ID)
+	pendingStep := createTestStepExecution(execution.ID, stepDef3.ID)
 
 	require.NoError(t, db.Create(completedStep1).Error)
 	require.NoError(t, db.Create(completedStep2).Error)
@@ -582,17 +616,21 @@ func TestStepExecutionService_GetAssignedSteps(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
+	stepDef3 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef3).Error)
 
 	// Create step executions with different assignments
 	assignedStep1 := createTestStepExecution(execution.ID, stepDef.ID)
 	assignedStep1.AssignedToType = "user"
 	assignedStep1.AssignedToID = "user123"
 
-	assignedStep2 := createTestStepExecution(execution.ID, stepDef.ID)
+	assignedStep2 := createTestStepExecution(execution.ID, stepDef2.ID)
 	assignedStep2.AssignedToType = "user"
 	assignedStep2.AssignedToID = "user123"
 
-	unassignedStep := createTestStepExecution(execution.ID, stepDef.ID)
+	unassignedStep := createTestStepExecution(execution.ID, stepDef3.ID)
 
 	require.NoError(t, db.Create(assignedStep1).Error)
 	require.NoError(t, db.Create(assignedStep2).Error)
@@ -697,11 +735,13 @@ func TestStepExecutionService_GetUnblockableSteps(t *testing.T) {
 
 	stepDef := createTestWorkflowStepDefinition(workflowDef.ID)
 	require.NoError(t, db.Create(stepDef).Error)
+	stepDef2 := createTestWorkflowStepDefinition(workflowDef.ID)
+	require.NoError(t, db.Create(stepDef2).Error)
 
 	// Create blocked step executions
 	blockedStep1 := createTestStepExecution(execution.ID, stepDef.ID)
 	blockedStep1.Status = "blocked"
-	blockedStep2 := createTestStepExecution(execution.ID, stepDef.ID)
+	blockedStep2 := createTestStepExecution(execution.ID, stepDef2.ID)
 	blockedStep2.Status = "blocked"
 
 	require.NoError(t, db.Create(blockedStep1).Error)
