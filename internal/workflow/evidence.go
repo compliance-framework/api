@@ -553,8 +553,17 @@ func (e *EvidenceIntegration) AddExecutionFailureEvidence(ctx context.Context, w
 	}
 	sort.Strings(assignees)
 
+	const failureDescriptionTemplate = `Workflow Execution Failed
+Execution ID: %s
+Started: %s
+Failed: %s
+Completed Steps: %d
+Failed Steps: %d
+Overdue Steps: %d
+Unresolved Assignees: %s`
+
 	description := fmt.Sprintf(
-		"Workflow Execution Failed\nExecution ID: %s\nStarted: %s\nFailed: %s\nCompleted Steps: %d\nFailed Steps: %d\nOverdue Steps: %d\nUnresolved Assignees: %s",
+		failureDescriptionTemplate,
 		execution.ID,
 		formatOptionalTime(execution.StartedAt),
 		formatOptionalTime(execution.FailedAt),

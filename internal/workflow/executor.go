@@ -140,6 +140,8 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 	if err != nil {
 		return fmt.Errorf("failed to get workflow execution: %w", err)
 	}
+	// Early guard to avoid unnecessary work when initialization is no longer valid.
+	// We intentionally re-check this again later (after DB writes) to protect against races.
 	if workflowExecution.Status != StatusPending.String() {
 		e.logger.Printf("Skipping workflow initialization for execution %s in status %s", workflowExecutionID.String(), workflowExecution.Status)
 		return nil
@@ -585,6 +587,8 @@ func resolveStepGraceDays(workflowExecution *workflows.WorkflowExecution, stepDe
 		workflowExecution.WorkflowInstance.WorkflowDefinition.GracePeriodDays != nil {
 		return *workflowExecution.WorkflowInstance.WorkflowDefinition.GracePeriodDays
 	}
+	// Step due-date initialization uses global workflow defaults from config.
+	// Execution failure grace in OverdueService can use an injected default to support worker-level overrides.
 	return config.DefaultWorkflowConfig().GracePeriodDays
 }
 

@@ -104,29 +104,12 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 
 	updates := map[string]interface{}{"status": status}
 	now := time.Now()
-	if (status == StepStatusPending.String() || status == StepStatusInProgress.String()) &&
-		current.Status == StepStatusBlocked.String() &&
-		current.DueDate == nil {
-		dueDate, err := s.resolveStepDueDate(id, now)
-		if err != nil {
-			return err
-		}
-		if dueDate != nil {
-			updates["due_date"] = *dueDate
-		}
+	if err := s.setDueDateIfNeeded(id, &current, status, now, updates); err != nil {
+		return err
 	}
 	switch status {
 	case "in_progress":
 		updates["started_at"] = now
-		if current.DueDate == nil {
-			dueDate, err := s.resolveStepDueDate(id, now)
-			if err != nil {
-				return err
-			}
-			if dueDate != nil {
-				updates["due_date"] = *dueDate
-			}
-		}
 		if s.evidenceCreator != nil {
 			if err := s.evidenceCreator.AddStepStartedEvidence(ctx, id); err != nil {
 				// Log error but don't fail the status update
@@ -161,6 +144,35 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 		return fmt.Errorf("%w: %s -> %s", ErrStepExecutionStatusTransitionConflict, current.Status, status)
 	}
 
+	return nil
+}
+
+func (s *StepExecutionService) setDueDateIfNeeded(
+	stepExecutionID *uuid.UUID,
+	current *StepExecution,
+	nextStatus string,
+	now time.Time,
+	updates map[string]interface{},
+) error {
+	if current == nil || current.DueDate != nil {
+		return nil
+	}
+	if current.Status != StepStatusBlocked.String() &&
+		nextStatus != StepStatusInProgress.String() {
+		return nil
+	}
+	if nextStatus != StepStatusPending.String() &&
+		nextStatus != StepStatusInProgress.String() {
+		return nil
+	}
+
+	dueDate, err := s.resolveStepDueDate(stepExecutionID, now)
+	if err != nil {
+		return err
+	}
+	if dueDate != nil {
+		updates["due_date"] = *dueDate
+	}
 	return nil
 }
 
