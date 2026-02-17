@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ type StepExecutionService struct {
 	evidenceCreator StepEvidenceCreator
 	logger          *zap.SugaredLogger
 }
+
+var ErrInvalidStepExecutionStatusTransition = errors.New("invalid step execution status transition")
 
 // NewStepExecutionService creates a new StepExecutionService
 func NewStepExecutionService(db *gorm.DB, evidenceCreator StepEvidenceCreator) *StepExecutionService {
@@ -94,7 +97,7 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 		return err
 	}
 	if !isValidStepStatusTransition(current.Status, status) {
-		return errors.New("invalid step execution status transition")
+		return fmt.Errorf("%w: %s -> %s", ErrInvalidStepExecutionStatusTransition, current.Status, status)
 	}
 
 	updates := map[string]interface{}{"status": status}

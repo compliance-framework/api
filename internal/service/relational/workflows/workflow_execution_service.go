@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ type WorkflowExecutionService struct {
 	evidenceCreator WorkflowExecutionEvidenceCreator
 	logger          *zap.SugaredLogger
 }
+
+var ErrInvalidWorkflowExecutionStatusTransition = errors.New("invalid workflow execution status transition")
 
 // NewWorkflowExecutionService creates a new WorkflowExecutionService
 func NewWorkflowExecutionService(db *gorm.DB) *WorkflowExecutionService {
@@ -134,7 +137,7 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 		return err
 	}
 	if !isValidExecutionStatusTransition(current.Status, status) {
-		return errors.New("invalid workflow execution status transition")
+		return fmt.Errorf("%w: %s -> %s", ErrInvalidWorkflowExecutionStatusTransition, current.Status, status)
 	}
 
 	updates := map[string]interface{}{"status": status}

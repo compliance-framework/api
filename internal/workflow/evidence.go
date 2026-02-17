@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -550,6 +551,7 @@ func (e *EvidenceIntegration) AddExecutionFailureEvidence(ctx context.Context, w
 	for key := range unresolvedAssignees {
 		assignees = append(assignees, key)
 	}
+	sort.Strings(assignees)
 
 	description := fmt.Sprintf(
 		"Workflow Execution Failed\nExecution ID: %s\nStarted: %s\nFailed: %s\nCompleted Steps: %d\nFailed Steps: %d\nOverdue Steps: %d\nUnresolved Assignees: %s",
@@ -604,6 +606,7 @@ func (e *EvidenceIntegration) addFailureEvidenceToStream(
 		Description: description,
 		Start:       nowOrValue(execution.StartedAt),
 		End:         nowOrValue(execution.FailedAt),
+		Status:      datatypes.NewJSONType[oscalTypes_1_1_3.ObjectiveStatus](oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
 	}
 	id := uuid.New()
 	evidence.ID = &id

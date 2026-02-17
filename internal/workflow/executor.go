@@ -576,6 +576,9 @@ func resolveStepGraceDays(workflowExecution *workflows.WorkflowExecution, stepDe
 	if stepDef.GracePeriodDays != nil {
 		return *stepDef.GracePeriodDays
 	}
+	if workflowExecution.WorkflowInstance != nil && workflowExecution.WorkflowInstance.GracePeriodDays != nil {
+		return *workflowExecution.WorkflowInstance.GracePeriodDays
+	}
 	if workflowExecution.WorkflowInstance != nil && workflowExecution.WorkflowInstance.WorkflowDefinition != nil &&
 		workflowExecution.WorkflowInstance.WorkflowDefinition.GracePeriodDays != nil {
 		return *workflowExecution.WorkflowInstance.WorkflowDefinition.GracePeriodDays

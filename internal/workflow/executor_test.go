@@ -322,6 +322,30 @@ func TestIsExecutionComplete(t *testing.T) {
 	assert.True(t, executor.isExecutionComplete(state))
 }
 
+func TestResolveStepGraceDays_Preference(t *testing.T) {
+	defGrace := 9
+	instanceGrace := 5
+	stepGrace := 2
+
+	workflowExecution := &workflows.WorkflowExecution{
+		WorkflowInstance: &workflows.WorkflowInstance{
+			GracePeriodDays: &instanceGrace,
+			WorkflowDefinition: &workflows.WorkflowDefinition{
+				GracePeriodDays: &defGrace,
+			},
+		},
+	}
+
+	stepWithOverride := workflows.WorkflowStepDefinition{GracePeriodDays: &stepGrace}
+	assert.Equal(t, stepGrace, resolveStepGraceDays(workflowExecution, stepWithOverride))
+
+	stepWithoutOverride := workflows.WorkflowStepDefinition{}
+	assert.Equal(t, instanceGrace, resolveStepGraceDays(workflowExecution, stepWithoutOverride))
+
+	workflowExecution.WorkflowInstance.GracePeriodDays = nil
+	assert.Equal(t, defGrace, resolveStepGraceDays(workflowExecution, stepWithoutOverride))
+}
+
 func TestInitializeWorkflow_Success(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
