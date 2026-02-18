@@ -196,11 +196,11 @@ func (e *EvidenceIntegration) AddWorkflowExecutionEvidence(ctx context.Context, 
 		return fmt.Errorf("failed to get workflow execution: %w", err)
 	}
 
-	// Only add started evidence for pending executions (before transition to in_progress)
-	if execution.Status != "pending" && status == "started" {
+	// Started evidence may be emitted right before or right after the transition.
+	if status == "started" && execution.Status != "pending" && execution.Status != "in_progress" {
 		return fmt.Errorf("workflow execution is not in pending status, status: %s", execution.Status)
 	}
-	if execution.Status != "in_progress" && status == "complete" {
+	if status == "completed" && execution.Status != "in_progress" && execution.Status != "completed" {
 		return fmt.Errorf("workflow execution is not in  status, status: %s", execution.Status)
 	}
 
@@ -273,10 +273,8 @@ func (e *EvidenceIntegration) AddStepStartedEvidence(ctx context.Context, stepEx
 		return fmt.Errorf("failed to get step execution: %w", err)
 	}
 
-	// Only add started evidence for steps transitioning to in_progress status
-	// This means the current stepExecution status must be pending
-	// This should only be called when a user/scheduler moves a step from pending -> in_progress
-	if stepExecution.Status != "pending" {
+	// Started evidence may be emitted right before or right after transitioning to in_progress.
+	if stepExecution.Status != "pending" && stepExecution.Status != "in_progress" {
 		return fmt.Errorf("step execution is not in pending status, status: %s", stepExecution.Status)
 	}
 

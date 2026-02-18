@@ -95,8 +95,11 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 	}
 
 	var current StepExecution
-	if err := s.db.WithContext(ctx).Select("status").First(&current, "id = ?", id).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("status", "due_date").First(&current, "id = ?", id).Error; err != nil {
 		return err
+	}
+	if current.Status == status {
+		return nil
 	}
 	if !isValidStepStatusTransition(current.Status, status) {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidStepExecutionStatusTransition, current.Status, status)
@@ -110,14 +113,6 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 	switch status {
 	case "in_progress":
 		updates["started_at"] = now
-		if s.evidenceCreator != nil {
-			if err := s.evidenceCreator.AddStepStartedEvidence(ctx, id); err != nil {
-				// Log error but don't fail the status update
-				s.logger.Warnw("Failed to create step started evidence",
-					"step_execution_id", id,
-					"error", err)
-			}
-		}
 	case "completed":
 		updates["completed_at"] = now
 	case "overdue":
@@ -135,13 +130,25 @@ func (s *StepExecutionService) UpdateStatus(ctx context.Context, id *uuid.UUID, 
 	}
 	if result.RowsAffected == 0 {
 		var latest StepExecution
-		if err := s.db.WithContext(ctx).Select("status").First(&latest, "id = ?", id).Error; err != nil {
+		if err := s.db.WithContext(ctx).Select("status", "due_date").First(&latest, "id = ?", id).Error; err != nil {
 			return err
+		}
+		if latest.Status == status {
+			return nil
 		}
 		if !isValidStepStatusTransition(latest.Status, status) {
 			return fmt.Errorf("%w: %s -> %s", ErrInvalidStepExecutionStatusTransition, latest.Status, status)
 		}
 		return fmt.Errorf("%w: %s -> %s", ErrStepExecutionStatusTransitionConflict, current.Status, status)
+	}
+
+	if status == StepStatusInProgress.String() && s.evidenceCreator != nil {
+		if err := s.evidenceCreator.AddStepStartedEvidence(ctx, id); err != nil {
+			// Log error but don't fail the status update
+			s.logger.Warnw("Failed to create step started evidence",
+				"step_execution_id", id,
+				"error", err)
+		}
 	}
 
 	return nil

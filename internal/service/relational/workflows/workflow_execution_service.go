@@ -137,6 +137,9 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 	if err := s.db.WithContext(ctx).Select("status").First(&current, "id = ?", id).Error; err != nil {
 		return err
 	}
+	if current.Status == status {
+		return nil
+	}
 	if !isValidExecutionStatusTransition(current.Status, status) {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidWorkflowExecutionStatusTransition, current.Status, status)
 	}
@@ -145,24 +148,8 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 	now := time.Now()
 	switch status {
 	case "in_progress":
-		// Keep behavior: create started evidence while execution is still pending.
-		if s.evidenceCreator != nil {
-			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "started"); err != nil {
-				s.logger.Warnw("Failed to create workflow execution started evidence",
-					"workflow_execution_id", id,
-					"error", err)
-			}
-		}
 		updates["started_at"] = now
 	case "completed":
-		// Keep behavior: create completed evidence prior to status update.
-		if s.evidenceCreator != nil {
-			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "completed"); err != nil {
-				s.logger.Warnw("Failed to create workflow execution completed evidence",
-					"workflow_execution_id", id,
-					"error", err)
-			}
-		}
 		updates["completed_at"] = now
 	case "overdue":
 		updates["overdue_at"] = now
@@ -182,10 +169,30 @@ func (s *WorkflowExecutionService) UpdateStatus(ctx context.Context, id *uuid.UU
 		if err := s.db.WithContext(ctx).Select("status").First(&latest, "id = ?", id).Error; err != nil {
 			return err
 		}
+		if latest.Status == status {
+			return nil
+		}
 		if !isValidExecutionStatusTransition(latest.Status, status) {
 			return fmt.Errorf("%w: %s -> %s", ErrInvalidWorkflowExecutionStatusTransition, latest.Status, status)
 		}
 		return fmt.Errorf("%w: %s -> %s", ErrWorkflowExecutionStatusTransitionConflict, current.Status, status)
+	}
+
+	if s.evidenceCreator != nil {
+		switch status {
+		case "in_progress":
+			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "started"); err != nil {
+				s.logger.Warnw("Failed to create workflow execution started evidence",
+					"workflow_execution_id", id,
+					"error", err)
+			}
+		case "completed":
+			if err := s.evidenceCreator.AddWorkflowExecutionEvidence(ctx, id, "completed"); err != nil {
+				s.logger.Warnw("Failed to create workflow execution completed evidence",
+					"workflow_execution_id", id,
+					"error", err)
+			}
+		}
 	}
 
 	return nil
