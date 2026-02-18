@@ -385,61 +385,76 @@ func (suite *UserApiIntegrationSuite) TestChangePassword() {
 	})
 }
 
-func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
+func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
-	suite.Run("GetDigestSubscription", func() {
+	suite.Run("GetSubscriptions", func() {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/api/users/me/digest-subscription", nil)
+		req := httptest.NewRequest("GET", "/api/users/me/subscriptions", nil)
 		req.Header.Set("Authorization", "Bearer "+*token)
 
 		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(200, rec.Code, "Expected OK response for GetDigestSubscription")
+		suite.Equal(200, rec.Code, "Expected OK response for GetSubscriptions")
 
 		var response struct {
 			Data struct {
-				Subscribed bool `json:"subscribed"`
+				Subscribed                   bool `json:"subscribed"`
+				TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
+				TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
 			} `json:"data"`
 		}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err, "Failed to unmarshal GetDigestSubscription response")
+		suite.Require().NoError(err, "Failed to unmarshal GetSubscriptions response")
 
 		// The default should be false for new users
 		suite.False(response.Data.Subscribed, "Expected default digest subscription to be false")
+		suite.False(response.Data.TaskAvailableEmailSubscribed, "Expected task available email subscription to default to false")
+		suite.False(response.Data.TaskDailyDigestSubscribed, "Expected task daily digest subscription to default to false")
 	})
 
-	suite.Run("UpdateDigestSubscription", func() {
+	suite.Run("UpdateSubscriptions", func() {
 		// Test subscribing to digest
-		payload := map[string]bool{"subscribed": true}
+		payload := map[string]interface{}{
+			"subscribed":                   true,
+			"taskAvailableEmailSubscribed": true,
+			"taskDailyDigestSubscribed":    true,
+		}
 		payloadJSON, err := json.Marshal(payload)
-		suite.Require().NoError(err, "Failed to marshal update digest subscription request")
+		suite.Require().NoError(err, "Failed to marshal update subscriptions request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/api/users/me/digest-subscription", bytes.NewReader(payloadJSON))
+		req := httptest.NewRequest("PUT", "/api/users/me/subscriptions", bytes.NewReader(payloadJSON))
 		req.Header.Set("Authorization", "Bearer "+*token)
 		req.Header.Set("Content-Type", "application/json")
 
 		suite.server.E().ServeHTTP(rec, req)
-		suite.Equal(200, rec.Code, "Expected OK response for UpdateDigestSubscription")
+		suite.Equal(200, rec.Code, "Expected OK response for UpdateSubscriptions")
 
 		var response struct {
 			Data struct {
-				Subscribed bool `json:"subscribed"`
+				Subscribed                   bool `json:"subscribed"`
+				TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
+				TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
 			} `json:"data"`
 		}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err, "Failed to unmarshal UpdateDigestSubscription response")
+		suite.Require().NoError(err, "Failed to unmarshal UpdateSubscriptions response")
 
 		suite.True(response.Data.Subscribed, "Expected digest subscription to be updated to true")
+		suite.True(response.Data.TaskAvailableEmailSubscribed, "Expected task available email subscription to be updated to true")
+		suite.True(response.Data.TaskDailyDigestSubscribed, "Expected task daily digest subscription to be updated to true")
 
 		// Test unsubscribing from digest
-		payload = map[string]bool{"subscribed": false}
+		payload = map[string]interface{}{
+			"subscribed":                false,
+			"taskDailyDigestSubscribed": false,
+		}
 		payloadJSON, err = json.Marshal(payload)
-		suite.Require().NoError(err, "Failed to marshal unsubscribe digest request")
+		suite.Require().NoError(err, "Failed to marshal unsubscribe request")
 
 		rec = httptest.NewRecorder()
-		req = httptest.NewRequest("PUT", "/api/users/me/digest-subscription", bytes.NewReader(payloadJSON))
+		req = httptest.NewRequest("PUT", "/api/users/me/subscriptions", bytes.NewReader(payloadJSON))
 		req.Header.Set("Authorization", "Bearer "+*token)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -447,23 +462,26 @@ func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
 		suite.Equal(200, rec.Code, "Expected OK response for unsubscribe digest")
 
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
-		suite.Require().NoError(err, "Failed to unmarshal unsubscribe digest response")
+		suite.Require().NoError(err, "Failed to unmarshal unsubscribe response")
 
 		suite.False(response.Data.Subscribed, "Expected digest subscription to be updated to false")
+		suite.True(response.Data.TaskAvailableEmailSubscribed, "Expected task available email subscription to remain unchanged when omitted")
+		suite.False(response.Data.TaskDailyDigestSubscribed, "Expected task daily digest subscription to be updated to false")
 	})
 
-	suite.Run("UpdateDigestSubscriptionInvalidPayload", func() {
+	suite.Run("UpdateSubscriptionsInvalidPayload", func() {
 		// Test with invalid payload
 		payload := map[string]string{"subscribed": "invalid"}
 		payloadJSON, err := json.Marshal(payload)
-		suite.Require().NoError(err, "Failed to marshal invalid digest subscription request")
+		suite.Require().NoError(err, "Failed to marshal invalid subscriptions request")
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/api/users/me/digest-subscription", bytes.NewReader(payloadJSON))
+		req := httptest.NewRequest("PUT", "/api/users/me/subscriptions", bytes.NewReader(payloadJSON))
 		req.Header.Set("Authorization", "Bearer "+*token)
 		req.Header.Set("Content-Type", "application/json")
 
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(400, rec.Code, "Expected Bad Request response for invalid payload")
 	})
+
 }

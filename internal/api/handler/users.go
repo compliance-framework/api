@@ -23,6 +23,18 @@ type userResponse struct {
 	AuthProvider *string `json:"authProvider,omitempty"`
 }
 
+type SubscriptionsResponse struct {
+	Subscribed                   bool `json:"subscribed"`
+	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
+	TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
+}
+
+type UpdateSubscriptionsRequest struct {
+	Subscribed                   *bool `json:"subscribed"`
+	TaskAvailableEmailSubscribed *bool `json:"taskAvailableEmailSubscribed"`
+	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
+}
+
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 	return &UserHandler{
 		sugar: sugar,
@@ -42,8 +54,8 @@ func (h *UserHandler) Register(api *echo.Group) {
 func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
 	api.GET("/me", h.GetMe)
 	api.POST("/me/change-password", h.ChangeLoggedInUserPassword)
-	api.GET("/me/digest-subscription", h.GetDigestSubscription)
-	api.PUT("/me/digest-subscription", h.UpdateDigestSubscription)
+	api.GET("/me/subscriptions", h.GetSubscriptions)
+	api.PUT("/me/subscriptions", h.UpdateSubscriptions)
 }
 
 // ListUsers godoc
@@ -395,23 +407,19 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 	return ctx.NoContent(204)
 }
 
-// GetDigestSubscription godoc
+// GetSubscriptions godoc
 //
-//	@Summary		Get digest subscription status
-//	@Description	Gets the current user's digest email subscription status
+//	@Summary		Get notification preferences
+//	@Description	Gets the current user's digest and workflow notification email preferences
 //	@Tags			Users
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataResponse[handler.UserHandler.GetDigestSubscription.digestSubscriptionResponse]
+//	@Success		200	{object}	handler.GenericDataResponse[handler.SubscriptionsResponse]
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users/me/digest-subscription [get]
-func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
-	type digestSubscriptionResponse struct {
-		Subscribed bool `json:"subscribed"`
-	}
-
+//	@Router			/users/me/subscriptions [get]
+func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	email := userClaims.Subject
@@ -424,39 +432,36 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
-		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},
+	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
+		Data: SubscriptionsResponse{
+			Subscribed:                   user.DigestSubscribed,
+			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
+			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+		},
 	})
 }
 
-// UpdateDigestSubscription godoc
+// UpdateSubscriptions godoc
 //
-//	@Summary		Update digest subscription status
-//	@Description	Updates the current user's digest email subscription status
+//	@Summary		Update notification preferences
+//	@Description	Updates the current user's digest and workflow notification email preferences
 //	@Tags			Users
 //	@Accept			json
 //	@Produce		json
-//	@Param			subscription	body		handler.UserHandler.UpdateDigestSubscription.updateDigestSubscriptionRequest	true	"Subscription status"
-//	@Success		200				{object}	handler.GenericDataResponse[handler.UserHandler.UpdateDigestSubscription.digestSubscriptionResponse]
+//	@Param			subscription	body		handler.UpdateSubscriptionsRequest	true	"Notification preferences"
+//	@Success		200				{object}	handler.GenericDataResponse[handler.SubscriptionsResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		401				{object}	api.Error
 //	@Failure		404				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/users/me/digest-subscription [put]
-func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
-	type updateDigestSubscriptionRequest struct {
-		Subscribed bool `json:"subscribed"`
-	}
-	type digestSubscriptionResponse struct {
-		Subscribed bool `json:"subscribed"`
-	}
-
+//	@Router			/users/me/subscriptions [put]
+func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
-	var req updateDigestSubscriptionRequest
+	var req UpdateSubscriptionsRequest
 	if err := ctx.Bind(&req); err != nil {
-		h.sugar.Errorw("Failed to bind update digest subscription request", "error", err)
+		h.sugar.Errorw("Failed to bind update subscriptions request", "error", err)
 		return ctx.JSON(400, api.NewError(err))
 	}
 
@@ -470,16 +475,35 @@ func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	user.DigestSubscribed = req.Subscribed
+	if req.Subscribed != nil {
+		user.DigestSubscribed = *req.Subscribed
+	}
+	if req.TaskAvailableEmailSubscribed != nil {
+		user.TaskAvailableEmailSubscribed = *req.TaskAvailableEmailSubscribed
+	}
+	if req.TaskDailyDigestSubscribed != nil {
+		user.TaskDailyDigestSubscribed = *req.TaskDailyDigestSubscribed
+	}
+
 	if err := h.db.Save(&user).Error; err != nil {
-		h.sugar.Errorw("Failed to update user digest subscription", "error", err)
+		h.sugar.Errorw("Failed to update user subscriptions", "error", err)
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	h.sugar.Debugw("User digest subscription updated", "email", email, "subscribed", req.Subscribed)
+	h.sugar.Debugw(
+		"User subscriptions updated",
+		"email", email,
+		"subscribed", user.DigestSubscribed,
+		"taskAvailableEmailSubscribed", user.TaskAvailableEmailSubscribed,
+		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
+	)
 
-	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
-		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},
+	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
+		Data: SubscriptionsResponse{
+			Subscribed:                   user.DigestSubscribed,
+			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
+			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+		},
 	})
 }
 

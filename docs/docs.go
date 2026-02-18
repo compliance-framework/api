@@ -16503,21 +16503,21 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/me/digest-subscription": {
+        "/users/me/subscriptions": {
             "get": {
-                "description": "Gets the current user's digest email subscription status",
+                "description": "Gets the current user's digest and workflow notification email preferences",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Users"
                 ],
-                "summary": "Get digest subscription status",
+                "summary": "Get notification preferences",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_SubscriptionsResponse"
                         }
                     },
                     "401": {
@@ -16546,7 +16546,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the current user's digest email subscription status",
+                "description": "Updates the current user's digest and workflow notification email preferences",
                 "consumes": [
                     "application/json"
                 ],
@@ -16556,15 +16556,15 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Update digest subscription status",
+                "summary": "Update notification preferences",
                 "parameters": [
                     {
-                        "description": "Subscription status",
+                        "description": "Notification preferences",
                         "name": "subscription",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.UserHandler"
+                            "$ref": "#/definitions/handler.UpdateSubscriptionsRequest"
                         }
                     }
                 ],
@@ -16572,7 +16572,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_SubscriptionsResponse"
                         }
                     },
                     "400": {
@@ -20654,14 +20654,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_UserHandler": {
+        "handler.GenericDataResponse-handler_SubscriptionsResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.UserHandler"
+                            "$ref": "#/definitions/handler.SubscriptionsResponse"
                         }
                     ]
                 }
@@ -21564,6 +21564,34 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.StatusCount"
                     }
+                }
+            }
+        },
+        "handler.SubscriptionsResponse": {
+            "type": "object",
+            "properties": {
+                "subscribed": {
+                    "type": "boolean"
+                },
+                "taskAvailableEmailSubscribed": {
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.UpdateSubscriptionsRequest": {
+            "type": "object",
+            "properties": {
+                "subscribed": {
+                    "type": "boolean"
+                },
+                "taskAvailableEmailSubscribed": {
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "type": "boolean"
                 }
             }
         },
@@ -29043,6 +29071,14 @@ const docTemplate = `{
                 },
                 "lastName": {
                     "type": "string"
+                },
+                "taskAvailableEmailSubscribed": {
+                    "description": "TaskAvailableEmailSubscribed indicates if the user wants an email when tasks become available",
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "description": "TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email",
+                    "type": "boolean"
                 },
                 "updatedAt": {
                     "type": "string"
