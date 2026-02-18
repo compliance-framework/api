@@ -23,6 +23,18 @@ type userResponse struct {
 	AuthProvider *string `json:"authProvider,omitempty"`
 }
 
+type digestSubscriptionResponse struct {
+	Subscribed                   bool `json:"subscribed"`
+	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
+	TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
+}
+
+type updateDigestSubscriptionRequest struct {
+	Subscribed                   *bool `json:"subscribed"`
+	TaskAvailableEmailSubscribed *bool `json:"taskAvailableEmailSubscribed"`
+	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
+}
+
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 	return &UserHandler{
 		sugar: sugar,
@@ -408,10 +420,6 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/users/me/digest-subscription [get]
 func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
-	type digestSubscriptionResponse struct {
-		Subscribed bool `json:"subscribed"`
-	}
-
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	email := userClaims.Subject
@@ -425,7 +433,11 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
-		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},
+		Data: digestSubscriptionResponse{
+			Subscribed:                   user.DigestSubscribed,
+			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
+			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+		},
 	})
 }
 
@@ -445,13 +457,6 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 //	@Security		OAuth2Password
 //	@Router			/users/me/digest-subscription [put]
 func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
-	type updateDigestSubscriptionRequest struct {
-		Subscribed bool `json:"subscribed"`
-	}
-	type digestSubscriptionResponse struct {
-		Subscribed bool `json:"subscribed"`
-	}
-
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
 	var req updateDigestSubscriptionRequest
@@ -470,16 +475,35 @@ func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	user.DigestSubscribed = req.Subscribed
+	if req.Subscribed != nil {
+		user.DigestSubscribed = *req.Subscribed
+	}
+	if req.TaskAvailableEmailSubscribed != nil {
+		user.TaskAvailableEmailSubscribed = *req.TaskAvailableEmailSubscribed
+	}
+	if req.TaskDailyDigestSubscribed != nil {
+		user.TaskDailyDigestSubscribed = *req.TaskDailyDigestSubscribed
+	}
+
 	if err := h.db.Save(&user).Error; err != nil {
 		h.sugar.Errorw("Failed to update user digest subscription", "error", err)
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	h.sugar.Debugw("User digest subscription updated", "email", email, "subscribed", req.Subscribed)
+	h.sugar.Debugw(
+		"User digest subscription updated",
+		"email", email,
+		"subscribed", user.DigestSubscribed,
+		"taskAvailableEmailSubscribed", user.TaskAvailableEmailSubscribed,
+		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
+	)
 
 	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
-		Data: digestSubscriptionResponse{Subscribed: user.DigestSubscribed},
+		Data: digestSubscriptionResponse{
+			Subscribed:                   user.DigestSubscribed,
+			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
+			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+		},
 	})
 }
 

@@ -399,7 +399,9 @@ func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
 
 		var response struct {
 			Data struct {
-				Subscribed bool `json:"subscribed"`
+				Subscribed                   bool `json:"subscribed"`
+				TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
+				TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
 			} `json:"data"`
 		}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
@@ -407,11 +409,17 @@ func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
 
 		// The default should be false for new users
 		suite.False(response.Data.Subscribed, "Expected default digest subscription to be false")
+		suite.False(response.Data.TaskAvailableEmailSubscribed, "Expected task available email subscription to default to false")
+		suite.False(response.Data.TaskDailyDigestSubscribed, "Expected task daily digest subscription to default to false")
 	})
 
 	suite.Run("UpdateDigestSubscription", func() {
 		// Test subscribing to digest
-		payload := map[string]bool{"subscribed": true}
+		payload := map[string]interface{}{
+			"subscribed":                   true,
+			"taskAvailableEmailSubscribed": true,
+			"taskDailyDigestSubscribed":    true,
+		}
 		payloadJSON, err := json.Marshal(payload)
 		suite.Require().NoError(err, "Failed to marshal update digest subscription request")
 
@@ -425,16 +433,23 @@ func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
 
 		var response struct {
 			Data struct {
-				Subscribed bool `json:"subscribed"`
+				Subscribed                   bool `json:"subscribed"`
+				TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
+				TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
 			} `json:"data"`
 		}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err, "Failed to unmarshal UpdateDigestSubscription response")
 
 		suite.True(response.Data.Subscribed, "Expected digest subscription to be updated to true")
+		suite.True(response.Data.TaskAvailableEmailSubscribed, "Expected task available email subscription to be updated to true")
+		suite.True(response.Data.TaskDailyDigestSubscribed, "Expected task daily digest subscription to be updated to true")
 
 		// Test unsubscribing from digest
-		payload = map[string]bool{"subscribed": false}
+		payload = map[string]interface{}{
+			"subscribed":                false,
+			"taskDailyDigestSubscribed": false,
+		}
 		payloadJSON, err = json.Marshal(payload)
 		suite.Require().NoError(err, "Failed to marshal unsubscribe digest request")
 
@@ -450,6 +465,8 @@ func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
 		suite.Require().NoError(err, "Failed to unmarshal unsubscribe digest response")
 
 		suite.False(response.Data.Subscribed, "Expected digest subscription to be updated to false")
+		suite.True(response.Data.TaskAvailableEmailSubscribed, "Expected task available email subscription to remain unchanged when omitted")
+		suite.False(response.Data.TaskDailyDigestSubscribed, "Expected task daily digest subscription to be updated to false")
 	})
 
 	suite.Run("UpdateDigestSubscriptionInvalidPayload", func() {
@@ -466,4 +483,5 @@ func (suite *UserApiIntegrationSuite) TestDigestSubscription() {
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(400, rec.Code, "Expected Bad Request response for invalid payload")
 	})
+
 }

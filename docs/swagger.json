@@ -29038,6 +29038,14 @@
                 "lastName": {
                     "type": "string"
                 },
+                "taskAvailableEmailSubscribed": {
+                    "description": "TaskAvailableEmailSubscribed indicates if the user wants an email when tasks become available",
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "description": "TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email",
+                    "type": "boolean"
+                },
                 "updatedAt": {
                     "type": "string"
                 },
