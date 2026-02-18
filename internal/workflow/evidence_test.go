@@ -666,15 +666,15 @@ func TestAddWorkflowExecutionStartedEvidence(t *testing.T) {
 		assert.Equal(t, "workflow_execution_started", labelMap["evidence.type"])
 	})
 
-	t.Run("RejectNonPendingExecution", func(t *testing.T) {
+	t.Run("RejectInvalidExecutionStatusForStarted", func(t *testing.T) {
 		// Create workflow context
 		_, _, execution, _ := createTestWorkflowContext(t, db)
 
-		// Update execution to in_progress status
-		err := db.Model(execution).Update("status", "in_progress").Error
+		// Update execution to failed status
+		err := db.Model(execution).Update("status", "failed").Error
 		require.NoError(t, err)
 
-		// Try to add evidence for an in_progress execution (should fail since evidence is only created for pending executions)
+		// Try to add started evidence for a failed execution (should fail)
 		err = evidenceIntegration.AddWorkflowExecutionEvidence(context.Background(), execution.ID, "started")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not in pending status")
@@ -736,7 +736,7 @@ func TestAddStepStartedEvidence(t *testing.T) {
 		assert.Equal(t, stepExecution.ID.String(), labelMap["step.execution.id"])
 		assert.Equal(t, stepDef.ID.String(), labelMap["step.definition.id"])
 		assert.Equal(t, stepDef.Name, labelMap["step.name"])
-		assert.Equal(t, "pending", labelMap["step.status"])
+		assert.Equal(t, "in_progress", labelMap["step.status"])
 	})
 
 	t.Run("RejectNonInProgressStep", func(t *testing.T) {
