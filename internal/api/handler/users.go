@@ -23,13 +23,13 @@ type userResponse struct {
 	AuthProvider *string `json:"authProvider,omitempty"`
 }
 
-type digestSubscriptionResponse struct {
+type DigestSubscriptionResponse struct {
 	Subscribed                   bool `json:"subscribed"`
 	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
 	TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
 }
 
-type updateDigestSubscriptionRequest struct {
+type UpdateDigestSubscriptionRequest struct {
 	Subscribed                   *bool `json:"subscribed"`
 	TaskAvailableEmailSubscribed *bool `json:"taskAvailableEmailSubscribed"`
 	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
@@ -409,11 +409,11 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 
 // GetDigestSubscription godoc
 //
-//	@Summary		Get digest subscription status
-//	@Description	Gets the current user's digest email subscription status
+//	@Summary		Get notification preferences
+//	@Description	Gets the current user's digest and workflow notification email preferences
 //	@Tags			Users
 //	@Produce		json
-//	@Success		200	{object}	handler.GenericDataResponse[handler.UserHandler.GetDigestSubscription.digestSubscriptionResponse]
+//	@Success		200	{object}	handler.GenericDataResponse[handler.DigestSubscriptionResponse]
 //	@Failure		401	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -432,8 +432,8 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
-		Data: digestSubscriptionResponse{
+	return ctx.JSON(200, GenericDataResponse[DigestSubscriptionResponse]{
+		Data: DigestSubscriptionResponse{
 			Subscribed:                   user.DigestSubscribed,
 			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
 			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
@@ -443,13 +443,13 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 
 // UpdateDigestSubscription godoc
 //
-//	@Summary		Update digest subscription status
-//	@Description	Updates the current user's digest email subscription status
+//	@Summary		Update notification preferences
+//	@Description	Updates the current user's digest and workflow notification email preferences
 //	@Tags			Users
 //	@Accept			json
 //	@Produce		json
-//	@Param			subscription	body		handler.UserHandler.UpdateDigestSubscription.updateDigestSubscriptionRequest	true	"Subscription status"
-//	@Success		200				{object}	handler.GenericDataResponse[handler.UserHandler.UpdateDigestSubscription.digestSubscriptionResponse]
+//	@Param			subscription	body		handler.UpdateDigestSubscriptionRequest	true	"Notification preferences"
+//	@Success		200				{object}	handler.GenericDataResponse[handler.DigestSubscriptionResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		401				{object}	api.Error
 //	@Failure		404				{object}	api.Error
@@ -459,7 +459,7 @@ func (h *UserHandler) GetDigestSubscription(ctx echo.Context) error {
 func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
 	userClaims := ctx.Get("user").(*authn.UserClaims)
 
-	var req updateDigestSubscriptionRequest
+	var req UpdateDigestSubscriptionRequest
 	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Errorw("Failed to bind update digest subscription request", "error", err)
 		return ctx.JSON(400, api.NewError(err))
@@ -498,8 +498,8 @@ func (h *UserHandler) UpdateDigestSubscription(ctx echo.Context) error {
 		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
 	)
 
-	return ctx.JSON(200, GenericDataResponse[digestSubscriptionResponse]{
-		Data: digestSubscriptionResponse{
+	return ctx.JSON(200, GenericDataResponse[DigestSubscriptionResponse]{
+		Data: DigestSubscriptionResponse{
 			Subscribed:                   user.DigestSubscribed,
 			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
 			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,

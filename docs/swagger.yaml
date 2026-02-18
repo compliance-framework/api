@@ -117,6 +117,15 @@ definitions:
       status:
         type: string
     type: object
+  handler.DigestSubscriptionResponse:
+    properties:
+      subscribed:
+        type: boolean
+      taskAvailableEmailSubscribed:
+        type: boolean
+      taskDailyDigestSubscribed:
+        type: boolean
+    type: object
   handler.EvidenceActivity:
     properties:
       description:
@@ -764,6 +773,13 @@ definitions:
         - $ref: '#/definitions/digest.EvidenceSummary'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_DigestSubscriptionResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.DigestSubscriptionResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
     properties:
       data:
@@ -783,13 +799,6 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
-        description: Items from the list response
-    type: object
-  handler.GenericDataResponse-handler_UserHandler:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/handler.UserHandler'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_BuildByPropsResponse:
@@ -1298,6 +1307,15 @@ definitions:
         items:
           $ref: '#/definitions/handler.StatusCount'
         type: array
+    type: object
+  handler.UpdateDigestSubscriptionRequest:
+    properties:
+      subscribed:
+        type: boolean
+      taskAvailableEmailSubscribed:
+        type: boolean
+      taskDailyDigestSubscribed:
+        type: boolean
     type: object
   handler.UserHandler:
     type: object
@@ -18008,14 +18026,15 @@ paths:
       - Users
   /users/me/digest-subscription:
     get:
-      description: Gets the current user's digest email subscription status
+      description: Gets the current user's digest and workflow notification email
+        preferences
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_UserHandler'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse'
         "401":
           description: Unauthorized
           schema:
@@ -18030,27 +18049,28 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Get digest subscription status
+      summary: Get notification preferences
       tags:
       - Users
     put:
       consumes:
       - application/json
-      description: Updates the current user's digest email subscription status
+      description: Updates the current user's digest and workflow notification email
+        preferences
       parameters:
-      - description: Subscription status
+      - description: Notification preferences
         in: body
         name: subscription
         required: true
         schema:
-          $ref: '#/definitions/handler.UserHandler'
+          $ref: '#/definitions/handler.UpdateDigestSubscriptionRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_UserHandler'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse'
         "400":
           description: Bad Request
           schema:
@@ -18069,7 +18089,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Update digest subscription status
+      summary: Update notification preferences
       tags:
       - Users
   /workflows/control-relationships:

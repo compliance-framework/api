@@ -16505,19 +16505,19 @@ const docTemplate = `{
         },
         "/users/me/digest-subscription": {
             "get": {
-                "description": "Gets the current user's digest email subscription status",
+                "description": "Gets the current user's digest and workflow notification email preferences",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Users"
                 ],
-                "summary": "Get digest subscription status",
+                "summary": "Get notification preferences",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse"
                         }
                     },
                     "401": {
@@ -16546,7 +16546,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the current user's digest email subscription status",
+                "description": "Updates the current user's digest and workflow notification email preferences",
                 "consumes": [
                     "application/json"
                 ],
@@ -16556,15 +16556,15 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Update digest subscription status",
+                "summary": "Update notification preferences",
                 "parameters": [
                     {
-                        "description": "Subscription status",
+                        "description": "Notification preferences",
                         "name": "subscription",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.UserHandler"
+                            "$ref": "#/definitions/handler.UpdateDigestSubscriptionRequest"
                         }
                     }
                 ],
@@ -16572,7 +16572,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_UserHandler"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse"
                         }
                     },
                     "400": {
@@ -19695,6 +19695,20 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.DigestSubscriptionResponse": {
+            "type": "object",
+            "properties": {
+                "subscribed": {
+                    "type": "boolean"
+                },
+                "taskAvailableEmailSubscribed": {
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "type": "boolean"
+                }
+            }
+        },
         "handler.EvidenceActivity": {
             "type": "object",
             "properties": {
@@ -20615,6 +20629,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-handler_DigestSubscriptionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.DigestSubscriptionResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_FilterImportResponse": {
             "type": "object",
             "properties": {
@@ -20649,19 +20676,6 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.OscalLikeEvidence"
-                        }
-                    ]
-                }
-            }
-        },
-        "handler.GenericDataResponse-handler_UserHandler": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/handler.UserHandler"
                         }
                     ]
                 }
@@ -21564,6 +21578,20 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.StatusCount"
                     }
+                }
+            }
+        },
+        "handler.UpdateDigestSubscriptionRequest": {
+            "type": "object",
+            "properties": {
+                "subscribed": {
+                    "type": "boolean"
+                },
+                "taskAvailableEmailSubscribed": {
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "type": "boolean"
                 }
             }
         },
