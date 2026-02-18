@@ -117,15 +117,6 @@ definitions:
       status:
         type: string
     type: object
-  handler.DigestSubscriptionResponse:
-    properties:
-      subscribed:
-        type: boolean
-      taskAvailableEmailSubscribed:
-        type: boolean
-      taskDailyDigestSubscribed:
-        type: boolean
-    type: object
   handler.EvidenceActivity:
     properties:
       description:
@@ -773,13 +764,6 @@ definitions:
         - $ref: '#/definitions/digest.EvidenceSummary'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_DigestSubscriptionResponse:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/handler.DigestSubscriptionResponse'
-        description: Items from the list response
-    type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
     properties:
       data:
@@ -799,6 +783,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_SubscriptionsResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.SubscriptionsResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_BuildByPropsResponse:
@@ -1308,7 +1299,16 @@ definitions:
           $ref: '#/definitions/handler.StatusCount'
         type: array
     type: object
-  handler.UpdateDigestSubscriptionRequest:
+  handler.SubscriptionsResponse:
+    properties:
+      subscribed:
+        type: boolean
+      taskAvailableEmailSubscribed:
+        type: boolean
+      taskDailyDigestSubscribed:
+        type: boolean
+    type: object
+  handler.UpdateSubscriptionsRequest:
     properties:
       subscribed:
         type: boolean
@@ -18024,7 +18024,7 @@ paths:
       summary: Change password for logged-in user
       tags:
       - Users
-  /users/me/digest-subscription:
+  /users/me/subscriptions:
     get:
       description: Gets the current user's digest and workflow notification email
         preferences
@@ -18034,7 +18034,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_SubscriptionsResponse'
         "401":
           description: Unauthorized
           schema:
@@ -18063,14 +18063,14 @@ paths:
         name: subscription
         required: true
         schema:
-          $ref: '#/definitions/handler.UpdateDigestSubscriptionRequest'
+          $ref: '#/definitions/handler.UpdateSubscriptionsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_SubscriptionsResponse'
         "400":
           description: Bad Request
           schema:

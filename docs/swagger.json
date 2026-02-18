@@ -16497,7 +16497,7 @@
                 ]
             }
         },
-        "/users/me/digest-subscription": {
+        "/users/me/subscriptions": {
             "get": {
                 "description": "Gets the current user's digest and workflow notification email preferences",
                 "produces": [
@@ -16511,7 +16511,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_SubscriptionsResponse"
                         }
                     },
                     "401": {
@@ -16558,7 +16558,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.UpdateDigestSubscriptionRequest"
+                            "$ref": "#/definitions/handler.UpdateSubscriptionsRequest"
                         }
                     }
                 ],
@@ -16566,7 +16566,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_DigestSubscriptionResponse"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_SubscriptionsResponse"
                         }
                     },
                     "400": {
@@ -19689,20 +19689,6 @@
                 }
             }
         },
-        "handler.DigestSubscriptionResponse": {
-            "type": "object",
-            "properties": {
-                "subscribed": {
-                    "type": "boolean"
-                },
-                "taskAvailableEmailSubscribed": {
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
-                    "type": "boolean"
-                }
-            }
-        },
         "handler.EvidenceActivity": {
             "type": "object",
             "properties": {
@@ -20623,19 +20609,6 @@
                 }
             }
         },
-        "handler.GenericDataResponse-handler_DigestSubscriptionResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/handler.DigestSubscriptionResponse"
-                        }
-                    ]
-                }
-            }
-        },
         "handler.GenericDataResponse-handler_FilterImportResponse": {
             "type": "object",
             "properties": {
@@ -20670,6 +20643,19 @@
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_SubscriptionsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.SubscriptionsResponse"
                         }
                     ]
                 }
@@ -21575,7 +21561,21 @@
                 }
             }
         },
-        "handler.UpdateDigestSubscriptionRequest": {
+        "handler.SubscriptionsResponse": {
+            "type": "object",
+            "properties": {
+                "subscribed": {
+                    "type": "boolean"
+                },
+                "taskAvailableEmailSubscribed": {
+                    "type": "boolean"
+                },
+                "taskDailyDigestSubscribed": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.UpdateSubscriptionsRequest": {
             "type": "object",
             "properties": {
                 "subscribed": {
