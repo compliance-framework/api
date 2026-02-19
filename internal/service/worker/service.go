@@ -529,6 +529,31 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 	return nil
 }
 
+// EnqueueWorkflowExecutionFailed enqueues a workflow-execution-failed notification email job.
+// Implements the workflow.NotificationEnqueuer interface.
+func (s *Service) EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+
+	if execution == nil || execution.ID == nil {
+		return nil
+	}
+
+	args := &WorkflowExecutionFailedArgs{
+		WorkflowExecutionID: execution.ID.String(),
+	}
+
+	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
+		{Args: args, InsertOpts: JobInsertOptionsForWorkflowNotification()},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enqueue workflow-execution-failed job: %w", err)
+	}
+
+	return nil
+}
+
 // EnqueueSendEmail enqueues a send email job
 func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) error {
 	if !s.config.Enabled {

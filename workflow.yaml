@@ -1,1 +1,5 @@
 scheduler_enabled: true
+due_soon_enabled: true
+due_soon_schedule: "0 * * * * *"
+task_digest_enabled: true
+task_digest_schedule: "0 * * * * *"

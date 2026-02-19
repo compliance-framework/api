@@ -20,9 +20,10 @@ const (
 
 // Job types for workflow notifications
 const (
-	JobTypeWorkflowTaskAssigned = "workflow_task_assigned"
-	JobTypeWorkflowTaskDueSoon  = "workflow_task_due_soon"
-	JobTypeWorkflowTaskDigest   = "workflow_task_digest"
+	JobTypeWorkflowTaskAssigned    = "workflow_task_assigned"
+	JobTypeWorkflowTaskDueSoon     = "workflow_task_due_soon"
+	JobTypeWorkflowTaskDigest      = "workflow_task_digest"
+	JobTypeWorkflowExecutionFailed = "workflow_execution_failed"
 )
 
 // WorkflowTaskAssignedArgs represents the arguments for a new-task-assigned notification email
@@ -52,6 +53,11 @@ type WorkflowTaskDigestArgs struct {
 	UserID string `json:"user_id"`
 }
 
+// WorkflowExecutionFailedArgs represents the arguments for a workflow-execution-failed notification email
+type WorkflowExecutionFailedArgs struct {
+	WorkflowExecutionID string `json:"workflow_execution_id"`
+}
+
 // Kind returns the job kind for River
 func (WorkflowTaskAssignedArgs) Kind() string { return JobTypeWorkflowTaskAssigned }
 
@@ -61,6 +67,9 @@ func (WorkflowTaskDueSoonArgs) Kind() string { return JobTypeWorkflowTaskDueSoon
 // Kind returns the job kind for River
 func (WorkflowTaskDigestArgs) Kind() string { return JobTypeWorkflowTaskDigest }
 
+// Kind returns the job kind for River
+func (WorkflowExecutionFailedArgs) Kind() string { return JobTypeWorkflowExecutionFailed }
+
 // Timeout returns the timeout for workflow task assigned jobs
 func (WorkflowTaskAssignedArgs) Timeout() time.Duration { return 30 * time.Second }
 
@@ -69,6 +78,9 @@ func (WorkflowTaskDueSoonArgs) Timeout() time.Duration { return 30 * time.Second
 
 // Timeout returns the timeout for workflow task digest jobs
 func (WorkflowTaskDigestArgs) Timeout() time.Duration { return 5 * time.Minute }
+
+// Timeout returns the timeout for workflow execution failed jobs
+func (WorkflowExecutionFailedArgs) Timeout() time.Duration { return 30 * time.Second }
 
 // SendEmailArgs represents the arguments for sending an email
 type SendEmailArgs struct {
@@ -610,6 +622,9 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 		if db != nil {
 			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, userRepo, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
+
+			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, logger)
+			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
 		}
 	}
 

@@ -16,6 +16,7 @@ import (
 // Implemented by the worker service to avoid a direct River dependency in this package.
 type NotificationEnqueuer interface {
 	EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error
+	EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error
 }
 
 // DAGExecutor handles the execution of workflow DAGs with dependency resolution
@@ -577,6 +578,18 @@ func (e *DAGExecutor) checkWorkflowCompletion(ctx context.Context, workflowExecu
 				return fmt.Errorf("failed to mark workflow as failed: %w", err)
 			}
 			e.logger.Printf("Workflow execution failed: %s", reason)
+
+			// Notify the workflow instance owner
+			if e.notificationEnqueuer != nil {
+				execution, execErr := e.workflowExecutionService.GetByID(workflowExecutionID)
+				if execErr == nil {
+					if notifyErr := e.notificationEnqueuer.EnqueueWorkflowExecutionFailed(ctx, execution); notifyErr != nil {
+						e.logger.Printf("Failed to enqueue workflow-execution-failed notification: %v", notifyErr)
+					}
+				} else {
+					e.logger.Printf("Failed to reload execution for failure notification: %v", execErr)
+				}
+			}
 		} else {
 			// All steps reached successful terminal states (completed/skipped)
 			if err := e.workflowExecutionService.UpdateStatus(ctx, workflowExecutionID, StatusCompleted.String()); err != nil {

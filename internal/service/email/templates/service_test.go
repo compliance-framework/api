@@ -132,6 +132,63 @@ func TestTemplateService_WorkflowTaskDueSoon(t *testing.T) {
 	require.Contains(t, text, "TOMORROW")
 }
 
+func TestTemplateService_WorkflowExecutionFailed_WithData(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName":        "Alice Smith",
+		"WorkflowTitle":        "SOC2 Audit",
+		"WorkflowInstanceName": "SOC2 2026",
+		"ExecutionID":          "exec-abc-123",
+		"FailureReason":        "2 of 5 steps failed",
+		"FailedAt":             "Wed, 19 Feb 2026 08:00:00 UTC",
+		"FailedSteps":          2,
+		"CompletedSteps":       3,
+		"TotalSteps":           5,
+		"WorkflowURL":          "https://app.example.com/workflows/abc",
+	}
+
+	html, text, err := service.Use("workflow-execution-failed", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "SOC2 Audit")
+	require.Contains(t, html, "SOC2 2026")
+	require.Contains(t, html, "2 of 5 steps failed")
+	require.Contains(t, html, "exec-abc-123")
+	require.Contains(t, text, "Alice Smith")
+	require.Contains(t, text, "SOC2 Audit")
+	require.Contains(t, text, "2 of 5 steps failed")
+	require.Contains(t, text, "FAILED")
+}
+
+func TestTemplateService_WorkflowExecutionFailed_NoURL(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName":        "Bob",
+		"WorkflowTitle":        "Annual Audit",
+		"WorkflowInstanceName": "Audit 2026",
+		"ExecutionID":          "exec-xyz-456",
+		"FailureReason":        "1 of 3 steps failed",
+		"FailedAt":             "Wed, 19 Feb 2026 09:00:00 UTC",
+		"FailedSteps":          1,
+		"CompletedSteps":       2,
+		"TotalSteps":           3,
+		"WorkflowURL":          "",
+	}
+
+	html, text, err := service.Use("workflow-execution-failed", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Bob")
+	require.NotContains(t, html, "View Workflow Instance")
+}
+
 func TestTemplateService_WorkflowTaskDigest_WithTasks(t *testing.T) {
 	service, err := NewTemplateService()
 	require.NoError(t, err)
