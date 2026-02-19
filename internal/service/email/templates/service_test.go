@@ -56,6 +56,82 @@ func TestTemplateService_MissingTemplates(t *testing.T) {
 	require.Error(t, err, "UseText should error for missing template")
 }
 
+func TestTemplateService_WorkflowTaskAssigned(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	dueDate := "2026-03-01 09:00:00 +0000 UTC"
+	data := TemplateData{
+		"UserName":              "Alice Smith",
+		"StepTitle":             "Review Policy",
+		"WorkflowTitle":         "Annual Audit",
+		"WorkflowInstanceTitle": "Audit 2026",
+		"StepURL":               "https://app.example.com/steps/abc",
+		"DueDate":               dueDate,
+	}
+
+	html, text, err := service.Use("workflow-task-assigned", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "Review Policy")
+	require.Contains(t, html, "Annual Audit")
+	require.Contains(t, html, "https://app.example.com/steps/abc")
+	require.Contains(t, text, "Alice Smith")
+	require.Contains(t, text, "Review Policy")
+	require.Contains(t, text, "https://app.example.com/steps/abc")
+}
+
+func TestTemplateService_WorkflowTaskAssigned_NoDueDate(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"UserName":              "Bob",
+		"StepTitle":             "Submit Evidence",
+		"WorkflowTitle":         "SOC2 Audit",
+		"WorkflowInstanceTitle": "SOC2 2026",
+		"StepURL":               "https://app.example.com/steps/xyz",
+		"DueDate":               nil,
+	}
+
+	html, text, err := service.Use("workflow-task-assigned", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Bob")
+	require.NotContains(t, html, "Due Date")
+}
+
+func TestTemplateService_WorkflowTaskDueSoon(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"UserName":              "Alice Smith",
+		"StepTitle":             "Submit Evidence",
+		"WorkflowTitle":         "SOC2 Audit",
+		"WorkflowInstanceTitle": "SOC2 2026",
+		"StepURL":               "https://app.example.com/steps/abc",
+		"DueDate":               "2026-03-01",
+	}
+
+	html, text, err := service.Use("workflow-task-due-soon", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "Submit Evidence")
+	require.Contains(t, html, "SOC2 Audit")
+	require.Contains(t, html, "https://app.example.com/steps/abc")
+	require.Contains(t, html, "2026-03-01")
+	require.Contains(t, text, "Alice Smith")
+	require.Contains(t, text, "Submit Evidence")
+	require.Contains(t, text, "https://app.example.com/steps/abc")
+	require.Contains(t, text, "TOMORROW")
+}
+
 func TestTemplateService_ListTemplates(t *testing.T) {
 	service, err := NewTemplateService()
 	require.NoError(t, err, "Failed to create template service")

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -174,7 +175,7 @@ func TestDAGExecutor_Integration_InitializeWorkflow(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar())
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -236,7 +237,7 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar())
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -299,7 +300,7 @@ func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar())
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -358,7 +359,7 @@ func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar())
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)

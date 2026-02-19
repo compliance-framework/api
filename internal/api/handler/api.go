@@ -84,7 +84,7 @@ func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db 
 // registerWorkflowExecutionHandlers registers execution-related handlers that require the workflow manager
 func registerWorkflowExecutionHandlers(workflowGroup *echo.Group, logger *zap.SugaredLogger, db *gorm.DB, workflowManager *workflow.Manager) {
 	roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, logger)
 
 	// Workflow execution handler
 	workflowExecutionHandler := workflows.NewWorkflowExecutionHandler(logger, db, workflowManager, assignmentService)
@@ -107,7 +107,7 @@ func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger) *workfl
 	roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
 
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, logger)
 
 	// Create executor for step transition coordination
 	stdLogger := log.Default()

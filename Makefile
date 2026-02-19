@@ -109,7 +109,7 @@ lint: lint.check ## Run golangci-lint
 
 ##@ Run
 .PHONY: reviewable
-reviewable: swag # Ensure a PR is ready for review.
+reviewable: lint test-integration # Ensure a PR is ready for review.
 	@go mod tidy
 
 .PHONY: check-diff

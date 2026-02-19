@@ -29,6 +29,16 @@ func (m *MockEmailService) SendWithProvider(ctx context.Context, providerName st
 	return args.Get(0).(*types.SendResult), args.Error(1)
 }
 
+func (m *MockEmailService) UseTemplate(templateName string, data map[string]interface{}) (string, string, error) {
+	args := m.Called(templateName, data)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockEmailService) GetDefaultFromAddress() string {
+	args := m.Called()
+	return args.String(0)
+}
+
 // MockDigestService is a mock implementation of DigestService
 type MockDigestService struct {
 	mock.Mock
@@ -320,7 +330,7 @@ func TestWorkers(t *testing.T) {
 	mockDigestService := &MockDigestService{}
 	mockLogger := &MockLogger{}
 
-	workers := Workers(mockEmailService, mockDigestService, mockLogger)
+	workers := Workers(mockEmailService, mockDigestService, nil, mockLogger)
 
 	assert.NotNil(t, workers)
 }
@@ -365,7 +375,7 @@ func TestPeriodicJobsFromConfig_WorkflowSchedulerEnabledGuard(t *testing.T) {
 			Schedule:         "@every 15m",
 		},
 	}, logger)
-	assert.Len(t, jobs, 1)
+	assert.Len(t, jobs, 2)
 }
 
 func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {

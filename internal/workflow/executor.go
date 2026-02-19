@@ -12,6 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// NotificationEnqueuer is the minimal interface for enqueuing workflow notification jobs.
+// Implemented by the worker service to avoid a direct River dependency in this package.
+type NotificationEnqueuer interface {
+	EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error
+}
+
 // DAGExecutor handles the execution of workflow DAGs with dependency resolution
 // and parallel step execution capabilities
 type DAGExecutor struct {
@@ -20,6 +26,7 @@ type DAGExecutor struct {
 	stepDefinitionService    WorkflowStepDefinitionServiceInterface
 	assignmentService        AssignmentServiceInterface
 	evidenceIntegration      *EvidenceIntegration // Optional: for evidence stream integration
+	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
 	logger                   *log.Logger
 }
 
@@ -85,6 +92,11 @@ func NewDAGExecutor(
 // SetEvidenceIntegration sets the evidence integration service (optional)
 func (e *DAGExecutor) SetEvidenceIntegration(evidenceIntegration *EvidenceIntegration) {
 	e.evidenceIntegration = evidenceIntegration
+}
+
+// SetNotificationEnqueuer sets the notification enqueuer (optional)
+func (e *DAGExecutor) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
+	e.notificationEnqueuer = enqueuer
 }
 
 // ExecutionState tracks the current state of a workflow execution
@@ -471,7 +483,16 @@ func (e *DAGExecutor) tryUnblockStep(stepExec *workflows.StepExecution) bool {
 	}
 
 	e.logger.Printf("Unblocked step: %s", stepExec.ID.String())
-	// TODO: Hook for notification - step is now ready for user action
+
+	if e.notificationEnqueuer != nil {
+		reloaded, err := e.stepExecutionService.GetByID(stepExec.ID)
+		if err == nil && reloaded != nil {
+			if err := e.notificationEnqueuer.EnqueueWorkflowTaskAssigned(context.Background(), reloaded); err != nil {
+				e.logger.Printf("Warning: failed to enqueue task-assigned notification for step %s: %v", stepExec.ID.String(), err)
+			}
+		}
+	}
+
 	return true
 }
 

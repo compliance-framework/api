@@ -10,6 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -23,14 +24,22 @@ type Assignee struct {
 type AssignmentService struct {
 	roleAssignmentService RoleAssignmentServiceInterface
 	db                    *gorm.DB
+	notificationEnqueuer  NotificationEnqueuer // Optional: for task-assigned notification emails
+	logger                *zap.SugaredLogger
 }
 
 // NewAssignmentService creates a new assignment service
-func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db *gorm.DB) *AssignmentService {
+func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db *gorm.DB, logger *zap.SugaredLogger) *AssignmentService {
 	return &AssignmentService{
 		roleAssignmentService: roleAssignmentService,
 		db:                    db,
+		logger:                logger,
 	}
+}
+
+// SetNotificationEnqueuer sets the notification enqueuer (optional)
+func (s *AssignmentService) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
+	s.notificationEnqueuer = enqueuer
 }
 
 // ResolveStepAssignees resolves assignees for a list of step definitions based on role assignments
@@ -90,19 +99,22 @@ func (s *AssignmentService) ReassignStep(
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var stepExecution workflows.StepExecution
-		if err := tx.First(&stepExecution, stepExecutionID).Error; err != nil {
+	var updatedStepExecution workflows.StepExecution
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&updatedStepExecution, stepExecutionID).Error; err != nil {
 			return err
 		}
 
-		if !isReassignableStatus(stepExecution.Status) {
-			return fmt.Errorf("%w: current status is %s", ErrReassignmentNotAllowed, stepExecution.Status)
+		if !isReassignableStatus(updatedStepExecution.Status) {
+			return fmt.Errorf("%w: current status is %s", ErrReassignmentNotAllowed, updatedStepExecution.Status)
 		}
 
 		if err := s.validateAssigneeExists(tx, newAssignee); err != nil {
 			return err
 		}
+
+		prevType := updatedStepExecution.AssignedToType
+		prevID := updatedStepExecution.AssignedToID
 
 		now := time.Now()
 		if err := tx.Model(&workflows.StepExecution{}).
@@ -114,12 +126,14 @@ func (s *AssignmentService) ReassignStep(
 			}).Error; err != nil {
 			return err
 		}
+		updatedStepExecution.AssignedToType = newAssignee.Type
+		updatedStepExecution.AssignedToID = newAssignee.ID
 
 		history := &workflows.StepReassignmentHistory{
-			StepExecutionID:        stepExecution.ID,
-			WorkflowExecutionID:    stepExecution.WorkflowExecutionID,
-			PreviousAssignedToType: stepExecution.AssignedToType,
-			PreviousAssignedToID:   stepExecution.AssignedToID,
+			StepExecutionID:        updatedStepExecution.ID,
+			WorkflowExecutionID:    updatedStepExecution.WorkflowExecutionID,
+			PreviousAssignedToType: prevType,
+			PreviousAssignedToID:   prevID,
 			NewAssignedToType:      newAssignee.Type,
 			NewAssignedToID:        newAssignee.ID,
 			Reason:                 reason,
@@ -127,7 +141,18 @@ func (s *AssignmentService) ReassignStep(
 			ReassignedByEmail:      reassignedByEmail,
 		}
 		return tx.Create(history).Error
-	})
+	}); err != nil {
+		return err
+	}
+
+	if s.notificationEnqueuer != nil && newAssignee.Type == workflows.AssignmentTypeUser.String() {
+		if err := s.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, &updatedStepExecution); err != nil {
+			// Non-fatal: log but don't fail the reassignment
+			s.logger.Error("failed to enqueue workflow task assigned notification", "error", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *AssignmentService) BulkReassignByRole(
