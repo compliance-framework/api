@@ -132,6 +132,67 @@ func TestTemplateService_WorkflowTaskDueSoon(t *testing.T) {
 	require.Contains(t, text, "TOMORROW")
 }
 
+func TestTemplateService_WorkflowTaskDigest_WithTasks(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	pendingDue := "2026-03-15"
+	overdueDue := "2026-02-01"
+	data := TemplateData{
+		"UserName":    "Alice Smith",
+		"PeriodLabel": "Daily digest — Wednesday, 19 February 2026",
+		"PendingTasks": []map[string]interface{}{
+			{
+				"StepTitle":             "Submit Evidence",
+				"WorkflowTitle":         "SOC2 Audit",
+				"WorkflowInstanceTitle": "SOC2 2026",
+				"DueDate":               &pendingDue,
+				"StepURL":               "https://app.example.com/steps/abc",
+			},
+		},
+		"OverdueTasks": []map[string]interface{}{
+			{
+				"StepTitle":             "Review Policy",
+				"WorkflowTitle":         "Annual Audit",
+				"WorkflowInstanceTitle": "Audit 2026",
+				"DueDate":               &overdueDue,
+				"StepURL":               "https://app.example.com/steps/xyz",
+			},
+		},
+	}
+
+	html, text, err := service.Use("workflow-task-digest", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "Submit Evidence")
+	require.Contains(t, html, "Review Policy")
+	require.Contains(t, html, "SOC2 Audit")
+	require.Contains(t, text, "Alice Smith")
+	require.Contains(t, text, "Submit Evidence")
+	require.Contains(t, text, "PENDING")
+	require.Contains(t, text, "OVERDUE")
+}
+
+func TestTemplateService_WorkflowTaskDigest_EmptyTasks(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"UserName":     "Bob",
+		"PeriodLabel":  "Daily digest — Wednesday, 19 February 2026",
+		"PendingTasks": []map[string]interface{}{},
+		"OverdueTasks": []map[string]interface{}{},
+	}
+
+	html, text, err := service.Use("workflow-task-digest", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Bob")
+}
+
 func TestTemplateService_ListTemplates(t *testing.T) {
 	service, err := NewTemplateService()
 	require.NoError(t, err, "Failed to create template service")

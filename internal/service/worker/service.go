@@ -196,7 +196,7 @@ func NewServiceWithDigest(
 	// Register workers with dependencies injected
 	// We start with the email/digest workers
 	userRepo := NewGORMUserRepository(db)
-	workers := Workers(emailSvc, digestSvc, userRepo, logger)
+	workers := Workers(emailSvc, digestSvc, userRepo, db, logger)
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
@@ -206,6 +206,10 @@ func NewServiceWithDigest(
 	// Add due-soon checker worker (uses clientProxy which is wired to the real client after construction)
 	dueSoonCheckerWorker := NewDueSoonCheckerWorker(db, clientProxy, logger)
 	river.AddWorker(workers, river.WorkFunc(dueSoonCheckerWorker.Work))
+
+	// Add workflow task digest checker worker
+	digestCheckerWorker := NewWorkflowTaskDigestCheckerWorker(db, clientProxy, logger)
+	river.AddWorker(workers, river.WorkFunc(digestCheckerWorker.Work))
 
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
@@ -398,14 +402,31 @@ func parseCronScheduleWithFallback(cronSchedule string, fallback string, jobName
 	return schedule
 }
 
-func NewDueSoonCheckerPeriodicJob(logger *zap.SugaredLogger) *river.PeriodicJob {
-	schedule := parseCronScheduleWithFallback("0 8 * * *", "0 8 * * *", "due-soon checker", logger)
+func NewDueSoonCheckerPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 8 * * *", "due-soon checker", logger)
 
 	return river.NewPeriodicJob(
-		schedule,
+		sched,
 		func() (river.JobArgs, *river.InsertOpts) {
 			return &DueSoonCheckerArgs{}, &river.InsertOpts{
 				Queue:       "email",
+				MaxAttempts: 3,
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
+func NewWorkflowTaskDigestPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 8 * * *", "workflow task digest", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &WorkflowTaskDigestCheckerArgs{}, &river.InsertOpts{
+				Queue:       "digest",
 				MaxAttempts: 3,
 			}
 		},
@@ -425,7 +446,12 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	}
 	if cfg.Workflow != nil && cfg.Workflow.SchedulerEnabled {
 		periodicJobs = append(periodicJobs, NewWorkflowSchedulerPeriodicJob(cfg.Workflow.Schedule, logger))
-		periodicJobs = append(periodicJobs, NewDueSoonCheckerPeriodicJob(logger))
+	}
+	if cfg.Workflow != nil && cfg.Workflow.DueSoonEnabled {
+		periodicJobs = append(periodicJobs, NewDueSoonCheckerPeriodicJob(cfg.Workflow.DueSoonSchedule, logger))
+	}
+	if cfg.Workflow != nil && cfg.Workflow.TaskDigestEnabled {
+		periodicJobs = append(periodicJobs, NewWorkflowTaskDigestPeriodicJob(cfg.Workflow.TaskDigestSchedule, logger))
 	}
 	return periodicJobs
 }

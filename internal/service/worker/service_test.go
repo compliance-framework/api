@@ -330,7 +330,7 @@ func TestWorkers(t *testing.T) {
 	mockDigestService := &MockDigestService{}
 	mockLogger := &MockLogger{}
 
-	workers := Workers(mockEmailService, mockDigestService, nil, mockLogger)
+	workers := Workers(mockEmailService, mockDigestService, nil, nil, mockLogger)
 
 	assert.NotNil(t, workers)
 }
@@ -359,23 +359,43 @@ func TestParseCronScheduleWithFallback_InvalidUsesFallback(t *testing.T) {
 func TestPeriodicJobsFromConfig_WorkflowSchedulerEnabledGuard(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 
+	// Nothing enabled → 0 jobs
 	jobs := periodicJobsFromConfig(&config.Config{
 		DigestEnabled: false,
 		Workflow: &config.WorkflowConfig{
-			SchedulerEnabled: false,
-			Schedule:         "@every 15m",
+			SchedulerEnabled:  false,
+			Schedule:          "@every 15m",
+			DueSoonEnabled:    false,
+			TaskDigestEnabled: false,
 		},
 	}, logger)
 	assert.Len(t, jobs, 0)
 
+	// Scheduler only → 1 job
 	jobs = periodicJobsFromConfig(&config.Config{
 		DigestEnabled: false,
 		Workflow: &config.WorkflowConfig{
-			SchedulerEnabled: true,
-			Schedule:         "@every 15m",
+			SchedulerEnabled:  true,
+			Schedule:          "@every 15m",
+			DueSoonEnabled:    false,
+			TaskDigestEnabled: false,
 		},
 	}, logger)
-	assert.Len(t, jobs, 2)
+	assert.Len(t, jobs, 1)
+
+	// Scheduler + due-soon + task digest → 3 jobs
+	jobs = periodicJobsFromConfig(&config.Config{
+		DigestEnabled: false,
+		Workflow: &config.WorkflowConfig{
+			SchedulerEnabled:   true,
+			Schedule:           "@every 15m",
+			DueSoonEnabled:     true,
+			DueSoonSchedule:    "0 8 * * *",
+			TaskDigestEnabled:  true,
+			TaskDigestSchedule: "0 8 * * *",
+		},
+	}, logger)
+	assert.Len(t, jobs, 3)
 }
 
 func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {

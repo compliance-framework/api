@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/riverqueue/river"
+	"gorm.io/gorm"
 )
 
 // Job types for email processing
@@ -578,12 +579,11 @@ func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts 
 	return &river.InsertOpts{
 		Queue:       queue,
 		MaxAttempts: maxAttempts,
-		// River uses exponential backoff by default
 	}
 }
 
 // Workers returns all workers as work functions with dependencies injected
-func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, logger Logger) *river.Workers {
+func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, db *gorm.DB, logger Logger) *river.Workers {
 	workers := river.NewWorkers()
 
 	// Create worker instances with dependencies
@@ -606,6 +606,11 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(emailService, userRepo, logger)
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
+
+		if db != nil {
+			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, userRepo, logger)
+			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
+		}
 	}
 
 	return workers
