@@ -23,7 +23,7 @@ func TestWorkflowExecutionFailedWorker_InvalidExecutionID_Skips(t *testing.T) {
 	mockRepo := &MockUserRepository{}
 	mockLog := zap.NewNop().Sugar()
 
-	w := NewWorkflowExecutionFailedWorker(nil, mockEmail, mockRepo, mockLog)
+	w := NewWorkflowExecutionFailedWorker(nil, mockEmail, mockRepo, "http://localhost:8000", mockLog)
 
 	err := w.Work(ctx, makeFailedJob(WorkflowExecutionFailedArgs{WorkflowExecutionID: "not-a-uuid"}))
 	assert.NoError(t, err)
@@ -47,7 +47,7 @@ func TestWorkflowExecutionFailedWorker_UserNotFound_Skips(t *testing.T) {
 	// We can't inject a mock DB without a real GORM setup, so we test the
 	// invalid-UUID and user-not-found paths which don't require DB access.
 	// The nil-DB path panics on GORM, so we only test the UUID guard here.
-	w := NewWorkflowExecutionFailedWorker(nil, mockEmail, mockRepo, mockLog)
+	w := NewWorkflowExecutionFailedWorker(nil, mockEmail, mockRepo, "http://localhost:8000", mockLog)
 
 	err := w.Work(ctx, makeFailedJob(WorkflowExecutionFailedArgs{WorkflowExecutionID: "bad-id"}))
 	assert.NoError(t, err)

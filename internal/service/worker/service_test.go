@@ -330,7 +330,7 @@ func TestWorkers(t *testing.T) {
 	mockDigestService := &MockDigestService{}
 	mockLogger := &MockLogger{}
 
-	workers := Workers(mockEmailService, mockDigestService, nil, nil, mockLogger)
+	workers := Workers(mockEmailService, mockDigestService, nil, nil, "", mockLogger)
 
 	assert.NotNil(t, workers)
 }

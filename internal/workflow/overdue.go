@@ -16,6 +16,7 @@ type OverdueService struct {
 	workflowExecutionService *workflows.WorkflowExecutionService
 	stepExecutionService     *workflows.StepExecutionService
 	evidenceIntegration      *EvidenceIntegration
+	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
 	logger                   Logger
 	defaultGracePeriodDays   int
 }
@@ -36,6 +37,11 @@ func NewOverdueService(
 		logger:                   logger,
 		defaultGracePeriodDays:   defaultGracePeriodDays,
 	}
+}
+
+// SetNotificationEnqueuer sets the notification enqueuer (optional)
+func (s *OverdueService) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
+	s.notificationEnqueuer = enqueuer
 }
 
 // CheckOverdueExecutions marks workflow executions as overdue once due date passes.
@@ -120,6 +126,11 @@ func (s *OverdueService) CheckFailedExecutions(ctx context.Context) (int, error)
 			continue
 		}
 		failed++
+		if s.notificationEnqueuer != nil {
+			if notifyErr := s.notificationEnqueuer.EnqueueWorkflowExecutionFailed(ctx, &exec); notifyErr != nil {
+				s.logger.Errorw("Failed to enqueue workflow-execution-failed notification", "workflow_execution_id", exec.ID, "error", notifyErr)
+			}
+		}
 	}
 
 	s.logger.Infow("Checked failed workflow executions", "checked", len(overdueExecutions), "failed", failed)

@@ -17,15 +17,17 @@ type WorkflowExecutionFailedWorker struct {
 	db           *gorm.DB
 	emailService EmailService
 	userRepo     UserRepository
+	webBaseURL   string
 	logger       Logger
 }
 
 // NewWorkflowExecutionFailedWorker creates a new WorkflowExecutionFailedWorker
-func NewWorkflowExecutionFailedWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, logger Logger) *WorkflowExecutionFailedWorker {
+func NewWorkflowExecutionFailedWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger Logger) *WorkflowExecutionFailedWorker {
 	return &WorkflowExecutionFailedWorker{
 		db:           db,
 		emailService: emailService,
 		userRepo:     userRepo,
+		webBaseURL:   webBaseURL,
 		logger:       logger,
 	}
 }
@@ -114,7 +116,8 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		"FailedSteps":          failedSteps,
 		"CompletedSteps":       completedSteps,
 		"TotalSteps":           totalSteps,
-		"WorkflowURL":          "",
+		"WorkflowURL":          w.webBaseURL + "/my-tasks",
+		"MyTasksURL":           w.webBaseURL + "/my-tasks",
 	}
 
 	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-execution-failed", templateData)

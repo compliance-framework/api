@@ -242,6 +242,16 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 		if err := e.stepExecutionService.Create(stepExecution); err != nil {
 			return fmt.Errorf("failed to create step execution for step %s: %w", stepDef.ID.String(), err)
 		}
+
+		// Enqueue task-assigned notification for user or email-assigned, actionable steps
+		if e.notificationEnqueuer != nil &&
+			(stepExecution.AssignedToType == workflows.AssignmentTypeUser.String() ||
+				stepExecution.AssignedToType == workflows.AssignmentTypeEmail.String()) &&
+			initialStatus == StatusPending.String() {
+			if err := e.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, stepExecution); err != nil {
+				e.logger.Printf("Warning: failed to enqueue task-assigned notification for step %s: %v", stepDef.ID.String(), err)
+			}
+		}
 	}
 
 	if len(retryCompletedSteps) > 0 {

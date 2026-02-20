@@ -145,7 +145,8 @@ func (s *AssignmentService) ReassignStep(
 		return err
 	}
 
-	if s.notificationEnqueuer != nil && newAssignee.Type == workflows.AssignmentTypeUser.String() {
+	if s.notificationEnqueuer != nil &&
+		(newAssignee.Type == workflows.AssignmentTypeUser.String() || newAssignee.Type == workflows.AssignmentTypeEmail.String()) {
 		if err := s.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, &updatedStepExecution); err != nil {
 			// Non-fatal: log but don't fail the reassignment
 			s.logger.Error("failed to enqueue workflow task assigned notification", "error", err)

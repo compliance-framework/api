@@ -41,6 +41,7 @@ type Service struct {
 	// Workflow services
 	workflowExecutor         interface{}
 	workflowManager          *workflow.Manager
+	overdueService           *workflow.OverdueService
 	stepExecutionService     interface{}
 	workflowExecutionService interface{}
 	stepDefinitionService    interface{}
@@ -177,17 +178,19 @@ func NewServiceWithDigest(
 		overdueCheckEnabled = digestCfg.Workflow.OverdueCheckEnabled
 	}
 
+	overdueService := workflow.NewOverdueService(
+		db,
+		workflowExecService,
+		stepExecService,
+		evidenceIntegration,
+		logger,
+		gracePeriodDays,
+	)
+
 	schedulerWorker := workflow.NewWorkflowSchedulerWorker(
 		workflowManager,
 		workflowInstService,
-		workflow.NewOverdueService(
-			db,
-			workflowExecService,
-			stepExecService,
-			evidenceIntegration,
-			logger,
-			gracePeriodDays,
-		),
+		overdueService,
 		overdueCheckEnabled,
 		logger,
 		gracePeriodDays,
@@ -196,7 +199,11 @@ func NewServiceWithDigest(
 	// Register workers with dependencies injected
 	// We start with the email/digest workers
 	userRepo := NewGORMUserRepository(db)
-	workers := Workers(emailSvc, digestSvc, userRepo, db, logger)
+	webBaseURL := ""
+	if digestCfg != nil {
+		webBaseURL = digestCfg.WebBaseURL
+	}
+	workers := Workers(emailSvc, digestSvc, userRepo, db, webBaseURL, logger)
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
@@ -241,15 +248,18 @@ func NewServiceWithDigest(
 		// Store workflow services
 		workflowExecutor:         executor,
 		workflowManager:          workflowManager,
+		overdueService:           overdueService,
 		stepExecutionService:     stepExecService,
 		workflowExecutionService: workflowExecService,
 		stepDefinitionService:    stepDefService,
 	}
 
-	// Wire the service itself as the notification enqueuer for the executor and assignment service.
+	// Wire the service itself as the notification enqueuer for the executor, assignment service, manager, and overdue service.
 	// This must happen after the service is built so the River client is available.
 	executor.SetNotificationEnqueuer(service)
 	assignmentService.SetNotificationEnqueuer(service)
+	workflowManager.SetNotificationEnqueuer(service)
+	overdueService.SetNotificationEnqueuer(service)
 
 	return service, nil
 }
@@ -491,9 +501,21 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 		return nil
 	}
 
-	// Only enqueue for user-type assignees — email and group types are not supported yet
-	if stepExecution.AssignedToType != workflows.AssignmentTypeUser.String() || stepExecution.AssignedToID == "" {
+	// Only enqueue for user or email-type assignees
+	if (stepExecution.AssignedToType != workflows.AssignmentTypeUser.String() &&
+		stepExecution.AssignedToType != workflows.AssignmentTypeEmail.String()) ||
+		stepExecution.AssignedToID == "" {
 		return nil
+	}
+
+	// Reload with full nested relations so title fields are always populated,
+	// regardless of what the caller had preloaded on the passed-in struct.
+	var full workflows.StepExecution
+	if err := s.db.WithContext(ctx).
+		Preload("WorkflowStepDefinition").
+		Preload("WorkflowExecution.WorkflowInstance.WorkflowDefinition").
+		First(&full, "id = ?", stepExecution.ID).Error; err == nil {
+		stepExecution = &full
 	}
 
 	stepTitle := ""
@@ -510,6 +532,7 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 	}
 
 	args := &WorkflowTaskAssignedArgs{
+		AssignedToType:        stepExecution.AssignedToType,
 		UserID:                stepExecution.AssignedToID,
 		StepExecutionID:       stepExecution.ID.String(),
 		StepTitle:             stepTitle,

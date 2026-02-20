@@ -28,6 +28,7 @@ const (
 
 // WorkflowTaskAssignedArgs represents the arguments for a new-task-assigned notification email
 type WorkflowTaskAssignedArgs struct {
+	AssignedToType        string     `json:"assigned_to_type"`
 	UserID                string     `json:"user_id"`
 	StepExecutionID       string     `json:"step_execution_id"`
 	StepTitle             string     `json:"step_title"`
@@ -368,14 +369,16 @@ func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGl
 type WorkflowTaskAssignedWorker struct {
 	emailService EmailService
 	userRepo     UserRepository
+	webBaseURL   string
 	logger       Logger
 }
 
 // NewWorkflowTaskAssignedWorker creates a new WorkflowTaskAssignedWorker
-func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepository, logger Logger) *WorkflowTaskAssignedWorker {
+func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger Logger) *WorkflowTaskAssignedWorker {
 	return &WorkflowTaskAssignedWorker{
 		emailService: emailService,
 		userRepo:     userRepo,
+		webBaseURL:   webBaseURL,
 		logger:       logger,
 	}
 }
@@ -384,6 +387,14 @@ func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepos
 func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskAssignedArgs]) error {
 	args := job.Args
 
+	if args.AssignedToType == "email" {
+		return w.sendToEmailAddress(ctx, args)
+	}
+	return w.sendToUser(ctx, args)
+}
+
+// sendToUser looks up the user by ID and sends the notification if they are subscribed
+func (w *WorkflowTaskAssignedWorker) sendToUser(ctx context.Context, args WorkflowTaskAssignedArgs) error {
 	user, err := w.userRepo.FindUserByID(ctx, args.UserID)
 	if err != nil {
 		w.logger.Warnw("WorkflowTaskAssignedWorker: user not found, skipping",
@@ -407,12 +418,27 @@ func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[Wo
 		userName = user.FirstName + " " + user.LastName
 	}
 
+	return w.sendEmail(ctx, args, user.Email, userName)
+}
+
+// sendToEmailAddress sends the notification directly to the email address assignee without a user lookup
+func (w *WorkflowTaskAssignedWorker) sendToEmailAddress(ctx context.Context, args WorkflowTaskAssignedArgs) error {
+	return w.sendEmail(ctx, args, args.UserID, "")
+}
+
+// sendEmail renders the template and sends the notification email
+func (w *WorkflowTaskAssignedWorker) sendEmail(ctx context.Context, args WorkflowTaskAssignedArgs, toAddress string, userName string) error {
+	myTasksURL := w.webBaseURL + "/my-tasks"
+	if args.StepURL != "" {
+		myTasksURL = args.StepURL
+	}
 	templateData := map[string]interface{}{
 		"UserName":              userName,
 		"StepTitle":             args.StepTitle,
 		"WorkflowTitle":         args.WorkflowTitle,
 		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
-		"StepURL":               args.StepURL,
+		"StepURL":               myTasksURL,
+		"MyTasksURL":            w.webBaseURL + "/my-tasks",
 		"DueDate":               args.DueDate,
 	}
 
@@ -428,7 +454,7 @@ func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[Wo
 
 	message := &types.Message{
 		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
+		To:       []string{toAddress},
 		Subject:  fmt.Sprintf("Task ready for you: %s — %s", args.StepTitle, args.WorkflowTitle),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
@@ -462,18 +488,20 @@ func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[Wo
 	return nil
 }
 
-// WorkflowTaskDueSoonWorker handles task-due-in-1-day reminder email jobs
+// WorkflowTaskDueSoonWorker handles task-due-soon reminder email jobs
 type WorkflowTaskDueSoonWorker struct {
 	emailService EmailService
 	userRepo     UserRepository
+	webBaseURL   string
 	logger       Logger
 }
 
 // NewWorkflowTaskDueSoonWorker creates a new WorkflowTaskDueSoonWorker
-func NewWorkflowTaskDueSoonWorker(emailService EmailService, userRepo UserRepository, logger Logger) *WorkflowTaskDueSoonWorker {
+func NewWorkflowTaskDueSoonWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger Logger) *WorkflowTaskDueSoonWorker {
 	return &WorkflowTaskDueSoonWorker{
 		emailService: emailService,
 		userRepo:     userRepo,
+		webBaseURL:   webBaseURL,
 		logger:       logger,
 	}
 }
@@ -505,12 +533,17 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 		userName = user.FirstName + " " + user.LastName
 	}
 
+	myTasksURL := w.webBaseURL + "/my-tasks"
+	if args.StepURL != "" {
+		myTasksURL = args.StepURL
+	}
 	templateData := map[string]interface{}{
 		"UserName":              userName,
 		"StepTitle":             args.StepTitle,
 		"WorkflowTitle":         args.WorkflowTitle,
 		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
-		"StepURL":               args.StepURL,
+		"StepURL":               myTasksURL,
+		"MyTasksURL":            w.webBaseURL + "/my-tasks",
 		"DueDate":               args.DueDate.Format("2006-01-02"),
 	}
 
@@ -527,7 +560,7 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 	message := &types.Message{
 		From:     w.emailService.GetDefaultFromAddress(),
 		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("Reminder: %s is due tomorrow — %s", args.StepTitle, args.WorkflowTitle),
+		Subject:  fmt.Sprintf("Reminder: %s is due soon — %s", args.StepTitle, args.WorkflowTitle),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
 	}
@@ -595,7 +628,7 @@ func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts 
 }
 
 // Workers returns all workers as work functions with dependencies injected
-func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, db *gorm.DB, logger Logger) *river.Workers {
+func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, db *gorm.DB, webBaseURL string, logger Logger) *river.Workers {
 	workers := river.NewWorkers()
 
 	// Create worker instances with dependencies
@@ -613,17 +646,17 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 	// Register workflow notification workers if dependencies are available
 	if userRepo != nil {
-		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(emailService, userRepo, logger)
+		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(emailService, userRepo, webBaseURL, logger)
 		river.AddWorker(workers, river.WorkFunc(workflowTaskAssignedWorker.Work))
 
-		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(emailService, userRepo, logger)
+		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(emailService, userRepo, webBaseURL, logger)
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
 
 		if db != nil {
 			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, userRepo, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
 
-			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, logger)
+			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
 		}
 	}

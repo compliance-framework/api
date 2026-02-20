@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Due Tomorrow</title>
+    <title>Task Due Soon</title>
     <style>
         * {
             margin: 0;
@@ -147,7 +147,7 @@
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>Task Due Tomorrow</h1>
+            <h1>Task Due Soon</h1>
             <p>Compliance Framework</p>
         </div>
 
@@ -155,7 +155,7 @@
             <p class="greeting">Hello {{.UserName}},</p>
 
             <p class="message">
-                This is a reminder that the following task is due <strong>tomorrow</strong>. Please make sure to complete it on time.
+                This is a reminder that the following task is due soon. Please make sure to complete it on time.
             </p>
 
             <div class="task-card">
@@ -176,6 +176,9 @@
 
             <div class="cta-wrapper">
                 <a href="{{.StepURL}}" class="cta-button">Complete Task</a>
+            </div>
+            <div class="cta-wrapper" style="margin-top: 12px;">
+                <a href="{{.MyTasksURL}}" style="color: #b45309; font-size: 14px;">View all my tasks &rarr;</a>
             </div>
         </div>
 

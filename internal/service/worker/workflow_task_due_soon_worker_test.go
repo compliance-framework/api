@@ -39,7 +39,7 @@ func TestWorkflowTaskDueSoonWorker_SubscribedUser_SendsEmail(t *testing.T) {
 		return msg.To[0] == "alice@example.com" && msg.Subject != ""
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-2"}, nil)
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:                "user-1",
@@ -72,7 +72,7 @@ func TestWorkflowTaskDueSoonWorker_UnsubscribedUser_Skips(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "user-2",
@@ -96,7 +96,7 @@ func TestWorkflowTaskDueSoonWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing-user").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "missing-user",
@@ -126,7 +126,7 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockEmail.On("UseTemplate", "workflow-task-due-soon", mock.Anything).Return("", "", errors.New("template broken"))
 	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "user-3",

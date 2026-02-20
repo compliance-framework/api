@@ -44,8 +44,8 @@ func NewDueSoonCheckerWorker(db *gorm.DB, client RiverInserter, logger Logger) *
 // Work scans for step executions due in ~24 hours and enqueues WorkflowTaskDueSoonArgs jobs
 func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonCheckerArgs]) error {
 	now := time.Now()
-	windowStart := now.Add(23 * time.Hour)
-	windowEnd := now.Add(25 * time.Hour)
+	windowStart := now                       // Get all jobs from now
+	windowEnd := now.Add(7 * 24 * time.Hour) // Get All jobs within a week
 
 	var steps []workflows.StepExecution
 	if err := w.db.WithContext(ctx).

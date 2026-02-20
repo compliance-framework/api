@@ -22,7 +22,13 @@ type Manager struct {
 	workflowExecutionService WorkflowExecutionServiceInterface
 	workflowInstanceService  WorkflowInstanceServiceInterface
 	stepExecutionService     StepExecutionServiceInterface
+	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
 	logger                   *zap.SugaredLogger
+}
+
+// SetNotificationEnqueuer sets the notification enqueuer (optional)
+func (m *Manager) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
+	m.notificationEnqueuer = enqueuer
 }
 
 // NewManager creates a new workflow manager
@@ -126,6 +132,12 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 		// Mark execution as failed
 		if failErr := m.workflowExecutionService.Fail(execution.ID, fmt.Sprintf("Failed to enqueue job: %v", err)); failErr != nil {
 			m.logger.Errorw("Failed to mark execution as failed", "error", failErr)
+		} else if m.notificationEnqueuer != nil {
+			if reloaded, reloadErr := m.workflowExecutionService.GetByID(execution.ID); reloadErr == nil {
+				if notifyErr := m.notificationEnqueuer.EnqueueWorkflowExecutionFailed(ctx, reloaded); notifyErr != nil {
+					m.logger.Errorw("Failed to enqueue workflow-execution-failed notification", "error", notifyErr)
+				}
+			}
 		}
 		return nil, fmt.Errorf("failed to enqueue workflow execution job: %w", err)
 	}
