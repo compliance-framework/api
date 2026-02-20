@@ -7,6 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +18,7 @@ type OverdueService struct {
 	stepExecutionService     *workflows.StepExecutionService
 	evidenceIntegration      *EvidenceIntegration
 	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
-	logger                   Logger
+	logger                   *zap.SugaredLogger
 	defaultGracePeriodDays   int
 }
 
@@ -26,8 +27,9 @@ func NewOverdueService(
 	workflowExecutionService *workflows.WorkflowExecutionService,
 	stepExecutionService *workflows.StepExecutionService,
 	evidenceIntegration *EvidenceIntegration,
-	logger Logger,
+	logger *zap.SugaredLogger,
 	defaultGracePeriodDays int,
+	notificationEnqueuer NotificationEnqueuer,
 ) *OverdueService {
 	return &OverdueService{
 		db:                       db,
@@ -36,12 +38,8 @@ func NewOverdueService(
 		evidenceIntegration:      evidenceIntegration,
 		logger:                   logger,
 		defaultGracePeriodDays:   defaultGracePeriodDays,
+		notificationEnqueuer:     notificationEnqueuer,
 	}
-}
-
-// SetNotificationEnqueuer sets the notification enqueuer (optional)
-func (s *OverdueService) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
-	s.notificationEnqueuer = enqueuer
 }
 
 // CheckOverdueExecutions marks workflow executions as overdue once due date passes.
@@ -116,7 +114,7 @@ func (s *OverdueService) CheckFailedExecutions(ctx context.Context) (int, error)
 	failed := 0
 	for i := range overdueExecutions {
 		exec := overdueExecutions[i]
-		graceDays := s.resolveExecutionGraceDays(&exec)
+		graceDays := ResolveGraceDays(exec.WorkflowInstance, s.defaultGracePeriodDays)
 		if exec.OverdueAt == nil || exec.OverdueAt.AddDate(0, 0, graceDays).After(now) {
 			continue
 		}
@@ -135,17 +133,6 @@ func (s *OverdueService) CheckFailedExecutions(ctx context.Context) (int, error)
 
 	s.logger.Infow("Checked failed workflow executions", "checked", len(overdueExecutions), "failed", failed)
 	return failed, nil
-}
-
-func (s *OverdueService) resolveExecutionGraceDays(execution *workflows.WorkflowExecution) int {
-	if execution.WorkflowInstance != nil && execution.WorkflowInstance.GracePeriodDays != nil {
-		return *execution.WorkflowInstance.GracePeriodDays
-	}
-	if execution.WorkflowInstance != nil && execution.WorkflowInstance.WorkflowDefinition != nil &&
-		execution.WorkflowInstance.WorkflowDefinition.GracePeriodDays != nil {
-		return *execution.WorkflowInstance.WorkflowDefinition.GracePeriodDays
-	}
-	return s.defaultGracePeriodDays
 }
 
 func (s *OverdueService) failExecutionAndSteps(ctx context.Context, execution *workflows.WorkflowExecution) error {

@@ -108,7 +108,7 @@ func TestOverdueService_CheckOverdueTransitions(t *testing.T) {
 
 	workflowExecSvc := workflows.NewWorkflowExecutionService(db)
 	stepExecSvc := workflows.NewStepExecutionService(db, nil)
-	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 7)
+	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 7, nil)
 
 	updatedSteps, err := svc.CheckOverdueSteps(context.Background())
 	require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestOverdueService_CheckFailedExecutions_StepOverduePromotesExecutionAndFai
 
 	workflowExecSvc := workflows.NewWorkflowExecutionService(db)
 	stepExecSvc := workflows.NewStepExecutionService(db, nil)
-	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 0)
+	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 0, nil)
 
 	updatedSteps, err := svc.CheckOverdueSteps(context.Background())
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestOverdueService_CheckFailedExecutions(t *testing.T) {
 
 	workflowExecSvc := workflows.NewWorkflowExecutionService(db)
 	stepExecSvc := workflows.NewStepExecutionService(db, nil)
-	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 1)
+	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 1, nil)
 
 	failed, err := svc.CheckFailedExecutions(context.Background())
 	require.NoError(t, err)
@@ -221,7 +221,7 @@ func TestOverdueService_CheckOverdueSteps_DoesNotMarkBlockedSteps(t *testing.T) 
 
 	workflowExecSvc := workflows.NewWorkflowExecutionService(db)
 	stepExecSvc := workflows.NewStepExecutionService(db, nil)
-	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 7)
+	svc := NewOverdueService(db, workflowExecSvc, stepExecSvc, nil, zap.NewNop().Sugar(), 7, nil)
 
 	updatedSteps, err := svc.CheckOverdueSteps(context.Background())
 	require.NoError(t, err)

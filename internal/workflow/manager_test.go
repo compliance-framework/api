@@ -9,11 +9,25 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+type MockRiverClient struct {
+	mock.Mock
+}
+
+func (m *MockRiverClient) InsertMany(ctx context.Context, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*rivertype.JobInsertResult), args.Error(1)
+}
 
 type MockWorkflowInstanceService struct {
 	mock.Mock
@@ -61,6 +75,7 @@ func TestManager_StartWorkflowExecution_UniqueViolationScheduledReturnsAlreadyEx
 		mockWorkflowInstService,
 		mockStepExecService,
 		logger,
+		nil,
 	)
 
 	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
@@ -97,6 +112,7 @@ func TestManager_StartWorkflowExecution_UniqueViolationManualDoesNotReturnAlread
 		mockWorkflowInstService,
 		mockStepExecService,
 		logger,
+		nil,
 	)
 
 	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()

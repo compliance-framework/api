@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/riverqueue/river"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -25,11 +26,11 @@ type WorkflowTaskDigestWorker struct {
 	db           *gorm.DB
 	emailService EmailService
 	userRepo     UserRepository
-	logger       Logger
+	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowTaskDigestWorker creates a new WorkflowTaskDigestWorker
-func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, logger Logger) *WorkflowTaskDigestWorker {
+func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, logger *zap.SugaredLogger) *WorkflowTaskDigestWorker {
 	return &WorkflowTaskDigestWorker{
 		db:           db,
 		emailService: emailService,

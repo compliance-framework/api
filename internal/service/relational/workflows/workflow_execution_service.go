@@ -252,6 +252,30 @@ func (s *WorkflowExecutionService) Fail(id *uuid.UUID, reason string) error {
 	})
 }
 
+// FailIfNotTerminal marks the execution as failed only if it is not already in a terminal state
+// (failed, completed, or cancelled). Returns true if the row was updated, false if it was already terminal.
+// This is the idempotent version of Fail, safe to call from concurrent code paths.
+func (s *WorkflowExecutionService) FailIfNotTerminal(ctx context.Context, id *uuid.UUID, reason string) (bool, error) {
+	now := time.Now()
+	terminalStatuses := []string{
+		WorkflowStatusFailed.String(),
+		WorkflowStatusCompleted.String(),
+		WorkflowStatusCancelled.String(),
+	}
+	result := s.db.WithContext(ctx).
+		Model(&WorkflowExecution{}).
+		Where("id = ? AND status NOT IN ?", id, terminalStatuses).
+		Updates(map[string]interface{}{
+			"status":         WorkflowStatusFailed.String(),
+			"failed_at":      now,
+			"failure_reason": reason,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 // Cancel cancels a workflow execution
 func (s *WorkflowExecutionService) Cancel(id *uuid.UUID) error {
 	return s.db.Model(&WorkflowExecution{}).

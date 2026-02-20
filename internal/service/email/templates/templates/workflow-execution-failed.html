@@ -181,7 +181,7 @@
             <div class="reason-text">{{.FailureReason}}</div>
         </div>
 
-        <a href="{{.WorkflowURL}}" class="cta-button">View Workflow Instance</a>
+        {{if .WorkflowURL}}<a href="{{.WorkflowURL}}" class="cta-button">View Workflow Instance</a>{{end}}
         <div style="text-align: center; margin-top: 12px;">
             <a href="{{.MyTasksURL}}" style="color: #dc2626; font-size: 14px;">View all my tasks &rarr;</a>
         </div>

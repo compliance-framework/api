@@ -8,13 +8,18 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"go.uber.org/zap"
 )
 
 var ErrWorkflowExecutionAlreadyExists = errors.New("workflow execution already exists for instance and period")
+
+// RiverClient interface for job enqueueing (enables testing)
+type RiverClient interface {
+	InsertMany(ctx context.Context, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
+}
 
 // Manager orchestrates workflow execution lifecycle using River for async operations
 type Manager struct {
@@ -26,11 +31,6 @@ type Manager struct {
 	logger                   *zap.SugaredLogger
 }
 
-// SetNotificationEnqueuer sets the notification enqueuer (optional)
-func (m *Manager) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
-	m.notificationEnqueuer = enqueuer
-}
-
 // NewManager creates a new workflow manager
 func NewManager(
 	riverClient RiverClient,
@@ -38,6 +38,7 @@ func NewManager(
 	workflowInstanceService WorkflowInstanceServiceInterface,
 	stepExecutionService StepExecutionServiceInterface,
 	logger *zap.SugaredLogger,
+	notificationEnqueuer NotificationEnqueuer,
 ) *Manager {
 	return &Manager{
 		riverClient:              riverClient,
@@ -45,24 +46,8 @@ func NewManager(
 		workflowInstanceService:  workflowInstanceService,
 		stepExecutionService:     stepExecutionService,
 		logger:                   logger,
+		notificationEnqueuer:     notificationEnqueuer,
 	}
-}
-
-// NewManagerWithRiver creates a manager with a River client and concrete services
-func NewManagerWithRiver(
-	riverClient *river.Client[pgx.Tx],
-	workflowExecutionService *workflows.WorkflowExecutionService,
-	workflowInstanceService *workflows.WorkflowInstanceService,
-	stepExecutionService *workflows.StepExecutionService,
-	logger *zap.SugaredLogger,
-) *Manager {
-	return NewManager(
-		riverClient,
-		workflowExecutionService,
-		workflowInstanceService,
-		stepExecutionService,
-		logger,
-	)
 }
 
 // StartWorkflowOptions contains options for starting a workflow execution
@@ -164,38 +149,19 @@ func (m *Manager) GetExecutionStatus(ctx context.Context, executionID *uuid.UUID
 		return nil, fmt.Errorf("failed to get step executions: %w", err)
 	}
 
-	// Count steps by status
-	var pending, blocked, inProgress, overdue, completed, failed, cancelled int
-	for _, step := range stepExecutions {
-		switch step.Status {
-		case "pending":
-			pending++
-		case "blocked":
-			blocked++
-		case "in_progress":
-			inProgress++
-		case "overdue":
-			overdue++
-		case "completed":
-			completed++
-		case "failed":
-			failed++
-		case "cancelled":
-			cancelled++
-		}
-	}
+	counts := CountStepStatuses(stepExecutions)
 
 	status := &ExecutionStatus{
 		ExecutionID:     *executionID,
 		Status:          execution.Status,
 		TotalSteps:      len(stepExecutions),
-		PendingSteps:    pending,
-		BlockedSteps:    blocked,
-		InProgressSteps: inProgress,
-		OverdueSteps:    overdue,
-		CompletedSteps:  completed,
-		FailedSteps:     failed,
-		CancelledSteps:  cancelled,
+		PendingSteps:    counts.Pending,
+		BlockedSteps:    counts.Blocked,
+		InProgressSteps: counts.InProgress,
+		OverdueSteps:    counts.Overdue,
+		CompletedSteps:  counts.Completed,
+		FailedSteps:     counts.Failed,
+		CancelledSteps:  counts.Cancelled,
 		StartedAt:       execution.StartedAt,
 		CompletedAt:     execution.CompletedAt,
 		FailedAt:        execution.FailedAt,

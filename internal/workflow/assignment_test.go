@@ -63,7 +63,7 @@ func TestResolveStepAssignees(t *testing.T) {
 	}
 
 	mockRoleService := new(MockRoleAssignmentService)
-	assignmentService := NewAssignmentService(mockRoleService, nil, zap.NewNop().Sugar())
+	assignmentService := NewAssignmentService(mockRoleService, nil, zap.NewNop().Sugar(), nil)
 
 	// Mock responses
 	// Step 1: Role "admin" -> User "user-1"
@@ -129,7 +129,7 @@ func TestResolveStepAssignees_NoRole(t *testing.T) {
 	}
 
 	mockRoleService := new(MockRoleAssignmentService)
-	assignmentService := NewAssignmentService(mockRoleService, nil, zap.NewNop().Sugar())
+	assignmentService := NewAssignmentService(mockRoleService, nil, zap.NewNop().Sugar(), nil)
 
 	assignments, err := assignmentService.ResolveStepAssignees(context.Background(), instance, steps)
 	assert.NoError(t, err)
@@ -195,7 +195,7 @@ func createAssignmentServiceGraph(t *testing.T, db *gorm.DB) (*workflows.Workflo
 func TestReassignStep(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar())
+	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -253,7 +253,7 @@ func TestReassignStep(t *testing.T) {
 func TestReassignStep_RejectsInvalidStatus(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar())
+	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -278,7 +278,7 @@ func TestReassignStep_RejectsInvalidStatus(t *testing.T) {
 func TestReassignStep_AllowsOverdueStatus(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar())
+	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 	stepExec.Status = workflows.StepStatusOverdue.String()
@@ -303,7 +303,7 @@ func TestReassignStep_AllowsOverdueStatus(t *testing.T) {
 func TestReassignStep_RejectsInvalidAssigneeAndMissingUser(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar())
+	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -334,7 +334,7 @@ func TestReassignStep_RejectsInvalidAssigneeAndMissingUser(t *testing.T) {
 func TestBulkReassignByRole(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar())
+	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
 
 	execution, stepDef, stepExec := createAssignmentServiceGraph(t, db)
 

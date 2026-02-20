@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/riverqueue/river"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -151,14 +152,6 @@ type NotificationUser struct {
 	TaskDailyDigestSubscribed    bool
 }
 
-// Logger interface for logging
-type Logger interface {
-	Infow(msg string, keysAndValues ...interface{})
-	Errorw(msg string, keysAndValues ...interface{})
-	Warnw(msg string, keysAndValues ...interface{})
-	Debugw(msg string, keysAndValues ...interface{})
-}
-
 // DigestService interface for dependency injection
 type DigestService interface {
 	SendGlobalDigest(ctx context.Context) error
@@ -182,11 +175,11 @@ func (SendGlobalDigestArgs) Timeout() time.Duration {
 // SendEmailWorker handles sending email jobs
 type SendEmailWorker struct {
 	emailService EmailService
-	logger       Logger
+	logger       *zap.SugaredLogger
 }
 
 // NewSendEmailWorker creates a new SendEmailWorker
-func NewSendEmailWorker(emailService EmailService, logger Logger) *SendEmailWorker {
+func NewSendEmailWorker(emailService EmailService, logger *zap.SugaredLogger) *SendEmailWorker {
 	return &SendEmailWorker{
 		emailService: emailService,
 		logger:       logger,
@@ -256,11 +249,11 @@ func (w *SendEmailWorker) Work(ctx context.Context, job *river.Job[SendEmailArgs
 // SendEmailFromWorker handles sending email from provider jobs
 type SendEmailFromWorker struct {
 	emailService EmailService
-	logger       Logger
+	logger       *zap.SugaredLogger
 }
 
 // NewSendEmailFromWorker creates a new SendEmailFromWorker
-func NewSendEmailFromWorker(emailService EmailService, logger Logger) *SendEmailFromWorker {
+func NewSendEmailFromWorker(emailService EmailService, logger *zap.SugaredLogger) *SendEmailFromWorker {
 	return &SendEmailFromWorker{
 		emailService: emailService,
 		logger:       logger,
@@ -337,11 +330,11 @@ func (w *SendEmailFromWorker) Work(ctx context.Context, job *river.Job[SendEmail
 // SendGlobalDigestWorker handles sending global digest jobs
 type SendGlobalDigestWorker struct {
 	digestService DigestService
-	logger        Logger
+	logger        *zap.SugaredLogger
 }
 
 // NewSendGlobalDigestWorker creates a new SendGlobalDigestWorker
-func NewSendGlobalDigestWorker(digestService DigestService, logger Logger) *SendGlobalDigestWorker {
+func NewSendGlobalDigestWorker(digestService DigestService, logger *zap.SugaredLogger) *SendGlobalDigestWorker {
 	return &SendGlobalDigestWorker{
 		digestService: digestService,
 		logger:        logger,
@@ -370,11 +363,11 @@ type WorkflowTaskAssignedWorker struct {
 	emailService EmailService
 	userRepo     UserRepository
 	webBaseURL   string
-	logger       Logger
+	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowTaskAssignedWorker creates a new WorkflowTaskAssignedWorker
-func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger Logger) *WorkflowTaskAssignedWorker {
+func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskAssignedWorker {
 	return &WorkflowTaskAssignedWorker{
 		emailService: emailService,
 		userRepo:     userRepo,
@@ -493,11 +486,11 @@ type WorkflowTaskDueSoonWorker struct {
 	emailService EmailService
 	userRepo     UserRepository
 	webBaseURL   string
-	logger       Logger
+	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowTaskDueSoonWorker creates a new WorkflowTaskDueSoonWorker
-func NewWorkflowTaskDueSoonWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger Logger) *WorkflowTaskDueSoonWorker {
+func NewWorkflowTaskDueSoonWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskDueSoonWorker {
 	return &WorkflowTaskDueSoonWorker{
 		emailService: emailService,
 		userRepo:     userRepo,
@@ -628,7 +621,7 @@ func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts 
 }
 
 // Workers returns all workers as work functions with dependencies injected
-func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, db *gorm.DB, webBaseURL string, logger Logger) *river.Workers {
+func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, db *gorm.DB, webBaseURL string, logger *zap.SugaredLogger) *river.Workers {
 	workers := river.NewWorkers()
 
 	// Create worker instances with dependencies

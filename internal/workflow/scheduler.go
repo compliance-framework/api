@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/riverqueue/river"
+	"go.uber.org/zap"
 )
 
 // WorkflowSchedulerWorker handles the periodic scheduling of workflows
@@ -16,7 +17,7 @@ type WorkflowSchedulerWorker struct {
 	workflowInstanceService WorkflowInstanceServiceInterface
 	overdueService          *OverdueService
 	overdueCheckEnabled     bool
-	logger                  Logger
+	logger                  *zap.SugaredLogger
 	defaultGracePeriod      int
 }
 
@@ -26,7 +27,7 @@ func NewWorkflowSchedulerWorker(
 	workflowInstanceService WorkflowInstanceServiceInterface,
 	overdueService *OverdueService,
 	overdueCheckEnabled bool,
-	logger Logger,
+	logger *zap.SugaredLogger,
 	defaultGracePeriod int,
 ) *WorkflowSchedulerWorker {
 	return &WorkflowSchedulerWorker{
@@ -108,12 +109,7 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 		periodLabel := GeneratePeriodLabel(instance.Cadence, refTime)
 
 		// Determine grace period
-		gracePeriod := w.defaultGracePeriod
-		if instance.GracePeriodDays != nil {
-			gracePeriod = *instance.GracePeriodDays
-		} else if instance.WorkflowDefinition != nil && instance.WorkflowDefinition.GracePeriodDays != nil {
-			gracePeriod = *instance.WorkflowDefinition.GracePeriodDays
-		}
+		gracePeriod := ResolveGraceDays(&instance, w.defaultGracePeriod)
 
 		// Calculate due date
 		// Due date is based on the scheduled time (when it should have run), not necessarily now

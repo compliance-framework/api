@@ -43,7 +43,7 @@ func setupStepExecutionTestHandler(t *testing.T) (*StepExecutionHandler, *gorm.D
 	evidenceIntegration.SetWorkflowExecutionService(workflowExecService)
 
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar())
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor for step transition coordination
 	stdLogger := log.Default()
@@ -53,6 +53,7 @@ func setupStepExecutionTestHandler(t *testing.T) (*StepExecutionHandler, *gorm.D
 		stepDefService,
 		assignmentService,
 		stdLogger,
+		nil,
 	)
 
 	// Create step transition service

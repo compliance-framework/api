@@ -29,17 +29,13 @@ type AssignmentService struct {
 }
 
 // NewAssignmentService creates a new assignment service
-func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db *gorm.DB, logger *zap.SugaredLogger) *AssignmentService {
+func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db *gorm.DB, logger *zap.SugaredLogger, notificationEnqueuer NotificationEnqueuer) *AssignmentService {
 	return &AssignmentService{
 		roleAssignmentService: roleAssignmentService,
 		db:                    db,
 		logger:                logger,
+		notificationEnqueuer:  notificationEnqueuer,
 	}
-}
-
-// SetNotificationEnqueuer sets the notification enqueuer (optional)
-func (s *AssignmentService) SetNotificationEnqueuer(enqueuer NotificationEnqueuer) {
-	s.notificationEnqueuer = enqueuer
 }
 
 // ResolveStepAssignees resolves assignees for a list of step definitions based on role assignments

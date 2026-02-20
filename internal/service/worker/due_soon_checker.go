@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
-	"github.com/riverqueue/river/rivertype"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -23,17 +24,12 @@ func (DueSoonCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
 // DueSoonCheckerWorker scans for step executions due tomorrow and enqueues reminder emails
 type DueSoonCheckerWorker struct {
 	db     *gorm.DB
-	client RiverInserter
-	logger Logger
-}
-
-// RiverInserter is the minimal interface for inserting River jobs
-type RiverInserter interface {
-	InsertMany(ctx context.Context, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
+	client workflow.RiverClient
+	logger *zap.SugaredLogger
 }
 
 // NewDueSoonCheckerWorker creates a new DueSoonCheckerWorker
-func NewDueSoonCheckerWorker(db *gorm.DB, client RiverInserter, logger Logger) *DueSoonCheckerWorker {
+func NewDueSoonCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *zap.SugaredLogger) *DueSoonCheckerWorker {
 	return &DueSoonCheckerWorker{
 		db:     db,
 		client: client,

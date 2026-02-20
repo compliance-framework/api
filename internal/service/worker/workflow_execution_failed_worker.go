@@ -7,8 +7,10 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -18,11 +20,11 @@ type WorkflowExecutionFailedWorker struct {
 	emailService EmailService
 	userRepo     UserRepository
 	webBaseURL   string
-	logger       Logger
+	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowExecutionFailedWorker creates a new WorkflowExecutionFailedWorker
-func NewWorkflowExecutionFailedWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger Logger) *WorkflowExecutionFailedWorker {
+func NewWorkflowExecutionFailedWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowExecutionFailedWorker {
 	return &WorkflowExecutionFailedWorker{
 		db:           db,
 		emailService: emailService,
@@ -84,16 +86,9 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		workflowTitle = instance.WorkflowDefinition.Name
 	}
 
-	failedSteps := 0
-	completedSteps := 0
-	for _, step := range execution.StepExecutions {
-		switch step.Status {
-		case workflows.StepStatusFailed.String():
-			failedSteps++
-		case workflows.StepStatusCompleted.String():
-			completedSteps++
-		}
-	}
+	counts := workflow.CountStepStatuses(execution.StepExecutions)
+	failedSteps := counts.Failed
+	completedSteps := counts.Completed
 	totalSteps := len(execution.StepExecutions)
 
 	failedAt := "unknown"

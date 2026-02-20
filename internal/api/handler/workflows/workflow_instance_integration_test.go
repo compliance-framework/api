@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
+	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -26,10 +28,24 @@ func setupInstanceTestHandler(t *testing.T) (*WorkflowInstanceHandler, *gorm.DB)
 	return handler, db
 }
 
+func createTestUser(t *testing.T, db *gorm.DB) *relational.User {
+	user := &relational.User{Email: "test@example.com", FirstName: "Test", LastName: "User"}
+	require.NoError(t, db.Create(user).Error)
+	return user
+}
+
+func setAuthClaims(c echo.Context, user *relational.User) {
+	claims := &authn.UserClaims{GivenName: user.FirstName, FamilyName: user.LastName}
+	claims.Subject = user.Email
+	c.Set("user", claims)
+}
+
 func TestWorkflowInstanceHandler_Create(t *testing.T) {
 	handler, db := setupInstanceTestHandler(t)
 	e := echo.New()
 	e.Validator = middleware.NewValidator()
+
+	testUser := createTestUser(t, db)
 
 	workflowDef := &workflows.WorkflowDefinition{
 		Name:    "Test Workflow",
@@ -57,6 +73,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		setAuthClaims(c, testUser)
 
 		err = handler.Create(c)
 		require.NoError(t, err)
@@ -110,6 +127,7 @@ func TestWorkflowInstanceHandler_Create(t *testing.T) {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		setAuthClaims(c, testUser)
 
 		err = handler.Create(c)
 		require.NoError(t, err)
@@ -278,6 +296,8 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 	handler, db := setupInstanceTestHandler(t)
 	e := echo.New()
 
+	testUser := createTestUser(t, db)
+
 	workflowDef := &workflows.WorkflowDefinition{
 		Name:    "Test Workflow",
 		Version: "1.0",
@@ -315,6 +335,7 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 		c := e.NewContext(req, rec)
 		c.SetParamNames("id")
 		c.SetParamValues(instance.ID.String())
+		setAuthClaims(c, testUser)
 
 		err = handler.Update(c)
 		require.NoError(t, err)
@@ -348,6 +369,7 @@ func TestWorkflowInstanceHandler_Update(t *testing.T) {
 		c := e.NewContext(req, rec)
 		c.SetParamNames("id")
 		c.SetParamValues(nonExistentID.String())
+		setAuthClaims(c, testUser)
 
 		err = handler.Update(c)
 		require.NoError(t, err)

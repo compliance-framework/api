@@ -39,10 +39,9 @@ type Service struct {
 	digestCfg *config.Config
 
 	// Workflow services
-	workflowExecutor         interface{}
+	workflowExecutor         *workflow.DAGExecutor
 	workflowManager          *workflow.Manager
 	overdueService           *workflow.OverdueService
-	stepExecutionService     interface{}
 	workflowExecutionService interface{}
 	stepDefinitionService    interface{}
 }
@@ -56,6 +55,24 @@ func (p *riverClientProxy) InsertMany(ctx context.Context, params []river.Insert
 		return nil, fmt.Errorf("river client not initialized")
 	}
 	return p.client.InsertMany(ctx, params)
+}
+
+type notificationEnqueuerProxy struct {
+	enqueuer workflow.NotificationEnqueuer
+}
+
+func (p *notificationEnqueuerProxy) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
+	if p.enqueuer == nil {
+		return fmt.Errorf("notification enqueuer not initialized")
+	}
+	return p.enqueuer.EnqueueWorkflowTaskAssigned(ctx, stepExecution)
+}
+
+func (p *notificationEnqueuerProxy) EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error {
+	if p.enqueuer == nil {
+		return fmt.Errorf("notification enqueuer not initialized")
+	}
+	return p.enqueuer.EnqueueWorkflowExecutionFailed(ctx, execution)
 }
 
 // NewService creates a new worker service
@@ -131,8 +148,12 @@ func NewServiceWithDigest(
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
 
+	// Create proxies to handle circular dependency (Service implements NotificationEnqueuer but is built after workflow objects)
+	clientProxy := &riverClientProxy{}
+	enqueuerProxy := &notificationEnqueuerProxy{}
+
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, logger)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, logger, enqueuerProxy)
 
 	// Create workflow executor
 	workflowLogger := log.New(os.Stdout, "[WORKFLOW] ", log.LstdFlags)
@@ -142,6 +163,7 @@ func NewServiceWithDigest(
 		stepDefService,
 		assignmentService,
 		workflowLogger,
+		enqueuerProxy,
 	)
 
 	// Initialize evidence integration and set it on the executor
@@ -156,10 +178,6 @@ func NewServiceWithDigest(
 
 	// Create workflow workers
 	workflowExecutionWorker := workflow.NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
-	stepExecutionWorker := workflow.NewStepExecutionWorker(stepExecService, logger)
-
-	// Create a proxy for RiverClient to handle circular dependency
-	clientProxy := &riverClientProxy{}
 
 	// Create Manager with proxy
 	workflowManager := workflow.NewManager(
@@ -168,6 +186,7 @@ func NewServiceWithDigest(
 		workflowInstService,
 		stepExecService,
 		logger,
+		enqueuerProxy,
 	)
 
 	// Determine grace period days for the workflow scheduler, with safe defaults.
@@ -185,6 +204,7 @@ func NewServiceWithDigest(
 		evidenceIntegration,
 		logger,
 		gracePeriodDays,
+		enqueuerProxy,
 	)
 
 	schedulerWorker := workflow.NewWorkflowSchedulerWorker(
@@ -207,7 +227,6 @@ func NewServiceWithDigest(
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
-	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(schedulerWorker.Work))
 
 	// Add due-soon checker worker (uses clientProxy which is wired to the real client after construction)
@@ -249,17 +268,12 @@ func NewServiceWithDigest(
 		workflowExecutor:         executor,
 		workflowManager:          workflowManager,
 		overdueService:           overdueService,
-		stepExecutionService:     stepExecService,
 		workflowExecutionService: workflowExecService,
 		stepDefinitionService:    stepDefService,
 	}
 
-	// Wire the service itself as the notification enqueuer for the executor, assignment service, manager, and overdue service.
-	// This must happen after the service is built so the River client is available.
-	executor.SetNotificationEnqueuer(service)
-	assignmentService.SetNotificationEnqueuer(service)
-	workflowManager.SetNotificationEnqueuer(service)
-	overdueService.SetNotificationEnqueuer(service)
+	// Wire the service itself into the notification enqueuer proxy now that it is fully constructed.
+	enqueuerProxy.enqueuer = service
 
 	return service, nil
 }
@@ -267,6 +281,12 @@ func NewServiceWithDigest(
 // GetWorkflowManager returns the workflow manager
 func (s *Service) GetWorkflowManager() *workflow.Manager {
 	return s.workflowManager
+}
+
+// GetDAGExecutor returns the shared DAG executor used by workflow River workers.
+// Returns nil when the worker service is disabled.
+func (s *Service) GetDAGExecutor() *workflow.DAGExecutor {
+	return s.workflowExecutor
 }
 
 // Start starts the worker service

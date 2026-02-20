@@ -101,11 +101,12 @@ func RunServer(cmd *cobra.Command, args []string) {
 		workflowInstService,
 		stepExecService,
 		sugar,
+		workerService,
 	)
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched, workflowManager)
+	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched, workflowManager, workerService, workerService.GetDAGExecutor())
 	oscal.RegisterHandlers(server, sugar, db, cfg)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 

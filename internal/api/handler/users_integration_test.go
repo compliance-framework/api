@@ -33,7 +33,7 @@ func (suite *UserApiIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil, nil, nil)
 }
 
 func (suite *UserApiIntegrationSuite) SetupTest() {

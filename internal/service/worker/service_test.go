@@ -49,32 +49,6 @@ func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
 	return args.Error(0)
 }
 
-// MockLogger is a mock implementation of Logger
-type MockLogger struct {
-	mock.Mock
-	loggedMessages []string
-}
-
-func (m *MockLogger) Infow(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "INFO: "+msg)
-}
-
-func (m *MockLogger) Errorw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "ERROR: "+msg)
-}
-
-func (m *MockLogger) Warnw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "WARN: "+msg)
-}
-
-func (m *MockLogger) Debugw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "DEBUG: "+msg)
-}
-
 func TestNewService_Disabled(t *testing.T) {
 	cfg := &config.WorkerConfig{
 		Enabled: false,
@@ -123,13 +97,13 @@ func TestService_EnqueueWhenDisabled(t *testing.T) {
 
 func TestNewSendEmailWorker(t *testing.T) {
 	mockEmailService := &MockEmailService{}
-	mockLogger := &MockLogger{}
+	logger := zap.NewNop().Sugar()
 
-	worker := NewSendEmailWorker(mockEmailService, mockLogger)
+	worker := NewSendEmailWorker(mockEmailService, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, mockEmailService, worker.emailService)
-	assert.Equal(t, mockLogger, worker.logger)
+	assert.Equal(t, logger, worker.logger)
 }
 
 func TestSendEmailWorker_MessageConstruction(t *testing.T) {
@@ -187,8 +161,7 @@ func TestSendEmailWorker_MessageConstruction(t *testing.T) {
 
 func TestSendEmailWorker_Work_Validation(t *testing.T) {
 	mockEmailService := &MockEmailService{}
-	mockLogger := &MockLogger{}
-	worker := NewSendEmailWorker(mockEmailService, mockLogger)
+	worker := NewSendEmailWorker(mockEmailService, zap.NewNop().Sugar())
 
 	ctx := context.Background()
 
@@ -225,9 +198,6 @@ func TestSendEmailWorker_Work_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set up mock logger to expect any call
-			mockLogger.On("Infow", "Processing send email job", mock.Anything).Maybe()
-
 			// Create a test job with the invalid args
 			job := &river.Job[SendEmailArgs]{
 				Args: *tt.args,
@@ -244,13 +214,13 @@ func TestSendEmailWorker_Work_Validation(t *testing.T) {
 
 func TestNewSendEmailFromWorker(t *testing.T) {
 	mockEmailService := &MockEmailService{}
-	mockLogger := &MockLogger{}
+	logger := zap.NewNop().Sugar()
 
-	worker := NewSendEmailFromWorker(mockEmailService, mockLogger)
+	worker := NewSendEmailFromWorker(mockEmailService, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, mockEmailService, worker.emailService)
-	assert.Equal(t, mockLogger, worker.logger)
+	assert.Equal(t, logger, worker.logger)
 }
 
 func TestSendEmailFromWorker_MessageConstruction(t *testing.T) {
@@ -301,13 +271,13 @@ func TestSendEmailFromWorker_MessageConstruction(t *testing.T) {
 
 func TestNewSendGlobalDigestWorker(t *testing.T) {
 	mockDigestService := &MockDigestService{}
-	mockLogger := &MockLogger{}
+	logger := zap.NewNop().Sugar()
 
-	worker := NewSendGlobalDigestWorker(mockDigestService, mockLogger)
+	worker := NewSendGlobalDigestWorker(mockDigestService, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, mockDigestService, worker.digestService)
-	assert.Equal(t, mockLogger, worker.logger)
+	assert.Equal(t, logger, worker.logger)
 }
 
 func TestSendGlobalDigestWorker_DigestCall(t *testing.T) {
@@ -328,9 +298,8 @@ func TestSendGlobalDigestWorker_DigestCall(t *testing.T) {
 func TestWorkers(t *testing.T) {
 	mockEmailService := &MockEmailService{}
 	mockDigestService := &MockDigestService{}
-	mockLogger := &MockLogger{}
 
-	workers := Workers(mockEmailService, mockDigestService, nil, nil, "", mockLogger)
+	workers := Workers(mockEmailService, mockDigestService, nil, nil, "", zap.NewNop().Sugar())
 
 	assert.NotNil(t, workers)
 }

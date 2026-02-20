@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -22,12 +24,12 @@ func (WorkflowTaskDigestCheckerArgs) Timeout() time.Duration { return 5 * time.M
 // WorkflowTaskDigestCheckerWorker queries all subscribed users and enqueues per-user digest jobs
 type WorkflowTaskDigestCheckerWorker struct {
 	db     *gorm.DB
-	client RiverInserter
-	logger Logger
+	client workflow.RiverClient
+	logger *zap.SugaredLogger
 }
 
 // NewWorkflowTaskDigestCheckerWorker creates a new WorkflowTaskDigestCheckerWorker
-func NewWorkflowTaskDigestCheckerWorker(db *gorm.DB, client RiverInserter, logger Logger) *WorkflowTaskDigestCheckerWorker {
+func NewWorkflowTaskDigestCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *zap.SugaredLogger) *WorkflowTaskDigestCheckerWorker {
 	return &WorkflowTaskDigestCheckerWorker{
 		db:     db,
 		client: client,
