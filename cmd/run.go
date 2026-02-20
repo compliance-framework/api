@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -14,7 +13,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/spf13/cobra"
@@ -86,11 +84,6 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to start worker service", "error", err)
 	}
 
-	// Initialize scheduler for other jobs (if any)
-	// Note: Digest scheduling is now handled by River's periodic jobs
-	sched := scheduler.NewCronScheduler(sugar)
-	sched.Start()
-
 	// Initialize workflow manager
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
@@ -106,7 +99,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg, digestService, sched, workflowManager, workerService, workerService.GetDAGExecutor())
+	handler.RegisterHandlers(server, sugar, db, cfg, digestService, workflowManager, workerService, workerService.GetDAGExecutor())
 	oscal.RegisterHandlers(server, sugar, db, cfg)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 
@@ -122,23 +115,9 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to start server", "error", err)
 	}
 
-	// Note: Defer statements are registered in reverse order of execution.
-	// This ensures proper shutdown order: scheduler -> worker service
 	defer func() {
-		// Stop worker service last (after scheduler has stopped)
 		if err := workerService.Stop(ctx); err != nil {
 			sugar.Errorw("Failed to stop worker service", "error", err)
-		}
-	}()
-
-	defer func() {
-		// Stop scheduler first
-		stopCtx := sched.Stop()
-		select {
-		case <-stopCtx.Done():
-			sugar.Debug("All scheduled jobs completed gracefully")
-		case <-time.After(10 * time.Second):
-			sugar.Warn("Scheduler shutdown timeout, some jobs may not have completed")
 		}
 	}()
 }

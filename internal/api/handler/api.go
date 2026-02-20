@@ -9,14 +9,13 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, digestService *digest.Service, sched scheduler.Scheduler, workflowManager *workflow.Manager, notificationEnqueuer workflow.NotificationEnqueuer, dagExecutor *workflow.DAGExecutor) {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, digestService *digest.Service, workflowManager *workflow.Manager, notificationEnqueuer workflow.NotificationEnqueuer, dagExecutor *workflow.DAGExecutor) {
 	healthHandler := NewHealthHandler(logger, db)
 	healthHandler.Register(server.API().Group("/health"))
 
@@ -41,8 +40,8 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	userHandler.RegisterSelfRoutes(userGroup)
 
 	// Digest handler (admin only)
-	if digestService != nil && sched != nil {
-		digestHandler := NewDigestHandler(digestService, sched, logger)
+	if digestService != nil {
+		digestHandler := NewDigestHandler(digestService, logger)
 		digestGroup := server.API().Group("/admin/digest")
 		digestGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 		digestGroup.Use(middleware.RequireAdminGroups(db, config, logger))

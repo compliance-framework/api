@@ -158,7 +158,7 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(evidence)
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
@@ -211,7 +211,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(struct {
 			Filter labelfilter.Filter
@@ -264,7 +264,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(struct {
 			Filter labelfilter.Filter
@@ -317,7 +317,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		var reqBody, _ = json.Marshal(struct {
 			Filter labelfilter.Filter
@@ -381,7 +381,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		var reqBody, _ = json.Marshal(struct {
 			Filter labelfilter.Filter
@@ -453,7 +453,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		var reqBody, _ = json.Marshal(struct {
 			Filter labelfilter.Filter
@@ -552,7 +552,7 @@ func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(struct {
 		Filter labelfilter.Filter
@@ -673,7 +673,7 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/compliance-by-filter/%s", filter.ID), nil)
 		server.E().ServeHTTP(rec, req)
@@ -704,7 +704,7 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/evidence/compliance-by-filter/%s", uuid.New()), nil)
 		server.E().ServeHTTP(rec, req)
@@ -718,7 +718,7 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil, nil)
+		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/evidence/compliance-by-filter/invalid-uuid", nil)
 		server.E().ServeHTTP(rec, req)

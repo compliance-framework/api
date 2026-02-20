@@ -53,8 +53,3 @@ func TestEvidenceSummaryStructure(t *testing.T) {
 	assert.Len(t, summary.TopExpired, 2)
 	assert.Len(t, summary.TopNotSatisfied, 1)
 }
-
-func TestGlobalDigestJobName(t *testing.T) {
-	job := &GlobalDigestJob{}
-	assert.Equal(t, "global-evidence-digest", job.Name())
-}

@@ -20,15 +20,6 @@ const (
 	StatusCancelled  StepStatus = "cancelled"
 )
 
-// IsValid checks if the step status is valid
-func (s StepStatus) IsValid() bool {
-	switch s {
-	case StatusPending, StatusBlocked, StatusInProgress, StatusOverdue, StatusCompleted, StatusFailed, StatusSkipped, StatusCancelled:
-		return true
-	}
-	return false
-}
-
 // String returns the string representation of the status
 func (s StepStatus) String() string {
 	return string(s)
@@ -44,12 +35,6 @@ type StepStatusCounts struct {
 	Failed     int
 	Skipped    int
 	Cancelled  int
-}
-
-// Total returns the sum of all status counts.
-func (c StepStatusCounts) Total() int {
-	return c.Pending + c.Blocked + c.InProgress + c.Overdue +
-		c.Completed + c.Failed + c.Skipped + c.Cancelled
 }
 
 // AllTerminal returns true when no step can make further progress, matching the semantics

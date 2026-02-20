@@ -49,19 +49,19 @@ func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func TestNewService_Disabled(t *testing.T) {
+func TestNewServiceWithDigest_Disabled(t *testing.T) {
 	cfg := &config.WorkerConfig{
 		Enabled: false,
 	}
 	logger := zap.NewNop().Sugar()
 
-	service, err := NewService(cfg, nil, nil, logger)
+	service, err := NewServiceWithDigest(cfg, nil, nil, nil, nil, logger)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 	assert.False(t, service.IsStarted())
 }
 
-func TestNewService_RequiresEmailService(t *testing.T) {
+func TestNewServiceWithDigest_RequiresEmailService(t *testing.T) {
 	cfg := &config.WorkerConfig{
 		Enabled: true,
 		Workers: 5,
@@ -69,7 +69,7 @@ func TestNewService_RequiresEmailService(t *testing.T) {
 	}
 	logger := zap.NewNop().Sugar()
 
-	service, err := NewService(cfg, nil, nil, logger)
+	service, err := NewServiceWithDigest(cfg, nil, nil, nil, nil, logger)
 	assert.Error(t, err)
 	assert.Nil(t, service)
 	assert.Contains(t, err.Error(), "email service is required")
@@ -81,7 +81,7 @@ func TestService_EnqueueWhenDisabled(t *testing.T) {
 	}
 	logger := zap.NewNop().Sugar()
 
-	service, err := NewService(cfg, nil, nil, logger)
+	service, err := NewServiceWithDigest(cfg, nil, nil, nil, nil, logger)
 	assert.NoError(t, err)
 
 	ctx := context.Background()

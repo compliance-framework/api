@@ -39,11 +39,7 @@ type Service struct {
 	digestCfg *config.Config
 
 	// Workflow services
-	workflowExecutor         *workflow.DAGExecutor
-	workflowManager          *workflow.Manager
-	overdueService           *workflow.OverdueService
-	workflowExecutionService interface{}
-	stepDefinitionService    interface{}
+	workflowExecutor *workflow.DAGExecutor
 }
 
 type riverClientProxy struct {
@@ -73,16 +69,6 @@ func (p *notificationEnqueuerProxy) EnqueueWorkflowExecutionFailed(ctx context.C
 		return fmt.Errorf("notification enqueuer not initialized")
 	}
 	return p.enqueuer.EnqueueWorkflowExecutionFailed(ctx, execution)
-}
-
-// NewService creates a new worker service
-func NewService(
-	cfg *config.WorkerConfig,
-	db *gorm.DB,
-	emailSvc *email.Service,
-	logger *zap.SugaredLogger,
-) (*Service, error) {
-	return NewServiceWithDigest(cfg, db, emailSvc, nil, nil, logger)
 }
 
 // NewServiceWithDigest creates a new worker service with digest support
@@ -264,23 +250,13 @@ func NewServiceWithDigest(
 		started:   false,
 		pgxPool:   pgxPool,
 
-		// Store workflow services
-		workflowExecutor:         executor,
-		workflowManager:          workflowManager,
-		overdueService:           overdueService,
-		workflowExecutionService: workflowExecService,
-		stepDefinitionService:    stepDefService,
+		workflowExecutor: executor,
 	}
 
 	// Wire the service itself into the notification enqueuer proxy now that it is fully constructed.
 	enqueuerProxy.enqueuer = service
 
 	return service, nil
-}
-
-// GetWorkflowManager returns the workflow manager
-func (s *Service) GetWorkflowManager() *workflow.Manager {
-	return s.workflowManager
 }
 
 // GetDAGExecutor returns the shared DAG executor used by workflow River workers.
