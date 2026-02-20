@@ -75,6 +75,7 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 	api.POST("/build-props", h.BuildByProps)
 	api.GET("/:id", h.Get)
 	api.GET("/:id/resolved", h.Resolved)
+	api.GET("/:id/compliance-progress", h.ComplianceProgress)
 
 	api.GET("/:id/modify", h.GetModify)
 	api.GET("/:id/back-matter", h.GetBackmatter)

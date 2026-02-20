@@ -11935,6 +11935,76 @@
                 ]
             }
         },
+        "/oscal/profiles/{id}/compliance-progress": {
+            "get": {
+                "description": "Returns aggregated compliance progress for controls in a Profile, including summary, optional per-control rows, and group rollups.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Get compliance progress for a Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include per-control breakdown (default true)",
+                        "name": "includeControls",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "System Security Plan ID for implementation coverage",
+                        "name": "sspId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-oscal_ProfileComplianceProgress"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/profiles/{id}/full": {
             "get": {
                 "description": "Retrieves the full OSCAL Profile, including all nested content.",
@@ -21363,6 +21433,19 @@
                 }
             }
         },
+        "handler.GenericDataResponse-oscal_ProfileComplianceProgress": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/oscal.ProfileComplianceProgress"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-oscal_ProfileHandler": {
             "type": "object",
             "properties": {
@@ -21838,6 +21921,155 @@
                 "MatchStrategyAll",
                 "MatchStrategyAny"
             ]
+        },
+        "oscal.ProfileComplianceControl": {
+            "type": "object",
+            "properties": {
+                "catalogId": {
+                    "type": "string"
+                },
+                "computedStatus": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "groupId": {
+                    "type": "string"
+                },
+                "groupTitle": {
+                    "type": "string"
+                },
+                "implemented": {
+                    "type": "boolean"
+                },
+                "statusCounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ProfileComplianceStatusCount"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.ProfileComplianceGroup": {
+            "type": "object",
+            "properties": {
+                "compliancePercent": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "notSatisfied": {
+                    "type": "integer"
+                },
+                "satisfied": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "totalControls": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "oscal.ProfileComplianceImplementation": {
+            "type": "object",
+            "properties": {
+                "implementationPercent": {
+                    "type": "integer"
+                },
+                "implementedControls": {
+                    "type": "integer"
+                },
+                "unimplementedControls": {
+                    "type": "integer"
+                }
+            }
+        },
+        "oscal.ProfileComplianceProgress": {
+            "type": "object",
+            "properties": {
+                "controls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ProfileComplianceControl"
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.ProfileComplianceGroup"
+                    }
+                },
+                "implementation": {
+                    "$ref": "#/definitions/oscal.ProfileComplianceImplementation"
+                },
+                "scope": {
+                    "$ref": "#/definitions/oscal.ProfileComplianceScope"
+                },
+                "summary": {
+                    "$ref": "#/definitions/oscal.ProfileComplianceSummary"
+                }
+            }
+        },
+        "oscal.ProfileComplianceScope": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.ProfileComplianceStatusCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.ProfileComplianceSummary": {
+            "type": "object",
+            "properties": {
+                "assessedPercent": {
+                    "type": "integer"
+                },
+                "compliancePercent": {
+                    "type": "integer"
+                },
+                "implementedControls": {
+                    "type": "integer"
+                },
+                "notSatisfied": {
+                    "type": "integer"
+                },
+                "satisfied": {
+                    "type": "integer"
+                },
+                "totalControls": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
         },
         "oscal.ProfileHandler": {
             "type": "object"
