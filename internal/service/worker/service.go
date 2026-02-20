@@ -153,7 +153,7 @@ func NewServiceWithDigest(
 	enqueuerProxy := &notificationEnqueuerProxy{}
 
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db, logger, enqueuerProxy)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, logger, enqueuerProxy)
 
 	// Create workflow executor
 	workflowLogger := log.New(os.Stdout, "[WORKFLOW] ", log.LstdFlags)
@@ -538,32 +538,21 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 		stepExecution = &full
 	}
 
-	stepTitle := ""
-	workflowTitle := ""
-	workflowInstanceTitle := ""
-	if stepExecution.WorkflowStepDefinition != nil {
-		stepTitle = stepExecution.WorkflowStepDefinition.Name
-	}
-	if stepExecution.WorkflowExecution != nil && stepExecution.WorkflowExecution.WorkflowInstance != nil {
-		if stepExecution.WorkflowExecution.WorkflowInstance.WorkflowDefinition != nil {
-			workflowTitle = stepExecution.WorkflowExecution.WorkflowInstance.WorkflowDefinition.Name
-		}
-		workflowInstanceTitle = stepExecution.WorkflowExecution.WorkflowInstance.Name
-	}
+	titles := resolveStepTitles(stepExecution)
 
 	args := &WorkflowTaskAssignedArgs{
 		AssignedToType:        stepExecution.AssignedToType,
 		UserID:                stepExecution.AssignedToID,
 		StepExecutionID:       stepExecution.ID.String(),
-		StepTitle:             stepTitle,
-		WorkflowTitle:         workflowTitle,
-		WorkflowInstanceTitle: workflowInstanceTitle,
+		StepTitle:             titles.Step,
+		WorkflowTitle:         titles.Workflow,
+		WorkflowInstanceTitle: titles.Instance,
 		StepURL:               "",
 		DueDate:               stepExecution.DueDate,
 	}
 
 	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptionsForWorkflowNotification()},
+		{Args: args, InsertOpts: JobInsertOptionsForWorkflowTaskAssignedNotification()},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue workflow-task-assigned job: %w", err)

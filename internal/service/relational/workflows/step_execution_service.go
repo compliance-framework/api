@@ -297,6 +297,43 @@ func (s *StepExecutionService) AssignTo(id *uuid.UUID, assignedToType, assignedT
 		}).Error
 }
 
+// ReassignWithTx updates step assignment fields using the provided transaction.
+// If tx is nil, it falls back to the service DB handle.
+func (s *StepExecutionService) ReassignWithTx(tx *gorm.DB, id *uuid.UUID, assignedToType, assignedToID string, assignedAt time.Time) error {
+	if tx == nil {
+		tx = s.db
+	}
+
+	return tx.Model(&StepExecution{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"assigned_to_type": assignedToType,
+			"assigned_to_id":   assignedToID,
+			"assigned_at":      assignedAt,
+		}).Error
+}
+
+// BulkFailWithTx marks all non-terminal steps in an execution as failed using the provided transaction.
+// If tx is nil, it falls back to the service DB handle.
+func (s *StepExecutionService) BulkFailWithTx(tx *gorm.DB, executionID *uuid.UUID, reason string, failedAt time.Time) error {
+	if tx == nil {
+		tx = s.db
+	}
+
+	return tx.Model(&StepExecution{}).
+		Where("workflow_execution_id = ? AND status IN ?", executionID, []string{
+			StepStatusPending.String(),
+			StepStatusBlocked.String(),
+			StepStatusInProgress.String(),
+			StepStatusOverdue.String(),
+		}).
+		Updates(map[string]interface{}{
+			"status":         StepStatusFailed.String(),
+			"failed_at":      failedAt,
+			"failure_reason": reason,
+		}).Error
+}
+
 // GetPendingSteps retrieves all pending step executions for a workflow execution
 func (s *StepExecutionService) GetPendingSteps(executionID *uuid.UUID) ([]StepExecution, error) {
 	var stepExecutions []StepExecution

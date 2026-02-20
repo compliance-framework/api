@@ -37,6 +37,20 @@ func (m *MockRoleAssignmentService) GetByWorkflowInstanceID(instanceID *uuid.UUI
 	return args.Get(0).([]workflows.RoleAssignment), args.Error(1)
 }
 
+type MockAssignmentNotificationEnqueuer struct {
+	mock.Mock
+}
+
+func (m *MockAssignmentNotificationEnqueuer) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
+	args := m.Called(ctx, stepExecution)
+	return args.Error(0)
+}
+
+func (m *MockAssignmentNotificationEnqueuer) EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error {
+	args := m.Called(ctx, execution)
+	return args.Error(0)
+}
+
 func TestResolveStepAssignees(t *testing.T) {
 	instanceID := uuid.New()
 	instance := &workflows.WorkflowInstance{
@@ -63,7 +77,7 @@ func TestResolveStepAssignees(t *testing.T) {
 	}
 
 	mockRoleService := new(MockRoleAssignmentService)
-	assignmentService := NewAssignmentService(mockRoleService, nil, zap.NewNop().Sugar(), nil)
+	assignmentService := NewAssignmentService(mockRoleService, nil, nil, zap.NewNop().Sugar(), nil)
 
 	// Mock responses
 	// Step 1: Role "admin" -> User "user-1"
@@ -129,7 +143,7 @@ func TestResolveStepAssignees_NoRole(t *testing.T) {
 	}
 
 	mockRoleService := new(MockRoleAssignmentService)
-	assignmentService := NewAssignmentService(mockRoleService, nil, zap.NewNop().Sugar(), nil)
+	assignmentService := NewAssignmentService(mockRoleService, nil, nil, zap.NewNop().Sugar(), nil)
 
 	assignments, err := assignmentService.ResolveStepAssignees(context.Background(), instance, steps)
 	assert.NoError(t, err)
@@ -195,7 +209,7 @@ func createAssignmentServiceGraph(t *testing.T, db *gorm.DB) (*workflows.Workflo
 func TestReassignStep(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
+	service := NewAssignmentService(roleService, nil, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -253,7 +267,7 @@ func TestReassignStep(t *testing.T) {
 func TestReassignStep_RejectsInvalidStatus(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
+	service := NewAssignmentService(roleService, nil, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -278,7 +292,7 @@ func TestReassignStep_RejectsInvalidStatus(t *testing.T) {
 func TestReassignStep_AllowsOverdueStatus(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
+	service := NewAssignmentService(roleService, nil, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 	stepExec.Status = workflows.StepStatusOverdue.String()
@@ -303,7 +317,7 @@ func TestReassignStep_AllowsOverdueStatus(t *testing.T) {
 func TestReassignStep_RejectsInvalidAssigneeAndMissingUser(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
+	service := NewAssignmentService(roleService, nil, db, zap.NewNop().Sugar(), nil)
 
 	_, _, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -334,7 +348,7 @@ func TestReassignStep_RejectsInvalidAssigneeAndMissingUser(t *testing.T) {
 func TestBulkReassignByRole(t *testing.T) {
 	db := setupAssignmentServiceTestDB(t)
 	roleService := new(MockRoleAssignmentService)
-	service := NewAssignmentService(roleService, db, zap.NewNop().Sugar(), nil)
+	service := NewAssignmentService(roleService, nil, db, zap.NewNop().Sugar(), nil)
 
 	execution, stepDef, stepExec := createAssignmentServiceGraph(t, db)
 
@@ -408,4 +422,59 @@ func TestBulkReassignByRole(t *testing.T) {
 	var otherRole workflows.StepExecution
 	require.NoError(t, db.First(&otherRole, otherRoleStep.ID).Error)
 	assert.Equal(t, "other-role", otherRole.AssignedToID)
+}
+
+func TestBulkReassignByRole_EnqueuesNotificationsForReassignedSteps(t *testing.T) {
+	db := setupAssignmentServiceTestDB(t)
+	roleService := new(MockRoleAssignmentService)
+	notificationEnqueuer := new(MockAssignmentNotificationEnqueuer)
+	service := NewAssignmentService(roleService, nil, db, zap.NewNop().Sugar(), notificationEnqueuer)
+
+	execution, stepDef, stepExec := createAssignmentServiceGraph(t, db)
+
+	secondStepDef := &workflows.WorkflowStepDefinition{
+		WorkflowDefinitionID: stepDef.WorkflowDefinitionID,
+		Name:                 "Step 2",
+		ResponsibleRole:      stepDef.ResponsibleRole,
+	}
+	require.NoError(t, db.Create(secondStepDef).Error)
+
+	secondStep := &workflows.StepExecution{
+		WorkflowExecutionID:      execution.ID,
+		WorkflowStepDefinitionID: secondStepDef.ID,
+		Status:                   workflows.StepStatusInProgress.String(),
+		AssignedToType:           workflows.AssignmentTypeUser.String(),
+		AssignedToID:             "old-user",
+	}
+	require.NoError(t, db.Create(secondStep).Error)
+
+	newAssigneeID := uuid.New()
+	user := &relational.User{
+		UUIDModel:  relational.UUIDModel{ID: &newAssigneeID},
+		Email:      "bulk-notify@example.com",
+		FirstName:  "Bulk",
+		LastName:   "Notify",
+		IsActive:   true,
+		AuthMethod: "local",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	notificationEnqueuer.On("EnqueueWorkflowTaskAssigned", mock.Anything, mock.MatchedBy(func(step *workflows.StepExecution) bool {
+		return step != nil && step.ID != nil && (*step.ID == *stepExec.ID || *step.ID == *secondStep.ID)
+	})).Return(nil).Twice()
+
+	result, err := service.BulkReassignByRole(
+		context.Background(),
+		*execution.ID,
+		stepDef.ResponsibleRole,
+		Assignee{Type: workflows.AssignmentTypeUser.String(), ID: newAssigneeID.String()},
+		"bulk handoff",
+		nil,
+		"actor@example.com",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 2, result.ReassignedCount)
+
+	notificationEnqueuer.AssertExpectations(t)
 }

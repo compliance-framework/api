@@ -124,7 +124,7 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 			DueDate:       &dueDate,
 		}
 
-		executionID, err := w.manager.StartWorkflowExecution(ctx, instance.ID, options)
+		execution, err := w.manager.StartWorkflowExecution(ctx, instance.ID, options)
 		if err != nil {
 			if errors.Is(err, ErrWorkflowExecutionAlreadyExists) {
 				w.logger.Infow("Skipping already executed workflow instance for this period",
@@ -153,7 +153,7 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 		if err := w.workflowInstanceService.AdvanceSchedule(ctx, instance.ID); err != nil {
 			w.logger.Errorw("Failed to update next schedule",
 				"instance_id", instance.ID,
-				"execution_id", executionID,
+				"execution_id", execution.ID,
 				"error", err,
 			)
 			// Don't fail the whole job, just log error
@@ -168,7 +168,7 @@ func (w *WorkflowSchedulerWorker) Work(ctx context.Context, job *river.Job[Sched
 
 		w.logger.Infow("Scheduled workflow execution",
 			"instance_id", instance.ID,
-			"execution_id", executionID,
+			"execution_id", execution.ID,
 			"period_label", periodLabel,
 		)
 	}

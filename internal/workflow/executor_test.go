@@ -142,6 +142,20 @@ func (m *MockAssignmentService) ResolveStepAssignees(ctx context.Context, instan
 	return args.Get(0).(map[uuid.UUID]Assignee), args.Error(1)
 }
 
+type MockNotificationEnqueuer struct {
+	mock.Mock
+}
+
+func (m *MockNotificationEnqueuer) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
+	args := m.Called(ctx, stepExecution)
+	return args.Error(0)
+}
+
+func (m *MockNotificationEnqueuer) EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error {
+	args := m.Called(ctx, execution)
+	return args.Error(0)
+}
+
 func TestNewDAGExecutor(t *testing.T) {
 	mockStepExecService := &MockStepExecutionService{}
 	mockWorkflowExecService := &MockWorkflowExecutionService{}
@@ -283,4 +297,76 @@ func TestInitializeWorkflow_Failure(t *testing.T) {
 
 	// Verify all mocks were called
 	mockWorkflowExecService.AssertExpectations(t)
+}
+
+func TestProcessStepCompletion_PassesRequestContextToNotificationEnqueuer(t *testing.T) {
+	mockStepExecService := &MockStepExecutionService{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockStepDefService := &MockWorkflowStepDefinitionService{}
+	mockAssignmentService := &MockAssignmentService{}
+	mockNotificationEnqueuer := &MockNotificationEnqueuer{}
+	logger := log.New(bytes.NewBufferString(""), "", log.LstdFlags)
+
+	executor := NewDAGExecutor(
+		mockStepExecService,
+		mockWorkflowExecService,
+		mockStepDefService,
+		mockAssignmentService,
+		logger,
+		mockNotificationEnqueuer,
+	)
+
+	stepExecutionID := uuid.New()
+	workflowExecutionID := uuid.New()
+	completedStepDefID := uuid.New()
+	dependentStepDefID := uuid.New()
+	dependentStepExecID := uuid.New()
+
+	completedStep := &workflows.StepExecution{
+		UUIDModel:                relational.UUIDModel{ID: &stepExecutionID},
+		WorkflowExecutionID:      &workflowExecutionID,
+		WorkflowStepDefinitionID: &completedStepDefID,
+		Status:                   StatusCompleted.String(),
+	}
+	dependentExec := workflows.StepExecution{
+		UUIDModel:                relational.UUIDModel{ID: &dependentStepExecID},
+		WorkflowExecutionID:      &workflowExecutionID,
+		WorkflowStepDefinitionID: &dependentStepDefID,
+		Status:                   StatusBlocked.String(),
+	}
+	reloadedDependent := &workflows.StepExecution{
+		UUIDModel:                relational.UUIDModel{ID: &dependentStepExecID},
+		WorkflowExecutionID:      &workflowExecutionID,
+		WorkflowStepDefinitionID: &dependentStepDefID,
+		Status:                   StatusPending.String(),
+	}
+
+	mockStepExecService.On("GetByID", &stepExecutionID).Return(completedStep, nil).Once()
+	mockStepDefService.On("GetDependentSteps", &completedStepDefID).Return([]workflows.WorkflowStepDefinition{
+		{UUIDModel: relational.UUIDModel{ID: &dependentStepDefID}},
+	}, nil).Once()
+	mockStepExecService.On("GetByWorkflowExecutionID", &workflowExecutionID).Return([]workflows.StepExecution{
+		dependentExec,
+	}, nil).Twice()
+	mockStepExecService.On("CanUnblock", &dependentStepExecID).Return(true, nil).Once()
+	mockStepExecService.On("Unblock", &dependentStepExecID).Return(nil).Once()
+	mockStepExecService.On("GetByID", &dependentStepExecID).Return(reloadedDependent, nil).Once()
+
+	type ctxKey string
+	const traceKey ctxKey = "trace_id"
+	ctx := context.WithValue(context.Background(), traceKey, "trace-123")
+	mockNotificationEnqueuer.On(
+		"EnqueueWorkflowTaskAssigned",
+		mock.MatchedBy(func(c context.Context) bool {
+			return c != nil && c.Value(traceKey) == "trace-123"
+		}),
+		reloadedDependent,
+	).Return(nil).Once()
+
+	err := executor.ProcessStepCompletion(ctx, &stepExecutionID)
+	require.NoError(t, err)
+
+	mockStepExecService.AssertExpectations(t)
+	mockStepDefService.AssertExpectations(t)
+	mockNotificationEnqueuer.AssertExpectations(t)
 }

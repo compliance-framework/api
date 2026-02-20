@@ -23,15 +23,30 @@ type Assignee struct {
 // AssignmentService handles logic for resolving step assignments
 type AssignmentService struct {
 	roleAssignmentService RoleAssignmentServiceInterface
+	stepExecutionService  StepExecutionAssignmentService
 	db                    *gorm.DB
 	notificationEnqueuer  NotificationEnqueuer // Optional: for task-assigned notification emails
 	logger                *zap.SugaredLogger
 }
 
+type StepExecutionAssignmentService interface {
+	ReassignWithTx(tx *gorm.DB, id *uuid.UUID, assignedToType, assignedToID string, assignedAt time.Time) error
+}
+
 // NewAssignmentService creates a new assignment service
-func NewAssignmentService(roleAssignmentService RoleAssignmentServiceInterface, db *gorm.DB, logger *zap.SugaredLogger, notificationEnqueuer NotificationEnqueuer) *AssignmentService {
+func NewAssignmentService(
+	roleAssignmentService RoleAssignmentServiceInterface,
+	stepExecutionService StepExecutionAssignmentService,
+	db *gorm.DB,
+	logger *zap.SugaredLogger,
+	notificationEnqueuer NotificationEnqueuer,
+) *AssignmentService {
+	if stepExecutionService == nil && db != nil {
+		stepExecutionService = workflows.NewStepExecutionService(db, nil)
+	}
 	return &AssignmentService{
 		roleAssignmentService: roleAssignmentService,
+		stepExecutionService:  stepExecutionService,
 		db:                    db,
 		logger:                logger,
 		notificationEnqueuer:  notificationEnqueuer,
@@ -91,6 +106,9 @@ func (s *AssignmentService) ReassignStep(
 	if s.db == nil {
 		return fmt.Errorf("assignment service database is not configured")
 	}
+	if s.stepExecutionService == nil {
+		return fmt.Errorf("assignment service step execution service is not configured")
+	}
 	if err := s.validateAssignee(newAssignee); err != nil {
 		return err
 	}
@@ -113,13 +131,7 @@ func (s *AssignmentService) ReassignStep(
 		prevID := updatedStepExecution.AssignedToID
 
 		now := time.Now()
-		if err := tx.Model(&workflows.StepExecution{}).
-			Where("id = ?", stepExecutionID).
-			Updates(map[string]interface{}{
-				"assigned_to_type": newAssignee.Type,
-				"assigned_to_id":   newAssignee.ID,
-				"assigned_at":      now,
-			}).Error; err != nil {
+		if err := s.stepExecutionService.ReassignWithTx(tx, updatedStepExecution.ID, newAssignee.Type, newAssignee.ID, now); err != nil {
 			return err
 		}
 		updatedStepExecution.AssignedToType = newAssignee.Type
@@ -164,6 +176,9 @@ func (s *AssignmentService) BulkReassignByRole(
 	if s.db == nil {
 		return nil, fmt.Errorf("assignment service database is not configured")
 	}
+	if s.stepExecutionService == nil {
+		return nil, fmt.Errorf("assignment service step execution service is not configured")
+	}
 	if roleName == "" {
 		return nil, fmt.Errorf("role name is required")
 	}
@@ -202,13 +217,7 @@ func (s *AssignmentService) BulkReassignByRole(
 				continue
 			}
 
-			if err := tx.Model(&workflows.StepExecution{}).
-				Where("id = ?", stepExecution.ID).
-				Updates(map[string]interface{}{
-					"assigned_to_type": newAssignee.Type,
-					"assigned_to_id":   newAssignee.ID,
-					"assigned_at":      now,
-				}).Error; err != nil {
+			if err := s.stepExecutionService.ReassignWithTx(tx, stepExecution.ID, newAssignee.Type, newAssignee.ID, now); err != nil {
 				return err
 			}
 
@@ -235,6 +244,24 @@ func (s *AssignmentService) BulkReassignByRole(
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if s.notificationEnqueuer != nil &&
+		(newAssignee.Type == workflows.AssignmentTypeUser.String() || newAssignee.Type == workflows.AssignmentTypeEmail.String()) &&
+		len(result.ReassignedStepExecIDs) > 0 {
+		var reassignedSteps []workflows.StepExecution
+		if err := s.db.WithContext(ctx).
+			Where("id IN ?", result.ReassignedStepExecIDs).
+			Find(&reassignedSteps).Error; err != nil {
+			s.logger.Error("failed to load reassigned steps for bulk notification enqueue", "error", err)
+			return result, nil
+		}
+
+		for i := range reassignedSteps {
+			if err := s.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, &reassignedSteps[i]); err != nil {
+				s.logger.Error("failed to enqueue workflow task assigned notification for bulk reassignment", "step_execution_id", reassignedSteps[i].ID, "error", err)
+			}
+		}
 	}
 
 	return result, nil

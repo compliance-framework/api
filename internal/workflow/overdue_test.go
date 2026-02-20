@@ -116,7 +116,7 @@ func TestOverdueService_CheckOverdueTransitions(t *testing.T) {
 
 	updatedExecutions, err := svc.CheckOverdueExecutions(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, updatedExecutions)
+	assert.Equal(t, 1, updatedExecutions)
 
 	var stepAfter workflows.StepExecution
 	require.NoError(t, db.First(&stepAfter, step.ID).Error)
@@ -151,6 +151,10 @@ func TestOverdueService_CheckFailedExecutions_StepOverduePromotesExecutionAndFai
 	updatedSteps, err := svc.CheckOverdueSteps(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 1, updatedSteps)
+
+	updatedExecutions, err := svc.CheckOverdueExecutions(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, updatedExecutions)
 
 	failed, err := svc.CheckFailedExecutions(context.Background())
 	require.NoError(t, err)

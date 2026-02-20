@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -47,10 +46,23 @@ func (s *OverdueService) CheckOverdueExecutions(ctx context.Context) (int, error
 	var executions []workflows.WorkflowExecution
 	now := time.Now()
 	if err := s.db.WithContext(ctx).
-		Where("status IN ? AND due_date IS NOT NULL AND due_date < ?", []string{
-			workflows.WorkflowStatusPending.String(),
-			workflows.WorkflowStatusInProgress.String(),
-		}, now).
+		Where(
+			`status IN ? AND (
+				(due_date IS NOT NULL AND due_date < ?) OR
+				EXISTS (
+					SELECT 1
+					FROM step_executions se
+					WHERE se.workflow_execution_id = workflow_executions.id
+					  AND se.status = ?
+				)
+			)`,
+			[]string{
+				workflows.WorkflowStatusPending.String(),
+				workflows.WorkflowStatusInProgress.String(),
+			},
+			now,
+			workflows.StepStatusOverdue.String(),
+		).
 		Find(&executions).Error; err != nil {
 		return 0, fmt.Errorf("failed to query overdue executions: %w", err)
 	}
@@ -90,12 +102,7 @@ func (s *OverdueService) CheckOverdueSteps(ctx context.Context) (int, error) {
 		updated++
 	}
 
-	executionUpdates, err := s.markExecutionsOverdueFromStepOverdue(ctx)
-	if err != nil {
-		return updated, err
-	}
-
-	s.logger.Infow("Checked overdue workflow steps", "found", len(steps), "updated", updated, "execution_status_updated", executionUpdates)
+	s.logger.Infow("Checked overdue workflow steps", "found", len(steps), "updated", updated)
 	return updated, nil
 }
 
@@ -156,18 +163,7 @@ func (s *OverdueService) failExecutionAndSteps(ctx context.Context, execution *w
 		}
 		executionFailed = true
 
-		if err := tx.Model(&workflows.StepExecution{}).
-			Where("workflow_execution_id = ? AND status IN ?", execution.ID, []string{
-				workflows.StepStatusPending.String(),
-				workflows.StepStatusBlocked.String(),
-				workflows.StepStatusInProgress.String(),
-				workflows.StepStatusOverdue.String(),
-			}).
-			Updates(map[string]interface{}{
-				"status":         workflows.StepStatusFailed.String(),
-				"failed_at":      now,
-				"failure_reason": failureReason,
-			}).Error; err != nil {
+		if err := s.stepExecutionService.BulkFailWithTx(tx, execution.ID, failureReason, now); err != nil {
 			return err
 		}
 
@@ -186,31 +182,4 @@ func (s *OverdueService) failExecutionAndSteps(ctx context.Context, execution *w
 	}
 
 	return nil
-}
-
-func (s *OverdueService) markExecutionsOverdueFromStepOverdue(ctx context.Context) (int, error) {
-	var executionIDs []uuid.UUID
-	if err := s.db.WithContext(ctx).
-		Table("step_executions se").
-		Select("DISTINCT se.workflow_execution_id").
-		Joins("JOIN workflow_executions we ON we.id = se.workflow_execution_id").
-		Where("se.status = ? AND we.status IN ?", workflows.StepStatusOverdue.String(), []string{
-			workflows.WorkflowStatusPending.String(),
-			workflows.WorkflowStatusInProgress.String(),
-		}).
-		Scan(&executionIDs).Error; err != nil {
-		return 0, fmt.Errorf("failed to query executions with overdue steps: %w", err)
-	}
-
-	updated := 0
-	for i := range executionIDs {
-		executionID := executionIDs[i]
-		if err := s.workflowExecutionService.UpdateStatus(ctx, &executionID, workflows.WorkflowStatusOverdue.String()); err != nil {
-			s.logger.Errorw("Failed to mark workflow execution overdue from step overdue", "workflow_execution_id", executionID, "error", err)
-			continue
-		}
-		updated++
-	}
-
-	return updated, nil
 }

@@ -72,25 +72,14 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 			continue
 		}
 
-		stepTitle := ""
-		workflowTitle := ""
-		workflowInstanceTitle := ""
-		if step.WorkflowStepDefinition != nil {
-			stepTitle = step.WorkflowStepDefinition.Name
-		}
-		if step.WorkflowExecution != nil && step.WorkflowExecution.WorkflowInstance != nil {
-			if step.WorkflowExecution.WorkflowInstance.WorkflowDefinition != nil {
-				workflowTitle = step.WorkflowExecution.WorkflowInstance.WorkflowDefinition.Name
-			}
-			workflowInstanceTitle = step.WorkflowExecution.WorkflowInstance.Name
-		}
+		titles := resolveStepTitles(step)
 
 		args := WorkflowTaskDueSoonArgs{
 			UserID:                step.AssignedToID,
 			StepExecutionID:       step.ID.String(),
-			StepTitle:             stepTitle,
-			WorkflowTitle:         workflowTitle,
-			WorkflowInstanceTitle: workflowInstanceTitle,
+			StepTitle:             titles.Step,
+			WorkflowTitle:         titles.Workflow,
+			WorkflowInstanceTitle: titles.Instance,
 			StepURL:               "",
 			DueDate:               *step.DueDate,
 		}

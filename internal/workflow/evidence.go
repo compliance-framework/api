@@ -49,11 +49,6 @@ func NewEvidenceIntegration(
 	}
 }
 
-// SetWorkflowExecutionService sets the workflow execution service (to avoid circular dependency)
-func (e *EvidenceIntegration) SetWorkflowExecutionService(svc *workflows.WorkflowExecutionService) {
-	e.workflowExecutionSvc = svc
-}
-
 // GetOrCreateExecutionStream gets or creates the evidence stream for a workflow execution
 // This stream accumulates all step completion evidence for this execution
 func (e *EvidenceIntegration) GetOrCreateExecutionStream(ctx context.Context, workflowExecutionID *uuid.UUID) (*relational.Evidence, error) {
@@ -333,100 +328,6 @@ func (e *EvidenceIntegration) AddStepStartedEvidence(ctx context.Context, stepEx
 		"evidence_id", evidence.ID,
 		"step_execution_id", stepExecutionID,
 		"step_status", stepExecution.Status,
-	)
-
-	return nil
-}
-
-// AddStepCompletionEvidence adds a step completion evidence record to the execution stream
-// and links any user-submitted StepEvidence records to it
-func (e *EvidenceIntegration) AddStepCompletionEvidence(ctx context.Context, stepExecutionID *uuid.UUID) error {
-	// Get step execution
-	stepExecution, err := e.stepExecutionSvc.GetByID(stepExecutionID)
-	if err != nil {
-		return fmt.Errorf("failed to get step execution: %w", err)
-	}
-
-	// Get or create execution stream
-	stream, err := e.GetOrCreateExecutionStream(ctx, stepExecution.WorkflowExecutionID)
-	if err != nil {
-		return fmt.Errorf("failed to get execution stream: %w", err)
-	}
-
-	// Get step definition
-	stepDef, err := e.stepDefinitionSvc.GetByID(stepExecution.WorkflowStepDefinitionID)
-	if err != nil {
-		return fmt.Errorf("failed to get step definition: %w", err)
-	}
-
-	// Get user-submitted step evidence
-	var stepEvidences []workflows.StepEvidence
-	if err := e.db.Where("step_execution_id = ?", stepExecutionID).Find(&stepEvidences).Error; err != nil {
-		e.logger.Warnw("Failed to get step evidence", "error", err)
-	}
-
-	// Create individual evidence record for this step completion
-	description := fmt.Sprintf("Step '%s' completed\nStatus: %s\nStarted: %s\nCompleted: %s",
-		stepDef.Name,
-		stepExecution.Status,
-		stepExecution.StartedAt.Format(time.RFC3339),
-		stepExecution.CompletedAt.Format(time.RFC3339),
-	)
-
-	if len(stepEvidences) > 0 {
-		description += fmt.Sprintf("\nEvidence Submitted: %d items", len(stepEvidences))
-	}
-
-	// Build links to user-submitted evidence
-	var links []relational.Link
-	for _, stepEvidence := range stepEvidences {
-		links = append(links, relational.Link{
-			Href: fmt.Sprintf("#/evidence/%s", stepEvidence.ID.String()),
-			Rel:  "related",
-			Text: stepEvidence.Name,
-		})
-	}
-
-	evidence := &relational.Evidence{
-		UUID:        stream.UUID, // Same stream UUID
-		Title:       fmt.Sprintf("Step Completion: %s", stepDef.Name),
-		Description: description,
-		Start:       *stepExecution.StartedAt,
-		End:         *stepExecution.CompletedAt,
-	}
-
-	// Add links if we have any
-	if len(links) > 0 {
-		evidence.Links = links
-	}
-
-	// Generate unique ID for this evidence record
-	id := uuid.New()
-	evidence.ID = &id
-
-	if err := e.db.Create(evidence).Error; err != nil {
-		return fmt.Errorf("failed to create step evidence: %w", err)
-	}
-
-	// Add labels
-	labels := []relational.Labels{
-		{Name: "step.execution.id", Value: stepExecution.ID.String()},
-		{Name: "step.definition.id", Value: stepDef.ID.String()},
-		{Name: "step.name", Value: stepDef.Name},
-		{Name: "step.status", Value: stepExecution.Status},
-		{Name: "evidence.type", Value: "step_completion"},
-		{Name: "evidence.submitted_count", Value: fmt.Sprintf("%d", len(stepEvidences))},
-	}
-
-	if err := e.db.Model(evidence).Association("Labels").Append(labels); err != nil {
-		return fmt.Errorf("failed to add labels: %w", err)
-	}
-
-	e.logger.Infow("Step completion evidence added to stream",
-		"stream_uuid", stream.UUID,
-		"evidence_id", evidence.ID,
-		"step_execution_id", stepExecutionID,
-		"linked_evidence_count", len(stepEvidences),
 	)
 
 	return nil

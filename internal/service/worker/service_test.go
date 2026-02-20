@@ -304,11 +304,13 @@ func TestWorkers(t *testing.T) {
 	assert.NotNil(t, workers)
 }
 
-func TestJobInsertOptions(t *testing.T) {
-	opts := JobInsertOptions()
+func TestJobInsertOptionsForWorkflowTaskAssignedNotification(t *testing.T) {
+	opts := JobInsertOptionsForWorkflowTaskAssignedNotification()
 
 	assert.Equal(t, "email", opts.Queue)
 	assert.Equal(t, 5, opts.MaxAttempts)
+	assert.True(t, opts.UniqueOpts.ByArgs)
+	assert.Equal(t, 5*time.Minute, opts.UniqueOpts.ByPeriod)
 }
 
 func TestParseCronScheduleWithFallback_InvalidUsesFallback(t *testing.T) {
@@ -375,13 +377,6 @@ func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
 	assert.Equal(t, 3, opts.MaxAttempts)
 	assert.Equal(t, 1, opts.Priority)
 	assert.Equal(t, "schedule_workflows", args.Kind())
-}
-
-func TestJobInsertOptionsWithQueue(t *testing.T) {
-	opts := JobInsertOptionsWithQueue("custom-queue")
-
-	assert.Equal(t, "custom-queue", opts.Queue)
-	assert.Equal(t, 5, opts.MaxAttempts)
 }
 
 func TestJobInsertOptionsWithRetry(t *testing.T) {

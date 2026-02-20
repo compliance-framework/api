@@ -100,15 +100,10 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		}
 	}
 
-	userName := user.FirstName
-	if user.LastName != "" {
-		userName = user.FirstName + " " + user.LastName
-	}
-
 	periodLabel := "Daily digest — " + now.Format("Monday, 2 January 2006")
 
 	templateData := map[string]interface{}{
-		"UserName":     userName,
+		"UserName":     user.FullName(),
 		"PeriodLabel":  periodLabel,
 		"PendingTasks": pendingTasks,
 		"OverdueTasks": overdueTasks,
@@ -160,16 +155,11 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 func buildDigestTask(step *workflows.StepExecution) DigestTask {
 	task := DigestTask{}
+	titles := resolveStepTitles(step)
 
-	if step.WorkflowStepDefinition != nil {
-		task.StepTitle = step.WorkflowStepDefinition.Name
-	}
-	if step.WorkflowExecution != nil && step.WorkflowExecution.WorkflowInstance != nil {
-		if step.WorkflowExecution.WorkflowInstance.WorkflowDefinition != nil {
-			task.WorkflowTitle = step.WorkflowExecution.WorkflowInstance.WorkflowDefinition.Name
-		}
-		task.WorkflowInstanceTitle = step.WorkflowExecution.WorkflowInstance.Name
-	}
+	task.StepTitle = titles.Step
+	task.WorkflowTitle = titles.Workflow
+	task.WorkflowInstanceTitle = titles.Instance
 	if step.DueDate != nil {
 		formatted := step.DueDate.Format("2006-01-02")
 		task.DueDate = &formatted

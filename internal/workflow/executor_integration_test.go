@@ -175,7 +175,7 @@ func TestDAGExecutor_Integration_InitializeWorkflow(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar(), nil)
+	assignmentService := NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -237,7 +237,7 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar(), nil)
+	assignmentService := NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
@@ -300,7 +300,7 @@ func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db, zap.NewNop().Sugar(), nil)
+	assignmentService := NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)

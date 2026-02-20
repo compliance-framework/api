@@ -209,7 +209,7 @@ func (e *DAGExecutor) InitializeWorkflow(ctx context.Context, workflowExecutionI
 	}
 
 	if len(retryCompletedSteps) > 0 {
-		if err := e.unblockReadySteps(workflowExecutionID); err != nil {
+		if err := e.unblockReadySteps(ctx, workflowExecutionID); err != nil {
 			e.logger.Printf("Warning: failed to unblock ready steps: %v", err)
 		}
 	}
@@ -265,13 +265,13 @@ func (e *DAGExecutor) resolveRetryCompletedStepDefinitions(workflowExecution *wo
 	return completed
 }
 
-func (e *DAGExecutor) unblockReadySteps(workflowExecutionID *uuid.UUID) error {
+func (e *DAGExecutor) unblockReadySteps(ctx context.Context, workflowExecutionID *uuid.UUID) error {
 	stepExecutions, err := e.stepExecutionService.GetByWorkflowExecutionID(workflowExecutionID)
 	if err != nil {
 		return err
 	}
 	for i := range stepExecutions {
-		_ = e.tryUnblockStep(&stepExecutions[i])
+		_ = e.tryUnblockStep(ctx, &stepExecutions[i])
 	}
 	return nil
 }
@@ -294,7 +294,7 @@ func (e *DAGExecutor) ProcessStepCompletion(ctx context.Context, stepExecutionID
 	}
 
 	// Unblock dependent steps that are now ready
-	unblockedCount := e.unblockDependentSteps(stepExecution, dependentSteps)
+	unblockedCount := e.unblockDependentSteps(ctx, stepExecution, dependentSteps)
 	e.logger.Printf("Unblocked %d dependent steps", unblockedCount)
 
 	// Check if workflow is complete
@@ -352,7 +352,7 @@ func (e *DAGExecutor) ProcessStepFailure(ctx context.Context, stepExecutionID *u
 }
 
 // unblockDependentSteps processes dependent steps and unblocks those that are ready
-func (e *DAGExecutor) unblockDependentSteps(stepExecution *workflows.StepExecution, dependentSteps []workflows.WorkflowStepDefinition) int {
+func (e *DAGExecutor) unblockDependentSteps(ctx context.Context, stepExecution *workflows.StepExecution, dependentSteps []workflows.WorkflowStepDefinition) int {
 	unblockedCount := 0
 
 	for _, dependentStepDef := range dependentSteps {
@@ -361,7 +361,7 @@ func (e *DAGExecutor) unblockDependentSteps(stepExecution *workflows.StepExecuti
 			continue
 		}
 
-		if e.tryUnblockStep(dependentStepExec) {
+		if e.tryUnblockStep(ctx, dependentStepExec) {
 			unblockedCount++
 		}
 	}
@@ -388,7 +388,7 @@ func (e *DAGExecutor) findDependentStepExecution(workflowExecutionID, stepDefini
 }
 
 // tryUnblockStep attempts to unblock a step if it's blocked and all dependencies are satisfied
-func (e *DAGExecutor) tryUnblockStep(stepExec *workflows.StepExecution) bool {
+func (e *DAGExecutor) tryUnblockStep(ctx context.Context, stepExec *workflows.StepExecution) bool {
 	if stepExec.Status != StatusBlocked.String() {
 		return false
 	}
@@ -413,7 +413,7 @@ func (e *DAGExecutor) tryUnblockStep(stepExec *workflows.StepExecution) bool {
 	if e.notificationEnqueuer != nil {
 		reloaded, err := e.stepExecutionService.GetByID(stepExec.ID)
 		if err == nil && reloaded != nil {
-			if err := e.notificationEnqueuer.EnqueueWorkflowTaskAssigned(context.Background(), reloaded); err != nil {
+			if err := e.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, reloaded); err != nil {
 				e.logger.Printf("Warning: failed to enqueue task-assigned notification for step %s: %v", stepExec.ID.String(), err)
 			}
 		}

@@ -152,6 +152,13 @@ type NotificationUser struct {
 	TaskDailyDigestSubscribed    bool
 }
 
+func (u NotificationUser) FullName() string {
+	if u.LastName == "" {
+		return u.FirstName
+	}
+	return u.FirstName + " " + u.LastName
+}
+
 // DigestService interface for dependency injection
 type DigestService interface {
 	SendGlobalDigest(ctx context.Context) error
@@ -406,12 +413,7 @@ func (w *WorkflowTaskAssignedWorker) sendToUser(ctx context.Context, args Workfl
 		return nil
 	}
 
-	userName := user.FirstName
-	if user.LastName != "" {
-		userName = user.FirstName + " " + user.LastName
-	}
-
-	return w.sendEmail(ctx, args, user.Email, userName)
+	return w.sendEmail(ctx, args, user.Email, user.FullName())
 }
 
 // sendToEmailAddress sends the notification directly to the email address assignee without a user lookup
@@ -421,10 +423,7 @@ func (w *WorkflowTaskAssignedWorker) sendToEmailAddress(ctx context.Context, arg
 
 // sendEmail renders the template and sends the notification email
 func (w *WorkflowTaskAssignedWorker) sendEmail(ctx context.Context, args WorkflowTaskAssignedArgs, toAddress string, userName string) error {
-	myTasksURL := w.webBaseURL + "/my-tasks"
-	if args.StepURL != "" {
-		myTasksURL = args.StepURL
-	}
+	myTasksURL := resolveTaskURL(args.StepURL, w.webBaseURL)
 	templateData := map[string]interface{}{
 		"UserName":              userName,
 		"StepTitle":             args.StepTitle,
@@ -521,17 +520,9 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 		return nil
 	}
 
-	userName := user.FirstName
-	if user.LastName != "" {
-		userName = user.FirstName + " " + user.LastName
-	}
-
-	myTasksURL := w.webBaseURL + "/my-tasks"
-	if args.StepURL != "" {
-		myTasksURL = args.StepURL
-	}
+	myTasksURL := resolveTaskURL(args.StepURL, w.webBaseURL)
 	templateData := map[string]interface{}{
-		"UserName":              userName,
+		"UserName":              user.FullName(),
 		"StepTitle":             args.StepTitle,
 		"WorkflowTitle":         args.WorkflowTitle,
 		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
@@ -594,21 +585,14 @@ func JobInsertOptionsForWorkflowNotification() *river.InsertOpts {
 	}
 }
 
-// JobInsertOptions returns common insert options for email jobs
-func JobInsertOptions() *river.InsertOpts {
+func JobInsertOptionsForWorkflowTaskAssignedNotification() *river.InsertOpts {
 	return &river.InsertOpts{
-		Queue:       "email", // Default queue for email jobs
-		MaxAttempts: 5,       // Retry up to 5 times
-		// River uses exponential backoff by default
-	}
-}
-
-// JobInsertOptionsWithQueue returns insert options for jobs with specified queue
-func JobInsertOptionsWithQueue(queue string) *river.InsertOpts {
-	return &river.InsertOpts{
-		Queue:       queue,
-		MaxAttempts: 5, // Retry up to 5 times
-		// River uses exponential backoff by default
+		Queue:       "email",
+		MaxAttempts: 5,
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 5 * time.Minute,
+		},
 	}
 }
 

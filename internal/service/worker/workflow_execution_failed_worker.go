@@ -96,13 +96,8 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		failedAt = execution.FailedAt.Format(time.RFC1123)
 	}
 
-	recipientName := recipient.FirstName
-	if recipient.LastName != "" {
-		recipientName = recipient.FirstName + " " + recipient.LastName
-	}
-
 	templateData := map[string]interface{}{
-		"RecipientName":        recipientName,
+		"RecipientName":        recipient.FullName(),
 		"WorkflowTitle":        workflowTitle,
 		"WorkflowInstanceName": instance.Name,
 		"ExecutionID":          execution.ID.String(),
