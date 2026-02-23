@@ -21,7 +21,7 @@ func (DueSoonCheckerArgs) Kind() string { return "workflow_due_soon_checker" }
 // Timeout returns the timeout for the due-soon checker job
 func (DueSoonCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
 
-// DueSoonCheckerWorker scans for step executions due tomorrow and enqueues reminder emails
+// DueSoonCheckerWorker scans for step executions due in a week and enqueues reminder emails
 type DueSoonCheckerWorker struct {
 	db     *gorm.DB
 	client workflow.RiverClient
@@ -37,7 +37,7 @@ func NewDueSoonCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *z
 	}
 }
 
-// Work scans for step executions due in ~24 hours and enqueues WorkflowTaskDueSoonArgs jobs
+// Work scans for step executions due in ~1 week and enqueues WorkflowTaskDueSoonArgs jobs
 func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonCheckerArgs]) error {
 	now := time.Now()
 	windowStart := now                       // Get all jobs from now
