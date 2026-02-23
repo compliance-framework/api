@@ -399,7 +399,7 @@ func workflowSchedulerPeriodicJobConstructor() (river.JobArgs, *river.InsertOpts
 }
 
 func parseCronScheduleWithFallback(cronSchedule string, fallback string, jobName string, logger *zap.SugaredLogger) cron.Schedule {
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 	schedule, err := parser.Parse(cronSchedule)
 	if err != nil {
 		logger.Errorw("Failed to parse cron schedule, using fallback", "job", jobName, "schedule", cronSchedule, "fallback", fallback, "error", err)
@@ -409,7 +409,7 @@ func parseCronScheduleWithFallback(cronSchedule string, fallback string, jobName
 }
 
 func NewDueSoonCheckerPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
-	sched := parseCronScheduleWithFallback(schedule, "0 8 * * *", "due-soon checker", logger)
+	sched := parseCronScheduleWithFallback(schedule, "0 0 8 * * *", "due-soon checker", logger)
 
 	return river.NewPeriodicJob(
 		sched,
@@ -426,7 +426,7 @@ func NewDueSoonCheckerPeriodicJob(schedule string, logger *zap.SugaredLogger) *r
 }
 
 func NewWorkflowTaskDigestPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
-	sched := parseCronScheduleWithFallback(schedule, "0 8 * * *", "workflow task digest", logger)
+	sched := parseCronScheduleWithFallback(schedule, "0 0 8 * * *", "workflow task digest", logger)
 
 	return river.NewPeriodicJob(
 		sched,

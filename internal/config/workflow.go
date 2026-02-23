@@ -44,9 +44,9 @@ func DefaultWorkflowConfig() *WorkflowConfig {
 		GracePeriodDays:     7,
 		OverdueCheckEnabled: true,
 		DueSoonEnabled:      false,
-		DueSoonSchedule:     "0 8 * * *",
+		DueSoonSchedule:     "0 0 8 * * *",
 		TaskDigestEnabled:   false,
-		TaskDigestSchedule:  "0 8 * * *",
+		TaskDigestSchedule:  "0 0 8 * * *",
 	}
 }
 
@@ -60,9 +60,9 @@ func LoadWorkflowConfig(path string) (*WorkflowConfig, error) {
 	v.SetDefault("grace_period_days", 7)
 	v.SetDefault("overdue_check_enabled", true)
 	v.SetDefault("due_soon_enabled", false)
-	v.SetDefault("due_soon_schedule", "0 8 * * *")
+	v.SetDefault("due_soon_schedule", "0 0 8 * * *")
 	v.SetDefault("task_digest_enabled", false)
-	v.SetDefault("task_digest_schedule", "0 8 * * *")
+	v.SetDefault("task_digest_schedule", "0 0 8 * * *")
 
 	// Configure environment variable loading
 	v.SetEnvPrefix("CCF_WORKFLOW")
@@ -96,10 +96,20 @@ func LoadWorkflowConfig(path string) (*WorkflowConfig, error) {
 
 // Validate checks if the configuration is valid
 func (c *WorkflowConfig) Validate() error {
+	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 	if c.SchedulerEnabled {
-		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 		if _, err := parser.Parse(c.Schedule); err != nil {
 			return fmt.Errorf("invalid workflow scheduler schedule: %w", err)
+		}
+	}
+	if c.DueSoonEnabled {
+		if _, err := parser.Parse(c.DueSoonSchedule); err != nil {
+			return fmt.Errorf("invalid due_soon_schedule: %w", err)
+		}
+	}
+	if c.TaskDigestEnabled {
+		if _, err := parser.Parse(c.TaskDigestSchedule); err != nil {
+			return fmt.Errorf("invalid task_digest_schedule: %w", err)
 		}
 	}
 	if c.GracePeriodDays < 0 {

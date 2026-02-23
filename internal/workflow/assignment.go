@@ -256,13 +256,13 @@ func (s *AssignmentService) BulkReassignByRole(
 		if err := s.db.WithContext(ctx).
 			Where("id IN ?", result.ReassignedStepExecIDs).
 			Find(&reassignedSteps).Error; err != nil {
-			s.logger.Error("failed to load reassigned steps for bulk notification enqueue", "error", err)
+			s.logger.Errorw("failed to load reassigned steps for bulk notification enqueue", "error", err)
 			return result, nil
 		}
 
 		for i := range reassignedSteps {
 			if err := s.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, &reassignedSteps[i]); err != nil {
-				s.logger.Error("failed to enqueue workflow task assigned notification for bulk reassignment", "step_execution_id", reassignedSteps[i].ID, "error", err)
+				s.logger.Errorw("failed to enqueue workflow task assigned notification for bulk reassignment", "step_execution_id", reassignedSteps[i].ID, "error", err)
 			}
 		}
 	}
