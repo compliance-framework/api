@@ -31,6 +31,7 @@ type Service struct {
 	db        *gorm.DB
 	emailSvc  *email.Service
 	digestSvc DigestService
+	userRepo  UserRepository
 	logger    *zap.SugaredLogger
 	started   bool
 	startedMu sync.RWMutex
@@ -38,11 +39,7 @@ type Service struct {
 	digestCfg *config.Config
 
 	// Workflow services
-	workflowExecutor         interface{}
-	workflowManager          *workflow.Manager
-	stepExecutionService     interface{}
-	workflowExecutionService interface{}
-	stepDefinitionService    interface{}
+	workflowExecutor *workflow.DAGExecutor
 }
 
 type riverClientProxy struct {
@@ -56,14 +53,22 @@ func (p *riverClientProxy) InsertMany(ctx context.Context, params []river.Insert
 	return p.client.InsertMany(ctx, params)
 }
 
-// NewService creates a new worker service
-func NewService(
-	cfg *config.WorkerConfig,
-	db *gorm.DB,
-	emailSvc *email.Service,
-	logger *zap.SugaredLogger,
-) (*Service, error) {
-	return NewServiceWithDigest(cfg, db, emailSvc, nil, nil, logger)
+type notificationEnqueuerProxy struct {
+	enqueuer workflow.NotificationEnqueuer
+}
+
+func (p *notificationEnqueuerProxy) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
+	if p.enqueuer == nil {
+		return fmt.Errorf("notification enqueuer not initialized")
+	}
+	return p.enqueuer.EnqueueWorkflowTaskAssigned(ctx, stepExecution)
+}
+
+func (p *notificationEnqueuerProxy) EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error {
+	if p.enqueuer == nil {
+		return fmt.Errorf("notification enqueuer not initialized")
+	}
+	return p.enqueuer.EnqueueWorkflowExecutionFailed(ctx, execution)
 }
 
 // NewServiceWithDigest creates a new worker service with digest support
@@ -129,8 +134,12 @@ func NewServiceWithDigest(
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
 
+	// Create proxies to handle circular dependency (Service implements NotificationEnqueuer but is built after workflow objects)
+	clientProxy := &riverClientProxy{}
+	enqueuerProxy := &notificationEnqueuerProxy{}
+
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, logger, enqueuerProxy)
 
 	// Create workflow executor
 	workflowLogger := log.New(os.Stdout, "[WORKFLOW] ", log.LstdFlags)
@@ -140,6 +149,7 @@ func NewServiceWithDigest(
 		stepDefService,
 		assignmentService,
 		workflowLogger,
+		enqueuerProxy,
 	)
 
 	// Initialize evidence integration and set it on the executor
@@ -154,10 +164,6 @@ func NewServiceWithDigest(
 
 	// Create workflow workers
 	workflowExecutionWorker := workflow.NewWorkflowExecutionWorker(executor, evidenceIntegration, logger)
-	stepExecutionWorker := workflow.NewStepExecutionWorker(stepExecService, logger)
-
-	// Create a proxy for RiverClient to handle circular dependency
-	clientProxy := &riverClientProxy{}
 
 	// Create Manager with proxy
 	workflowManager := workflow.NewManager(
@@ -166,6 +172,7 @@ func NewServiceWithDigest(
 		workflowInstService,
 		stepExecService,
 		logger,
+		enqueuerProxy,
 	)
 
 	// Determine grace period days for the workflow scheduler, with safe defaults.
@@ -176,17 +183,20 @@ func NewServiceWithDigest(
 		overdueCheckEnabled = digestCfg.Workflow.OverdueCheckEnabled
 	}
 
+	overdueService := workflow.NewOverdueService(
+		db,
+		workflowExecService,
+		stepExecService,
+		evidenceIntegration,
+		logger,
+		gracePeriodDays,
+		enqueuerProxy,
+	)
+
 	schedulerWorker := workflow.NewWorkflowSchedulerWorker(
 		workflowManager,
 		workflowInstService,
-		workflow.NewOverdueService(
-			db,
-			workflowExecService,
-			stepExecService,
-			evidenceIntegration,
-			logger,
-			gracePeriodDays,
-		),
+		overdueService,
 		overdueCheckEnabled,
 		logger,
 		gracePeriodDays,
@@ -194,12 +204,24 @@ func NewServiceWithDigest(
 
 	// Register workers with dependencies injected
 	// We start with the email/digest workers
-	workers := Workers(emailSvc, digestSvc, logger)
+	userRepo := NewGORMUserRepository(db)
+	webBaseURL := ""
+	if digestCfg != nil {
+		webBaseURL = digestCfg.WebBaseURL
+	}
+	workers := Workers(emailSvc, digestSvc, userRepo, db, webBaseURL, logger)
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
-	river.AddWorker(workers, river.WorkFunc(stepExecutionWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(schedulerWorker.Work))
+
+	// Add due-soon checker worker (uses clientProxy which is wired to the real client after construction)
+	dueSoonCheckerWorker := NewDueSoonCheckerWorker(db, clientProxy, logger)
+	river.AddWorker(workers, river.WorkFunc(dueSoonCheckerWorker.Work))
+
+	// Add workflow task digest checker worker
+	digestCheckerWorker := NewWorkflowTaskDigestCheckerWorker(db, clientProxy, logger)
+	river.AddWorker(workers, river.WorkFunc(digestCheckerWorker.Work))
 
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
@@ -222,25 +244,25 @@ func NewServiceWithDigest(
 		db:        db,
 		emailSvc:  emailSvc,
 		digestSvc: digestSvc,
+		userRepo:  userRepo,
 		digestCfg: digestCfg,
 		logger:    logger,
 		started:   false,
 		pgxPool:   pgxPool,
 
-		// Store workflow services
-		workflowExecutor:         executor,
-		workflowManager:          workflowManager,
-		stepExecutionService:     stepExecService,
-		workflowExecutionService: workflowExecService,
-		stepDefinitionService:    stepDefService,
+		workflowExecutor: executor,
 	}
+
+	// Wire the service itself into the notification enqueuer proxy now that it is fully constructed.
+	enqueuerProxy.enqueuer = service
 
 	return service, nil
 }
 
-// GetWorkflowManager returns the workflow manager
-func (s *Service) GetWorkflowManager() *workflow.Manager {
-	return s.workflowManager
+// GetDAGExecutor returns the shared DAG executor used by workflow River workers.
+// Returns nil when the worker service is disabled.
+func (s *Service) GetDAGExecutor() *workflow.DAGExecutor {
+	return s.workflowExecutor
 }
 
 // Start starts the worker service
@@ -386,6 +408,40 @@ func parseCronScheduleWithFallback(cronSchedule string, fallback string, jobName
 	return schedule
 }
 
+func NewDueSoonCheckerPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 0 8 * * *", "due-soon checker", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &DueSoonCheckerArgs{}, &river.InsertOpts{
+				Queue:       "email",
+				MaxAttempts: 3,
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
+func NewWorkflowTaskDigestPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 0 8 * * *", "workflow task digest", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &WorkflowTaskDigestCheckerArgs{}, &river.InsertOpts{
+				Queue:       "digest",
+				MaxAttempts: 3,
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
 func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*river.PeriodicJob {
 	var periodicJobs []*river.PeriodicJob
 	if cfg == nil {
@@ -396,6 +452,12 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	}
 	if cfg.Workflow != nil && cfg.Workflow.SchedulerEnabled {
 		periodicJobs = append(periodicJobs, NewWorkflowSchedulerPeriodicJob(cfg.Workflow.Schedule, logger))
+	}
+	if cfg.Workflow != nil && cfg.Workflow.DueSoonEnabled {
+		periodicJobs = append(periodicJobs, NewDueSoonCheckerPeriodicJob(cfg.Workflow.DueSoonSchedule, logger))
+	}
+	if cfg.Workflow != nil && cfg.Workflow.TaskDigestEnabled {
+		periodicJobs = append(periodicJobs, NewWorkflowTaskDigestPeriodicJob(cfg.Workflow.TaskDigestSchedule, logger))
 	}
 	return periodicJobs
 }
@@ -422,6 +484,82 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 		Workers:      workers,
 		PeriodicJobs: periodicJobs,
 	}
+}
+
+// EnqueueWorkflowTaskAssigned enqueues a workflow-task-assigned notification email job.
+// Implements the workflow.NotificationEnqueuer interface.
+func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+
+	if stepExecution == nil {
+		return nil
+	}
+
+	// Only enqueue for user or email-type assignees
+	if (stepExecution.AssignedToType != workflows.AssignmentTypeUser.String() &&
+		stepExecution.AssignedToType != workflows.AssignmentTypeEmail.String()) ||
+		stepExecution.AssignedToID == "" {
+		return nil
+	}
+
+	// Reload with full nested relations so title fields are always populated,
+	// regardless of what the caller had preloaded on the passed-in struct.
+	var full workflows.StepExecution
+	if err := s.db.WithContext(ctx).
+		Preload("WorkflowStepDefinition").
+		Preload("WorkflowExecution.WorkflowInstance.WorkflowDefinition").
+		First(&full, "id = ?", stepExecution.ID).Error; err == nil {
+		stepExecution = &full
+	}
+
+	titles := resolveStepTitles(stepExecution)
+
+	args := &WorkflowTaskAssignedArgs{
+		AssignedToType:        stepExecution.AssignedToType,
+		UserID:                stepExecution.AssignedToID,
+		StepExecutionID:       stepExecution.ID.String(),
+		StepTitle:             titles.Step,
+		WorkflowTitle:         titles.Workflow,
+		WorkflowInstanceTitle: titles.Instance,
+		StepURL:               "",
+		DueDate:               stepExecution.DueDate,
+	}
+
+	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
+		{Args: args, InsertOpts: JobInsertOptionsForWorkflowTaskAssignedNotification()},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enqueue workflow-task-assigned job: %w", err)
+	}
+
+	return nil
+}
+
+// EnqueueWorkflowExecutionFailed enqueues a workflow-execution-failed notification email job.
+// Implements the workflow.NotificationEnqueuer interface.
+func (s *Service) EnqueueWorkflowExecutionFailed(ctx context.Context, execution *workflows.WorkflowExecution) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+
+	if execution == nil || execution.ID == nil {
+		return nil
+	}
+
+	args := &WorkflowExecutionFailedArgs{
+		WorkflowExecutionID: execution.ID.String(),
+	}
+
+	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
+		{Args: args, InsertOpts: JobInsertOptionsForWorkflowNotification()},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enqueue workflow-execution-failed job: %w", err)
+	}
+
+	return nil
 }
 
 // EnqueueSendEmail enqueues a send email job

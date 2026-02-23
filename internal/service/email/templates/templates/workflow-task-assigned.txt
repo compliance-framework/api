@@ -1,0 +1,19 @@
+Task Ready for You
+==================
+
+Hello {{.UserName}},
+
+A workflow task has been assigned to you and is ready for action.
+
+TASK DETAILS
+------------
+Task:     {{.StepTitle}}
+Workflow: {{.WorkflowTitle}}
+Instance: {{.WorkflowInstanceTitle}}
+{{if .DueDate}}Due Date: {{.DueDate}}
+{{end}}
+View your task: {{.StepURL}}
+
+---
+This is an automated notification from Compliance Framework.
+Please do not reply to this email.

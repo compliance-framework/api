@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Ready for You</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #e0e7ff;
+            font-size: 15px;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 16px;
+        }
+
+        .message {
+            color: #475569;
+            font-size: 16px;
+            margin-bottom: 28px;
+            line-height: 1.7;
+        }
+
+        .task-card {
+            background-color: #f8fafc;
+            border-radius: 10px;
+            border-left: 4px solid #3b82f6;
+            padding: 20px 24px;
+            margin-bottom: 28px;
+        }
+
+        .task-card .label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .task-card .value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 16px;
+        }
+
+        .task-card .value:last-child {
+            margin-bottom: 0;
+        }
+
+        .due-date {
+            display: inline-block;
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #b45309;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .cta-wrapper {
+            text-align: center;
+            margin: 8px 0 4px 0;
+        }
+
+        .footer {
+            background-color: #f8fafc;
+            padding: 28px 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .footer .brand {
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        .help-text {
+            color: #94a3b8;
+            font-size: 12px;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Task Ready for You</h1>
+            <p>Compliance Framework</p>
+        </div>
+
+        <div class="content">
+            <p class="greeting">Hello {{.UserName}},</p>
+
+            <p class="message">
+                A workflow task has been assigned to you and is ready for action.
+            </p>
+
+            <div class="task-card">
+                <div class="label">Task</div>
+                <div class="value">{{.StepTitle}}</div>
+
+                <div class="label">Workflow</div>
+                <div class="value">{{.WorkflowTitle}}</div>
+
+                <div class="label">Instance</div>
+                <div class="value">{{.WorkflowInstanceTitle}}</div>
+
+                {{if .DueDate}}
+                <div class="label">Due Date</div>
+                <div class="value">
+                    <span class="due-date">{{.DueDate}}</span>
+                </div>
+                {{end}}
+            </div>
+
+            <div class="cta-wrapper">
+                <a href="{{.StepURL}}" class="cta-button">View Task</a>
+            </div>
+            <div class="cta-wrapper" style="margin-top: 12px;">
+                <a href="{{.MyTasksURL}}" style="color: #1e40af; font-size: 14px;">View all my tasks &rarr;</a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                Best regards,<br>
+                <span class="brand">Compliance Framework Team</span>
+            </p>
+            <p class="help-text">
+                This is an automated notification. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

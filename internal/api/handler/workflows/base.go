@@ -89,25 +89,6 @@ func (b *BaseHandler) ParseUUID(ctx echo.Context, paramName, entityName string) 
 	return &id, nil
 }
 
-// ParseQueryUUID parses a UUID from a query parameter
-func (b *BaseHandler) ParseQueryUUID(ctx echo.Context, paramName, entityName string) (*uuid.UUID, error) {
-	idStr := ctx.QueryParam(paramName)
-	if idStr == "" {
-		return nil, nil
-	}
-
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		b.sugar.Errorw("Invalid "+entityName+" ID", "error", err, "param", paramName, "value", idStr)
-		err = ctx.JSON(http.StatusBadRequest, api.NewError(err))
-		if err != nil {
-			return nil, err
-		}
-		return nil, ErrResponseSent
-	}
-	return &id, nil
-}
-
 // HandleServiceError handles service layer errors with appropriate HTTP status codes
 func (b *BaseHandler) HandleServiceError(ctx echo.Context, err error, operation, entityName string) error {
 	if err == gorm.ErrRecordNotFound || isNotFoundError(err) {

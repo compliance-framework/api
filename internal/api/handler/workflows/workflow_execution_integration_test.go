@@ -48,7 +48,7 @@ func setupExecutionTestHandler(t *testing.T) (*WorkflowExecutionHandler, *gorm.D
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	workflowInstService := workflows.NewWorkflowInstanceService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create a mock river client for testing
 	mockRiver := &MockRiverClient{}
@@ -61,6 +61,7 @@ func setupExecutionTestHandler(t *testing.T) (*WorkflowExecutionHandler, *gorm.D
 		workflowInstService,
 		stepExecService,
 		logger,
+		nil,
 	)
 
 	handler := NewWorkflowExecutionHandler(logger, db, manager, assignmentService)

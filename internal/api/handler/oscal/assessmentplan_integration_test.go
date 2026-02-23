@@ -41,7 +41,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil)
+	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil, nil)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 }
 

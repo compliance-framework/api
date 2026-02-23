@@ -10,12 +10,14 @@ import (
 
 type WorkflowInstanceHandler struct {
 	*BaseHandler
+	db      *gorm.DB
 	service *workflows.WorkflowInstanceService
 }
 
 func NewWorkflowInstanceHandler(sugar *zap.SugaredLogger, db *gorm.DB) *WorkflowInstanceHandler {
 	return &WorkflowInstanceHandler{
 		BaseHandler: NewBaseHandler(sugar),
+		db:          db,
 		service:     workflows.NewWorkflowInstanceService(db),
 	}
 }
@@ -80,6 +82,12 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 		h.sugar.Errorw("Failed to parse system security plan ID", "error", err)
 		return h.HandleServiceError(ctx, err, "parse", "system security plan ID")
 	}
+
+	actorID, _, err := h.GetActorFromClaims(ctx, h.db)
+	if err != nil {
+		return HandleError(err)
+	}
+
 	instance := &workflows.WorkflowInstance{
 		WorkflowDefinitionID: req.WorkflowDefinitionID,
 		Name:                 req.Name,
@@ -88,6 +96,7 @@ func (h *WorkflowInstanceHandler) Create(ctx echo.Context) error {
 		Cadence:              req.Cadence,
 		IsActive:             true, // Default to active
 		GracePeriodDays:      req.GracePeriodDays,
+		CreatedByID:          actorID,
 	}
 
 	if req.IsActive != nil {
@@ -217,6 +226,11 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 		return HandleError(err)
 	}
 
+	actorID, _, err := h.GetActorFromClaims(ctx, h.db)
+	if err != nil {
+		return HandleError(err)
+	}
+
 	instance, err := h.service.GetByID(id)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "get", "workflow instance")
@@ -237,6 +251,7 @@ func (h *WorkflowInstanceHandler) Update(ctx echo.Context) error {
 	if req.GracePeriodDays != nil {
 		instance.GracePeriodDays = req.GracePeriodDays
 	}
+	instance.UpdatedByID = actorID
 
 	if err := h.service.Update(id, instance); err != nil {
 		return h.HandleServiceError(ctx, err, "update", "workflow instance")

@@ -119,7 +119,7 @@ func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
 		TriggeredByID: req.TriggeredByID,
 	}
 
-	executionID, err := h.manager.StartWorkflowExecution(
+	execution, err := h.manager.StartWorkflowExecution(
 		ctx.Request().Context(),
 		req.WorkflowInstanceID,
 		opts,
@@ -128,13 +128,7 @@ func (h *WorkflowExecutionHandler) Start(ctx echo.Context) error {
 		return h.HandleServiceError(ctx, err, "start", "workflow execution")
 	}
 
-	// Get the created execution
-	execution, err := h.service.GetByID(executionID)
-	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "workflow execution")
-	}
-
-	h.sugar.Infow("Workflow execution started", "id", executionID)
+	h.sugar.Infow("Workflow execution started", "id", execution.ID)
 	return h.RespondCreated(ctx, WorkflowExecutionResponse{Data: execution})
 }
 
@@ -307,14 +301,9 @@ func (h *WorkflowExecutionHandler) Cancel(ctx echo.Context) error {
 	}
 
 	// Use the manager to cancel the execution
-	if err := h.manager.CancelExecution(ctx.Request().Context(), id, reason); err != nil {
-		return h.HandleServiceError(ctx, err, "cancel", "workflow execution")
-	}
-
-	// Get the updated execution
-	execution, err := h.service.GetByID(id)
+	execution, err := h.manager.CancelExecution(ctx.Request().Context(), id, reason)
 	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "workflow execution after cancellation")
+		return h.HandleServiceError(ctx, err, "cancel", "workflow execution")
 	}
 
 	h.sugar.Infow("Workflow execution cancelled", "id", id)
@@ -342,18 +331,12 @@ func (h *WorkflowExecutionHandler) Retry(ctx echo.Context) error {
 	}
 
 	// Use the manager to retry the execution
-	newExecutionID, err := h.manager.RetryExecution(ctx.Request().Context(), id)
+	execution, err := h.manager.RetryExecution(ctx.Request().Context(), id)
 	if err != nil {
 		return h.HandleServiceError(ctx, err, "retry", "workflow execution")
 	}
 
-	// Get the new execution
-	execution, err := h.service.GetByID(newExecutionID)
-	if err != nil {
-		return h.HandleServiceError(ctx, err, "get", "new workflow execution")
-	}
-
-	h.sugar.Infow("Workflow execution retried", "original_id", id, "new_id", newExecutionID)
+	h.sugar.Infow("Workflow execution retried", "original_id", id, "new_id", execution.ID)
 	return h.RespondCreated(ctx, WorkflowExecutionResponse{Data: execution})
 }
 

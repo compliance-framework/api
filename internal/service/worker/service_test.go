@@ -29,6 +29,16 @@ func (m *MockEmailService) SendWithProvider(ctx context.Context, providerName st
 	return args.Get(0).(*types.SendResult), args.Error(1)
 }
 
+func (m *MockEmailService) UseTemplate(templateName string, data map[string]interface{}) (string, string, error) {
+	args := m.Called(templateName, data)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockEmailService) GetDefaultFromAddress() string {
+	args := m.Called()
+	return args.String(0)
+}
+
 // MockDigestService is a mock implementation of DigestService
 type MockDigestService struct {
 	mock.Mock
@@ -39,45 +49,19 @@ func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
 	return args.Error(0)
 }
 
-// MockLogger is a mock implementation of Logger
-type MockLogger struct {
-	mock.Mock
-	loggedMessages []string
-}
-
-func (m *MockLogger) Infow(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "INFO: "+msg)
-}
-
-func (m *MockLogger) Errorw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "ERROR: "+msg)
-}
-
-func (m *MockLogger) Warnw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "WARN: "+msg)
-}
-
-func (m *MockLogger) Debugw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-	m.loggedMessages = append(m.loggedMessages, "DEBUG: "+msg)
-}
-
-func TestNewService_Disabled(t *testing.T) {
+func TestNewServiceWithDigest_Disabled(t *testing.T) {
 	cfg := &config.WorkerConfig{
 		Enabled: false,
 	}
 	logger := zap.NewNop().Sugar()
 
-	service, err := NewService(cfg, nil, nil, logger)
+	service, err := NewServiceWithDigest(cfg, nil, nil, nil, nil, logger)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 	assert.False(t, service.IsStarted())
 }
 
-func TestNewService_RequiresEmailService(t *testing.T) {
+func TestNewServiceWithDigest_RequiresEmailService(t *testing.T) {
 	cfg := &config.WorkerConfig{
 		Enabled: true,
 		Workers: 5,
@@ -85,7 +69,7 @@ func TestNewService_RequiresEmailService(t *testing.T) {
 	}
 	logger := zap.NewNop().Sugar()
 
-	service, err := NewService(cfg, nil, nil, logger)
+	service, err := NewServiceWithDigest(cfg, nil, nil, nil, nil, logger)
 	assert.Error(t, err)
 	assert.Nil(t, service)
 	assert.Contains(t, err.Error(), "email service is required")
@@ -97,7 +81,7 @@ func TestService_EnqueueWhenDisabled(t *testing.T) {
 	}
 	logger := zap.NewNop().Sugar()
 
-	service, err := NewService(cfg, nil, nil, logger)
+	service, err := NewServiceWithDigest(cfg, nil, nil, nil, nil, logger)
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -113,13 +97,13 @@ func TestService_EnqueueWhenDisabled(t *testing.T) {
 
 func TestNewSendEmailWorker(t *testing.T) {
 	mockEmailService := &MockEmailService{}
-	mockLogger := &MockLogger{}
+	logger := zap.NewNop().Sugar()
 
-	worker := NewSendEmailWorker(mockEmailService, mockLogger)
+	worker := NewSendEmailWorker(mockEmailService, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, mockEmailService, worker.emailService)
-	assert.Equal(t, mockLogger, worker.logger)
+	assert.Equal(t, logger, worker.logger)
 }
 
 func TestSendEmailWorker_MessageConstruction(t *testing.T) {
@@ -177,8 +161,7 @@ func TestSendEmailWorker_MessageConstruction(t *testing.T) {
 
 func TestSendEmailWorker_Work_Validation(t *testing.T) {
 	mockEmailService := &MockEmailService{}
-	mockLogger := &MockLogger{}
-	worker := NewSendEmailWorker(mockEmailService, mockLogger)
+	worker := NewSendEmailWorker(mockEmailService, zap.NewNop().Sugar())
 
 	ctx := context.Background()
 
@@ -215,9 +198,6 @@ func TestSendEmailWorker_Work_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set up mock logger to expect any call
-			mockLogger.On("Infow", "Processing send email job", mock.Anything).Maybe()
-
 			// Create a test job with the invalid args
 			job := &river.Job[SendEmailArgs]{
 				Args: *tt.args,
@@ -234,13 +214,13 @@ func TestSendEmailWorker_Work_Validation(t *testing.T) {
 
 func TestNewSendEmailFromWorker(t *testing.T) {
 	mockEmailService := &MockEmailService{}
-	mockLogger := &MockLogger{}
+	logger := zap.NewNop().Sugar()
 
-	worker := NewSendEmailFromWorker(mockEmailService, mockLogger)
+	worker := NewSendEmailFromWorker(mockEmailService, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, mockEmailService, worker.emailService)
-	assert.Equal(t, mockLogger, worker.logger)
+	assert.Equal(t, logger, worker.logger)
 }
 
 func TestSendEmailFromWorker_MessageConstruction(t *testing.T) {
@@ -291,13 +271,13 @@ func TestSendEmailFromWorker_MessageConstruction(t *testing.T) {
 
 func TestNewSendGlobalDigestWorker(t *testing.T) {
 	mockDigestService := &MockDigestService{}
-	mockLogger := &MockLogger{}
+	logger := zap.NewNop().Sugar()
 
-	worker := NewSendGlobalDigestWorker(mockDigestService, mockLogger)
+	worker := NewSendGlobalDigestWorker(mockDigestService, logger)
 
 	assert.NotNil(t, worker)
 	assert.Equal(t, mockDigestService, worker.digestService)
-	assert.Equal(t, mockLogger, worker.logger)
+	assert.Equal(t, logger, worker.logger)
 }
 
 func TestSendGlobalDigestWorker_DigestCall(t *testing.T) {
@@ -318,18 +298,19 @@ func TestSendGlobalDigestWorker_DigestCall(t *testing.T) {
 func TestWorkers(t *testing.T) {
 	mockEmailService := &MockEmailService{}
 	mockDigestService := &MockDigestService{}
-	mockLogger := &MockLogger{}
 
-	workers := Workers(mockEmailService, mockDigestService, mockLogger)
+	workers := Workers(mockEmailService, mockDigestService, nil, nil, "", zap.NewNop().Sugar())
 
 	assert.NotNil(t, workers)
 }
 
-func TestJobInsertOptions(t *testing.T) {
-	opts := JobInsertOptions()
+func TestJobInsertOptionsForWorkflowTaskAssignedNotification(t *testing.T) {
+	opts := JobInsertOptionsForWorkflowTaskAssignedNotification()
 
 	assert.Equal(t, "email", opts.Queue)
 	assert.Equal(t, 5, opts.MaxAttempts)
+	assert.True(t, opts.UniqueOpts.ByArgs)
+	assert.Equal(t, 5*time.Minute, opts.UniqueOpts.ByPeriod)
 }
 
 func TestParseCronScheduleWithFallback_InvalidUsesFallback(t *testing.T) {
@@ -349,23 +330,43 @@ func TestParseCronScheduleWithFallback_InvalidUsesFallback(t *testing.T) {
 func TestPeriodicJobsFromConfig_WorkflowSchedulerEnabledGuard(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 
+	// Nothing enabled → 0 jobs
 	jobs := periodicJobsFromConfig(&config.Config{
 		DigestEnabled: false,
 		Workflow: &config.WorkflowConfig{
-			SchedulerEnabled: false,
-			Schedule:         "@every 15m",
+			SchedulerEnabled:  false,
+			Schedule:          "@every 15m",
+			DueSoonEnabled:    false,
+			TaskDigestEnabled: false,
 		},
 	}, logger)
 	assert.Len(t, jobs, 0)
 
+	// Scheduler only → 1 job
 	jobs = periodicJobsFromConfig(&config.Config{
 		DigestEnabled: false,
 		Workflow: &config.WorkflowConfig{
-			SchedulerEnabled: true,
-			Schedule:         "@every 15m",
+			SchedulerEnabled:  true,
+			Schedule:          "@every 15m",
+			DueSoonEnabled:    false,
+			TaskDigestEnabled: false,
 		},
 	}, logger)
 	assert.Len(t, jobs, 1)
+
+	// Scheduler + due-soon + task digest → 3 jobs
+	jobs = periodicJobsFromConfig(&config.Config{
+		DigestEnabled: false,
+		Workflow: &config.WorkflowConfig{
+			SchedulerEnabled:   true,
+			Schedule:           "@every 15m",
+			DueSoonEnabled:     true,
+			DueSoonSchedule:    "0 8 * * *",
+			TaskDigestEnabled:  true,
+			TaskDigestSchedule: "0 8 * * *",
+		},
+	}, logger)
+	assert.Len(t, jobs, 3)
 }
 
 func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
@@ -376,13 +377,6 @@ func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
 	assert.Equal(t, 3, opts.MaxAttempts)
 	assert.Equal(t, 1, opts.Priority)
 	assert.Equal(t, "schedule_workflows", args.Kind())
-}
-
-func TestJobInsertOptionsWithQueue(t *testing.T) {
-	opts := JobInsertOptionsWithQueue("custom-queue")
-
-	assert.Equal(t, "custom-queue", opts.Queue)
-	assert.Equal(t, 5, opts.MaxAttempts)
 }
 
 func TestJobInsertOptionsWithRetry(t *testing.T) {

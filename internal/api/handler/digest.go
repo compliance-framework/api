@@ -6,7 +6,6 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/digest"
-	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
@@ -14,15 +13,13 @@ import (
 // DigestHandler handles digest-related API endpoints
 type DigestHandler struct {
 	digestService *digest.Service
-	scheduler     scheduler.Scheduler
 	logger        *zap.SugaredLogger
 }
 
 // NewDigestHandler creates a new digest handler
-func NewDigestHandler(digestService *digest.Service, sched scheduler.Scheduler, logger *zap.SugaredLogger) *DigestHandler {
+func NewDigestHandler(digestService *digest.Service, logger *zap.SugaredLogger) *DigestHandler {
 	return &DigestHandler{
 		digestService: digestService,
-		scheduler:     sched,
 		logger:        logger,
 	}
 }
@@ -50,12 +47,11 @@ func (h *DigestHandler) TriggerDigest(ctx echo.Context) error {
 	if jobName == "" {
 		jobName = "global-evidence-digest"
 	}
-
-	if h.scheduler == nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("scheduler is not available")))
+	if jobName != "global-evidence-digest" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("unsupported digest job: %s", jobName)))
 	}
 
-	if err := h.scheduler.RunNow(ctx.Request().Context(), jobName); err != nil {
+	if err := h.digestService.SendGlobalDigest(ctx.Request().Context()); err != nil {
 		h.logger.Errorw("Failed to trigger digest job", "job", jobName, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
