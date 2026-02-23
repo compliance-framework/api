@@ -9,7 +9,6 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestGeneratePeriodLabel(t *testing.T) {
@@ -188,27 +187,6 @@ func TestWorkflowSchedulerWorker_BasicFunctionality(t *testing.T) {
 
 	// Verify all mock expectations were met
 	mockInstanceService.AssertExpectations(t)
-}
-
-// Mock logger for testing
-type MockLoggerForScheduler struct {
-	mock.Mock
-}
-
-func (m *MockLoggerForScheduler) Infow(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-}
-
-func (m *MockLoggerForScheduler) Errorw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-}
-
-func (m *MockLoggerForScheduler) Warnw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
-}
-
-func (m *MockLoggerForScheduler) Debugw(msg string, keysAndValues ...interface{}) {
-	m.Called(msg, keysAndValues)
 }
 
 // Helper function to create UUID pointer

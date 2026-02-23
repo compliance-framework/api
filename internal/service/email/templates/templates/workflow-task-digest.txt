@@ -1,0 +1,33 @@
+Your Workflow Task Summary
+==========================
+
+Hello {{.UserName}},
+
+Here is a summary of your workflow tasks that need attention.
+Period: {{.PeriodLabel}}
+
+{{if .OverdueTasks}}
+OVERDUE TASKS ({{len .OverdueTasks}})
+--------------------------------------
+{{range .OverdueTasks}}
+- {{.StepTitle}}
+  Workflow: {{.WorkflowTitle}}{{if .WorkflowInstanceTitle}} / {{.WorkflowInstanceTitle}}{{end}}
+  {{if .DueDate}}Due: {{.DueDate}}{{end}}
+  {{if .StepURL}}Link: {{.StepURL}}{{end}}
+{{end}}
+{{end}}
+{{if .PendingTasks}}
+PENDING TASKS ({{len .PendingTasks}})
+--------------------------------------
+{{range .PendingTasks}}
+- {{.StepTitle}}
+  Workflow: {{.WorkflowTitle}}{{if .WorkflowInstanceTitle}} / {{.WorkflowInstanceTitle}}{{end}}
+  {{if .DueDate}}Due: {{.DueDate}}{{end}}
+  {{if .StepURL}}Link: {{.StepURL}}{{end}}
+{{end}}
+{{end}}
+---
+{{if .MyTasksURL}}View all your tasks: {{.MyTasksURL}}
+
+{{end}}This is an automated digest from Compliance Framework.
+To unsubscribe, update your notification preferences in your account settings.

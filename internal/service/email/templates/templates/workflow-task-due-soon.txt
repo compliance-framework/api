@@ -1,0 +1,19 @@
+Task Due Tomorrow
+=================
+
+Hello {{.UserName}},
+
+This is a reminder that the following task is due TOMORROW. Please make sure to complete it on time.
+
+TASK DETAILS
+------------
+Task:     {{.StepTitle}}
+Workflow: {{.WorkflowTitle}}
+Instance: {{.WorkflowInstanceTitle}}
+Due Date: {{.DueDate}}
+
+Complete your task: {{.StepURL}}
+
+---
+This is an automated notification from Compliance Framework.
+Please do not reply to this email.

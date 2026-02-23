@@ -7,20 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"go.uber.org/zap"
 )
-
-// Logger interface for logging
-type Logger interface {
-	Infow(msg string, keysAndValues ...interface{})
-	Errorw(msg string, keysAndValues ...interface{})
-	Warnw(msg string, keysAndValues ...interface{})
-	Debugw(msg string, keysAndValues ...interface{})
-}
 
 // Job types for workflow processing
 const (
 	JobTypeExecuteWorkflow   = "execute_workflow"
-	JobTypeExecuteStep       = "execute_step"
 	JobTypeScheduleWorkflows = "schedule_workflows"
 )
 
@@ -36,41 +28,26 @@ type ScheduleWorkflowsArgs struct {
 	// No arguments needed for the periodic scheduler job
 }
 
-// ExecuteStepArgs represents the arguments for executing a single workflow step
-type ExecuteStepArgs struct {
-	WorkflowExecutionID      uuid.UUID `json:"workflow_execution_id"`
-	WorkflowStepDefinitionID uuid.UUID `json:"workflow_step_definition_id"`
-	StepExecutionID          uuid.UUID `json:"step_execution_id"`
-}
-
 // Kind returns the job kind for River
 func (ExecuteWorkflowArgs) Kind() string { return JobTypeExecuteWorkflow }
 
 // Kind returns the job kind for River
 func (ScheduleWorkflowsArgs) Kind() string { return JobTypeScheduleWorkflows }
 
-// Kind returns the job kind for River
-func (ExecuteStepArgs) Kind() string { return JobTypeExecuteStep }
-
 // Timeout returns the timeout for workflow execution jobs
 func (ExecuteWorkflowArgs) Timeout() time.Duration {
 	return 30 * time.Minute // Workflows can take longer
-}
-
-// Timeout returns the timeout for step execution jobs
-func (ExecuteStepArgs) Timeout() time.Duration {
-	return 5 * time.Minute // Individual steps should be faster
 }
 
 // WorkflowExecutionWorker handles workflow execution jobs
 type WorkflowExecutionWorker struct {
 	executor            *DAGExecutor
 	evidenceIntegration *EvidenceIntegration
-	logger              Logger
+	logger              *zap.SugaredLogger
 }
 
 // NewWorkflowExecutionWorker creates a new WorkflowExecutionWorker
-func NewWorkflowExecutionWorker(executor *DAGExecutor, evidenceIntegration *EvidenceIntegration, logger Logger) *WorkflowExecutionWorker {
+func NewWorkflowExecutionWorker(executor *DAGExecutor, evidenceIntegration *EvidenceIntegration, logger *zap.SugaredLogger) *WorkflowExecutionWorker {
 	return &WorkflowExecutionWorker{
 		executor:            executor,
 		evidenceIntegration: evidenceIntegration,
@@ -125,73 +102,12 @@ func (w *WorkflowExecutionWorker) Work(ctx context.Context, job *river.Job[Execu
 	return nil
 }
 
-// StepExecutionWorker handles individual step execution jobs
-type StepExecutionWorker struct {
-	stepExecutionService StepExecutionServiceInterface
-	logger               Logger
-}
-
-// NewStepExecutionWorker creates a new StepExecutionWorker
-func NewStepExecutionWorker(stepExecutionService StepExecutionServiceInterface, logger Logger) *StepExecutionWorker {
-	return &StepExecutionWorker{
-		stepExecutionService: stepExecutionService,
-		logger:               logger,
-	}
-}
-
-// Work is the River work function for executing individual steps
-// NOTE: In Phase 1, steps are manually executed by users via the StepTransitionService.
-// This worker is reserved for future automatic step execution (Phase 5).
-// For now, it only logs that a step execution was requested but does not auto-complete it.
-func (w *StepExecutionWorker) Work(ctx context.Context, job *river.Job[ExecuteStepArgs]) error {
-	args := job.Args
-
-	w.logger.Infow("Step execution job received (manual execution mode - no auto-completion)",
-		"job_id", job.ID,
-		"workflow_execution_id", args.WorkflowExecutionID,
-		"step_definition_id", args.WorkflowStepDefinitionID,
-		"step_execution_id", args.StepExecutionID,
-	)
-
-	// Get the step execution to verify it exists
-	stepExec, err := w.stepExecutionService.GetByID(&args.StepExecutionID)
-	if err != nil {
-		w.logger.Errorw("Failed to get step execution",
-			"job_id", job.ID,
-			"step_execution_id", args.StepExecutionID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to get step execution: %w", err)
-	}
-
-	w.logger.Infow("Step execution verified - awaiting manual user action",
-		"job_id", job.ID,
-		"step_execution_id", args.StepExecutionID,
-		"current_status", stepExec.Status,
-	)
-
-	// Phase 1: Manual execution only - users must transition steps via StepTransitionService
-	// Phase 5: This worker will handle automatic step execution based on triggers
-	// TODO: Implement automatic step execution logic for Phase 5
-
-	return nil
-}
-
 // JobInsertOptionsForWorkflow returns insert options for workflow execution jobs
 func JobInsertOptionsForWorkflow() *river.InsertOpts {
 	return &river.InsertOpts{
 		Queue:       "workflow",
 		MaxAttempts: 3, // Retry up to 3 times for workflows
 		Priority:    1, // Higher priority for workflow jobs
-	}
-}
-
-// JobInsertOptionsForStep returns insert options for step execution jobs
-func JobInsertOptionsForStep() *river.InsertOpts {
-	return &river.InsertOpts{
-		Queue:       "steps",
-		MaxAttempts: 5, // More retries for individual steps
-		Priority:    2, // Lower priority than workflow jobs
 	}
 }
 

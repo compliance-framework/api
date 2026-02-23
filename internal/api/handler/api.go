@@ -9,14 +9,13 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/compliance-framework/api/internal/service/scheduler"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, digestService *digest.Service, sched scheduler.Scheduler, workflowManager *workflow.Manager) {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, digestService *digest.Service, workflowManager *workflow.Manager, notificationEnqueuer workflow.NotificationEnqueuer, dagExecutor *workflow.DAGExecutor) {
 	healthHandler := NewHealthHandler(logger, db)
 	healthHandler.Register(server.API().Group("/health"))
 
@@ -41,8 +40,8 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	userHandler.RegisterSelfRoutes(userGroup)
 
 	// Digest handler (admin only)
-	if digestService != nil && sched != nil {
-		digestHandler := NewDigestHandler(digestService, sched, logger)
+	if digestService != nil {
+		digestHandler := NewDigestHandler(digestService, logger)
 		digestGroup := server.API().Group("/admin/digest")
 		digestGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 		digestGroup.Use(middleware.RequireAdminGroups(db, config, logger))
@@ -50,11 +49,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	}
 
 	// Register workflow handlers
-	registerWorkflowHandlers(server, logger, db, config, workflowManager)
+	registerWorkflowHandlers(server, logger, db, config, workflowManager, notificationEnqueuer, dagExecutor)
 }
 
 // registerWorkflowHandlers registers all workflow-related HTTP handlers with authentication
-func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, workflowManager *workflow.Manager) {
+func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, workflowManager *workflow.Manager, notificationEnqueuer workflow.NotificationEnqueuer, dagExecutor *workflow.DAGExecutor) {
 	// Create workflow group with authentication middleware
 	workflowGroup := server.API().Group("/workflows")
 	workflowGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
@@ -77,27 +76,28 @@ func registerWorkflowHandlers(server *api.Server, logger *zap.SugaredLogger, db 
 
 	// Handlers that require workflow manager
 	if workflowManager != nil {
-		registerWorkflowExecutionHandlers(workflowGroup, logger, db, workflowManager)
+		registerWorkflowExecutionHandlers(workflowGroup, logger, db, workflowManager, notificationEnqueuer, dagExecutor)
 	}
 }
 
 // registerWorkflowExecutionHandlers registers execution-related handlers that require the workflow manager
-func registerWorkflowExecutionHandlers(workflowGroup *echo.Group, logger *zap.SugaredLogger, db *gorm.DB, workflowManager *workflow.Manager) {
+func registerWorkflowExecutionHandlers(workflowGroup *echo.Group, logger *zap.SugaredLogger, db *gorm.DB, workflowManager *workflow.Manager, notificationEnqueuer workflow.NotificationEnqueuer, dagExecutor *workflow.DAGExecutor) {
 	roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
+	stepExecService := workflowsvc.NewStepExecutionService(db, nil)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, logger, notificationEnqueuer)
 
 	// Workflow execution handler
 	workflowExecutionHandler := workflows.NewWorkflowExecutionHandler(logger, db, workflowManager, assignmentService)
 	workflowExecutionHandler.Register(workflowGroup.Group("/executions"))
 
 	// Step execution handler with transition service
-	transitionService := createStepTransitionService(db, logger)
+	transitionService := createStepTransitionService(db, logger, notificationEnqueuer, dagExecutor)
 	stepExecutionHandler := workflows.NewStepExecutionHandler(logger, db, transitionService, assignmentService)
 	stepExecutionHandler.Register(workflowGroup.Group("/step-executions"))
 }
 
 // createStepTransitionService creates and configures the step transition service with all dependencies
-func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger) *workflow.StepTransitionService {
+func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger, notificationEnqueuer workflow.NotificationEnqueuer, executor *workflow.DAGExecutor) *workflow.StepTransitionService {
 	// Create services needed for step transition
 	stepExecService := workflowsvc.NewStepExecutionService(db, nil)
 	stepDefService := workflowsvc.NewWorkflowStepDefinitionService(db)
@@ -107,17 +107,7 @@ func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger) *workfl
 	roleAssignmentService := workflowsvc.NewRoleAssignmentService(db)
 
 	// Create assignment service
-	assignmentService := workflow.NewAssignmentService(roleAssignmentService, db)
-
-	// Create executor for step transition coordination
-	stdLogger := log.Default()
-	executor := workflow.NewDAGExecutor(
-		stepExecService,
-		workflowExecService,
-		stepDefService,
-		assignmentService,
-		stdLogger,
-	)
+	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, logger, notificationEnqueuer)
 
 	// Create evidence integration for step evidence storage
 	evidenceIntegration := workflow.NewEvidenceIntegration(db, logger)
@@ -125,6 +115,20 @@ func createStepTransitionService(db *gorm.DB, logger *zap.SugaredLogger) *workfl
 	// Set evidence creator on services
 	stepExecService.SetEvidenceCreator(evidenceIntegration)
 	workflowExecService.SetEvidenceCreator(evidenceIntegration)
+
+	// Use the shared executor from the worker service when available so that there is exactly
+	// one DAGExecutor instance (consistent logger, notifications, and evidence integration).
+	// Fall back to constructing a local executor when the worker is disabled (executor == nil).
+	if executor == nil {
+		executor = workflow.NewDAGExecutor(
+			stepExecService,
+			workflowExecService,
+			stepDefService,
+			assignmentService,
+			log.Default(),
+			notificationEnqueuer,
+		)
+	}
 
 	// Create and return step transition service
 	return workflow.NewStepTransitionService(

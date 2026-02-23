@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -174,11 +175,11 @@ func TestDAGExecutor_Integration_InitializeWorkflow(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger, nil)
 
 	// Create test workflow
 	workflowDef, stepDefs := createTestWorkflow(t, db)
@@ -236,11 +237,11 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger, nil)
 
 	// Create test workflow
 	workflowDef, stepDefs := createTestWorkflow(t, db)
@@ -282,65 +283,6 @@ func TestDAGExecutor_Integration_ProcessStepCompletion(t *testing.T) {
 	assert.Equal(t, "blocked", step3Exec.Status)
 }
 
-func TestDAGExecutor_Integration_GetExecutionStatus(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	// Setup test database
-	db := setupTestDB(t)
-	defer func() {
-		sqlDB, _ := db.DB()
-		sqlDB.Close()
-	}()
-
-	// Create services
-	stepExecService := workflows.NewStepExecutionService(db, nil)
-	workflowExecService := workflows.NewWorkflowExecutionService(db)
-	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
-	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
-
-	// Create executor
-	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
-
-	// Create test workflow
-	workflowDef, stepDefs := createTestWorkflow(t, db)
-	instance := createTestWorkflowInstance(t, db, workflowDef)
-	execution := createTestWorkflowExecution(t, db, instance)
-
-	// Get execution status before initialization
-	state, err := executor.GetExecutionStatus(execution.ID)
-	require.NoError(t, err)
-	assert.Equal(t, *execution.ID, state.WorkflowExecutionID)
-	assert.Len(t, state.StepStates, 0) // No step executions yet
-
-	// Initialize workflow
-	ctx := context.Background()
-	err = executor.InitializeWorkflow(ctx, execution.ID)
-	require.NoError(t, err)
-
-	// Get execution status after initialization
-	state, err = executor.GetExecutionStatus(execution.ID)
-	require.NoError(t, err)
-	assert.Len(t, state.StepStates, 3)
-	assert.Len(t, state.CompletedSteps, 0)
-	assert.Len(t, state.FailedSteps, 0)
-	assert.Len(t, state.BlockedSteps, 2) // Steps 2 and 3 are blocked
-
-	// Verify step statuses
-	for i, stepDef := range stepDefs {
-		stepState, exists := state.StepStates[*stepDef.ID]
-		require.True(t, exists, "Step state not found for step %s", stepDef.Name)
-		if i == 0 {
-			assert.Equal(t, "pending", stepState.Status)
-		} else {
-			assert.Equal(t, "blocked", stepState.Status)
-		}
-	}
-}
-
 func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -358,11 +300,11 @@ func TestDAGExecutor_Integration_ParallelSteps(t *testing.T) {
 	workflowExecService := workflows.NewWorkflowExecutionService(db)
 	stepDefService := workflows.NewWorkflowStepDefinitionService(db)
 	roleAssignmentService := workflows.NewRoleAssignmentService(db)
-	assignmentService := NewAssignmentService(roleAssignmentService, db)
+	assignmentService := NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
 
 	// Create executor
 	logger := log.New(os.Stdout, "[TEST] ", log.LstdFlags)
-	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger)
+	executor := NewDAGExecutor(stepExecService, workflowExecService, stepDefService, assignmentService, logger, nil)
 
 	// Create workflow with parallel steps (no dependencies)
 	workflowDefID := uuid.New()

@@ -6,14 +6,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+type MockRiverClient struct {
+	mock.Mock
+}
+
+func (m *MockRiverClient) InsertMany(ctx context.Context, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*rivertype.JobInsertResult), args.Error(1)
+}
 
 type MockWorkflowInstanceService struct {
 	mock.Mock
@@ -61,6 +76,7 @@ func TestManager_StartWorkflowExecution_UniqueViolationScheduledReturnsAlreadyEx
 		mockWorkflowInstService,
 		mockStepExecService,
 		logger,
+		nil,
 	)
 
 	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
@@ -71,9 +87,9 @@ func TestManager_StartWorkflowExecution_UniqueViolationScheduledReturnsAlreadyEx
 		PeriodLabel: "2026-01",
 	}
 
-	executionID, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
+	execution, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
 	require.Error(t, err)
-	assert.Nil(t, executionID)
+	assert.Nil(t, execution)
 	assert.True(t, errors.Is(err, ErrWorkflowExecutionAlreadyExists))
 
 	mockClient.AssertNotCalled(t, "InsertMany", mock.Anything, mock.Anything)
@@ -97,6 +113,7 @@ func TestManager_StartWorkflowExecution_UniqueViolationManualDoesNotReturnAlread
 		mockWorkflowInstService,
 		mockStepExecService,
 		logger,
+		nil,
 	)
 
 	mockWorkflowInstService.On("GetByID", &instanceID).Return(&workflows.WorkflowInstance{IsActive: true}, nil).Once()
@@ -108,9 +125,57 @@ func TestManager_StartWorkflowExecution_UniqueViolationManualDoesNotReturnAlread
 		PeriodLabel: "2026-01",
 	}
 
-	executionID, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
+	execution, err := manager.StartWorkflowExecution(ctx, &instanceID, opts)
 	require.Error(t, err)
-	assert.Nil(t, executionID)
+	assert.Nil(t, execution)
 	assert.False(t, errors.Is(err, ErrWorkflowExecutionAlreadyExists))
 	assert.Contains(t, err.Error(), "failed to create workflow execution")
+}
+
+func TestManager_CancelExecution_CancelsOverdueSteps(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.NewNop().Sugar()
+
+	executionID := uuid.New()
+	overdueStepID := uuid.New()
+	completedStepID := uuid.New()
+
+	mockClient := &MockRiverClient{}
+	mockWorkflowExecService := &MockWorkflowExecutionService{}
+	mockWorkflowInstService := &MockWorkflowInstanceService{}
+	mockStepExecService := &MockStepExecutionService{}
+
+	manager := NewManager(
+		mockClient,
+		mockWorkflowExecService,
+		mockWorkflowInstService,
+		mockStepExecService,
+		logger,
+		nil,
+	)
+
+	mockWorkflowExecService.On("GetByID", &executionID).Return(&workflows.WorkflowExecution{
+		Status: workflows.WorkflowStatusInProgress.String(),
+	}, nil).Once()
+	mockWorkflowExecService.On("Cancel", &executionID).Return(nil).Once()
+	mockStepExecService.On("GetByWorkflowExecutionID", &executionID).Return([]workflows.StepExecution{
+		{
+			UUIDModel: relational.UUIDModel{ID: &overdueStepID},
+			Status:    workflows.StepStatusOverdue.String(),
+		},
+		{
+			UUIDModel: relational.UUIDModel{ID: &completedStepID},
+			Status:    workflows.StepStatusCompleted.String(),
+		},
+	}, nil).Once()
+	mockStepExecService.On("UpdateStatus", ctx, &overdueStepID, StatusCancelled.String()).Return(nil).Once()
+
+	execution, err := manager.CancelExecution(ctx, &executionID, "user requested cancellation")
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+	assert.Equal(t, workflows.WorkflowStatusCancelled.String(), execution.Status)
+
+	mockStepExecService.AssertNotCalled(t, "UpdateStatus", ctx, &completedStepID, StatusCancelled.String())
+	mockWorkflowExecService.AssertExpectations(t)
+	mockStepExecService.AssertExpectations(t)
 }

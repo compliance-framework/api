@@ -15,6 +15,10 @@ func TestDefaultWorkflowConfig(t *testing.T) {
 	assert.Equal(t, "@every 15m", config.Schedule)
 	assert.Equal(t, 7, config.GracePeriodDays)
 	assert.True(t, config.OverdueCheckEnabled)
+	assert.False(t, config.DueSoonEnabled)
+	assert.Equal(t, "0 0 8 * * *", config.DueSoonSchedule)
+	assert.False(t, config.TaskDigestEnabled)
+	assert.Equal(t, "0 0 8 * * *", config.TaskDigestSchedule)
 }
 
 func TestLoadWorkflowConfig_Defaults(t *testing.T) {
@@ -23,6 +27,10 @@ func TestLoadWorkflowConfig_Defaults(t *testing.T) {
 	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_SCHEDULER_SCHEDULE"))
 	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_GRACE_PERIOD_DAYS"))
 	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_OVERDUE_CHECK_ENABLED"))
+	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_DUE_SOON_ENABLED"))
+	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_DUE_SOON_SCHEDULE"))
+	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_TASK_DIGEST_ENABLED"))
+	require.NoError(t, os.Unsetenv("CCF_WORKFLOW_TASK_DIGEST_SCHEDULE"))
 
 	config, err := LoadWorkflowConfig("")
 	require.NoError(t, err)
@@ -31,6 +39,10 @@ func TestLoadWorkflowConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "@every 15m", config.Schedule)
 	assert.Equal(t, 7, config.GracePeriodDays)
 	assert.True(t, config.OverdueCheckEnabled)
+	assert.False(t, config.DueSoonEnabled)
+	assert.Equal(t, "0 0 8 * * *", config.DueSoonSchedule)
+	assert.False(t, config.TaskDigestEnabled)
+	assert.Equal(t, "0 0 8 * * *", config.TaskDigestSchedule)
 }
 
 func TestLoadWorkflowConfig_EnvVars(t *testing.T) {
@@ -52,6 +64,27 @@ func TestLoadWorkflowConfig_EnvVars(t *testing.T) {
 	assert.Equal(t, "@hourly", config.Schedule)
 	assert.Equal(t, 14, config.GracePeriodDays)
 	assert.False(t, config.OverdueCheckEnabled)
+}
+
+func TestLoadWorkflowConfig_NotificationEnvVars(t *testing.T) {
+	require.NoError(t, os.Setenv("CCF_WORKFLOW_DUE_SOON_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CCF_WORKFLOW_DUE_SOON_SCHEDULE", "0 0 9 * * *"))
+	require.NoError(t, os.Setenv("CCF_WORKFLOW_TASK_DIGEST_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CCF_WORKFLOW_TASK_DIGEST_SCHEDULE", "0 0 7 * * *"))
+	defer func() {
+		_ = os.Unsetenv("CCF_WORKFLOW_DUE_SOON_ENABLED")
+		_ = os.Unsetenv("CCF_WORKFLOW_DUE_SOON_SCHEDULE")
+		_ = os.Unsetenv("CCF_WORKFLOW_TASK_DIGEST_ENABLED")
+		_ = os.Unsetenv("CCF_WORKFLOW_TASK_DIGEST_SCHEDULE")
+	}()
+
+	config, err := LoadWorkflowConfig("")
+	require.NoError(t, err)
+
+	assert.True(t, config.DueSoonEnabled)
+	assert.Equal(t, "0 0 9 * * *", config.DueSoonSchedule)
+	assert.True(t, config.TaskDigestEnabled)
+	assert.Equal(t, "0 0 7 * * *", config.TaskDigestSchedule)
 }
 
 func TestLoadWorkflowConfig_File(t *testing.T) {

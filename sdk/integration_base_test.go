@@ -98,7 +98,7 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), cfg, metrics)
-	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil)
+	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
 
 	suite.Server = server
 

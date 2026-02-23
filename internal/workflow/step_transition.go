@@ -138,10 +138,14 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 		return fmt.Errorf("failed to update step status: %w", err)
 	}
 
+	// Keep the in-memory copy aligned with the persisted status so downstream
+	// evidence labeling reflects the new transition state without another read.
+	stepExecution.Status = request.Status
+
 	// If transitioning to completed, process the completion
 	if request.Status == StatusCompleted.String() {
 		// Store submitted evidence
-		if err := s.storeStepEvidence(stepExecutionID, request.Evidence, request.UserID); err != nil {
+		if err := s.storeStepEvidence(ctx, stepExecution, stepDef, workflowExecution, request.Evidence, request.UserID); err != nil {
 			return fmt.Errorf("failed to store evidence: %w", err)
 		}
 
@@ -250,19 +254,26 @@ func (s *StepTransitionService) validateEvidenceRequirements(stepDef *workflows.
 
 // storeStepEvidence stores the submitted evidence for a step execution as relational.Evidence
 // with BackMatter resources for uploaded files and proper labels for the workflow execution stream
-func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, evidenceSubmissions []EvidenceSubmission, completedBy string) error {
+func (s *StepTransitionService) storeStepEvidence(
+	ctx context.Context,
+	stepExecution *workflows.StepExecution,
+	stepDef *workflows.WorkflowStepDefinition,
+	workflowExecution *workflows.WorkflowExecution,
+	evidenceSubmissions []EvidenceSubmission,
+	completedBy string,
+) error {
 	if len(evidenceSubmissions) == 0 {
 		return nil
 	}
 
 	// Gather all workflow context needed for evidence creation
-	ctx, err := s.gatherWorkflowContext(stepExecutionID)
+	workflowCtx, err := s.gatherWorkflowContext(stepExecution, stepDef, workflowExecution)
 	if err != nil {
 		return err
 	}
 
 	// Get or create the execution evidence stream
-	stream, err := s.evidenceIntegration.GetOrCreateExecutionStream(context.Background(), ctx.workflowExecution.ID)
+	stream, err := s.evidenceIntegration.GetOrCreateExecutionStream(ctx, workflowCtx.workflowExecution.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get or create execution stream: %w", err)
 	}
@@ -271,7 +282,7 @@ func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, ev
 	backMatter, evidenceLinks := s.buildBackMatterFromSubmissions(evidenceSubmissions)
 
 	// Create the evidence record
-	evidence := s.createEvidenceRecord(ctx, stream, backMatter, evidenceLinks, len(evidenceSubmissions))
+	evidence := s.createEvidenceRecord(workflowCtx, stream, backMatter, evidenceLinks, len(evidenceSubmissions))
 
 	// Save evidence to database
 	if err := s.db.Create(evidence).Error; err != nil {
@@ -279,7 +290,7 @@ func (s *StepTransitionService) storeStepEvidence(stepExecutionID *uuid.UUID, ev
 	}
 
 	// Build and attach labels
-	labels := s.buildEvidenceLabels(ctx, completedBy, len(evidenceSubmissions))
+	labels := s.buildEvidenceLabels(workflowCtx, completedBy, len(evidenceSubmissions))
 	if err := s.db.Model(evidence).Association("Labels").Append(labels); err != nil {
 		return fmt.Errorf("failed to add labels to evidence: %w", err)
 	}
@@ -297,20 +308,19 @@ type workflowContext struct {
 }
 
 // gatherWorkflowContext retrieves all workflow entities needed for evidence creation
-func (s *StepTransitionService) gatherWorkflowContext(stepExecutionID *uuid.UUID) (*workflowContext, error) {
-	stepExecution, err := s.stepExecutionService.GetByID(stepExecutionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get step execution: %w", err)
+func (s *StepTransitionService) gatherWorkflowContext(
+	stepExecution *workflows.StepExecution,
+	stepDef *workflows.WorkflowStepDefinition,
+	workflowExecution *workflows.WorkflowExecution,
+) (*workflowContext, error) {
+	if stepExecution == nil {
+		return nil, fmt.Errorf("failed to get step execution: step execution is nil")
 	}
-
-	stepDef, err := s.stepDefinitionService.GetByID(stepExecution.WorkflowStepDefinitionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get step definition: %w", err)
+	if stepDef == nil {
+		return nil, fmt.Errorf("failed to get step definition: step definition is nil")
 	}
-
-	workflowExecution, err := s.workflowExecutionService.GetByID(stepExecution.WorkflowExecutionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
+	if workflowExecution == nil {
+		return nil, fmt.Errorf("failed to get workflow execution: workflow execution is nil")
 	}
 
 	instance, err := s.workflowInstanceService.GetByID(workflowExecution.WorkflowInstanceID)
@@ -499,30 +509,59 @@ func (s *StepTransitionService) GetStepExecutionService() *workflows.StepExecuti
 
 // CanUserTransitionStep checks if a user can transition a specific step
 func (s *StepTransitionService) CanUserTransitionStep(stepExecutionID *uuid.UUID, userID, userType string) (bool, error) {
-	// Get the step execution
-	stepExecution, err := s.stepExecutionService.GetByID(stepExecutionID)
+	if s.db == nil {
+		// Fallback for contexts that construct the service without a DB handle.
+		// This preserves legacy behavior while primary code path uses a single query.
+		stepExecution, err := s.stepExecutionService.GetByID(stepExecutionID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get step execution: %w", err)
+		}
+
+		stepDef, err := s.getStepDefinition(stepExecution.WorkflowStepDefinitionID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get step definition: %w", err)
+		}
+
+		workflowExecution, err := s.workflowExecutionService.GetByID(stepExecution.WorkflowExecutionID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get workflow execution: %w", err)
+		}
+
+		if err := s.verifyUserPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, userID, userType); err != nil {
+			return false, nil
+		}
+		return true, nil
+	}
+
+	type canTransitionRow struct {
+		StepExecutionID uuid.UUID
+		MatchCount      int64
+	}
+	var row canTransitionRow
+
+	err := s.db.Table("step_executions se").
+		Select("se.id AS step_execution_id, COUNT(ra.id) AS match_count").
+		Joins("JOIN workflow_step_definitions wsd ON wsd.id = se.workflow_step_definition_id").
+		Joins("JOIN workflow_executions we ON we.id = se.workflow_execution_id").
+		Joins(
+			`LEFT JOIN role_assignments ra
+				ON ra.workflow_instance_id = we.workflow_instance_id
+				AND ra.role_name = wsd.responsible_role
+				AND ra.assigned_to_type = ?
+				AND ra.assigned_to_id = ?
+				AND ra.is_active = ?`,
+			userType,
+			userID,
+			true,
+		).
+		Where("se.id = ?", stepExecutionID).
+		Group("se.id").
+		Take(&row).Error
 	if err != nil {
-		return false, fmt.Errorf("failed to get step execution: %w", err)
+		return false, fmt.Errorf("failed to check transition permission: %w", err)
 	}
 
-	// Get the step definition
-	stepDef, err := s.getStepDefinition(stepExecution.WorkflowStepDefinitionID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get step definition: %w", err)
-	}
-
-	// Get the workflow execution
-	workflowExecution, err := s.workflowExecutionService.GetByID(stepExecution.WorkflowExecutionID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get workflow execution: %w", err)
-	}
-
-	// Verify user permission
-	if err := s.verifyUserPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, userID, userType); err != nil {
-		return false, nil // No error, just not permitted
-	}
-
-	return true, nil
+	return row.MatchCount > 0, nil
 }
 
 // GetEvidenceRequirements returns the evidence requirements for a step

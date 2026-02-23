@@ -8,13 +8,18 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"go.uber.org/zap"
 )
 
 var ErrWorkflowExecutionAlreadyExists = errors.New("workflow execution already exists for instance and period")
+
+// RiverClient interface for job enqueueing (enables testing)
+type RiverClient interface {
+	InsertMany(ctx context.Context, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
+}
 
 // Manager orchestrates workflow execution lifecycle using River for async operations
 type Manager struct {
@@ -22,6 +27,7 @@ type Manager struct {
 	workflowExecutionService WorkflowExecutionServiceInterface
 	workflowInstanceService  WorkflowInstanceServiceInterface
 	stepExecutionService     StepExecutionServiceInterface
+	notificationEnqueuer     NotificationEnqueuer // Optional: for workflow notification emails
 	logger                   *zap.SugaredLogger
 }
 
@@ -32,6 +38,7 @@ func NewManager(
 	workflowInstanceService WorkflowInstanceServiceInterface,
 	stepExecutionService StepExecutionServiceInterface,
 	logger *zap.SugaredLogger,
+	notificationEnqueuer NotificationEnqueuer,
 ) *Manager {
 	return &Manager{
 		riverClient:              riverClient,
@@ -39,24 +46,8 @@ func NewManager(
 		workflowInstanceService:  workflowInstanceService,
 		stepExecutionService:     stepExecutionService,
 		logger:                   logger,
+		notificationEnqueuer:     notificationEnqueuer,
 	}
-}
-
-// NewManagerWithRiver creates a manager with a River client and concrete services
-func NewManagerWithRiver(
-	riverClient *river.Client[pgx.Tx],
-	workflowExecutionService *workflows.WorkflowExecutionService,
-	workflowInstanceService *workflows.WorkflowInstanceService,
-	stepExecutionService *workflows.StepExecutionService,
-	logger *zap.SugaredLogger,
-) *Manager {
-	return NewManager(
-		riverClient,
-		workflowExecutionService,
-		workflowInstanceService,
-		stepExecutionService,
-		logger,
-	)
 }
 
 // StartWorkflowOptions contains options for starting a workflow execution
@@ -68,7 +59,7 @@ type StartWorkflowOptions struct {
 }
 
 // StartWorkflowExecution creates and starts a workflow execution via River
-func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID *uuid.UUID, opts StartWorkflowOptions) (*uuid.UUID, error) {
+func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID *uuid.UUID, opts StartWorkflowOptions) (*workflows.WorkflowExecution, error) {
 	m.logger.Infow("Starting workflow execution",
 		"workflow_instance_id", workflowInstanceID,
 		"triggered_by", opts.TriggeredBy,
@@ -126,6 +117,12 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 		// Mark execution as failed
 		if failErr := m.workflowExecutionService.Fail(execution.ID, fmt.Sprintf("Failed to enqueue job: %v", err)); failErr != nil {
 			m.logger.Errorw("Failed to mark execution as failed", "error", failErr)
+		} else if m.notificationEnqueuer != nil {
+			if reloaded, reloadErr := m.workflowExecutionService.GetByID(execution.ID); reloadErr == nil {
+				if notifyErr := m.notificationEnqueuer.EnqueueWorkflowExecutionFailed(ctx, reloaded); notifyErr != nil {
+					m.logger.Errorw("Failed to enqueue workflow-execution-failed notification", "error", notifyErr)
+				}
+			}
 		}
 		return nil, fmt.Errorf("failed to enqueue workflow execution job: %w", err)
 	}
@@ -135,7 +132,7 @@ func (m *Manager) StartWorkflowExecution(ctx context.Context, workflowInstanceID
 		"job_kind", JobTypeExecuteWorkflow,
 	)
 
-	return execution.ID, nil
+	return execution, nil
 }
 
 // GetExecutionStatus returns the current status of a workflow execution
@@ -152,38 +149,19 @@ func (m *Manager) GetExecutionStatus(ctx context.Context, executionID *uuid.UUID
 		return nil, fmt.Errorf("failed to get step executions: %w", err)
 	}
 
-	// Count steps by status
-	var pending, blocked, inProgress, overdue, completed, failed, cancelled int
-	for _, step := range stepExecutions {
-		switch step.Status {
-		case "pending":
-			pending++
-		case "blocked":
-			blocked++
-		case "in_progress":
-			inProgress++
-		case "overdue":
-			overdue++
-		case "completed":
-			completed++
-		case "failed":
-			failed++
-		case "cancelled":
-			cancelled++
-		}
-	}
+	counts := CountStepStatuses(stepExecutions)
 
 	status := &ExecutionStatus{
 		ExecutionID:     *executionID,
 		Status:          execution.Status,
 		TotalSteps:      len(stepExecutions),
-		PendingSteps:    pending,
-		BlockedSteps:    blocked,
-		InProgressSteps: inProgress,
-		OverdueSteps:    overdue,
-		CompletedSteps:  completed,
-		FailedSteps:     failed,
-		CancelledSteps:  cancelled,
+		PendingSteps:    counts.Pending,
+		BlockedSteps:    counts.Blocked,
+		InProgressSteps: counts.InProgress,
+		OverdueSteps:    counts.Overdue,
+		CompletedSteps:  counts.Completed,
+		FailedSteps:     counts.Failed,
+		CancelledSteps:  counts.Cancelled,
 		StartedAt:       execution.StartedAt,
 		CompletedAt:     execution.CompletedAt,
 		FailedAt:        execution.FailedAt,
@@ -194,7 +172,7 @@ func (m *Manager) GetExecutionStatus(ctx context.Context, executionID *uuid.UUID
 }
 
 // CancelExecution cancels a running workflow execution
-func (m *Manager) CancelExecution(ctx context.Context, executionID *uuid.UUID, reason string) error {
+func (m *Manager) CancelExecution(ctx context.Context, executionID *uuid.UUID, reason string) (*workflows.WorkflowExecution, error) {
 	m.logger.Infow("Cancelling workflow execution",
 		"execution_id", executionID,
 		"reason", reason,
@@ -203,29 +181,32 @@ func (m *Manager) CancelExecution(ctx context.Context, executionID *uuid.UUID, r
 	// Get workflow execution
 	execution, err := m.workflowExecutionService.GetByID(executionID)
 	if err != nil {
-		return fmt.Errorf("failed to get workflow execution: %w", err)
+		return nil, fmt.Errorf("failed to get workflow execution: %w", err)
 	}
 
 	// Check if execution can be cancelled
 	if execution.Status == "completed" || execution.Status == "failed" || execution.Status == "cancelled" {
-		return fmt.Errorf("cannot cancel execution in status: %s", execution.Status)
+		return nil, fmt.Errorf("cannot cancel execution in status: %s", execution.Status)
 	}
 
 	// Update execution status
 	if err := m.workflowExecutionService.Cancel(executionID); err != nil {
-		return fmt.Errorf("failed to cancel workflow execution: %w", err)
+		return nil, fmt.Errorf("failed to cancel workflow execution: %w", err)
 	}
 
-	// Cancel all in-progress and pending steps
+	// Cancel all non-terminal actionable steps
 	stepExecutions, err := m.stepExecutionService.GetByWorkflowExecutionID(executionID)
 	if err != nil {
-		return fmt.Errorf("failed to get step executions: %w", err)
+		return nil, fmt.Errorf("failed to get step executions: %w", err)
 	}
 
 	for _, step := range stepExecutions {
-		if step.Status == "in_progress" || step.Status == "pending" || step.Status == "blocked" {
+		if step.Status == workflows.StepStatusInProgress.String() ||
+			step.Status == workflows.StepStatusPending.String() ||
+			step.Status == workflows.StepStatusBlocked.String() ||
+			step.Status == workflows.StepStatusOverdue.String() {
 			// Update step status to cancelled
-			if err := m.stepExecutionService.UpdateStatus(ctx, step.ID, "cancelled"); err != nil {
+			if err := m.stepExecutionService.UpdateStatus(ctx, step.ID, StatusCancelled.String()); err != nil {
 				m.logger.Warnw("Failed to cancel step execution",
 					"step_execution_id", step.ID,
 					"error", err,
@@ -238,11 +219,13 @@ func (m *Manager) CancelExecution(ctx context.Context, executionID *uuid.UUID, r
 		"execution_id", executionID,
 	)
 
-	return nil
+	// Return the updated execution for immediate API responses without extra handler read.
+	execution.Status = workflows.WorkflowStatusCancelled.String()
+	return execution, nil
 }
 
 // RetryExecution creates a new execution for a failed workflow
-func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*uuid.UUID, error) {
+func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*workflows.WorkflowExecution, error) {
 	m.logger.Infow("Retrying workflow execution",
 		"original_execution_id", executionID,
 	)
@@ -267,7 +250,7 @@ func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*
 		TriggeredByID: executionID.String(),
 	}
 
-	newExecutionID, err := m.StartWorkflowExecution(
+	newExecution, err := m.StartWorkflowExecution(
 		ctx,
 		execution.WorkflowInstanceID,
 		opts,
@@ -278,10 +261,10 @@ func (m *Manager) RetryExecution(ctx context.Context, executionID *uuid.UUID) (*
 
 	m.logger.Infow("Workflow execution retry started",
 		"original_execution_id", executionID,
-		"new_execution_id", newExecutionID,
+		"new_execution_id", newExecution.ID,
 	)
 
-	return newExecutionID, nil
+	return newExecution, nil
 }
 
 // ListExecutions returns workflow executions for a workflow instance
