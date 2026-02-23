@@ -29,7 +29,7 @@ func TestWorkflowTaskDigestWorker_UnsubscribedUser_Skips(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-1").Return(user, nil)
 
-	w := NewWorkflowTaskDigestWorker(nil, mockEmail, mockRepo, mockLog)
+	w := NewWorkflowTaskDigestWorker(nil, mockEmail, mockRepo, "", mockLog)
 
 	err := w.Work(ctx, makeDigestJob(WorkflowTaskDigestArgs{UserID: "user-1"}))
 	assert.NoError(t, err)
@@ -45,7 +45,7 @@ func TestWorkflowTaskDigestWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskDigestWorker(nil, mockEmail, mockRepo, mockLog)
+	w := NewWorkflowTaskDigestWorker(nil, mockEmail, mockRepo, "", mockLog)
 
 	err := w.Work(ctx, makeDigestJob(WorkflowTaskDigestArgs{UserID: "missing"}))
 	assert.NoError(t, err)

@@ -26,15 +26,17 @@ type WorkflowTaskDigestWorker struct {
 	db           *gorm.DB
 	emailService EmailService
 	userRepo     UserRepository
+	webBaseURL   string
 	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowTaskDigestWorker creates a new WorkflowTaskDigestWorker
-func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, logger *zap.SugaredLogger) *WorkflowTaskDigestWorker {
+func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskDigestWorker {
 	return &WorkflowTaskDigestWorker{
 		db:           db,
 		emailService: emailService,
 		userRepo:     userRepo,
+		webBaseURL:   webBaseURL,
 		logger:       logger,
 	}
 }
@@ -107,6 +109,7 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		"PeriodLabel":  periodLabel,
 		"PendingTasks": pendingTasks,
 		"OverdueTasks": overdueTasks,
+		"MyTasksURL":   w.webBaseURL + "/my-tasks",
 	}
 
 	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-digest", templateData)

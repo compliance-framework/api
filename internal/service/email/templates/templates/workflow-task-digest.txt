@@ -27,5 +27,7 @@ PENDING TASKS ({{len .PendingTasks}})
 {{end}}
 {{end}}
 ---
-This is an automated digest from Compliance Framework.
+{{if .MyTasksURL}}View all your tasks: {{.MyTasksURL}}
+
+{{end}}This is an automated digest from Compliance Framework.
 To unsubscribe, update your notification preferences in your account settings.

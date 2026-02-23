@@ -630,7 +630,7 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
 
 		if db != nil {
-			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, userRepo, logger)
+			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
 
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
