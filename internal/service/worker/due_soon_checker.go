@@ -39,6 +39,10 @@ func NewDueSoonCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *z
 
 // Work scans for step executions due in ~1 week and enqueues WorkflowTaskDueSoonArgs jobs
 func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonCheckerArgs]) error {
+	if w.db == nil {
+		return fmt.Errorf("DueSoonCheckerWorker: db is nil")
+	}
+
 	now := time.Now()
 	windowStart := now
 	windowEnd := now.Add(7 * 24 * time.Hour)

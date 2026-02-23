@@ -96,7 +96,7 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 	for i := range steps {
 		step := &steps[i]
-		task := buildDigestTask(step, w.webBaseURL)
+		task := buildDigestTask(step)
 
 		if step.Status == workflows.StepStatusOverdue.String() ||
 			(step.DueDate != nil && step.DueDate.Before(now)) {
@@ -160,14 +160,13 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 	return nil
 }
 
-func buildDigestTask(step *workflows.StepExecution, webBaseURL string) DigestTask {
+func buildDigestTask(step *workflows.StepExecution) DigestTask {
 	task := DigestTask{}
 	titles := resolveStepTitles(step)
 
 	task.StepTitle = titles.Step
 	task.WorkflowTitle = titles.Workflow
 	task.WorkflowInstanceTitle = titles.Instance
-	task.StepURL = resolveTaskURL("", webBaseURL)
 	if step.DueDate != nil {
 		formatted := formatDate(*step.DueDate)
 		task.DueDate = &formatted

@@ -39,6 +39,10 @@ func NewWorkflowTaskDigestCheckerWorker(db *gorm.DB, client workflow.RiverClient
 
 // Work queries all users with TaskDailyDigestSubscribed=true and enqueues a WorkflowTaskDigestArgs job for each
 func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskDigestCheckerArgs]) error {
+	if w.db == nil {
+		return fmt.Errorf("WorkflowTaskDigestCheckerWorker: db is nil")
+	}
+
 	var users []relational.User
 	if err := w.db.WithContext(ctx).
 		Where("task_daily_digest_subscribed = ? AND deleted_at IS NULL", true).

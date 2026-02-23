@@ -46,6 +46,10 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 		return nil
 	}
 
+	if w.db == nil {
+		return fmt.Errorf("WorkflowExecutionFailedWorker: db is nil")
+	}
+
 	var execution workflows.WorkflowExecution
 	if err := w.db.WithContext(ctx).
 		Preload("WorkflowInstance.WorkflowDefinition").
