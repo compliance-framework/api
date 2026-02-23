@@ -1,6 +1,11 @@
 package worker
 
-import "github.com/compliance-framework/api/internal/service/relational/workflows"
+import (
+	"strings"
+	"time"
+
+	"github.com/compliance-framework/api/internal/service/relational/workflows"
+)
 
 type stepTitles struct {
 	Step     string
@@ -32,4 +37,17 @@ func resolveTaskURL(stepURL, webBaseURL string) string {
 		return stepURL
 	}
 	return webBaseURL + "/my-tasks"
+}
+
+// formatDate formats a time value as "dd/mmm/yyyy" (e.g. "05/mar/2025").
+func formatDate(t time.Time) string {
+	return strings.ToLower(t.Format("02/Jan/2006"))
+}
+
+// formatDueDate formats an optional due date pointer; returns "" when nil.
+func formatDueDate(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return formatDate(*t)
 }

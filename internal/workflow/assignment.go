@@ -44,6 +44,9 @@ func NewAssignmentService(
 	if stepExecutionService == nil && db != nil {
 		stepExecutionService = workflows.NewStepExecutionService(db, nil)
 	}
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
 	return &AssignmentService{
 		roleAssignmentService: roleAssignmentService,
 		stepExecutionService:  stepExecutionService,
@@ -157,7 +160,7 @@ func (s *AssignmentService) ReassignStep(
 		(newAssignee.Type == workflows.AssignmentTypeUser.String() || newAssignee.Type == workflows.AssignmentTypeEmail.String()) {
 		if err := s.notificationEnqueuer.EnqueueWorkflowTaskAssigned(ctx, &updatedStepExecution); err != nil {
 			// Non-fatal: log but don't fail the reassignment
-			s.logger.Error("failed to enqueue workflow task assigned notification", "error", err)
+			s.logger.Errorw("failed to enqueue workflow task assigned notification", "error", err)
 		}
 	}
 

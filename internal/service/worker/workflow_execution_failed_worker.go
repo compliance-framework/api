@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -93,7 +92,7 @@ func (w *WorkflowExecutionFailedWorker) Work(ctx context.Context, job *river.Job
 
 	failedAt := "unknown"
 	if execution.FailedAt != nil {
-		failedAt = execution.FailedAt.Format(time.RFC1123)
+		failedAt = formatDate(*execution.FailedAt)
 	}
 
 	templateData := map[string]interface{}{

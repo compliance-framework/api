@@ -40,8 +40,8 @@ func NewDueSoonCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *z
 // Work scans for step executions due in ~1 week and enqueues WorkflowTaskDueSoonArgs jobs
 func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonCheckerArgs]) error {
 	now := time.Now()
-	windowStart := now                       // Get all jobs from now
-	windowEnd := now.Add(7 * 24 * time.Hour) // Get All jobs within a week
+	windowStart := now
+	windowEnd := now.Add(7 * 24 * time.Hour)
 
 	var steps []workflows.StepExecution
 	if err := w.db.WithContext(ctx).
@@ -83,9 +83,14 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 			StepURL:               "",
 			DueDate:               *step.DueDate,
 		}
+		insertOpts := JobInsertOptionsForWorkflowNotification()
+		insertOpts.UniqueOpts = river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 24 * time.Hour,
+		}
 		params = append(params, river.InsertManyParams{
 			Args:       args,
-			InsertOpts: JobInsertOptionsForWorkflowNotification(),
+			InsertOpts: insertOpts,
 		})
 	}
 

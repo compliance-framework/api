@@ -431,7 +431,7 @@ func (w *WorkflowTaskAssignedWorker) sendEmail(ctx context.Context, args Workflo
 		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
 		"StepURL":               myTasksURL,
 		"MyTasksURL":            w.webBaseURL + "/my-tasks",
-		"DueDate":               args.DueDate,
+		"DueDate":               formatDueDate(args.DueDate),
 	}
 
 	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-assigned", templateData)
@@ -528,7 +528,7 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
 		"StepURL":               myTasksURL,
 		"MyTasksURL":            w.webBaseURL + "/my-tasks",
-		"DueDate":               args.DueDate.Format("2006-01-02"),
+		"DueDate":               formatDate(args.DueDate),
 	}
 
 	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-due-soon", templateData)

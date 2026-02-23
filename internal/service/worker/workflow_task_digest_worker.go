@@ -61,6 +61,10 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		return nil
 	}
 
+	if w.db == nil {
+		return fmt.Errorf("WorkflowTaskDigestWorker: db is nil")
+	}
+
 	now := time.Now()
 
 	var steps []workflows.StepExecution
@@ -92,7 +96,7 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 	for i := range steps {
 		step := &steps[i]
-		task := buildDigestTask(step)
+		task := buildDigestTask(step, w.webBaseURL)
 
 		if step.Status == workflows.StepStatusOverdue.String() ||
 			(step.DueDate != nil && step.DueDate.Before(now)) {
@@ -124,7 +128,7 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 	message := &types.Message{
 		From:     w.emailService.GetDefaultFromAddress(),
 		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("Your workflow task summary — %s", now.Format("2 Jan 2006")),
+		Subject:  fmt.Sprintf("Your workflow task summary — %s", formatDate(now)),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
 	}
@@ -156,15 +160,16 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 	return nil
 }
 
-func buildDigestTask(step *workflows.StepExecution) DigestTask {
+func buildDigestTask(step *workflows.StepExecution, webBaseURL string) DigestTask {
 	task := DigestTask{}
 	titles := resolveStepTitles(step)
 
 	task.StepTitle = titles.Step
 	task.WorkflowTitle = titles.Workflow
 	task.WorkflowInstanceTitle = titles.Instance
+	task.StepURL = resolveTaskURL("", webBaseURL)
 	if step.DueDate != nil {
-		formatted := step.DueDate.Format("2006-01-02")
+		formatted := formatDate(*step.DueDate)
 		task.DueDate = &formatted
 	}
 
