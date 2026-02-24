@@ -1458,8 +1458,12 @@ func rollUpToRootControl(db *gorm.DB, control relational.Control) (relational.Co
 
 	tx := db.Session(&gorm.Session{})
 	if *control.ParentType == "controls" {
+		if control.ParentID == nil {
+			return control, fmt.Errorf("control %s has parent type %q but nil parent ID", control.ID, *control.ParentType)
+		}
+
 		parent := relational.Control{}
-		if err := tx.First(&parent, "id = ?", control.ParentID).Error; err != nil {
+		if err := tx.First(&parent, "id = ? AND catalog_id = ?", *control.ParentID, control.CatalogID).Error; err != nil {
 			return control, err
 		}
 		parent.Controls = append(parent.Controls, control)
@@ -1476,8 +1480,12 @@ func rollUpToRootGroup(db *gorm.DB, group relational.Group) (relational.Group, e
 
 	tx := db.Session(&gorm.Session{})
 	if *group.ParentType == "groups" {
+		if group.ParentID == nil {
+			return group, fmt.Errorf("group %s has parent type %q but nil parent ID", group.ID, *group.ParentType)
+		}
+
 		parent := relational.Group{}
-		if err := tx.First(&parent, "id = ?", *group.ParentID).Error; err != nil {
+		if err := tx.First(&parent, "id = ? AND catalog_id = ?", *group.ParentID, group.CatalogID).Error; err != nil {
 			return group, err
 		}
 		parent.Groups = append(parent.Groups, group)
@@ -1487,15 +1495,26 @@ func rollUpToRootGroup(db *gorm.DB, group relational.Group) (relational.Group, e
 	return group, nil
 }
 
+type controlMergeKey struct {
+	CatalogID uuid.UUID
+	ID        string
+}
+
+type groupMergeKey struct {
+	CatalogID uuid.UUID
+	ID        string
+}
+
 func mergeControls(controls ...relational.Control) []relational.Control {
-	mapped := map[string]relational.Control{}
+	mapped := map[controlMergeKey]relational.Control{}
 	for _, control := range controls {
-		if sub, ok := mapped[control.ID]; ok {
+		key := controlMergeKey{CatalogID: control.CatalogID, ID: control.ID}
+		if sub, ok := mapped[key]; ok {
 			control.Controls = append(control.Controls, sub.Controls...)
 		}
 
 		control.Controls = mergeControls(control.Controls...)
-		mapped[control.ID] = control
+		mapped[key] = control
 	}
 
 	flattened := []relational.Control{}
@@ -1506,16 +1525,17 @@ func mergeControls(controls ...relational.Control) []relational.Control {
 }
 
 func mergeGroups(groups ...relational.Group) []relational.Group {
-	mapped := map[string]relational.Group{}
+	mapped := map[groupMergeKey]relational.Group{}
 	for _, group := range groups {
-		if sub, ok := mapped[group.ID]; ok {
+		key := groupMergeKey{CatalogID: group.CatalogID, ID: group.ID}
+		if sub, ok := mapped[key]; ok {
 			group.Groups = append(group.Groups, sub.Groups...)
 			group.Controls = append(group.Controls, sub.Controls...)
 		}
 
 		group.Controls = mergeControls(group.Controls...)
 		group.Groups = mergeGroups(group.Groups...)
-		mapped[group.ID] = group
+		mapped[key] = group
 	}
 	flattened := []relational.Group{}
 	for _, group := range mapped {
@@ -1551,8 +1571,12 @@ func rollUpControlsToCatalog(db *gorm.DB, allControls []relational.Control) (*re
 
 		// If the control has a group as a parent, roll it up.
 		if *rootControl.ParentType == "groups" {
+			if rootControl.ParentID == nil {
+				return nil, fmt.Errorf("control %s has parent type %q but nil parent ID", rootControl.ID, *rootControl.ParentType)
+			}
+
 			group := &relational.Group{}
-			if err = db.First(group, "id = ?", *rootControl.ParentID).Error; err != nil {
+			if err = db.First(group, "id = ? AND catalog_id = ?", *rootControl.ParentID, rootControl.CatalogID).Error; err != nil {
 				return nil, err
 			}
 			group.Controls = append(group.Controls, rootControl)
