@@ -1178,6 +1178,189 @@ func (suite *ProfileIntegrationSuite) TestComplianceProgress() {
 	})
 }
 
+func (suite *ProfileIntegrationSuite) TestComplianceProgressEdgeCases() {
+	suite.IntegrationTestSuite.Migrator.Refresh()
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err, "Failed to get auth token")
+
+	suite.Run("Profile with zero controls returns empty summary", func() {
+		emptyProfile := &relational.Profile{
+			Metadata: relational.Metadata{Title: "Empty Profile"},
+		}
+		suite.Require().NoError(suite.DB.Create(emptyProfile).Error)
+
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + emptyProfile.ID.String() + "/compliance-progress"
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code)
+
+		var response handler.GenericDataResponse[ProfileComplianceProgress]
+		suite.Require().NoError(json.NewDecoder(rec.Body).Decode(&response))
+
+		suite.Require().Equal(0, response.Data.Summary.TotalControls)
+		suite.Require().Equal(0, response.Data.Summary.Satisfied)
+		suite.Require().Equal(0, response.Data.Summary.NotSatisfied)
+		suite.Require().Equal(0, response.Data.Summary.Unknown)
+		suite.Require().Equal(0, response.Data.Summary.CompliancePct)
+		suite.Require().Nil(response.Data.Summary.ImplementedTotal, "implementedControls should be absent when no sspId requested")
+		suite.Require().Len(response.Data.Controls, 0)
+		suite.Require().Len(response.Data.Groups, 0)
+	})
+
+	suite.Run("Control with no linked filters reports unknown status", func() {
+		cat := &relational.Catalog{Metadata: relational.Metadata{Title: "Unfiltered Catalog"}}
+		suite.Require().NoError(suite.DB.Create(cat).Error)
+
+		ctrl := relational.Control{ID: "CTRL-NOFILTER", CatalogID: *cat.ID, Title: "No Filter Control"}
+		suite.Require().NoError(suite.DB.Create(&ctrl).Error)
+
+		p := &relational.Profile{
+			Metadata: relational.Metadata{Title: "No Filter Profile"},
+			Controls: []relational.Control{ctrl},
+		}
+		suite.Require().NoError(suite.DB.Create(p).Error)
+
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + p.ID.String() + "/compliance-progress"
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code)
+
+		var response handler.GenericDataResponse[ProfileComplianceProgress]
+		suite.Require().NoError(json.NewDecoder(rec.Body).Decode(&response))
+
+		suite.Require().Equal(1, response.Data.Summary.TotalControls)
+		suite.Require().Equal(0, response.Data.Summary.Satisfied)
+		suite.Require().Equal(0, response.Data.Summary.NotSatisfied)
+		suite.Require().Equal(1, response.Data.Summary.Unknown)
+		suite.Require().Len(response.Data.Controls, 1)
+		suite.Require().Equal("unknown", response.Data.Controls[0].ComputedStatus)
+	})
+
+	suite.Run("Duplicate control IDs across different catalogs are tracked separately", func() {
+		catA := &relational.Catalog{Metadata: relational.Metadata{Title: "Catalog A"}}
+		catB := &relational.Catalog{Metadata: relational.Metadata{Title: "Catalog B"}}
+		suite.Require().NoError(suite.DB.Create(catA).Error)
+		suite.Require().NoError(suite.DB.Create(catB).Error)
+
+		ctrlA := relational.Control{ID: "CTRL-SHARED", CatalogID: *catA.ID, Title: "Shared Control from A"}
+		ctrlB := relational.Control{ID: "CTRL-SHARED", CatalogID: *catB.ID, Title: "Shared Control from B"}
+		suite.Require().NoError(suite.DB.Create(&ctrlA).Error)
+		suite.Require().NoError(suite.DB.Create(&ctrlB).Error)
+
+		p := &relational.Profile{
+			Metadata: relational.Metadata{Title: "Cross-Catalog Profile"},
+			Controls: []relational.Control{ctrlA, ctrlB},
+		}
+		suite.Require().NoError(suite.DB.Create(p).Error)
+
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + p.ID.String() + "/compliance-progress"
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code)
+
+		var response handler.GenericDataResponse[ProfileComplianceProgress]
+		suite.Require().NoError(json.NewDecoder(rec.Body).Decode(&response))
+
+		// Both controls have the same controlId but different catalogIds — they must each be counted
+		suite.Require().Equal(2, response.Data.Summary.TotalControls, "Controls with same ID but different catalogs must be counted separately")
+		suite.Require().Len(response.Data.Controls, 2)
+
+		catalogIDs := make(map[string]struct{}, 2)
+		for _, c := range response.Data.Controls {
+			suite.Require().Equal("CTRL-SHARED", c.ControlID)
+			catalogIDs[c.CatalogID.String()] = struct{}{}
+		}
+		suite.Require().Len(catalogIDs, 2, "Each entry must have a distinct catalogId")
+	})
+
+	suite.Run("sspId scope reports implemented and unimplemented controls", func() {
+		cat := &relational.Catalog{Metadata: relational.Metadata{Title: "SSP Catalog"}}
+		suite.Require().NoError(suite.DB.Create(cat).Error)
+
+		ctrlImpl := relational.Control{ID: "CTRL-IMPL", CatalogID: *cat.ID, Title: "Implemented Control"}
+		ctrlUnimpl := relational.Control{ID: "CTRL-UNIMPL", CatalogID: *cat.ID, Title: "Unimplemented Control"}
+		suite.Require().NoError(suite.DB.Create(&ctrlImpl).Error)
+		suite.Require().NoError(suite.DB.Create(&ctrlUnimpl).Error)
+
+		p := &relational.Profile{
+			Metadata: relational.Metadata{Title: "SSP Profile"},
+			Controls: []relational.Control{ctrlImpl, ctrlUnimpl},
+		}
+		suite.Require().NoError(suite.DB.Create(p).Error)
+
+		ssp := &relational.SystemSecurityPlan{
+			Metadata: relational.Metadata{Title: "Test SSP"},
+			ControlImplementation: relational.ControlImplementation{
+				ImplementedRequirements: []relational.ImplementedRequirement{
+					{ControlId: "CTRL-IMPL"},
+				},
+			},
+		}
+		suite.Require().NoError(suite.DB.Create(ssp).Error)
+
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + p.ID.String() + "/compliance-progress?sspId=" + ssp.ID.String()
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusOK, rec.Code)
+
+		var response handler.GenericDataResponse[ProfileComplianceProgress]
+		suite.Require().NoError(json.NewDecoder(rec.Body).Decode(&response))
+
+		suite.Require().Equal(2, response.Data.Summary.TotalControls)
+		suite.Require().NotNil(response.Data.Summary.ImplementedTotal, "implementedControls must be present when sspId provided")
+		suite.Require().Equal(1, *response.Data.Summary.ImplementedTotal)
+
+		suite.Require().NotNil(response.Data.Implementation)
+		suite.Require().Equal(1, response.Data.Implementation.ImplementedControls)
+		suite.Require().Equal(1, response.Data.Implementation.UnimplementedControls)
+		suite.Require().Equal(50, response.Data.Implementation.ImplementationPct)
+
+		implByID := make(map[string]bool, 2)
+		for _, c := range response.Data.Controls {
+			if c.Implemented != nil {
+				implByID[c.ControlID] = *c.Implemented
+			}
+		}
+		suite.Require().True(implByID["CTRL-IMPL"], "CTRL-IMPL should be implemented")
+		suite.Require().False(implByID["CTRL-UNIMPL"], "CTRL-UNIMPL should not be implemented")
+	})
+
+	suite.Run("Non-existent sspId returns 404", func() {
+		cat := &relational.Catalog{Metadata: relational.Metadata{Title: "404 SSP Catalog"}}
+		suite.Require().NoError(suite.DB.Create(cat).Error)
+
+		ctrl := relational.Control{ID: "CTRL-ANY", CatalogID: *cat.ID, Title: "Any Control"}
+		suite.Require().NoError(suite.DB.Create(&ctrl).Error)
+
+		p := &relational.Profile{
+			Metadata: relational.Metadata{Title: "404 SSP Profile"},
+			Controls: []relational.Control{ctrl},
+		}
+		suite.Require().NoError(suite.DB.Create(p).Error)
+
+		rec := httptest.NewRecorder()
+		url := "/api/oscal/profiles/" + p.ID.String() + "/compliance-progress?sspId=" + uuid.New().String()
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+
+		suite.server.E().ServeHTTP(rec, req)
+		suite.Require().Equal(http.StatusNotFound, rec.Code)
+	})
+}
+
 func (suite *ProfileIntegrationSuite) TestGetControlCatalogFromBuiltProfile() {
 	suite.IntegrationTestSuite.Migrator.Refresh()
 

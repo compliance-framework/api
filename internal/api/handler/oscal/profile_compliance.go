@@ -22,7 +22,7 @@ type ProfileComplianceProgress struct {
 	Summary        ProfileComplianceSummary         `json:"summary"`
 	Implementation *ProfileComplianceImplementation `json:"implementation,omitempty"`
 	Groups         []ProfileComplianceGroup         `json:"groups"`
-	Controls       []ProfileComplianceControl       `json:"controls,omitempty"`
+	Controls       []ProfileComplianceControl       `json:"controls"`
 }
 
 type ProfileComplianceScope struct {
@@ -32,13 +32,13 @@ type ProfileComplianceScope struct {
 }
 
 type ProfileComplianceSummary struct {
-	TotalControls    int `json:"totalControls"`
-	Satisfied        int `json:"satisfied"`
-	NotSatisfied     int `json:"notSatisfied"`
-	Unknown          int `json:"unknown"`
-	CompliancePct    int `json:"compliancePercent"`
-	AssessedPct      int `json:"assessedPercent"`
-	ImplementedTotal int `json:"implementedControls,omitempty"`
+	TotalControls    int  `json:"totalControls"`
+	Satisfied        int  `json:"satisfied"`
+	NotSatisfied     int  `json:"notSatisfied"`
+	Unknown          int  `json:"unknown"`
+	CompliancePct    int  `json:"compliancePercent"`
+	AssessedPct      int  `json:"assessedPercent"`
+	ImplementedTotal *int `json:"implementedControls,omitempty"`
 }
 
 type ProfileComplianceImplementation struct {
@@ -155,11 +155,8 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 		Summary: ProfileComplianceSummary{
 			TotalControls: len(scopeControls),
 		},
-		Groups: []ProfileComplianceGroup{},
-	}
-
-	if includeControls {
-		response.Controls = []ProfileComplianceControl{}
+		Groups:   []ProfileComplianceGroup{},
+		Controls: []ProfileComplianceControl{},
 	}
 
 	if len(scopeControls) == 0 {
@@ -262,15 +259,18 @@ func (h *ProfileHandler) ComplianceProgress(ctx echo.Context) error {
 		}
 	}
 
-	response.Summary = ProfileComplianceSummary{
-		TotalControls:    len(scopeControls),
-		Satisfied:        satisfied,
-		NotSatisfied:     notSatisfied,
-		Unknown:          unknown,
-		CompliancePct:    computePercent(satisfied, len(scopeControls)),
-		AssessedPct:      computePercent(satisfied+notSatisfied, len(scopeControls)),
-		ImplementedTotal: implementedControls,
+	summary := ProfileComplianceSummary{
+		TotalControls: len(scopeControls),
+		Satisfied:     satisfied,
+		NotSatisfied:  notSatisfied,
+		Unknown:       unknown,
+		CompliancePct: computePercent(satisfied, len(scopeControls)),
+		AssessedPct:   computePercent(satisfied+notSatisfied, len(scopeControls)),
 	}
+	if hasImplementationScope {
+		summary.ImplementedTotal = &implementedControls
+	}
+	response.Summary = summary
 
 	groupResponse := make([]ProfileComplianceGroup, 0, len(groups))
 	for _, group := range groups {
