@@ -1302,7 +1302,12 @@ func (suite *ProfileIntegrationSuite) TestComplianceProgressEdgeCases() {
 			Metadata: relational.Metadata{Title: "Test SSP"},
 			ControlImplementation: relational.ControlImplementation{
 				ImplementedRequirements: []relational.ImplementedRequirement{
-					{ControlId: "CTRL-IMPL"},
+					{
+						ControlId: "CTRL-IMPL",
+						Statements: []relational.Statement{
+							{StatementId: "CTRL-IMPL_smt.a"},
+						},
+					},
 				},
 			},
 		}

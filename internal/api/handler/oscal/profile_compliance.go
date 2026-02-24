@@ -445,12 +445,18 @@ func (h *ProfileHandler) getStatusCountsForFilters(filters []labelfilter.Filter)
 
 func (h *ProfileHandler) loadImplementedControlsForSSP(sspID uuid.UUID) (map[string]struct{}, error) {
 	var ssp relational.SystemSecurityPlan
-	if err := h.db.Preload("ControlImplementation.ImplementedRequirements").First(&ssp, "id = ?", sspID).Error; err != nil {
+	if err := h.db.
+		Preload("ControlImplementation.ImplementedRequirements.Statements").
+		First(&ssp, "id = ?", sspID).Error; err != nil {
 		return nil, err
 	}
 
 	implemented := make(map[string]struct{}, len(ssp.ControlImplementation.ImplementedRequirements))
 	for _, requirement := range ssp.ControlImplementation.ImplementedRequirements {
+		if len(requirement.Statements) == 0 {
+			continue
+		}
+
 		implemented[requirement.ControlId] = struct{}{}
 	}
 
