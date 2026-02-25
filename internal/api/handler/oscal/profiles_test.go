@@ -2,6 +2,7 @@ package oscal
 
 import (
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -50,4 +51,41 @@ func TestProfileControlMerging(t *testing.T) {
 		assert.Equal(t, "AC", merged[0].ID)
 		assert.Len(t, merged[0].Controls, 2)
 	})
+
+	t.Run("CrossCatalog", func(t *testing.T) {
+		catalogA := uuid.New()
+		catalogB := uuid.New()
+
+		merged := mergeControls([]relational.Control{
+			{
+				CatalogID: catalogA,
+				ID:        "AC",
+				Title:     "from-a",
+			},
+			{
+				CatalogID: catalogB,
+				ID:        "AC",
+				Title:     "from-b",
+			},
+		}...)
+
+		assert.Len(t, merged, 2)
+		catalogs := map[uuid.UUID]struct{}{}
+		for _, control := range merged {
+			catalogs[control.CatalogID] = struct{}{}
+		}
+		assert.Len(t, catalogs, 2)
+	})
+}
+
+func TestProfileGroupMerging(t *testing.T) {
+	catalogA := uuid.New()
+	catalogB := uuid.New()
+
+	merged := mergeGroups([]relational.Group{
+		{CatalogID: catalogA, ID: "G-1", Title: "A"},
+		{CatalogID: catalogB, ID: "G-1", Title: "B"},
+	}...)
+
+	assert.Len(t, merged, 2)
 }

@@ -813,6 +813,13 @@ definitions:
         - $ref: '#/definitions/oscal.InventoryItemWithSource'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-oscal_ProfileComplianceProgress:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/oscal.ProfileComplianceProgress'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_ProfileHandler:
     properties:
       data:
@@ -1484,6 +1491,103 @@ definitions:
     x-enum-varnames:
     - MatchStrategyAll
     - MatchStrategyAny
+  oscal.ProfileComplianceControl:
+    properties:
+      catalogId:
+        type: string
+      computedStatus:
+        type: string
+      controlId:
+        type: string
+      groupId:
+        type: string
+      groupTitle:
+        type: string
+      implemented:
+        type: boolean
+      statusCounts:
+        items:
+          $ref: '#/definitions/oscal.ProfileComplianceStatusCount'
+        type: array
+      title:
+        type: string
+    type: object
+  oscal.ProfileComplianceGroup:
+    properties:
+      compliancePercent:
+        type: integer
+      id:
+        type: string
+      notSatisfied:
+        type: integer
+      satisfied:
+        type: integer
+      title:
+        type: string
+      totalControls:
+        type: integer
+      unknown:
+        type: integer
+    type: object
+  oscal.ProfileComplianceImplementation:
+    properties:
+      implementationPercent:
+        type: integer
+      implementedControls:
+        type: integer
+      unimplementedControls:
+        type: integer
+    type: object
+  oscal.ProfileComplianceProgress:
+    properties:
+      controls:
+        items:
+          $ref: '#/definitions/oscal.ProfileComplianceControl'
+        type: array
+      groups:
+        items:
+          $ref: '#/definitions/oscal.ProfileComplianceGroup'
+        type: array
+      implementation:
+        $ref: '#/definitions/oscal.ProfileComplianceImplementation'
+      scope:
+        $ref: '#/definitions/oscal.ProfileComplianceScope'
+      summary:
+        $ref: '#/definitions/oscal.ProfileComplianceSummary'
+    type: object
+  oscal.ProfileComplianceScope:
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  oscal.ProfileComplianceStatusCount:
+    properties:
+      count:
+        type: integer
+      status:
+        type: string
+    type: object
+  oscal.ProfileComplianceSummary:
+    properties:
+      assessedPercent:
+        type: integer
+      compliancePercent:
+        type: integer
+      implementedControls:
+        type: integer
+      notSatisfied:
+        type: integer
+      satisfied:
+        type: integer
+      totalControls:
+        type: integer
+      unknown:
+        type: integer
+    type: object
   oscal.ProfileHandler:
     type: object
   oscal.RuleOperator:
@@ -14925,6 +15029,52 @@ paths:
       security:
       - OAuth2Password: []
       summary: Get Backmatter
+      tags:
+      - Profile
+  /oscal/profiles/{id}/compliance-progress:
+    get:
+      description: Returns aggregated compliance progress for controls in a Profile,
+        including summary, optional per-control rows, and group rollups.
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Include per-control breakdown (default true)
+        in: query
+        name: includeControls
+        type: boolean
+      - description: System Security Plan ID for implementation coverage
+        in: query
+        name: sspId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-oscal_ProfileComplianceProgress'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get compliance progress for a Profile
       tags:
       - Profile
   /oscal/profiles/{id}/full:
