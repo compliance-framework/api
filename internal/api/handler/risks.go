@@ -277,6 +277,7 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 
 	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
 		now := time.Now().UTC()
+		ownerAssignments := normalizeOwnerAssignmentsForPrimaryOwner(toOwnerAssignments(req.OwnerAssignments), req.PrimaryOwnerUserID)
 		risk := riskrel.Risk{
 			Title:                   req.Title,
 			Description:             req.Description,
@@ -295,7 +296,7 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 		}
 		created, err := h.riskService.Create(riskrel.CreateRiskParams{
 			Risk:             risk,
-			OwnerAssignments: toOwnerAssignments(req.OwnerAssignments),
+			OwnerAssignments: ownerAssignments,
 			ActorUserID:      actorID,
 		})
 		if err != nil {
@@ -452,6 +453,7 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		if req.OwnerAssignments != nil {
 			ownerAssignments = toOwnerAssignments(*req.OwnerAssignments)
 		}
+		ownerAssignments = normalizeOwnerAssignmentsForPrimaryOwner(ownerAssignments, req.PrimaryOwnerUserID)
 
 		recordReview := req.LastReviewedAt != nil || req.ReviewDeadline != nil || req.ReviewJustification != nil
 		var reviewedAt *time.Time
@@ -966,7 +968,10 @@ func (h *RiskHandler) withRiskListContext(ctx echo.Context, fn func(riskID uuid.
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if err := h.ensureRiskExists(riskID); err != nil {
-		return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return h.internalServerError(ctx, "failed to validate risk", err)
 	}
 
 	pagination, err := h.pagination.ParseParams(ctx)
@@ -1019,6 +1024,24 @@ func toOwnerAssignments(req []riskOwnerAssignmentRequest) []riskrel.RiskOwnerAss
 		rows = append(rows, riskrel.RiskOwnerAssignment{OwnerKind: item.OwnerKind, OwnerRef: item.OwnerRef, IsPrimary: item.IsPrimary})
 	}
 	return rows
+}
+
+func normalizeOwnerAssignmentsForPrimaryOwner(assignments []riskrel.RiskOwnerAssignment, primaryOwnerUserID *uuid.UUID) []riskrel.RiskOwnerAssignment {
+	if primaryOwnerUserID == nil {
+		return assignments
+	}
+
+	primaryOwnerRef := primaryOwnerUserID.String()
+	normalized := make([]riskrel.RiskOwnerAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		if assignment.OwnerKind == "user" && assignment.OwnerRef == primaryOwnerRef {
+			continue
+		}
+		assignment.IsPrimary = false
+		normalized = append(normalized, assignment)
+	}
+
+	return normalized
 }
 
 func (h *RiskHandler) mapRiskToResponse(risk *riskrel.Risk) (riskResponse, error) {

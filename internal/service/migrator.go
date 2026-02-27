@@ -126,6 +126,9 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Filter{},
 		&relational.Step{},
 	)
+	if err != nil {
+		return err
+	}
 
 	// Add workflow entities separately to avoid argument limit
 	for _, entity := range workflowEntities {

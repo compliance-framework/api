@@ -520,6 +520,91 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	require.Equal(suite.T(), http.StatusBadRequest, badSubjectReq.Code)
 }
 
+func (suite *RiskApiIntegrationSuite) TestRiskCreatePrimaryOwnerUserIDNormalizesPrimaryAssignments() {
+	primaryOwnerID := uuid.New()
+	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", map[string]any{
+		"title":              "Create owner normalization",
+		"description":        "primary owner should be canonical",
+		"sspId":              suite.newSSPID(),
+		"primaryOwnerUserId": primaryOwnerID.String(),
+		"ownerAssignments": []map[string]any{
+			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	var created GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
+	require.NotNil(suite.T(), created.Data.PrimaryOwnerUserID)
+	require.Equal(suite.T(), primaryOwnerID, *created.Data.PrimaryOwnerUserID)
+
+	var primaryCount int
+	var groupAssignment *riskOwnerAssignmentResponse
+	var userPrimary *riskOwnerAssignmentResponse
+	for i := range created.Data.OwnerAssignments {
+		assignment := &created.Data.OwnerAssignments[i]
+		if assignment.OwnerKind == "group" && assignment.OwnerRef == "secops" {
+			groupAssignment = assignment
+		}
+		if assignment.IsPrimary {
+			primaryCount++
+			if assignment.OwnerKind == "user" && assignment.OwnerRef == primaryOwnerID.String() {
+				userPrimary = assignment
+			}
+		}
+	}
+
+	require.Equal(suite.T(), 1, primaryCount)
+	require.NotNil(suite.T(), userPrimary)
+	require.NotNil(suite.T(), groupAssignment)
+	require.False(suite.T(), groupAssignment.IsPrimary)
+}
+
+func (suite *RiskApiIntegrationSuite) TestRiskUpdatePrimaryOwnerUserIDNormalizesExistingPrimaryAssignment() {
+	created := suite.createRisk(map[string]any{
+		"title":       "Update owner normalization",
+		"description": "existing primary owner assignment should be demoted",
+		"sspId":       suite.newSSPID(),
+		"ownerAssignments": []map[string]any{
+			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
+		},
+	})
+
+	primaryOwnerID := uuid.New()
+	updateRec, updateReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
+		"primaryOwnerUserId": primaryOwnerID.String(),
+	})
+	suite.server.E().ServeHTTP(updateRec, updateReq)
+	require.Equal(suite.T(), http.StatusOK, updateRec.Code)
+
+	var updated GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(updateRec.Body.Bytes(), &updated))
+	require.NotNil(suite.T(), updated.Data.PrimaryOwnerUserID)
+	require.Equal(suite.T(), primaryOwnerID, *updated.Data.PrimaryOwnerUserID)
+
+	var primaryCount int
+	var groupAssignment *riskOwnerAssignmentResponse
+	var userPrimary *riskOwnerAssignmentResponse
+	for i := range updated.Data.OwnerAssignments {
+		assignment := &updated.Data.OwnerAssignments[i]
+		if assignment.OwnerKind == "group" && assignment.OwnerRef == "secops" {
+			groupAssignment = assignment
+		}
+		if assignment.IsPrimary {
+			primaryCount++
+			if assignment.OwnerKind == "user" && assignment.OwnerRef == primaryOwnerID.String() {
+				userPrimary = assignment
+			}
+		}
+	}
+
+	require.Equal(suite.T(), 1, primaryCount)
+	require.NotNil(suite.T(), userPrimary)
+	require.NotNil(suite.T(), groupAssignment)
+	require.False(suite.T(), groupAssignment.IsPrimary)
+}
+
 func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches() {
 	created := suite.createRisk(map[string]any{
 		"title":       "NotFound target risk",
@@ -607,6 +692,25 @@ func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches()
 	invalidDeadlineFilterRec, invalidDeadlineFilterReq := suite.authedRequest(http.MethodGet, "/api/risks?reviewDeadlineBefore=not-a-time", nil)
 	suite.server.E().ServeHTTP(invalidDeadlineFilterRec, invalidDeadlineFilterReq)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidDeadlineFilterRec.Code)
+}
+
+func (suite *RiskApiIntegrationSuite) TestRiskListContextInternalErrorIs500() {
+	created := suite.createRisk(map[string]any{
+		"title":       "List context failure target",
+		"description": "forces ensureRiskExists internal failure",
+		"sspId":       suite.newSSPID(),
+	})
+
+	require.NoError(suite.T(), suite.DB.Exec("DROP TABLE risk_register_risks").Error)
+
+	rec, req := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/controls?page=1&limit=20", created.ID), nil)
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusInternalServerError, rec.Code)
+
+	body := rec.Body.String()
+	require.Contains(suite.T(), body, "internal server error")
+	require.False(suite.T(), strings.Contains(strings.ToLower(body), "risk_register_risks"))
+	require.False(suite.T(), strings.Contains(strings.ToLower(body), "no such table"))
 }
 
 func (suite *RiskApiIntegrationSuite) TestRiskGetAndDeleteMeaningfulErrorBranches() {
