@@ -85,7 +85,12 @@ func (s *RiskService) List(params ListParams) ([]Risk, int64, error) {
 
 func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 	risk := params.Risk
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	if err := tx.Create(&risk).Error; err != nil {
 		tx.Rollback()
 		return nil, err
@@ -133,7 +138,12 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 		return nil, fmt.Errorf("risk is required")
 	}
 
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	if err := tx.Save(params.Risk).Error; err != nil {
 		tx.Rollback()
 		return nil, err
@@ -202,7 +212,12 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 }
 
 func (s *RiskService) Delete(riskID uuid.UUID) error {
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	if err := tx.Delete(&RiskEvidenceLink{}, "risk_id = ?", riskID).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -216,6 +231,10 @@ func (s *RiskService) Delete(riskID uuid.UUID) error {
 		return err
 	}
 	if err := tx.Delete(&RiskSubjectLink{}, "risk_id = ?", riskID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Delete(&RiskOwnerAssignment{}, "risk_id = ?", riskID).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -278,7 +297,12 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 		return nil, err
 	}
 
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	link := RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
 	if createResult.Error != nil {
@@ -288,6 +312,11 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 
 	if createResult.RowsAffected > 0 {
 		if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceLink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceID.String()}); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := tx.Where("risk_id = ? AND evidence_id = ?", riskID, evidenceID).First(&link).Error; err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -301,7 +330,12 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 }
 
 func (s *RiskService) DeleteEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID *uuid.UUID) (bool, error) {
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return false, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	result := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID)
 	if result.Error != nil {
 		tx.Rollback()
@@ -330,7 +364,7 @@ func (s *RiskService) ListControlLinks(riskID uuid.UUID, limit, offset int) ([]R
 	}
 
 	var links []RiskControlLink
-	if err := q.Limit(limit).Offset(offset).Find(&links).Error; err != nil {
+	if err := q.Order("created_at desc, catalog_id asc, control_id asc").Limit(limit).Offset(offset).Find(&links).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -347,7 +381,12 @@ func (s *RiskService) AddControlLink(riskID, catalogID uuid.UUID, controlID stri
 		return nil, err
 	}
 
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	link := RiskControlLink{RiskID: riskID, CatalogID: catalogID, ControlID: controlID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
 	if createResult.Error != nil {
@@ -360,6 +399,11 @@ func (s *RiskService) AddControlLink(riskID, catalogID uuid.UUID, controlID stri
 			"catalogId": catalogID.String(),
 			"controlId": controlID,
 		}); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := tx.Where("risk_id = ? AND catalog_id = ? AND control_id = ?", riskID, catalogID, controlID).First(&link).Error; err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -397,7 +441,12 @@ func (s *RiskService) AddComponentLink(riskID, componentID uuid.UUID, actorUserI
 		return nil, err
 	}
 
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	link := RiskComponentLink{RiskID: riskID, ComponentID: componentID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
 	if createResult.Error != nil {
@@ -408,6 +457,11 @@ func (s *RiskService) AddComponentLink(riskID, componentID uuid.UUID, actorUserI
 		if err := s.logRiskEvent(tx, riskID, RiskEventTypeComponentLink, actorUserID, datatypes.JSONMap{
 			"componentId": componentID.String(),
 		}); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := tx.Where("risk_id = ? AND component_id = ?", riskID, componentID).First(&link).Error; err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -445,7 +499,12 @@ func (s *RiskService) AddSubjectLink(riskID, subjectID uuid.UUID, actorUserID *u
 		return nil, err
 	}
 
-	tx := s.db.Begin()
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
 	link := RiskSubjectLink{RiskID: riskID, SubjectID: subjectID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
 	if createResult.Error != nil {
@@ -456,6 +515,11 @@ func (s *RiskService) AddSubjectLink(riskID, subjectID uuid.UUID, actorUserID *u
 		if err := s.logRiskEvent(tx, riskID, RiskEventTypeSubjectLink, actorUserID, datatypes.JSONMap{
 			"subjectId": subjectID.String(),
 		}); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := tx.Where("risk_id = ? AND subject_id = ?", riskID, subjectID).First(&link).Error; err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -652,4 +716,19 @@ func (s *RiskService) getRiskSnapshot(tx *gorm.DB, riskID uuid.UUID) (datatypes.
 	}
 
 	return snapshot, nil
+}
+
+func beginTx(db *gorm.DB) (*gorm.DB, error) {
+	tx := db.Begin()
+	if err := tx.Error; err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func rollbackTxOnPanic(tx *gorm.DB) {
+	if r := recover(); r != nil {
+		tx.Rollback()
+		panic(r)
+	}
 }

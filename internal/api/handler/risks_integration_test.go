@@ -98,6 +98,10 @@ func (suite *RiskApiIntegrationSuite) TestRiskCRUDAndFilter() {
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", createReq)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusCreated, rec.Code)
+	require.Contains(suite.T(), rec.Body.String(), "\"evidenceIds\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"controlLinks\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"componentIds\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"subjectIds\":[]")
 
 	var created GenericDataResponse[riskResponse]
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
@@ -306,10 +310,11 @@ func (suite *RiskApiIntegrationSuite) TestRiskControlComponentSubjectEndpointsAn
 	require.NoError(suite.T(), suite.DB.Create(&component).Error)
 
 	subjectID := uuid.New()
+	subjectSSPID := uuid.New()
 	subject := relational.AssessmentSubject{
 		UUIDModel: relational.UUIDModel{ID: &subjectID},
 		Type:      "component",
-		SSPID:     uuid.New(),
+		SSPID:     &subjectSSPID,
 	}
 	require.NoError(suite.T(), suite.DB.Create(&subject).Error)
 

@@ -1073,16 +1073,20 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 		AcceptanceJustification: risk.AcceptanceJustification,
 		FirstSeenAt:             risk.FirstSeenAt,
 		LastSeenAt:              risk.LastSeenAt,
+		OwnerAssignments:        make([]riskOwnerAssignmentResponse, 0, len(risk.OwnerAssignments)),
+		EvidenceIDs:             make([]uuid.UUID, 0),
+		ControlLinks:            make([]riskControlLinkResponse, 0),
+		ComponentIDs:            make([]uuid.UUID, 0),
+		SubjectIDs:              make([]uuid.UUID, 0),
 	}
 
-	response.OwnerAssignments = make([]riskOwnerAssignmentResponse, 0, len(risk.OwnerAssignments))
 	for _, owner := range risk.OwnerAssignments {
 		response.OwnerAssignments = append(response.OwnerAssignments, riskOwnerAssignmentResponse{OwnerKind: owner.OwnerKind, OwnerRef: owner.OwnerRef, IsPrimary: owner.IsPrimary})
 	}
 
-	response.EvidenceIDs = associations.EvidenceIDs
-	response.ComponentIDs = associations.ComponentIDs
-	response.SubjectIDs = associations.SubjectIDs
+	response.EvidenceIDs = append(response.EvidenceIDs, associations.EvidenceIDs...)
+	response.ComponentIDs = append(response.ComponentIDs, associations.ComponentIDs...)
+	response.SubjectIDs = append(response.SubjectIDs, associations.SubjectIDs...)
 
 	for _, link := range associations.ControlLinks {
 		response.ControlLinks = append(response.ControlLinks, riskControlLinkResponse{CatalogID: link.CatalogID, ControlID: link.ControlID})

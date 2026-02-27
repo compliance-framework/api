@@ -103,6 +103,8 @@ func TestRiskServiceCreateUpdateDeleteAndAuditRetention(t *testing.T) {
 	require.Zero(t, linkCount)
 	require.NoError(t, db.Model(&RiskSubjectLink{}).Where("risk_id = ?", *created.ID).Count(&linkCount).Error)
 	require.Zero(t, linkCount)
+	require.NoError(t, db.Model(&RiskOwnerAssignment{}).Where("risk_id = ?", *created.ID).Count(&linkCount).Error)
+	require.Zero(t, linkCount)
 
 	var retainedEvents int64
 	require.NoError(t, db.Model(&RiskEvent{}).Where("risk_id = ?", *created.ID).Count(&retainedEvents).Error)
@@ -141,10 +143,13 @@ func TestRiskServiceLinksAndAssociations(t *testing.T) {
 	require.NoError(t, db.Create(&testAssessmentSubjectRow{ID: subjectID}).Error)
 
 	actorID := uuid.New()
-	_, err := svc.AddEvidenceLink(riskID, evidenceID, &actorID)
+	evidenceLink, err := svc.AddEvidenceLink(riskID, evidenceID, &actorID)
 	require.NoError(t, err)
-	_, err = svc.AddEvidenceLink(riskID, evidenceID, &actorID)
+	require.False(t, evidenceLink.CreatedAt.IsZero())
+
+	evidenceLink, err = svc.AddEvidenceLink(riskID, evidenceID, &actorID)
 	require.NoError(t, err)
+	require.False(t, evidenceLink.CreatedAt.IsZero())
 
 	evidenceIDs, evidenceTotal, err := svc.ListEvidenceLinks(riskID, 10, 0)
 	require.NoError(t, err)
@@ -161,24 +166,42 @@ func TestRiskServiceLinksAndAssociations(t *testing.T) {
 	_, err = svc.AddEvidenceLink(riskID, evidenceID, &actorID)
 	require.NoError(t, err)
 
-	_, err = svc.AddControlLink(riskID, catalogID, "AC-2", &actorID)
+	controlLink, err := svc.AddControlLink(riskID, catalogID, "AC-2", &actorID)
 	require.NoError(t, err)
+	require.False(t, controlLink.CreatedAt.IsZero())
+
+	controlLink, err = svc.AddControlLink(riskID, catalogID, "AC-2", &actorID)
+	require.NoError(t, err)
+	require.False(t, controlLink.CreatedAt.IsZero())
+
 	controlLinks, controlTotal, err := svc.ListControlLinks(riskID, 10, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), controlTotal)
 	require.Len(t, controlLinks, 1)
 	require.Equal(t, "AC-2", controlLinks[0].ControlID)
 
-	_, err = svc.AddComponentLink(riskID, componentID, &actorID)
+	componentLink, err := svc.AddComponentLink(riskID, componentID, &actorID)
 	require.NoError(t, err)
+	require.False(t, componentLink.CreatedAt.IsZero())
+
+	componentLink, err = svc.AddComponentLink(riskID, componentID, &actorID)
+	require.NoError(t, err)
+	require.False(t, componentLink.CreatedAt.IsZero())
+
 	componentLinks, componentTotal, err := svc.ListComponentLinks(riskID, 10, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), componentTotal)
 	require.Len(t, componentLinks, 1)
 	require.Equal(t, componentID, componentLinks[0].ComponentID)
 
-	_, err = svc.AddSubjectLink(riskID, subjectID, &actorID)
+	subjectLink, err := svc.AddSubjectLink(riskID, subjectID, &actorID)
 	require.NoError(t, err)
+	require.False(t, subjectLink.CreatedAt.IsZero())
+
+	subjectLink, err = svc.AddSubjectLink(riskID, subjectID, &actorID)
+	require.NoError(t, err)
+	require.False(t, subjectLink.CreatedAt.IsZero())
+
 	subjectLinks, subjectTotal, err := svc.ListSubjectLinks(riskID, 10, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), subjectTotal)
