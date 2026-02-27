@@ -210,9 +210,6 @@ func (h *RiskHandler) List(ctx echo.Context) error {
 	}
 
 	for _, item := range items {
-		if item.ID == nil {
-			return h.internalServerError(ctx, "risk is missing id", fmt.Errorf("risk is missing id"))
-		}
 		associations := associationsByRiskID[*item.ID]
 		resp = append(resp, h.mapRiskToResponseWithAssociations(&item, associations))
 	}
