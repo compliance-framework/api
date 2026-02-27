@@ -28,6 +28,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceHandler := NewEvidenceHandler(logger, db, config)
 	evidenceHandler.Register(server.API().Group("/evidence"))
 
+	riskHandler := NewRiskHandler(logger, db)
+	riskGroup := server.API().Group("/risks")
+	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	riskHandler.Register(riskGroup)
+
 	userHandler := NewUserHandler(logger, db)
 
 	adminGroup := server.API().Group("/admin/users")

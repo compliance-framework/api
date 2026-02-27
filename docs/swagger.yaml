@@ -792,6 +792,13 @@ definitions:
         - $ref: '#/definitions/handler.SubscriptionsResponse'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_riskResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.riskResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-oscal_BuildByPropsResponse:
     properties:
       data:
@@ -1205,6 +1212,34 @@ definitions:
         - $ref: '#/definitions/relational.User'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-risks_RiskComponentLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/risks.RiskComponentLink'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-risks_RiskControlLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/risks.RiskControlLink'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-risks_RiskEvidenceLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/risks.RiskEvidenceLink'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-risks_RiskSubjectLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/risks.RiskSubjectLink'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-string:
     properties:
       data:
@@ -1326,6 +1361,28 @@ definitions:
     type: object
   handler.UserHandler:
     type: object
+  handler.addComponentLinkRequest:
+    properties:
+      componentId:
+        type: string
+    type: object
+  handler.addControlLinkRequest:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+    type: object
+  handler.addEvidenceLinkRequest:
+    properties:
+      evidenceId:
+        type: string
+    type: object
+  handler.addSubjectLinkRequest:
+    properties:
+      subjectId:
+        type: string
+    type: object
   handler.createFilterRequest:
     properties:
       components:
@@ -1343,6 +1400,148 @@ definitions:
     required:
     - filter
     - name
+    type: object
+  handler.createRiskRequest:
+    properties:
+      acceptanceJustification:
+        type: string
+      description:
+        type: string
+      impact:
+        type: string
+      lastReviewedAt:
+        type: string
+      likelihood:
+        type: string
+      ownerAssignments:
+        items:
+          $ref: '#/definitions/handler.riskOwnerAssignmentRequest'
+        type: array
+      primaryOwnerUserId:
+        type: string
+      reviewDeadline:
+        type: string
+      riskTemplateId:
+        type: string
+      sspId:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  handler.riskControlLinkResponse:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+    type: object
+  handler.riskOwnerAssignmentRequest:
+    properties:
+      isPrimary:
+        type: boolean
+      ownerKind:
+        type: string
+      ownerRef:
+        type: string
+    type: object
+  handler.riskOwnerAssignmentResponse:
+    properties:
+      isPrimary:
+        type: boolean
+      ownerKind:
+        type: string
+      ownerRef:
+        type: string
+    type: object
+  handler.riskResponse:
+    properties:
+      acceptanceJustification:
+        type: string
+      componentIds:
+        items:
+          type: string
+        type: array
+      controlLinks:
+        items:
+          $ref: '#/definitions/handler.riskControlLinkResponse'
+        type: array
+      createdAt:
+        type: string
+      dedupeKey:
+        type: string
+      description:
+        type: string
+      evidenceIds:
+        items:
+          type: string
+        type: array
+      firstSeenAt:
+        type: string
+      id:
+        type: string
+      impact:
+        type: string
+      lastReviewedAt:
+        type: string
+      lastSeenAt:
+        type: string
+      likelihood:
+        type: string
+      ownerAssignments:
+        items:
+          $ref: '#/definitions/handler.riskOwnerAssignmentResponse'
+        type: array
+      primaryOwnerUserId:
+        type: string
+      reviewDeadline:
+        type: string
+      riskTemplateId:
+        type: string
+      sourceType:
+        type: string
+      sspId:
+        type: string
+      status:
+        type: string
+      subjectIds:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  handler.updateRiskRequest:
+    properties:
+      acceptanceJustification:
+        type: string
+      description:
+        type: string
+      impact:
+        type: string
+      lastReviewedAt:
+        type: string
+      likelihood:
+        type: string
+      ownerAssignments:
+        items:
+          $ref: '#/definitions/handler.riskOwnerAssignmentRequest'
+        type: array
+      primaryOwnerUserId:
+        type: string
+      reviewDeadline:
+        type: string
+      reviewJustification:
+        type: string
+      riskTemplateId:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
     type: object
   labelfilter.Condition:
     properties:
@@ -4543,6 +4742,8 @@ definitions:
         type: array
       remarks:
         type: string
+      sspId:
+        type: string
       type:
         description: |-
           Type represents a component, party, location, user, or inventory item.
@@ -6382,6 +6583,127 @@ definitions:
         type: string
       userAttributes:
         type: string
+    type: object
+  risks.RiskComponentLink:
+    properties:
+      componentId:
+        type: string
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      riskId:
+        type: string
+    type: object
+  risks.RiskControlLink:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      riskId:
+        type: string
+    type: object
+  risks.RiskEvidenceLink:
+    properties:
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      evidenceId:
+        type: string
+      riskId:
+        type: string
+    type: object
+  risks.RiskSubjectLink:
+    properties:
+      createdAt:
+        type: string
+      createdById:
+        type: string
+      riskId:
+        type: string
+      subjectId:
+        type: string
+    type: object
+  service.ListResponse-handler_riskResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.riskResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-risks_RiskComponentLink:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/risks.RiskComponentLink'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-risks_RiskControlLink:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/risks.RiskControlLink'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-risks_RiskSubjectLink:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/risks.RiskSubjectLink'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-uuid_UUID:
+    properties:
+      data:
+        items:
+          type: string
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
     type: object
   time.Duration:
     enum:
@@ -18070,6 +18392,578 @@ paths:
       summary: Update a system user
       tags:
       - System Security Plans
+  /risks:
+    get:
+      consumes:
+      - application/json
+      description: Lists risk register entries with filtering, sorting, and pagination.
+      parameters:
+      - description: Risk status
+        in: query
+        name: status
+        type: string
+      - description: Risk likelihood
+        in: query
+        name: likelihood
+        type: string
+      - description: Risk impact
+        in: query
+        name: impact
+        type: string
+      - description: SSP ID
+        in: query
+        name: sspId
+        type: string
+      - description: Control ID
+        in: query
+        name: controlId
+        type: string
+      - description: Evidence ID
+        in: query
+        name: evidenceId
+        type: string
+      - description: Owner kind
+        in: query
+        name: ownerKind
+        type: string
+      - description: Owner reference
+        in: query
+        name: ownerRef
+        type: string
+      - description: Review deadline upper bound (RFC3339)
+        in: query
+        name: reviewDeadlineBefore
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Sort field
+        in: query
+        name: sort
+        type: string
+      - description: Sort order (asc|desc)
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risks
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Creates a risk register entry.
+      parameters:
+      - description: Risk payload
+        in: body
+        name: risk
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create risk
+      tags:
+      - Risks
+  /risks/{id}:
+    delete:
+      description: Deletes a risk register entry and link rows by ID.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk
+      tags:
+      - Risks
+    get:
+      description: Retrieves a risk register entry by ID.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk
+      tags:
+      - Risks
+    put:
+      consumes:
+      - application/json
+      description: Updates a risk register entry by ID.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk payload
+        in: body
+        name: risk
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update risk
+      tags:
+      - Risks
+  /risks/{id}/components:
+    get:
+      description: Lists components linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskComponentLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk component links
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Idempotently links a component to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Component link payload
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addComponentLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-risks_RiskComponentLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Link component to risk
+      tags:
+      - Risks
+  /risks/{id}/controls:
+    get:
+      description: Lists controls linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskControlLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk control links
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Idempotently links a control to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control link payload
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addControlLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-risks_RiskControlLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Link control to risk
+      tags:
+      - Risks
+  /risks/{id}/evidence:
+    get:
+      description: Lists evidence IDs linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-uuid_UUID'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk evidence links
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Idempotently links an evidence item to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence link payload
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addEvidenceLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-risks_RiskEvidenceLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Link evidence to risk
+      tags:
+      - Risks
+  /risks/{id}/evidence/{evidenceId}:
+    delete:
+      description: Deletes the link between a risk and evidence item.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence ID
+        in: path
+        name: evidenceId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk evidence link
+      tags:
+      - Risks
+  /risks/{id}/subjects:
+    get:
+      description: Lists subjects linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskSubjectLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk subject links
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Idempotently links a subject to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Subject link payload
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addSubjectLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-risks_RiskSubjectLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Link subject to risk
+      tags:
+      - Risks
   /users/{id}/change-password:
     post:
       consumes:

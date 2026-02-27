@@ -1223,6 +1223,7 @@ type AssessmentSubject struct {
 	// In our struct we don't store the type, but rather have relations to each of these, and when marhsalling and unmarshalling,
 	// setting the type to what we know it is.
 	UUIDModel
+	SSPID uuid.UUID `json:"sspId" gorm:"type:uuid;index"`
 
 	// Type represents a component, party, location, user, or inventory item.
 	// It will likely be updated once we can map it correctly
