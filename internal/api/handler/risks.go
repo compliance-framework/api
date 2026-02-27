@@ -154,7 +154,6 @@ type addSubjectLinkRequest struct {
 //	@Summary		List risks
 //	@Description	Lists risk register entries with filtering, sorting, and pagination.
 //	@Tags			Risks
-//	@Accept			json
 //	@Produce		json
 //	@Param			status					query		string	false	"Risk status"
 //	@Param			likelihood				query		string	false	"Risk likelihood"

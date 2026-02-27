@@ -16479,9 +16479,6 @@ const docTemplate = `{
         "/risks": {
             "get": {
                 "description": "Lists risk register entries with filtering, sorting, and pagination.",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],

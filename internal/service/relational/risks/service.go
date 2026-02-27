@@ -288,20 +288,23 @@ func (s *RiskService) ListEvidenceLinks(riskID uuid.UUID, limit, offset int) ([]
 }
 
 func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID *uuid.UUID) (*RiskEvidenceLink, error) {
-	if err := s.EnsureRiskExists(riskID); err != nil {
-		return nil, err
-	}
-
-	var evidence relational.Evidence
-	if err := s.db.Select("id").First(&evidence, "id = ?", evidenceID).Error; err != nil {
-		return nil, err
-	}
-
 	tx, err := beginTx(s.db)
 	if err != nil {
 		return nil, err
 	}
 	defer rollbackTxOnPanic(tx)
+
+	var risk Risk
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&risk, "id = ?", riskID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	var evidence relational.Evidence
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&evidence, "id = ?", evidenceID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	link := RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
@@ -372,20 +375,23 @@ func (s *RiskService) ListControlLinks(riskID uuid.UUID, limit, offset int) ([]R
 }
 
 func (s *RiskService) AddControlLink(riskID, catalogID uuid.UUID, controlID string, actorUserID *uuid.UUID) (*RiskControlLink, error) {
-	if err := s.EnsureRiskExists(riskID); err != nil {
-		return nil, err
-	}
-
-	var control relational.Control
-	if err := s.db.Select("id").First(&control, "catalog_id = ? AND id = ?", catalogID, controlID).Error; err != nil {
-		return nil, err
-	}
-
 	tx, err := beginTx(s.db)
 	if err != nil {
 		return nil, err
 	}
 	defer rollbackTxOnPanic(tx)
+
+	var risk Risk
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&risk, "id = ?", riskID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	var control relational.Control
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&control, "catalog_id = ? AND id = ?", catalogID, controlID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	link := RiskControlLink{RiskID: riskID, CatalogID: catalogID, ControlID: controlID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)

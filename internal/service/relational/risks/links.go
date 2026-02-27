@@ -11,6 +11,7 @@ type RiskEvidenceLink struct {
 	EvidenceID  uuid.UUID  `json:"evidenceId" gorm:"type:uuid;primaryKey;index"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	CreatedByID *uuid.UUID `json:"createdById" gorm:"type:uuid;index"`
+	Risk        *Risk      `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskEvidenceLink) TableName() string {
@@ -23,6 +24,7 @@ type RiskControlLink struct {
 	ControlID   string     `json:"controlId" gorm:"type:text;primaryKey;index"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	CreatedByID *uuid.UUID `json:"createdById" gorm:"type:uuid;index"`
+	Risk        *Risk      `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskControlLink) TableName() string {
@@ -34,6 +36,7 @@ type RiskComponentLink struct {
 	ComponentID uuid.UUID  `json:"componentId" gorm:"type:uuid;primaryKey;index"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	CreatedByID *uuid.UUID `json:"createdById" gorm:"type:uuid;index"`
+	Risk        *Risk      `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskComponentLink) TableName() string {
@@ -45,6 +48,7 @@ type RiskSubjectLink struct {
 	SubjectID   uuid.UUID  `json:"subjectId" gorm:"type:uuid;primaryKey;index"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	CreatedByID *uuid.UUID `json:"createdById" gorm:"type:uuid;index"`
+	Risk        *Risk      `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskSubjectLink) TableName() string {
@@ -57,6 +61,7 @@ type RiskOwnerAssignment struct {
 	OwnerRef  string    `json:"ownerRef" gorm:"type:text;primaryKey"`
 	IsPrimary bool      `json:"isPrimary" gorm:"not null;default:false;index"`
 	CreatedAt time.Time `json:"createdAt"`
+	Risk      *Risk     `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskOwnerAssignment) TableName() string {

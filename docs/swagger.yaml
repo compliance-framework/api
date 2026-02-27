@@ -18394,8 +18394,6 @@ paths:
       - System Security Plans
   /risks:
     get:
-      consumes:
-      - application/json
       description: Lists risk register entries with filtering, sorting, and pagination.
       parameters:
       - description: Risk status
