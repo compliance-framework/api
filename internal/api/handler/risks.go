@@ -271,7 +271,19 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 	if !riskrel.RiskStatus(status).IsValid() {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid status: %s", status)))
 	}
-	if err := validateAcceptedRequirements(status, req.ReviewDeadline, req.AcceptanceJustification); err != nil {
+
+	var reviewDeadline *time.Time
+	if req.ReviewDeadline != nil {
+		reviewDeadlineUTC := req.ReviewDeadline.UTC()
+		reviewDeadline = &reviewDeadlineUTC
+	}
+	var lastReviewedAt *time.Time
+	if req.LastReviewedAt != nil {
+		lastReviewedAtUTC := req.LastReviewedAt.UTC()
+		lastReviewedAt = &lastReviewedAtUTC
+	}
+
+	if err := validateAcceptedRequirements(status, reviewDeadline, req.AcceptanceJustification); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
@@ -288,8 +300,8 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 			Impact:                  req.Impact,
 			RiskTemplateID:          req.RiskTemplateID,
 			SourceType:              string(riskrel.RiskSourceTypeManual),
-			ReviewDeadline:          req.ReviewDeadline,
-			LastReviewedAt:          req.LastReviewedAt,
+			ReviewDeadline:          reviewDeadline,
+			LastReviewedAt:          lastReviewedAt,
 			AcceptanceJustification: req.AcceptanceJustification,
 			FirstSeenAt:             now,
 			LastSeenAt:              now,
@@ -440,7 +452,9 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		if req.AcceptanceJustification != nil {
 			risk.AcceptanceJustification = req.AcceptanceJustification
 		}
+		effectivePrimaryOwnerUserID := risk.PrimaryOwnerUserID
 		if req.PrimaryOwnerUserID != nil {
+			effectivePrimaryOwnerUserID = req.PrimaryOwnerUserID
 			risk.PrimaryOwnerUserID = req.PrimaryOwnerUserID
 		}
 
@@ -453,7 +467,7 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		if req.OwnerAssignments != nil {
 			ownerAssignments = toOwnerAssignments(*req.OwnerAssignments)
 		}
-		ownerAssignments = normalizeOwnerAssignmentsForPrimaryOwner(ownerAssignments, req.PrimaryOwnerUserID)
+		ownerAssignments = normalizeOwnerAssignmentsForPrimaryOwner(ownerAssignments, effectivePrimaryOwnerUserID)
 
 		recordReview := req.LastReviewedAt != nil || req.ReviewDeadline != nil || req.ReviewJustification != nil
 		var reviewedAt *time.Time
@@ -466,7 +480,7 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 			Risk:                    risk,
 			ReplaceOwnerAssignments: replaceOwnerAssignments,
 			OwnerAssignments:        ownerAssignments,
-			PrimaryOwnerUserID:      req.PrimaryOwnerUserID,
+			PrimaryOwnerUserID:      effectivePrimaryOwnerUserID,
 			ActorUserID:             actorID,
 			OldStatus:               oldStatus,
 			StatusChanged:           statusChanged,

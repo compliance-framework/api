@@ -610,6 +610,61 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdatePrimaryOwnerUserIDNormalizes
 	require.False(suite.T(), groupAssignment.IsPrimary)
 }
 
+func (suite *RiskApiIntegrationSuite) TestRiskUpdateReplacingOwnerAssignmentsPreservesExistingPrimaryOwnerUser() {
+	primaryOwnerID := uuid.New()
+	created := suite.createRisk(map[string]any{
+		"title":              "Update owner replacement preserves canonical primary owner",
+		"description":        "ownerAssignments replacement should keep existing primaryOwnerUserId",
+		"sspId":              suite.newSSPID(),
+		"primaryOwnerUserId": primaryOwnerID.String(),
+		"ownerAssignments": []map[string]any{
+			{"ownerKind": "group", "ownerRef": "legacy", "isPrimary": true},
+		},
+	})
+
+	updateRec, updateReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
+		"ownerAssignments": []map[string]any{
+			{"ownerKind": "group", "ownerRef": "new-group", "isPrimary": true},
+			{"ownerKind": "role", "ownerRef": "security-reviewers", "isPrimary": false},
+		},
+	})
+	suite.server.E().ServeHTTP(updateRec, updateReq)
+	require.Equal(suite.T(), http.StatusOK, updateRec.Code)
+
+	var updated GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(updateRec.Body.Bytes(), &updated))
+	require.NotNil(suite.T(), updated.Data.PrimaryOwnerUserID)
+	require.Equal(suite.T(), primaryOwnerID, *updated.Data.PrimaryOwnerUserID)
+
+	var primaryCount int
+	var primaryUserAssignment *riskOwnerAssignmentResponse
+	var newGroupAssignment *riskOwnerAssignmentResponse
+	var roleAssignment *riskOwnerAssignmentResponse
+	for i := range updated.Data.OwnerAssignments {
+		assignment := &updated.Data.OwnerAssignments[i]
+		if assignment.IsPrimary {
+			primaryCount++
+		}
+		if assignment.OwnerKind == "user" && assignment.OwnerRef == primaryOwnerID.String() {
+			primaryUserAssignment = assignment
+		}
+		if assignment.OwnerKind == "group" && assignment.OwnerRef == "new-group" {
+			newGroupAssignment = assignment
+		}
+		if assignment.OwnerKind == "role" && assignment.OwnerRef == "security-reviewers" {
+			roleAssignment = assignment
+		}
+	}
+
+	require.Equal(suite.T(), 1, primaryCount)
+	require.NotNil(suite.T(), primaryUserAssignment)
+	require.True(suite.T(), primaryUserAssignment.IsPrimary)
+	require.NotNil(suite.T(), newGroupAssignment)
+	require.False(suite.T(), newGroupAssignment.IsPrimary)
+	require.NotNil(suite.T(), roleAssignment)
+	require.False(suite.T(), roleAssignment.IsPrimary)
+}
+
 func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches() {
 	created := suite.createRisk(map[string]any{
 		"title":       "NotFound target risk",
@@ -755,7 +810,9 @@ func (suite *RiskApiIntegrationSuite) TestRiskGetAndDeleteMeaningfulErrorBranche
 func (suite *RiskApiIntegrationSuite) TestRiskCreateWithOptionalFieldsAndDefaultStatus() {
 	firstSeenAt := time.Now().Add(-72 * time.Hour).UTC().Truncate(time.Second)
 	lastSeenAt := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Second)
-	reviewDeadline := time.Now().Add(14 * 24 * time.Hour).UTC().Truncate(time.Second)
+	localTZ := time.FixedZone("UTC-03", -3*60*60)
+	reviewDeadline := time.Now().Add(14 * 24 * time.Hour).In(localTZ).Truncate(time.Second)
+	lastReviewedAt := time.Now().Add(-2 * time.Hour).In(localTZ).Truncate(time.Second)
 
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", map[string]any{
 		"title":          "Optional field create",
@@ -765,6 +822,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateWithOptionalFieldsAndDefault
 		"firstSeenAt":    firstSeenAt.Format(time.RFC3339),
 		"lastSeenAt":     lastSeenAt.Format(time.RFC3339),
 		"reviewDeadline": reviewDeadline.Format(time.RFC3339),
+		"lastReviewedAt": lastReviewedAt.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusCreated, rec.Code)
@@ -777,7 +835,9 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateWithOptionalFieldsAndDefault
 	require.False(suite.T(), created.Data.FirstSeenAt.Equal(firstSeenAt))
 	require.False(suite.T(), created.Data.LastSeenAt.Equal(lastSeenAt))
 	require.NotNil(suite.T(), created.Data.ReviewDeadline)
-	require.WithinDuration(suite.T(), reviewDeadline, *created.Data.ReviewDeadline, time.Second)
+	require.WithinDuration(suite.T(), reviewDeadline.UTC(), *created.Data.ReviewDeadline, time.Second)
+	require.NotNil(suite.T(), created.Data.LastReviewedAt)
+	require.WithinDuration(suite.T(), lastReviewedAt.UTC(), *created.Data.LastReviewedAt, time.Second)
 }
 
 func (suite *RiskApiIntegrationSuite) TestRiskUpdateWithoutStatusTransitionRecordsReview() {
