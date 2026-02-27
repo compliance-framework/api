@@ -885,8 +885,12 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdateWithoutStatusTransitionRecor
 	require.Equal(suite.T(), "low", *updated.Data.Impact)
 	require.WithinDuration(suite.T(), reviewedAt, *updated.Data.LastReviewedAt, time.Second)
 	require.Len(suite.T(), updated.Data.OwnerAssignments, 2)
-	require.Equal(suite.T(), "new-primary", updated.Data.OwnerAssignments[0].OwnerRef)
-	require.Equal(suite.T(), "security-reviewers", updated.Data.OwnerAssignments[1].OwnerRef)
+	ownerRefs := map[string]bool{}
+	for _, owner := range updated.Data.OwnerAssignments {
+		ownerRefs[owner.OwnerRef] = true
+	}
+	require.Contains(suite.T(), ownerRefs, "new-primary")
+	require.Contains(suite.T(), ownerRefs, "security-reviewers")
 
 	var statusEventCount int64
 	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).

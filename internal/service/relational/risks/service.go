@@ -424,7 +424,7 @@ func (s *RiskService) ListComponentLinks(riskID uuid.UUID, limit, offset int) ([
 	}
 
 	var links []RiskComponentLink
-	if err := q.Limit(limit).Offset(offset).Find(&links).Error; err != nil {
+	if err := q.Order("created_at desc, component_id asc").Limit(limit).Offset(offset).Find(&links).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -482,7 +482,7 @@ func (s *RiskService) ListSubjectLinks(riskID uuid.UUID, limit, offset int) ([]R
 	}
 
 	var links []RiskSubjectLink
-	if err := q.Limit(limit).Offset(offset).Find(&links).Error; err != nil {
+	if err := q.Order("created_at desc, subject_id asc").Limit(limit).Offset(offset).Find(&links).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -625,7 +625,17 @@ func (s *RiskService) replaceOwnerAssignments(tx *gorm.DB, riskID uuid.UUID, ass
 
 	rows := append([]RiskOwnerAssignment{}, assignments...)
 	if primaryOwnerUserID != nil {
-		rows = append(rows, RiskOwnerAssignment{RiskID: riskID, OwnerKind: "user", OwnerRef: primaryOwnerUserID.String(), IsPrimary: true})
+		primaryOwnerRef := primaryOwnerUserID.String()
+		normalizedRows := make([]RiskOwnerAssignment, 0, len(rows)+1)
+		for _, row := range rows {
+			if row.OwnerKind == "user" && row.OwnerRef == primaryOwnerRef {
+				continue
+			}
+			row.IsPrimary = false
+			normalizedRows = append(normalizedRows, row)
+		}
+		normalizedRows = append(normalizedRows, RiskOwnerAssignment{RiskID: riskID, OwnerKind: "user", OwnerRef: primaryOwnerRef, IsPrimary: true})
+		rows = normalizedRows
 	}
 
 	seen := map[string]struct{}{}

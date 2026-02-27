@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -1094,7 +1095,17 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 		SubjectIDs:              make([]uuid.UUID, 0),
 	}
 
-	for _, owner := range risk.OwnerAssignments {
+	owners := append([]riskrel.RiskOwnerAssignment{}, risk.OwnerAssignments...)
+	sort.SliceStable(owners, func(i, j int) bool {
+		if owners[i].IsPrimary != owners[j].IsPrimary {
+			return owners[i].IsPrimary
+		}
+		if owners[i].OwnerKind != owners[j].OwnerKind {
+			return owners[i].OwnerKind < owners[j].OwnerKind
+		}
+		return owners[i].OwnerRef < owners[j].OwnerRef
+	})
+	for _, owner := range owners {
 		response.OwnerAssignments = append(response.OwnerAssignments, riskOwnerAssignmentResponse{OwnerKind: owner.OwnerKind, OwnerRef: owner.OwnerRef, IsPrimary: owner.IsPrimary})
 	}
 
