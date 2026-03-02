@@ -2,7 +2,7 @@ package risks
 
 import "github.com/google/uuid"
 
-// TODO[codex-5-3-high]: Implemented as requested in the risk-register plan, but currently dead code. Consider removing after full implementation is done.
+// AssessmentSubjectLabel stores stable identity labels used by risk and template flows.
 type AssessmentSubjectLabel struct {
 	AssessmentSubjectID uuid.UUID `json:"assessmentSubjectId" gorm:"type:uuid;primaryKey"`
 	Key                 string    `json:"key" gorm:"type:text;primaryKey;index:idx_assessment_subject_label_key_value,priority:1"`
