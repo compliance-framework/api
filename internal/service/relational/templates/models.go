@@ -101,7 +101,7 @@ func (SubjectTemplate) TableName() string {
 
 type SubjectTemplateSelectorLabel struct {
 	relational.UUIDModel
-	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;index;uniqueIndex:idx_subject_template_selector_labels_template_key,priority:1"`
+	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;uniqueIndex:idx_subject_template_selector_labels_template_key,priority:1"`
 
 	Key   string `json:"key" gorm:"type:text;not null;uniqueIndex:idx_subject_template_selector_labels_template_key,priority:2"`
 	Value string `json:"value" gorm:"type:text;not null"`
@@ -113,7 +113,7 @@ func (SubjectTemplateSelectorLabel) TableName() string {
 
 type SubjectTemplateLabelSchemaField struct {
 	relational.UUIDModel
-	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;index;uniqueIndex:idx_subject_template_label_schema_fields_template_key,priority:1"`
+	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;uniqueIndex:idx_subject_template_label_schema_fields_template_key,priority:1"`
 
 	Key         string  `json:"key" gorm:"type:text;not null;uniqueIndex:idx_subject_template_label_schema_fields_template_key,priority:2"`
 	Description *string `json:"description" gorm:"type:text"`

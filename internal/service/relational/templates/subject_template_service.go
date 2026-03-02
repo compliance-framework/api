@@ -588,6 +588,10 @@ func (s *SubjectTemplateService) ResolveOrUpsertSystemComponent(input ResolveOrU
 		existingComponent, fetchErr := fetchSystemComponentByID(tx, *existingComponentID)
 		if fetchErr != nil {
 			if errors.Is(fetchErr, gorm.ErrRecordNotFound) {
+				if err := deleteStaleSystemComponentLabels(tx, *existingComponentID); err != nil {
+					tx.Rollback()
+					return nil, err
+				}
 				if err := deleteStaleSystemComponentIdentity(tx, template.Type, identityHash, systemImplementationID); err != nil {
 					tx.Rollback()
 					return nil, err
@@ -833,6 +837,12 @@ func deleteStaleSystemComponentIdentity(tx *gorm.DB, entityType, identityHash st
 			systemImplementationID,
 		).
 		Delete(&SystemComponentIdentity{}).Error
+}
+
+func deleteStaleSystemComponentLabels(tx *gorm.DB, systemComponentID uuid.UUID) error {
+	return tx.
+		Where("system_component_id = ?", systemComponentID).
+		Delete(&riskrel.SystemComponentLabel{}).Error
 }
 
 func buildEntityIdentityHash(entityType string, labels []identityLabelPair) string {

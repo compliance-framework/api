@@ -412,6 +412,12 @@ func TestSubjectTemplateService_ResolveOrUpsertSystemComponentRecoversFromStaleI
 	require.NoError(t, err)
 	require.NotNil(t, first.ID)
 
+	require.NoError(t, db.Create(&riskrel.SystemComponentLabel{
+		SystemComponentID: *first.ID,
+		Key:               "orphan",
+		Value:             "true",
+	}).Error)
+
 	require.NoError(t, db.Table("system_components").Delete(&subjectResolverSystemComponentRow{}, "id = ?", *first.ID).Error)
 
 	second, err := svc.ResolveOrUpsertSystemComponent(ResolveOrUpsertSystemComponentInput{
@@ -429,6 +435,10 @@ func TestSubjectTemplateService_ResolveOrUpsertSystemComponentRecoversFromStaleI
 	var identity SystemComponentIdentity
 	require.NoError(t, db.First(&identity).Error)
 	require.Equal(t, *second.ID, identity.SystemComponentID)
+
+	var orphanLabelCount int64
+	require.NoError(t, db.Model(&riskrel.SystemComponentLabel{}).Where("system_component_id = ?", *first.ID).Count(&orphanLabelCount).Error)
+	require.Equal(t, int64(0), orphanLabelCount)
 }
 
 func TestSubjectTemplateService_ValidationErrors(t *testing.T) {
