@@ -93,11 +93,17 @@ type RiskTemplatePayload struct {
 func (s *RiskTemplateService) List(params RiskTemplateListParams) ([]RiskTemplate, int64, error) {
 	query := s.db.Model(&RiskTemplate{})
 
-	if params.Filters.PluginID != nil && *params.Filters.PluginID != "" {
-		query = query.Where("plugin_id = ?", *params.Filters.PluginID)
+	if params.Filters.PluginID != nil {
+		pluginID := strings.TrimSpace(*params.Filters.PluginID)
+		if pluginID != "" {
+			query = query.Where("plugin_id = ?", pluginID)
+		}
 	}
-	if params.Filters.PolicyPackage != nil && *params.Filters.PolicyPackage != "" {
-		query = query.Where("policy_package = ?", *params.Filters.PolicyPackage)
+	if params.Filters.PolicyPackage != nil {
+		policyPackage := strings.TrimSpace(*params.Filters.PolicyPackage)
+		if policyPackage != "" {
+			query = query.Where("policy_package = ?", policyPackage)
+		}
 	}
 	if params.Filters.IsActive != nil {
 		query = query.Where("is_active = ?", *params.Filters.IsActive)
@@ -128,7 +134,7 @@ func (s *RiskTemplateService) GetByID(id uuid.UUID) (*RiskTemplate, error) {
 }
 
 func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate, error) {
-	if err := validateRiskTemplatePayload(payload); err != nil {
+	if err := validateRiskTemplatePayload(&payload); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +218,7 @@ func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate
 }
 
 func (s *RiskTemplateService) Update(id uuid.UUID, payload RiskTemplatePayload) (*RiskTemplate, error) {
-	if err := validateRiskTemplatePayload(payload); err != nil {
+	if err := validateRiskTemplatePayload(&payload); err != nil {
 		return nil, err
 	}
 
@@ -376,7 +382,13 @@ func upsertRemediationTemplate(tx *gorm.DB, remediationTemplateID *uuid.UUID, in
 	return row, nil
 }
 
-func validateRiskTemplatePayload(payload RiskTemplatePayload) error {
+func validateRiskTemplatePayload(payload *RiskTemplatePayload) error {
+	if payload == nil {
+		return newValidationError("payload is required")
+	}
+
+	normalizeRiskTemplatePayload(payload)
+
 	if err := validateRequiredText("pluginId", payload.PluginID); err != nil {
 		return err
 	}
@@ -421,6 +433,42 @@ func rollbackTxOnPanic(tx *gorm.DB) {
 	if r := recover(); r != nil {
 		tx.Rollback()
 		panic(r)
+	}
+}
+
+func normalizeRiskTemplatePayload(payload *RiskTemplatePayload) {
+	payload.PluginID = strings.TrimSpace(payload.PluginID)
+	payload.PolicyPackage = strings.TrimSpace(payload.PolicyPackage)
+	payload.Name = strings.TrimSpace(payload.Name)
+	payload.Title = strings.TrimSpace(payload.Title)
+	payload.Statement = strings.TrimSpace(payload.Statement)
+
+	for i := range payload.ViolationIDs {
+		payload.ViolationIDs[i] = strings.TrimSpace(payload.ViolationIDs[i])
+	}
+
+	for i := range payload.ThreatRefs {
+		payload.ThreatRefs[i].System = strings.TrimSpace(payload.ThreatRefs[i].System)
+		payload.ThreatRefs[i].ExternalID = strings.TrimSpace(payload.ThreatRefs[i].ExternalID)
+		payload.ThreatRefs[i].Title = strings.TrimSpace(payload.ThreatRefs[i].Title)
+		if payload.ThreatRefs[i].URL != nil {
+			normalizedURL := strings.TrimSpace(*payload.ThreatRefs[i].URL)
+			payload.ThreatRefs[i].URL = &normalizedURL
+		}
+	}
+
+	if payload.RemediationTemplate == nil {
+		return
+	}
+
+	payload.RemediationTemplate.Title = strings.TrimSpace(payload.RemediationTemplate.Title)
+	if payload.RemediationTemplate.Description != nil {
+		normalizedDescription := strings.TrimSpace(*payload.RemediationTemplate.Description)
+		payload.RemediationTemplate.Description = &normalizedDescription
+	}
+
+	for i := range payload.RemediationTemplate.Tasks {
+		payload.RemediationTemplate.Tasks[i].Title = strings.TrimSpace(payload.RemediationTemplate.Tasks[i].Title)
 	}
 }
 
@@ -534,17 +582,20 @@ func validateRemediationTemplate(remediation *RemediationTemplateInput) error {
 }
 
 func validateRequiredText(field, value string) error {
-	if strings.TrimSpace(value) == "" {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
 		return newValidationError(fmt.Sprintf("%s is required", field))
 	}
-	return validateTextLength(field, value)
+	return validateTextLength(field, normalized)
 }
 
 func validateOptionalText(field string, value *string) error {
 	if value == nil {
 		return nil
 	}
-	return validateTextLength(field, *value)
+	normalized := strings.TrimSpace(*value)
+	*value = normalized
+	return validateTextLength(field, normalized)
 }
 
 func validateOptionalRiskLevel(field string, level *string) error {

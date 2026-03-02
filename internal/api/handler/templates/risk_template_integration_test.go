@@ -318,13 +318,13 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateRemediationRemoval
 	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplateThreatRef{}).Where("risk_template_id = ?", created.Data.ID).Count(&threatRefCountBeforeDelete).Error)
 	require.Equal(suite.T(), int64(1), threatRefCountBeforeDelete)
 
-	var remediationTemplateCountBeforeDelete int64
-	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTemplate{}).Where("id = ?", created.Data.Remediation.ID).Count(&remediationTemplateCountBeforeDelete).Error)
-	require.Equal(suite.T(), int64(0), remediationTemplateCountBeforeDelete)
+	var remediationTemplateCountAfterUpdate int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTemplate{}).Where("id = ?", created.Data.Remediation.ID).Count(&remediationTemplateCountAfterUpdate).Error)
+	require.Equal(suite.T(), int64(0), remediationTemplateCountAfterUpdate)
 
-	var remediationTaskCountBeforeDelete int64
-	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTask{}).Where("remediation_template_id = ?", created.Data.Remediation.ID).Count(&remediationTaskCountBeforeDelete).Error)
-	require.Equal(suite.T(), int64(0), remediationTaskCountBeforeDelete)
+	var remediationTaskCountAfterUpdate int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTask{}).Where("remediation_template_id = ?", created.Data.Remediation.ID).Count(&remediationTaskCountAfterUpdate).Error)
+	require.Equal(suite.T(), int64(0), remediationTaskCountAfterUpdate)
 
 	deleteRec, deleteCall := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(deleteRec, deleteCall)

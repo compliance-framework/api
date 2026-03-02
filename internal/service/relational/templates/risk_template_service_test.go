@@ -14,29 +14,29 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 	svc := NewRiskTemplateService(db)
 
 	created, err := svc.Create(RiskTemplatePayload{
-		PluginID:       "github-repositories",
-		PolicyPackage:  "compliance_framework.secret_scanning_enabled",
-		Name:           "Secret scanning risk template",
-		Title:          "Undetected secrets committed to repository",
-		Statement:      "Secret scanning is disabled and secrets may leak.",
+		PluginID:       " github-repositories ",
+		PolicyPackage:  " compliance_framework.secret_scanning_enabled ",
+		Name:           " Secret scanning risk template ",
+		Title:          " Undetected secrets committed to repository ",
+		Statement:      " Secret scanning is disabled and secrets may leak. ",
 		LikelihoodHint: strPtr("medium"),
 		ImpactHint:     strPtr("high"),
-		ViolationIDs:   []string{"missing_secret_scanning"},
+		ViolationIDs:   []string{" missing_secret_scanning "},
 		IsActive:       boolPtr(true),
 		ThreatRefs: []ThreatRefInput{
 			{
-				System:     "https://cwe.mitre.org",
-				ExternalID: "CWE-312",
-				Title:      "Cleartext Storage of Sensitive Information",
-				URL:        strPtr("https://cwe.mitre.org/data/definitions/312.html"),
+				System:     " https://cwe.mitre.org ",
+				ExternalID: " CWE-312 ",
+				Title:      " Cleartext Storage of Sensitive Information ",
+				URL:        strPtr(" https://cwe.mitre.org/data/definitions/312.html "),
 			},
 		},
 		RemediationTemplate: &RemediationTemplateInput{
-			Title:       "Enable secret scanning",
-			Description: strPtr("Enable and verify scanning in repository settings."),
+			Title:       " Enable secret scanning ",
+			Description: strPtr(" Enable and verify scanning in repository settings. "),
 			Tasks: []RemediationTaskInput{
-				{Title: "Enable in repository settings", OrderIndex: 1},
-				{Title: "Run baseline scan", OrderIndex: 2},
+				{Title: " Enable in repository settings ", OrderIndex: 1},
+				{Title: " Run baseline scan ", OrderIndex: 2},
 			},
 		},
 	})
@@ -46,10 +46,26 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 	require.Len(t, created.ThreatRefs, 1)
 	require.NotNil(t, created.RemediationTemplate)
 	require.Len(t, created.RemediationTemplate.Tasks, 2)
+	require.Equal(t, "github-repositories", created.PluginID)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", created.PolicyPackage)
+	require.Equal(t, "Secret scanning risk template", created.Name)
+	require.Equal(t, "Undetected secrets committed to repository", created.Title)
+	require.Equal(t, "Secret scanning is disabled and secrets may leak.", created.Statement)
+	require.Equal(t, "missing_secret_scanning", created.ViolationIDs[0])
+	require.Equal(t, "https://cwe.mitre.org", created.ThreatRefs[0].System)
+	require.Equal(t, "CWE-312", created.ThreatRefs[0].ExternalID)
+	require.Equal(t, "Cleartext Storage of Sensitive Information", created.ThreatRefs[0].Title)
+	require.NotNil(t, created.ThreatRefs[0].URL)
+	require.Equal(t, "https://cwe.mitre.org/data/definitions/312.html", *created.ThreatRefs[0].URL)
+	require.Equal(t, "Enable secret scanning", created.RemediationTemplate.Title)
+	require.NotNil(t, created.RemediationTemplate.Description)
+	require.Equal(t, "Enable and verify scanning in repository settings.", *created.RemediationTemplate.Description)
+	require.Equal(t, "Enable in repository settings", created.RemediationTemplate.Tasks[0].Title)
+	require.Equal(t, "Run baseline scan", created.RemediationTemplate.Tasks[1].Title)
 
 	filters := RiskTemplateListFilters{
-		PluginID:      strPtr("github-repositories"),
-		PolicyPackage: strPtr("compliance_framework.secret_scanning_enabled"),
+		PluginID:      strPtr(" github-repositories "),
+		PolicyPackage: strPtr(" compliance_framework.secret_scanning_enabled "),
 		IsActive:      boolPtr(true),
 	}
 	rows, total, err := svc.List(RiskTemplateListParams{
@@ -69,26 +85,26 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 	require.Len(t, got.RemediationTemplate.Tasks, 2)
 
 	updated, err := svc.Update(*created.ID, RiskTemplatePayload{
-		PluginID:       "github-repositories",
-		PolicyPackage:  "compliance_framework.secret_scanning_enabled",
-		Name:           "Secret scanning risk template (updated)",
-		Title:          "Undetected secrets committed to repository (updated)",
-		Statement:      "Updated statement.",
+		PluginID:       " github-repositories ",
+		PolicyPackage:  " compliance_framework.secret_scanning_enabled ",
+		Name:           " Secret scanning risk template (updated) ",
+		Title:          " Undetected secrets committed to repository (updated) ",
+		Statement:      " Updated statement. ",
 		LikelihoodHint: strPtr("low"),
 		ImpactHint:     strPtr("medium"),
-		ViolationIDs:   []string{"missing_secret_scanning", "missing_push_protection"},
+		ViolationIDs:   []string{" missing_secret_scanning ", " missing_push_protection "},
 		IsActive:       boolPtr(false),
 		ThreatRefs: []ThreatRefInput{
 			{
-				System:     "https://cwe.mitre.org",
-				ExternalID: "CWE-200",
-				Title:      "Exposure of Sensitive Information to an Unauthorized Actor",
+				System:     " https://cwe.mitre.org ",
+				ExternalID: " CWE-200 ",
+				Title:      " Exposure of Sensitive Information to an Unauthorized Actor ",
 			},
 		},
 		RemediationTemplate: &RemediationTemplateInput{
-			Title: "Enable secret scanning and push protection",
+			Title: " Enable secret scanning and push protection ",
 			Tasks: []RemediationTaskInput{
-				{Title: "Enable secret scanning", OrderIndex: 1},
+				{Title: " Enable secret scanning ", OrderIndex: 1},
 			},
 		},
 	})
@@ -100,6 +116,7 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 	require.NotNil(t, updated.RemediationTemplate)
 	require.Equal(t, "Enable secret scanning and push protection", updated.RemediationTemplate.Title)
 	require.Len(t, updated.RemediationTemplate.Tasks, 1)
+	require.Equal(t, "Enable secret scanning", updated.RemediationTemplate.Tasks[0].Title)
 }
 
 func TestRiskTemplateService_ValidateViolationMatch(t *testing.T) {
