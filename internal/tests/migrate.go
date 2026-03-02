@@ -6,6 +6,7 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"gorm.io/gorm"
 )
 
@@ -126,6 +127,10 @@ func (t *TestMigrator) Up() error {
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.InventoryItemLabel{},
 		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 
 		&relational.Profile{},
 		&relational.Import{},
@@ -288,6 +293,10 @@ func (t *TestMigrator) Down() error {
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.InventoryItemLabel{},
 		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 		"finding_related_observations",
 		"finding_related_risks",
 		"poam_item_related_observations",

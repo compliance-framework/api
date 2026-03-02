@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/compliance-framework/api/internal/api"
+	templatehandlers "github.com/compliance-framework/api/internal/api/handler/templates"
 	"github.com/compliance-framework/api/internal/api/handler/workflows"
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
@@ -32,6 +33,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	riskGroup := server.API().Group("/risks")
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup)
+
+	riskTemplateHandler := templatehandlers.NewRiskTemplateHandler(logger, db)
+	riskTemplateGroup := server.API().Group("/risk-templates")
+	riskTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	riskTemplateHandler.Register(riskTemplateGroup)
 
 	userHandler := NewUserHandler(logger, db)
 
