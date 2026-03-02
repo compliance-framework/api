@@ -179,6 +179,13 @@ func TestRiskTemplateService_CreateValidationErrors(t *testing.T) {
 			message: "violationIds must contain at most 100 items",
 		},
 		{
+			name: "violation ids cannot be empty",
+			mutate: func(payload *RiskTemplatePayload) {
+				payload.ViolationIDs = []string{"   "}
+			},
+			message: "violationIds entries must be non-empty",
+		},
+		{
 			name: "duplicate threat refs",
 			mutate: func(payload *RiskTemplatePayload) {
 				payload.ThreatRefs = append(payload.ThreatRefs, payload.ThreatRefs[0])

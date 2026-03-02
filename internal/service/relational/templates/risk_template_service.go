@@ -413,6 +413,9 @@ func validateRiskTemplatePayload(payload *RiskTemplatePayload) error {
 	if err := validateMaxItems("violationIds", len(payload.ViolationIDs), maxViolationIDsPerTemplate); err != nil {
 		return err
 	}
+	if err := validateNonEmptyStringSlice("violationIds", payload.ViolationIDs); err != nil {
+		return err
+	}
 	if err := validateStringSliceLength("violationIds", payload.ViolationIDs); err != nil {
 		return err
 	}
@@ -624,6 +627,15 @@ func validateStringSliceLength(field string, values []string) error {
 	for _, value := range values {
 		if err := validateTextLength(field, value); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func validateNonEmptyStringSlice(field string, values []string) error {
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			return newValidationError(fmt.Sprintf("%s entries must be non-empty", field))
 		}
 	}
 	return nil
