@@ -44,6 +44,11 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	subjectTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	subjectTemplateHandler.Register(subjectTemplateGroup)
 
+	evidenceTemplateHandler := templatehandlers.NewEvidenceTemplateHandler(logger, db)
+	evidenceTemplateGroup := server.API().Group("/evidence-templates")
+	evidenceTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	evidenceTemplateHandler.Register(evidenceTemplateGroup)
+
 	userHandler := NewUserHandler(logger, db)
 
 	adminGroup := server.API().Group("/admin/users")

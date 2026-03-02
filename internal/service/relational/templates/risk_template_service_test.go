@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -322,6 +323,39 @@ func TestRiskTemplateService_CreateNormalizesEmptyRiskLevelHints(t *testing.T) {
 	require.Equal(t, "", *created.ImpactHint)
 }
 
+func TestRiskTemplateService_DeleteCleansEvidenceTemplateLinks(t *testing.T) {
+	db := newRiskTemplateTestDBWithEvidence(t)
+	riskSvc := NewRiskTemplateService(db)
+	evidenceSvc := NewEvidenceTemplateService(db)
+
+	riskTemplate, err := riskSvc.Create(validRiskTemplatePayload())
+	require.NoError(t, err)
+
+	_, err = evidenceSvc.Create(EvidenceTemplatePayload{
+		PluginID:        "github-repositories",
+		PolicyPackage:   "compliance_framework.secret_scanning_enabled",
+		Title:           "Linked evidence template",
+		RiskTemplateIDs: []uuid.UUID{*riskTemplate.ID},
+		SelectorLabels: []EvidenceTemplateSelectorLabelInput{
+			{Key: "_policy", Value: "compliance_framework.secret_scanning_enabled"},
+		},
+		LabelSchema: []EvidenceTemplateLabelSchemaFieldInput{
+			{Key: "github.org"},
+		},
+	})
+	require.NoError(t, err)
+
+	var linkCountBefore int64
+	require.NoError(t, db.Model(&EvidenceTemplateRiskTemplate{}).Where("risk_template_id = ?", *riskTemplate.ID).Count(&linkCountBefore).Error)
+	require.Equal(t, int64(1), linkCountBefore)
+
+	require.NoError(t, riskSvc.Delete(*riskTemplate.ID))
+
+	var linkCountAfter int64
+	require.NoError(t, db.Model(&EvidenceTemplateRiskTemplate{}).Where("risk_template_id = ?", *riskTemplate.ID).Count(&linkCountAfter).Error)
+	require.Equal(t, int64(0), linkCountAfter)
+}
+
 func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -332,6 +366,30 @@ func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 		&RiskTemplateThreatRef{},
 		&RemediationTemplate{},
 		&RemediationTask{},
+		&EvidenceTemplateRiskTemplate{},
+	))
+
+	return db
+}
+
+func newRiskTemplateTestDBWithEvidence(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(
+		&RiskTemplate{},
+		&RiskTemplateThreatRef{},
+		&RemediationTemplate{},
+		&RemediationTask{},
+		&SubjectTemplate{},
+		&SubjectTemplateSelectorLabel{},
+		&SubjectTemplateLabelSchemaField{},
+		&EvidenceTemplate{},
+		&EvidenceTemplateSelectorLabel{},
+		&EvidenceTemplateLabelSchemaField{},
+		&EvidenceTemplateRiskTemplate{},
+		&EvidenceTemplateSubjectTemplate{},
 	))
 
 	return db

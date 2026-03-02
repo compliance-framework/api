@@ -303,6 +303,11 @@ func (s *RiskTemplateService) Delete(id uuid.UUID) error {
 		return err
 	}
 
+	if err := tx.Delete(&EvidenceTemplateRiskTemplate{}, "risk_template_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err

@@ -730,6 +730,285 @@
                 ]
             }
         },
+        "/evidence-templates": {
+            "get": {
+                "description": "List evidence templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "List evidence templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "pluginId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy package",
+                        "name": "policyPackage",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Active flag",
+                        "name": "isActive",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_evidenceTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create an evidence template with selector labels, label schema, and linked risk/subject template IDs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Create evidence template",
+                "parameters": [
+                    {
+                        "description": "Evidence template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/evidence-templates/{id}": {
+            "get": {
+                "description": "Get an evidence template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Get evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update an evidence template and atomically replace selector labels, label schema, and linked IDs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Update evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evidence template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete an evidence template and its associated selector labels, label schema, and join rows.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Delete evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/evidence/compliance-by-control/{id}": {
             "get": {
                 "description": "Retrieves the count of evidence statuses for filters associated with a specific Control ID.",
@@ -31188,6 +31467,29 @@
                 }
             }
         },
+        "service.ListResponse-templates_evidenceTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-templates_riskTemplateResponse": {
             "type": "object",
             "properties": {
@@ -31254,6 +31556,123 @@
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "templates.evidenceTemplateDataResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.evidenceTemplateResponse"
+                }
+            }
+        },
+        "templates.evidenceTemplateLabelSchemaFieldRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "templates.evidenceTemplateLabelSchemaFieldResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "templates.evidenceTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "labelSchema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pluginId": {
+                    "type": "string"
+                },
+                "policyPackage": {
+                    "type": "string"
+                },
+                "riskTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "selectorLabels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelResponse"
+                    }
+                },
+                "subjectTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.evidenceTemplateSelectorLabelRequest": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.evidenceTemplateSelectorLabelResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -31515,6 +31934,56 @@
                     "type": "string"
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.upsertEvidenceTemplateRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "labelSchema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pluginId": {
+                    "type": "string"
+                },
+                "policyPackage": {
+                    "type": "string"
+                },
+                "riskTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "selectorLabels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelRequest"
+                    }
+                },
+                "subjectTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
                     "type": "string"
                 }
             }
