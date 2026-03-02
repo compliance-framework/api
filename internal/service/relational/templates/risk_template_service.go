@@ -116,7 +116,7 @@ func (s *RiskTemplateService) List(params RiskTemplateListParams) ([]RiskTemplat
 
 	var rows []RiskTemplate
 	if err := query.
-		Preload("ThreatRefs").
+		Preload("ThreatRefs", preloadThreatRefs).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		Order("created_at desc").
@@ -651,13 +651,17 @@ func validateTextLength(field, value string) error {
 func fetchRiskTemplateByID(db *gorm.DB, id uuid.UUID) (*RiskTemplate, error) {
 	var row RiskTemplate
 	if err := db.
-		Preload("ThreatRefs").
+		Preload("ThreatRefs", preloadThreatRefs).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
+}
+
+func preloadThreatRefs(db *gorm.DB) *gorm.DB {
+	return db.Order("system ASC, external_id ASC")
 }
 
 func preloadRemediationTasks(db *gorm.DB) *gorm.DB {

@@ -496,6 +496,67 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateRemediationTasksAr
 	require.Equal(suite.T(), 2, fetched.Data.Remediation.Tasks[1].OrderIndex)
 }
 
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateThreatRefsAreReturnedInOrder() {
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Ordered threat refs",
+		"title":         "Ordered threat refs",
+		"statement":     "Template statement",
+		"threatIds": []map[string]any{
+			{
+				"system": "https://attack.mitre.org",
+				"id":     "T1552",
+				"title":  "Threat two",
+			},
+			{
+				"system": "https://attack.mitre.org",
+				"id":     "T1110",
+				"title":  "Threat one",
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(createRec, createCall)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.Len(suite.T(), created.Data.ThreatIDs, 2)
+	require.Equal(suite.T(), "T1110", created.Data.ThreatIDs[0].ID)
+	require.Equal(suite.T(), "T1552", created.Data.ThreatIDs[1].ID)
+
+	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getCall)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+
+	var fetched genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec.Body.Bytes(), &fetched))
+	require.Len(suite.T(), fetched.Data.ThreatIDs, 2)
+	require.Equal(suite.T(), "T1110", fetched.Data.ThreatIDs[0].ID)
+	require.Equal(suite.T(), "T1552", fetched.Data.ThreatIDs[1].ID)
+
+	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/risk-templates?pluginId=github-repositories&page=1&limit=50", nil)
+	suite.server.E().ServeHTTP(listRec, listCall)
+	require.Equal(suite.T(), http.StatusOK, listRec.Code)
+
+	var listed struct {
+		Data []riskTemplateResponse `json:"data"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(listRec.Body.Bytes(), &listed))
+
+	var target *riskTemplateResponse
+	for i := range listed.Data {
+		if listed.Data[i].ID == created.Data.ID {
+			target = &listed.Data[i]
+			break
+		}
+	}
+	require.NotNil(suite.T(), target)
+	require.Len(suite.T(), target.ThreatIDs, 2)
+	require.Equal(suite.T(), "T1110", target.ThreatIDs[0].ID)
+	require.Equal(suite.T(), "T1552", target.ThreatIDs[1].ID)
+}
+
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateValidationBoundaries() {
 	maxTitle := strings.Repeat("a", 1000)
 	tooLongTitle := strings.Repeat("a", 1001)
