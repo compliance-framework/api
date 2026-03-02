@@ -288,6 +288,40 @@ func TestSubjectTemplateService_ResolveOrUpsertSystemComponentsForEvidenceMatche
 	require.Equal(t, int64(1), componentCount)
 }
 
+func TestSubjectTemplateService_ResolveOrUpsertSystemComponentsForEvidenceReturnsErrorWhenScanLimitHit(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+	systemSecurityPlanID := createTestSystemSecurityPlanAndImplementation(t, db)
+
+	for i := 0; i < maxRuntimeComponentTemplatesScan+1; i++ {
+		_, err := svc.Create(SubjectTemplatePayload{
+			Name:              fmt.Sprintf("Runtime Component %d", i),
+			Type:              "component",
+			IdentityLabelKeys: []string{"asset_id", "cluster"},
+			SourceMode:        "runtime-derived",
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: "github"},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+				{Key: "cluster"},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	_, err := svc.ResolveOrUpsertSystemComponentsForEvidence(ResolveOrUpsertSystemComponentsForEvidenceInput{
+		SystemSecurityPlanID: systemSecurityPlanID,
+		EvidenceLabels: []relational.Labels{
+			{Name: "plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "reached scan limit")
+}
+
 func TestSubjectTemplateService_ResolveOrUpsertSystemComponentScopesIdentityBySystem(t *testing.T) {
 	db := newSubjectTemplateTestDB(t)
 	svc := NewSubjectTemplateService(db)
@@ -322,6 +356,79 @@ func TestSubjectTemplateService_ResolveOrUpsertSystemComponentScopesIdentityBySy
 	var componentCount int64
 	require.NoError(t, db.Table("system_components").Count(&componentCount).Error)
 	require.Equal(t, int64(2), componentCount)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertAssessmentSubjectRecoversFromStaleIdentity(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	template, err := svc.Create(validSubjectTemplatePayload())
+	require.NoError(t, err)
+
+	first, err := svc.ResolveOrUpsertAssessmentSubject(ResolveOrUpsertAssessmentSubjectInput{
+		SubjectTemplateID: *template.ID,
+		EvidenceLabels: []relational.Labels{
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.ID)
+
+	require.NoError(t, db.Table("assessment_subjects").Delete(&subjectResolverAssessmentSubjectRow{}, "id = ?", *first.ID).Error)
+
+	second, err := svc.ResolveOrUpsertAssessmentSubject(ResolveOrUpsertAssessmentSubjectInput{
+		SubjectTemplateID: *template.ID,
+		EvidenceLabels: []relational.Labels{
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.ID)
+	require.NotEqual(t, *first.ID, *second.ID)
+
+	var identity AssessmentSubjectIdentity
+	require.NoError(t, db.First(&identity).Error)
+	require.Equal(t, *second.ID, identity.AssessmentSubjectID)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertSystemComponentRecoversFromStaleIdentity(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+	systemSecurityPlanID := createTestSystemSecurityPlanAndImplementation(t, db)
+
+	template, err := svc.Create(validSubjectTemplatePayload())
+	require.NoError(t, err)
+
+	first, err := svc.ResolveOrUpsertSystemComponent(ResolveOrUpsertSystemComponentInput{
+		SubjectTemplateID:    *template.ID,
+		SystemSecurityPlanID: systemSecurityPlanID,
+		EvidenceLabels: []relational.Labels{
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.ID)
+
+	require.NoError(t, db.Table("system_components").Delete(&subjectResolverSystemComponentRow{}, "id = ?", *first.ID).Error)
+
+	second, err := svc.ResolveOrUpsertSystemComponent(ResolveOrUpsertSystemComponentInput{
+		SubjectTemplateID:    *template.ID,
+		SystemSecurityPlanID: systemSecurityPlanID,
+		EvidenceLabels: []relational.Labels{
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.ID)
+	require.NotEqual(t, *first.ID, *second.ID)
+
+	var identity SystemComponentIdentity
+	require.NoError(t, db.First(&identity).Error)
+	require.Equal(t, *second.ID, identity.SystemComponentID)
 }
 
 func TestSubjectTemplateService_ValidationErrors(t *testing.T) {

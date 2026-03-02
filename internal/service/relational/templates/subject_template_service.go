@@ -370,13 +370,23 @@ func (s *SubjectTemplateService) ResolveOrUpsertAssessmentSubject(input ResolveO
 	if existingSubjectID != nil {
 		existingSubject, fetchErr := fetchAssessmentSubjectByID(tx, *existingSubjectID)
 		if fetchErr != nil {
-			tx.Rollback()
-			return nil, fetchErr
+			if errors.Is(fetchErr, gorm.ErrRecordNotFound) {
+				if err := deleteStaleAssessmentSubjectIdentity(tx, template.Type, identityHash, *existingSubjectID); err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+				existingSubjectID = nil
+			} else {
+				tx.Rollback()
+				return nil, fetchErr
+			}
 		}
-		if err := tx.Commit().Error; err != nil {
-			return nil, err
+		if existingSubjectID != nil {
+			if err := tx.Commit().Error; err != nil {
+				return nil, err
+			}
+			return existingSubject.toAssessmentSubject(), nil
 		}
-		return existingSubject.toAssessmentSubject(), nil
 	}
 
 	newSubject := assessmentSubjectRow{
@@ -471,11 +481,16 @@ func (s *SubjectTemplateService) ResolveOrUpsertSystemComponentsForEvidence(inpu
 	if err := s.db.
 		Where("type = ? AND source_mode = ?", subjectTemplateTypeComponent, subjectTemplateSourceModeRuntimeDerived).
 		Preload("SelectorLabels", preloadSubjectTemplateSelectorLabels).
-		Preload("LabelSchema", preloadSubjectTemplateLabelSchema).
 		Order("created_at asc").
-		Limit(maxRuntimeComponentTemplatesScan).
+		Limit(maxRuntimeComponentTemplatesScan + 1).
 		Find(&templates).Error; err != nil {
 		return nil, err
+	}
+	if len(templates) > maxRuntimeComponentTemplatesScan {
+		return nil, fmt.Errorf(
+			"resolve system components reached scan limit of %d runtime-derived component subject templates; results may be incomplete",
+			maxRuntimeComponentTemplatesScan,
+		)
 	}
 
 	components := make([]relational.SystemComponent, 0, len(templates))
@@ -572,13 +587,23 @@ func (s *SubjectTemplateService) ResolveOrUpsertSystemComponent(input ResolveOrU
 	if existingComponentID != nil {
 		existingComponent, fetchErr := fetchSystemComponentByID(tx, *existingComponentID)
 		if fetchErr != nil {
-			tx.Rollback()
-			return nil, fetchErr
+			if errors.Is(fetchErr, gorm.ErrRecordNotFound) {
+				if err := deleteStaleSystemComponentIdentity(tx, template.Type, identityHash, systemImplementationID); err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+				existingComponentID = nil
+			} else {
+				tx.Rollback()
+				return nil, fetchErr
+			}
 		}
-		if err := tx.Commit().Error; err != nil {
-			return nil, err
+		if existingComponentID != nil {
+			if err := tx.Commit().Error; err != nil {
+				return nil, err
+			}
+			return existingComponent.toSystemComponent(), nil
 		}
-		return existingComponent.toSystemComponent(), nil
 	}
 
 	newComponent := systemComponentRow{
@@ -786,6 +811,28 @@ func findSystemComponentIDByLabelSet(tx *gorm.DB, templateType string, labels []
 	}
 
 	return &ids[0], nil
+}
+
+func deleteStaleAssessmentSubjectIdentity(tx *gorm.DB, entityType, identityHash string, assessmentSubjectID uuid.UUID) error {
+	return tx.
+		Where(
+			"entity_type = ? AND identity_hash = ? AND assessment_subject_id = ?",
+			entityType,
+			identityHash,
+			assessmentSubjectID,
+		).
+		Delete(&AssessmentSubjectIdentity{}).Error
+}
+
+func deleteStaleSystemComponentIdentity(tx *gorm.DB, entityType, identityHash string, systemImplementationID uuid.UUID) error {
+	return tx.
+		Where(
+			"entity_type = ? AND identity_hash = ? AND system_implementation_id = ?",
+			entityType,
+			identityHash,
+			systemImplementationID,
+		).
+		Delete(&SystemComponentIdentity{}).Error
 }
 
 func buildEntityIdentityHash(entityType string, labels []identityLabelPair) string {
