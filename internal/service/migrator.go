@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"gorm.io/gorm"
 )
@@ -95,6 +96,10 @@ func MigrateUp(db *gorm.DB) error {
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.InventoryItemLabel{},
 		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 
 		&relational.Profile{},
 		&relational.Import{},
@@ -271,6 +276,10 @@ func MigrateDown(db *gorm.DB) error {
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.InventoryItemLabel{},
 		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 		"finding_related_observations",
 		"finding_related_risks",
 		"poam_item_related_observations",

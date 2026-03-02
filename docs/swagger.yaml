@@ -6690,6 +6690,21 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-templates_riskTemplateResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/templates.riskTemplateResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-uuid_UUID:
     properties:
       data:
@@ -6704,6 +6719,137 @@ definitions:
         type: integer
       totalPages:
         type: integer
+    type: object
+  templates.remediationTaskRequest:
+    properties:
+      orderIndex:
+        type: integer
+      title:
+        type: string
+    type: object
+  templates.remediationTaskResponse:
+    properties:
+      id:
+        type: string
+      orderIndex:
+        type: integer
+      title:
+        type: string
+    type: object
+  templates.remediationTemplateRequest:
+    properties:
+      description:
+        type: string
+      tasks:
+        items:
+          $ref: '#/definitions/templates.remediationTaskRequest'
+        type: array
+      title:
+        type: string
+    type: object
+  templates.remediationTemplateResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      tasks:
+        items:
+          $ref: '#/definitions/templates.remediationTaskResponse'
+        type: array
+      title:
+        type: string
+    type: object
+  templates.riskTemplateDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.riskTemplateResponse'
+    type: object
+  templates.riskTemplateResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      impactHint:
+        type: string
+      isActive:
+        type: boolean
+      likelihoodHint:
+        type: string
+      name:
+        type: string
+      pluginId:
+        type: string
+      policyPackage:
+        type: string
+      remediationTemplate:
+        $ref: '#/definitions/templates.remediationTemplateResponse'
+      statement:
+        type: string
+      threatIds:
+        items:
+          $ref: '#/definitions/templates.threatIDResponse'
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+      violationIds:
+        items:
+          type: string
+        type: array
+    type: object
+  templates.threatIDRequest:
+    properties:
+      id:
+        type: string
+      system:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  templates.threatIDResponse:
+    properties:
+      id:
+        type: string
+      system:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  templates.upsertRiskTemplateRequest:
+    properties:
+      impactHint:
+        type: string
+      isActive:
+        type: boolean
+      likelihoodHint:
+        type: string
+      name:
+        type: string
+      pluginId:
+        type: string
+      policyPackage:
+        type: string
+      remediationTemplate:
+        $ref: '#/definitions/templates.remediationTemplateRequest'
+      statement:
+        type: string
+      threatIds:
+        items:
+          $ref: '#/definitions/templates.threatIDRequest'
+        type: array
+      title:
+        type: string
+      violationIds:
+        items:
+          type: string
+        type: array
     type: object
   time.Duration:
     enum:
@@ -18392,6 +18538,186 @@ paths:
       summary: Update a system user
       tags:
       - System Security Plans
+  /risk-templates:
+    get:
+      description: List risk templates with optional filters and pagination.
+      parameters:
+      - description: Plugin ID
+        in: query
+        name: pluginId
+        type: string
+      - description: Policy package
+        in: query
+        name: policyPackage
+        type: string
+      - description: Active flag
+        in: query
+        name: isActive
+        type: boolean
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_riskTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk templates
+      tags:
+      - Risk Templates
+    post:
+      consumes:
+      - application/json
+      description: Create a risk template with threat references and remediation template/tasks.
+      parameters:
+      - description: Risk template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertRiskTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.riskTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create risk template
+      tags:
+      - Risk Templates
+  /risk-templates/{id}:
+    delete:
+      description: Delete a risk template and its associated threat references and
+        remediation data.
+      parameters:
+      - description: Risk Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk template
+      tags:
+      - Risk Templates
+    get:
+      description: Get a risk template by ID.
+      parameters:
+      - description: Risk Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.riskTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk template
+      tags:
+      - Risk Templates
+    put:
+      consumes:
+      - application/json
+      description: Update a risk template and atomically replace threat refs and remediation
+        tasks.
+      parameters:
+      - description: Risk Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertRiskTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.riskTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update risk template
+      tags:
+      - Risk Templates
   /risks:
     get:
       description: Lists risk register entries with filtering, sorting, and pagination.

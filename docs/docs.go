@@ -16476,6 +16476,285 @@ const docTemplate = `{
                 }
             }
         },
+        "/risk-templates": {
+            "get": {
+                "description": "List risk templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "List risk templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "pluginId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy package",
+                        "name": "policyPackage",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Active flag",
+                        "name": "isActive",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_riskTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a risk template with threat references and remediation template/tasks.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Create risk template",
+                "parameters": [
+                    {
+                        "description": "Risk template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertRiskTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/risk-templates/{id}": {
+            "get": {
+                "description": "Get a risk template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Get risk template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update a risk template and atomically replace threat refs and remediation tasks.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Update risk template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertRiskTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete a risk template and its associated threat references and remediation data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Delete risk template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/risks": {
             "get": {
                 "description": "Lists risk register entries with filtering, sorting, and pagination.",
@@ -30689,6 +30968,29 @@ const docTemplate = `{
                 }
             }
         },
+        "service.ListResponse-templates_riskTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.riskTemplateResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-uuid_UUID": {
             "type": "object",
             "properties": {
@@ -30709,6 +31011,207 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "templates.remediationTaskRequest": {
+            "type": "object",
+            "properties": {
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.remediationTaskResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.remediationTemplateRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.remediationTaskRequest"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.remediationTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.remediationTaskResponse"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.riskTemplateDataResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.riskTemplateResponse"
+                }
+            }
+        },
+        "templates.riskTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "impactHint": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "likelihoodHint": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pluginId": {
+                    "type": "string"
+                },
+                "policyPackage": {
+                    "type": "string"
+                },
+                "remediationTemplate": {
+                    "$ref": "#/definitions/templates.remediationTemplateResponse"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "threatIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.threatIDResponse"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "violationIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "templates.threatIDRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.threatIDResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.upsertRiskTemplateRequest": {
+            "type": "object",
+            "properties": {
+                "impactHint": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "likelihoodHint": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pluginId": {
+                    "type": "string"
+                },
+                "policyPackage": {
+                    "type": "string"
+                },
+                "remediationTemplate": {
+                    "$ref": "#/definitions/templates.remediationTemplateRequest"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "threatIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.threatIDRequest"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "violationIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
