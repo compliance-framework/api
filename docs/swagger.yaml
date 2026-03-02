@@ -6705,6 +6705,21 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-templates_subjectTemplateResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-uuid_UUID:
     properties:
       data:
@@ -6800,6 +6815,74 @@ definitions:
           type: string
         type: array
     type: object
+  templates.subjectTemplateDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.subjectTemplateResponse'
+    type: object
+  templates.subjectTemplateLabelSchemaFieldRequest:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+    type: object
+  templates.subjectTemplateLabelSchemaFieldResponse:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+    type: object
+  templates.subjectTemplateResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      identityLabelKeys:
+        items:
+          type: string
+        type: array
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateLabelSchemaFieldResponse'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateSelectorLabelResponse'
+        type: array
+      sourceMode:
+        type: string
+      type:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  templates.subjectTemplateSelectorLabelRequest:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  templates.subjectTemplateSelectorLabelResponse:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
   templates.threatIDRequest:
     properties:
       id:
@@ -6850,6 +6933,42 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  templates.upsertSubjectTemplateRequest:
+    properties:
+      identityLabelKeys:
+        items:
+          type: string
+        type: array
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateLabelSchemaFieldRequest'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateSelectorLabelRequest'
+        type: array
+      sourceMode:
+        type: string
+      type:
+        type: string
+    required:
+    - identityLabelKeys
+    - labelSchema
+    - name
+    - selectorLabels
+    - sourceMode
+    - type
     type: object
   time.Duration:
     enum:
@@ -19288,6 +19407,151 @@ paths:
       summary: Link subject to risk
       tags:
       - Risks
+  /subject-templates:
+    get:
+      description: List subject templates with optional filters and pagination.
+      parameters:
+      - description: Subject type
+        in: query
+        name: type
+        type: string
+      - description: Source mode
+        in: query
+        name: sourceMode
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_subjectTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List subject templates
+      tags:
+      - Subject Templates
+    post:
+      consumes:
+      - application/json
+      description: Create a subject template with selector labels and label schema.
+      parameters:
+      - description: Subject template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create subject template
+      tags:
+      - Subject Templates
+  /subject-templates/{id}:
+    get:
+      description: Get a subject template by ID.
+      parameters:
+      - description: Subject Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get subject template
+      tags:
+      - Subject Templates
+    put:
+      consumes:
+      - application/json
+      description: Update a subject template and atomically replace selector labels
+        and label schema.
+      parameters:
+      - description: Subject Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Subject template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update subject template
+      tags:
+      - Subject Templates
   /users/{id}/change-password:
     post:
       consumes:

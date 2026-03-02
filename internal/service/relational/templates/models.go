@@ -76,3 +76,74 @@ type RemediationTask struct {
 func (RemediationTask) TableName() string {
 	return "remediation_tasks"
 }
+
+type SubjectTemplate struct {
+	relational.UUIDModel
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	Name string `json:"name" gorm:"type:text;not null"`
+	Type string `json:"type" gorm:"type:text;not null;index"`
+
+	IdentityLabelKeys datatypes.JSONSlice[string]          `json:"identityLabelKeys" gorm:"type:jsonb"`
+	Props             datatypes.JSONSlice[relational.Prop] `json:"props" gorm:"type:jsonb"`
+	Links             datatypes.JSONSlice[relational.Link] `json:"links" gorm:"type:jsonb"`
+
+	SourceMode string `json:"sourceMode" gorm:"type:text;not null;index"`
+
+	SelectorLabels []SubjectTemplateSelectorLabel    `json:"selectorLabels,omitempty" gorm:"foreignKey:SubjectTemplateID;constraint:OnDelete:CASCADE"`
+	LabelSchema    []SubjectTemplateLabelSchemaField `json:"labelSchema,omitempty" gorm:"foreignKey:SubjectTemplateID;constraint:OnDelete:CASCADE"`
+}
+
+func (SubjectTemplate) TableName() string {
+	return "subject_templates"
+}
+
+type SubjectTemplateSelectorLabel struct {
+	relational.UUIDModel
+	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;uniqueIndex:idx_subject_template_selector_labels_template_key,priority:1"`
+
+	Key   string `json:"key" gorm:"type:text;not null;uniqueIndex:idx_subject_template_selector_labels_template_key,priority:2"`
+	Value string `json:"value" gorm:"type:text;not null"`
+}
+
+func (SubjectTemplateSelectorLabel) TableName() string {
+	return "subject_template_selector_labels"
+}
+
+type SubjectTemplateLabelSchemaField struct {
+	relational.UUIDModel
+	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;uniqueIndex:idx_subject_template_label_schema_fields_template_key,priority:1"`
+
+	Key         string  `json:"key" gorm:"type:text;not null;uniqueIndex:idx_subject_template_label_schema_fields_template_key,priority:2"`
+	Description *string `json:"description" gorm:"type:text"`
+}
+
+func (SubjectTemplateLabelSchemaField) TableName() string {
+	return "subject_template_label_schema_fields"
+}
+
+// TODO[codex-5-3-high]: Staged for future evidence/assessment wiring.
+// Remove if subject-template identity resolution is no longer used.
+type AssessmentSubjectIdentity struct {
+	EntityType          string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
+	IdentityHash        string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`
+	AssessmentSubjectID uuid.UUID `json:"assessmentSubjectId" gorm:"column:assessment_subject_id;type:uuid;not null;index"`
+}
+
+func (AssessmentSubjectIdentity) TableName() string {
+	return "assessment_subject_identities"
+}
+
+// TODO[codex-5-3-high]: Staged for future evidence/assessment wiring.
+// Remove if subject-template identity resolution is no longer used.
+type SystemComponentIdentity struct {
+	EntityType             string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
+	IdentityHash           string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`
+	SystemImplementationID uuid.UUID `json:"systemImplementationId" gorm:"column:system_implementation_id;type:uuid;primaryKey;index"`
+	SystemComponentID      uuid.UUID `json:"systemComponentId" gorm:"column:system_component_id;type:uuid;not null;index"`
+}
+
+func (SystemComponentIdentity) TableName() string {
+	return "system_component_identities"
+}
