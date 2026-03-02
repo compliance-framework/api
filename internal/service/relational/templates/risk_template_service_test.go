@@ -270,6 +270,34 @@ func TestRiskTemplateService_CreateTrimsRiskLevelHints(t *testing.T) {
 	require.Equal(t, "high", *created.ImpactHint)
 }
 
+func TestRiskTemplateService_CreateNormalizesEmptyRiskLevelHints(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	created, err := svc.Create(RiskTemplatePayload{
+		PluginID:       "github-repositories",
+		PolicyPackage:  "compliance_framework.secret_scanning_enabled",
+		Name:           "Template with empty levels",
+		Title:          "Template with empty levels",
+		Statement:      "Template statement.",
+		LikelihoodHint: strPtr("   "),
+		ImpactHint:     strPtr("\t"),
+		IsActive:       boolPtr(true),
+		ThreatRefs: []ThreatRefInput{
+			{
+				System:     "https://cwe.mitre.org",
+				ExternalID: "CWE-312",
+				Title:      "Cleartext Storage of Sensitive Information",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.LikelihoodHint)
+	require.NotNil(t, created.ImpactHint)
+	require.Equal(t, "", *created.LikelihoodHint)
+	require.Equal(t, "", *created.ImpactHint)
+}
+
 func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

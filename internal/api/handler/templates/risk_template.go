@@ -143,7 +143,7 @@ func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 	if rawIsActive := ctx.QueryParam("isActive"); rawIsActive != "" {
 		parsed, parseErr := strconv.ParseBool(rawIsActive)
 		if parseErr != nil {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid isActive filter")))
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid isActive filter %q: %w", rawIsActive, parseErr)))
 		}
 		filters.IsActive = &parsed
 	}

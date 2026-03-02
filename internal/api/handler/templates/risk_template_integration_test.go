@@ -35,7 +35,8 @@ type threatIDResponse struct {
 }
 
 type remediationTaskResponse struct {
-	ID uuid.UUID `json:"id"`
+	ID         uuid.UUID `json:"id"`
+	OrderIndex int       `json:"orderIndex"`
 }
 
 type remediationTemplateResponse struct {
@@ -216,6 +217,11 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateValidationAndNotFo
 	})
 	suite.server.E().ServeHTTP(putMissingIDRec, putMissingIDCall)
 	require.Equal(suite.T(), http.StatusNotFound, putMissingIDRec.Code)
+
+	invalidFilterRec, invalidFilterCall := suite.authedRequest(http.MethodGet, "/api/risk-templates?isActive=definitely-not-bool", nil)
+	suite.server.E().ServeHTTP(invalidFilterRec, invalidFilterCall)
+	require.Equal(suite.T(), http.StatusBadRequest, invalidFilterRec.Code)
+	require.Contains(suite.T(), invalidFilterRec.Body.String(), "definitely-not-bool")
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateDefaultActiveAndHintValidation() {
@@ -451,6 +457,43 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateThreatValidationEr
 	suite.server.E().ServeHTTP(duplicateThreatRec, duplicateThreatCall)
 	require.Equal(suite.T(), http.StatusBadRequest, duplicateThreatRec.Code)
 	require.Contains(suite.T(), duplicateThreatRec.Body.String(), "threatIds contains duplicate system/id pairs")
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateRemediationTasksAreReturnedInOrder() {
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Ordered remediation tasks",
+		"title":         "Ordered remediation tasks",
+		"statement":     "Template statement",
+		"remediationTemplate": map[string]any{
+			"title": "Ordered remediation",
+			"tasks": []map[string]any{
+				{"title": "Task two", "orderIndex": 2},
+				{"title": "Task one", "orderIndex": 1},
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(createRec, createCall)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.NotNil(suite.T(), created.Data.Remediation)
+	require.Len(suite.T(), created.Data.Remediation.Tasks, 2)
+	require.Equal(suite.T(), 1, created.Data.Remediation.Tasks[0].OrderIndex)
+	require.Equal(suite.T(), 2, created.Data.Remediation.Tasks[1].OrderIndex)
+
+	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getCall)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+
+	var fetched genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec.Body.Bytes(), &fetched))
+	require.NotNil(suite.T(), fetched.Data.Remediation)
+	require.Len(suite.T(), fetched.Data.Remediation.Tasks, 2)
+	require.Equal(suite.T(), 1, fetched.Data.Remediation.Tasks[0].OrderIndex)
+	require.Equal(suite.T(), 2, fetched.Data.Remediation.Tasks[1].OrderIndex)
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateValidationBoundaries() {

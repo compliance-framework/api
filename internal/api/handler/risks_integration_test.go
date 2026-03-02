@@ -665,6 +665,100 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdateReplacingOwnerAssignmentsPre
 	require.False(suite.T(), roleAssignment.IsPrimary)
 }
 
+func (suite *RiskApiIntegrationSuite) TestRiskDeleteCleansLinkedSubResources() {
+	evidence := relational.Evidence{
+		UUID:        uuid.New(),
+		Title:       "evidence-delete-cleanup",
+		Description: "for risk delete cleanup",
+		Start:       time.Now().Add(-2 * time.Hour),
+		End:         time.Now().Add(-time.Hour),
+	}
+	require.NoError(suite.T(), suite.DB.Create(&evidence).Error)
+
+	catalogID := uuid.New()
+	control := relational.Control{CatalogID: catalogID, ID: "AC-2", Title: "AC-2"}
+	require.NoError(suite.T(), suite.DB.Create(&control).Error)
+
+	componentID := uuid.New()
+	component := relational.SystemComponent{
+		UUIDModel:   relational.UUIDModel{ID: &componentID},
+		Type:        "service",
+		Title:       "component-delete-cleanup",
+		Description: "desc",
+		Purpose:     "purpose",
+	}
+	require.NoError(suite.T(), suite.DB.Create(&component).Error)
+
+	subjectID := uuid.New()
+	subjectSSPID := uuid.New()
+	subject := relational.AssessmentSubject{
+		UUIDModel: relational.UUIDModel{ID: &subjectID},
+		Type:      "component",
+		SSPID:     &subjectSSPID,
+	}
+	require.NoError(suite.T(), suite.DB.Create(&subject).Error)
+
+	created := suite.createRisk(map[string]any{
+		"title":       "Delete link cleanup target",
+		"description": "verify deletion of risk-owned sub resources",
+		"sspId":       suite.newSSPID(),
+		"ownerAssignments": []map[string]any{
+			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
+			{"ownerKind": "role", "ownerRef": "security-reviewers", "isPrimary": false},
+		},
+	})
+
+	evidenceLinkRec, evidenceLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), map[string]any{"evidenceId": evidence.ID.String()})
+	suite.server.E().ServeHTTP(evidenceLinkRec, evidenceLinkCall)
+	require.Equal(suite.T(), http.StatusCreated, evidenceLinkRec.Code)
+
+	controlLinkRec, controlLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/controls", created.ID), map[string]any{
+		"catalogId": catalogID.String(),
+		"controlId": "AC-2",
+	})
+	suite.server.E().ServeHTTP(controlLinkRec, controlLinkCall)
+	require.Equal(suite.T(), http.StatusCreated, controlLinkRec.Code)
+
+	componentLinkRec, componentLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/components", created.ID), map[string]any{"componentId": componentID.String()})
+	suite.server.E().ServeHTTP(componentLinkRec, componentLinkCall)
+	require.Equal(suite.T(), http.StatusCreated, componentLinkRec.Code)
+
+	subjectLinkRec, subjectLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/subjects", created.ID), map[string]any{"subjectId": subjectID.String()})
+	suite.server.E().ServeHTTP(subjectLinkRec, subjectLinkCall)
+	require.Equal(suite.T(), http.StatusCreated, subjectLinkRec.Code)
+
+	var count int64
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvidenceLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskControlLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskComponentLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskSubjectLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskOwnerAssignment{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(2), count)
+
+	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
+
+	getAfterDeleteRec, getAfterDeleteReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(getAfterDeleteRec, getAfterDeleteReq)
+	require.Equal(suite.T(), http.StatusNotFound, getAfterDeleteRec.Code)
+
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvidenceLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskControlLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskComponentLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskSubjectLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskOwnerAssignment{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+}
+
 func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches() {
 	created := suite.createRisk(map[string]any{
 		"title":       "NotFound target risk",

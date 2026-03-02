@@ -112,7 +112,7 @@ func (s *RiskTemplateService) List(params RiskTemplateListParams) ([]RiskTemplat
 	if err := query.
 		Preload("ThreatRefs").
 		Preload("RemediationTemplate").
-		Preload("RemediationTemplate.Tasks").
+		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		Order("created_at desc").
 		Limit(params.Limit).
 		Offset(params.Offset).
@@ -166,11 +166,27 @@ func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate
 		row.RemediationTemplateID = remediationTemplateID
 	}
 
-	if err := tx.Select("*").Create(&row).Error; err != nil {
+	if err := tx.Select(
+		"ID",
+		"CreatedAt",
+		"UpdatedAt",
+		"PluginID",
+		"PolicyPackage",
+		"Name",
+		"Title",
+		"Statement",
+		"LikelihoodHint",
+		"ImpactHint",
+		"ViolationIDs",
+		"IsActive",
+		"RemediationTemplateID",
+	).Create(&row).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 	if payload.IsActive != nil && !*payload.IsActive {
+		// GORM applies the model default (`default:true`) for false booleans in this insert path
+		// under Postgres. Force the persisted value so create behavior matches the API payload.
 		if err := tx.Model(&RiskTemplate{}).Where("id = ?", *row.ID).Update("is_active", false).Error; err != nil {
 			tx.Rollback()
 			return nil, err
@@ -536,13 +552,13 @@ func validateOptionalRiskLevel(field string, level *string) error {
 		return nil
 	}
 	normalized := strings.TrimSpace(*level)
+	*level = normalized
 	if normalized == "" {
 		return nil
 	}
 	if !riskrel.RiskLevel(normalized).IsValid() {
 		return newValidationError(fmt.Sprintf("invalid %s", field))
 	}
-	*level = normalized
 	return nil
 }
 
@@ -574,9 +590,13 @@ func fetchRiskTemplateByID(db *gorm.DB, id uuid.UUID) (*RiskTemplate, error) {
 	if err := db.
 		Preload("ThreatRefs").
 		Preload("RemediationTemplate").
-		Preload("RemediationTemplate.Tasks").
+		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
+}
+
+func preloadRemediationTasks(db *gorm.DB) *gorm.DB {
+	return db.Order("order_index ASC")
 }
