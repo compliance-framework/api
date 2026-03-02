@@ -2,6 +2,8 @@ package service
 
 import (
 	"github.com/compliance-framework/api/internal/service/relational"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"gorm.io/gorm"
 )
@@ -83,6 +85,21 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Risk{},
 		&relational.Observation{},
 		&relational.Finding{},
+		&riskrel.Risk{},
+		&riskrel.RiskEvent{},
+		&riskrel.RiskReview{},
+		&riskrel.RiskEvidenceLink{},
+		&riskrel.RiskControlLink{},
+		&riskrel.RiskComponentLink{},
+		&riskrel.RiskSubjectLink{},
+		&riskrel.RiskOwnerAssignment{},
+		&riskrel.AssessmentSubjectLabel{},
+		&riskrel.InventoryItemLabel{},
+		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 
 		&relational.Profile{},
 		&relational.Import{},
@@ -114,12 +131,18 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Filter{},
 		&relational.Step{},
 	)
+	if err != nil {
+		return err
+	}
 
 	// Add workflow entities separately to avoid argument limit
 	for _, entity := range workflowEntities {
 		if err := db.AutoMigrate(entity); err != nil {
 			return err
 		}
+	}
+	if err := riskrel.EnsureIndexes(db); err != nil {
+		return err
 	}
 
 	return err
@@ -242,6 +265,21 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.Risk{},
 		&relational.Observation{},
 		&relational.Finding{},
+		&riskrel.Risk{},
+		&riskrel.RiskEvent{},
+		&riskrel.RiskReview{},
+		&riskrel.RiskEvidenceLink{},
+		&riskrel.RiskControlLink{},
+		&riskrel.RiskComponentLink{},
+		&riskrel.RiskSubjectLink{},
+		&riskrel.RiskOwnerAssignment{},
+		&riskrel.AssessmentSubjectLabel{},
+		&riskrel.InventoryItemLabel{},
+		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 		"finding_related_observations",
 		"finding_related_risks",
 		"poam_item_related_observations",

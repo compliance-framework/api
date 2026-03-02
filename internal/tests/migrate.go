@@ -5,6 +5,8 @@ package tests
 import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"gorm.io/gorm"
 )
 
@@ -37,7 +39,7 @@ func (t *TestMigrator) Refresh() error {
 }
 
 func (t *TestMigrator) Up() error {
-	return t.db.AutoMigrate(
+	if err := t.db.AutoMigrate(
 		&relational.ResponsiblePartyParties{},
 		&relational.Location{},
 		&relational.Party{},
@@ -114,6 +116,21 @@ func (t *TestMigrator) Up() error {
 		&relational.Risk{},
 		&relational.Observation{},
 		&relational.Finding{},
+		&riskrel.Risk{},
+		&riskrel.RiskEvent{},
+		&riskrel.RiskReview{},
+		&riskrel.RiskEvidenceLink{},
+		&riskrel.RiskControlLink{},
+		&riskrel.RiskComponentLink{},
+		&riskrel.RiskSubjectLink{},
+		&riskrel.RiskOwnerAssignment{},
+		&riskrel.AssessmentSubjectLabel{},
+		&riskrel.InventoryItemLabel{},
+		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 
 		&relational.Profile{},
 		&relational.Import{},
@@ -141,7 +158,10 @@ func (t *TestMigrator) Up() error {
 		&relational.SelectSubjectById{},
 		&relational.Filter{},
 		&relational.Step{},
-	)
+	); err != nil {
+		return err
+	}
+	return riskrel.EnsureIndexes(t.db)
 }
 
 func (t *TestMigrator) Down() error {
@@ -262,6 +282,21 @@ func (t *TestMigrator) Down() error {
 		&relational.Risk{},
 		&relational.Observation{},
 		&relational.Finding{},
+		&riskrel.Risk{},
+		&riskrel.RiskEvent{},
+		&riskrel.RiskReview{},
+		&riskrel.RiskEvidenceLink{},
+		&riskrel.RiskControlLink{},
+		&riskrel.RiskComponentLink{},
+		&riskrel.RiskSubjectLink{},
+		&riskrel.RiskOwnerAssignment{},
+		&riskrel.AssessmentSubjectLabel{},
+		&riskrel.InventoryItemLabel{},
+		&riskrel.SystemComponentLabel{},
+		&templaterel.RiskTemplate{},
+		&templaterel.RiskTemplateThreatRef{},
+		&templaterel.RemediationTemplate{},
+		&templaterel.RemediationTask{},
 		"finding_related_observations",
 		"finding_related_risks",
 		"poam_item_related_observations",
