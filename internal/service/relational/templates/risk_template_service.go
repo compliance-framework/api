@@ -83,7 +83,7 @@ type RiskTemplatePayload struct {
 	LikelihoodHint *string
 	ImpactHint     *string
 	ViolationIDs   []string
-	IsActive       bool
+	IsActive       *bool
 	ThreatRefs     []ThreatRefInput
 
 	// Optional: nil means "no remediation template".
@@ -157,15 +157,24 @@ func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate
 		LikelihoodHint: payload.LikelihoodHint,
 		ImpactHint:     payload.ImpactHint,
 		ViolationIDs:   datatypes.NewJSONSlice(payload.ViolationIDs),
-		IsActive:       payload.IsActive,
+		IsActive:       true,
+	}
+	if payload.IsActive != nil {
+		row.IsActive = *payload.IsActive
 	}
 	if remediationTemplateID != nil {
 		row.RemediationTemplateID = remediationTemplateID
 	}
 
-	if err := tx.Create(&row).Error; err != nil {
+	if err := tx.Select("*").Create(&row).Error; err != nil {
 		tx.Rollback()
 		return nil, err
+	}
+	if payload.IsActive != nil && !*payload.IsActive {
+		if err := tx.Model(&RiskTemplate{}).Where("id = ?", *row.ID).Update("is_active", false).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	if err := replaceThreatRefs(tx, *row.ID, payload.ThreatRefs); err != nil {
@@ -211,7 +220,9 @@ func (s *RiskTemplateService) Update(id uuid.UUID, payload RiskTemplatePayload) 
 	existing.LikelihoodHint = payload.LikelihoodHint
 	existing.ImpactHint = payload.ImpactHint
 	existing.ViolationIDs = datatypes.NewJSONSlice(payload.ViolationIDs)
-	existing.IsActive = payload.IsActive
+	if payload.IsActive != nil {
+		existing.IsActive = *payload.IsActive
+	}
 
 	if payload.RemediationTemplate != nil {
 		remediation, err := upsertRemediationTemplate(tx, existing.RemediationTemplateID, payload.RemediationTemplate)
@@ -221,7 +232,7 @@ func (s *RiskTemplateService) Update(id uuid.UUID, payload RiskTemplatePayload) 
 		}
 		existing.RemediationTemplateID = remediation.ID
 	} else if existing.RemediationTemplateID != nil {
-		if err := tx.Delete(&RemediationTemplate{}, "id = ?", *existing.RemediationTemplateID).Error; err != nil {
+		if err := deleteRemediationTemplateWithTasks(tx, *existing.RemediationTemplateID); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -265,13 +276,18 @@ func (s *RiskTemplateService) Delete(id uuid.UUID) error {
 		return err
 	}
 
+	if err := tx.Delete(&RiskTemplateThreatRef{}, "risk_template_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	if existing.RemediationTemplateID != nil {
-		if err := tx.Delete(&RemediationTemplate{}, "id = ?", *existing.RemediationTemplateID).Error; err != nil {
+		if err := deleteRemediationTemplateWithTasks(tx, *existing.RemediationTemplateID); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -436,25 +452,32 @@ func replaceRemediationTasks(tx *gorm.DB, remediationTemplateID uuid.UUID, input
 	return tx.Create(&tasks).Error
 }
 
+func deleteRemediationTemplateWithTasks(tx *gorm.DB, remediationTemplateID uuid.UUID) error {
+	if err := tx.Delete(&RemediationTask{}, "remediation_template_id = ?", remediationTemplateID).Error; err != nil {
+		return err
+	}
+	return tx.Delete(&RemediationTemplate{}, "id = ?", remediationTemplateID).Error
+}
+
 func validateThreatRefs(refs []ThreatRefInput) error {
 	seen := make(map[string]struct{}, len(refs))
 	for _, ref := range refs {
-		if err := validateRequiredText("threatRefs.system", ref.System); err != nil {
+		if err := validateRequiredText("threatIds.system", ref.System); err != nil {
 			return err
 		}
-		if err := validateRequiredText("threatRefs.externalId", ref.ExternalID); err != nil {
+		if err := validateRequiredText("threatIds.id", ref.ExternalID); err != nil {
 			return err
 		}
-		if err := validateRequiredText("threatRefs.title", ref.Title); err != nil {
+		if err := validateRequiredText("threatIds.title", ref.Title); err != nil {
 			return err
 		}
-		if err := validateOptionalText("threatRefs.url", ref.URL); err != nil {
+		if err := validateOptionalText("threatIds.url", ref.URL); err != nil {
 			return err
 		}
 
 		key := strings.TrimSpace(ref.System) + "|" + strings.TrimSpace(ref.ExternalID)
 		if _, exists := seen[key]; exists {
-			return newValidationError("threatRefs contains duplicate system/id pairs")
+			return newValidationError("threatIds contains duplicate system/id pairs")
 		}
 		seen[key] = struct{}{}
 	}

@@ -310,11 +310,8 @@ func mapRequestToPayload(req upsertRiskTemplateRequest) templaterel.RiskTemplate
 		LikelihoodHint: req.LikelihoodHint,
 		ImpactHint:     req.ImpactHint,
 		ViolationIDs:   req.ViolationIDs,
-		IsActive:       true,
+		IsActive:       req.IsActive,
 		ThreatRefs:     make([]templaterel.ThreatRefInput, 0, len(req.ThreatIDs)),
-	}
-	if req.IsActive != nil {
-		payload.IsActive = *req.IsActive
 	}
 
 	for _, ref := range req.ThreatIDs {

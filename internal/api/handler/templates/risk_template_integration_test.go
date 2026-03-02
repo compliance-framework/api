@@ -15,6 +15,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	handlerpkg "github.com/compliance-framework/api/internal/api/handler"
+	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -307,6 +308,18 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateRemediationRemoval
 	require.NoError(suite.T(), json.Unmarshal(updateRec.Body.Bytes(), &updated))
 	require.Nil(suite.T(), updated.Data.Remediation)
 
+	var threatRefCountBeforeDelete int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplateThreatRef{}).Where("risk_template_id = ?", created.Data.ID).Count(&threatRefCountBeforeDelete).Error)
+	require.Equal(suite.T(), int64(1), threatRefCountBeforeDelete)
+
+	var remediationTemplateCountBeforeDelete int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTemplate{}).Where("id = ?", created.Data.Remediation.ID).Count(&remediationTemplateCountBeforeDelete).Error)
+	require.Equal(suite.T(), int64(0), remediationTemplateCountBeforeDelete)
+
+	var remediationTaskCountBeforeDelete int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTask{}).Where("remediation_template_id = ?", created.Data.Remediation.ID).Count(&remediationTaskCountBeforeDelete).Error)
+	require.Equal(suite.T(), int64(0), remediationTaskCountBeforeDelete)
+
 	deleteRec, deleteCall := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(deleteRec, deleteCall)
 	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
@@ -314,6 +327,130 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateRemediationRemoval
 	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(getRec, getCall)
 	require.Equal(suite.T(), http.StatusNotFound, getRec.Code)
+
+	var threatRefCountAfterDelete int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplateThreatRef{}).Where("risk_template_id = ?", created.Data.ID).Count(&threatRefCountAfterDelete).Error)
+	require.Equal(suite.T(), int64(0), threatRefCountAfterDelete)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateUpdateWithoutIsActivePreservesExistingValue() {
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Inactive template",
+		"title":         "Inactive template",
+		"statement":     "Template statement",
+		"isActive":      false,
+	})
+	suite.server.E().ServeHTTP(createRec, createCall)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.False(suite.T(), created.Data.IsActive)
+
+	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Inactive template updated",
+		"title":         "Inactive template updated",
+		"statement":     "Updated statement",
+	})
+	suite.server.E().ServeHTTP(updateRec, updateCall)
+	require.Equal(suite.T(), http.StatusOK, updateRec.Code)
+
+	var updated genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(updateRec.Body.Bytes(), &updated))
+	require.False(suite.T(), updated.Data.IsActive)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateDeleteCleansDependentRows() {
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Template for delete cleanup",
+		"title":         "Template for delete cleanup",
+		"statement":     "Template statement",
+		"threatIds": []map[string]any{
+			{
+				"system": "https://cwe.mitre.org",
+				"id":     "CWE-312",
+				"title":  "Cleartext Storage of Sensitive Information",
+			},
+		},
+		"remediationTemplate": map[string]any{
+			"title": "Delete cleanup remediation",
+			"tasks": []map[string]any{
+				{"title": "Task one", "orderIndex": 1},
+				{"title": "Task two", "orderIndex": 2},
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(createRec, createCall)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created genericDataResponse[riskTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.NotNil(suite.T(), created.Data.Remediation)
+
+	deleteRec, deleteCall := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risk-templates/%s", created.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteCall)
+	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
+
+	var threatRefCount int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplateThreatRef{}).Where("risk_template_id = ?", created.Data.ID).Count(&threatRefCount).Error)
+	require.Equal(suite.T(), int64(0), threatRefCount)
+
+	var remediationTemplateCount int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTemplate{}).Where("id = ?", created.Data.Remediation.ID).Count(&remediationTemplateCount).Error)
+	require.Equal(suite.T(), int64(0), remediationTemplateCount)
+
+	var remediationTaskCount int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RemediationTask{}).Where("remediation_template_id = ?", created.Data.Remediation.ID).Count(&remediationTaskCount).Error)
+	require.Equal(suite.T(), int64(0), remediationTaskCount)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateThreatValidationErrorFields() {
+	missingThreatIDRec, missingThreatIDCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Invalid threat field name",
+		"title":         "Invalid threat field name",
+		"statement":     "Template statement",
+		"threatIds": []map[string]any{
+			{
+				"system": "https://cwe.mitre.org",
+				"id":     "",
+				"title":  "Missing ID",
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(missingThreatIDRec, missingThreatIDCall)
+	require.Equal(suite.T(), http.StatusBadRequest, missingThreatIDRec.Code)
+	require.Contains(suite.T(), missingThreatIDRec.Body.String(), "threatIds.id is required")
+
+	duplicateThreatRec, duplicateThreatCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
+		"pluginId":      "github-repositories",
+		"policyPackage": "compliance_framework.secret_scanning_enabled",
+		"name":          "Duplicate threat validation",
+		"title":         "Duplicate threat validation",
+		"statement":     "Template statement",
+		"threatIds": []map[string]any{
+			{
+				"system": "https://cwe.mitre.org",
+				"id":     "CWE-312",
+				"title":  "Threat one",
+			},
+			{
+				"system": "https://cwe.mitre.org",
+				"id":     "CWE-312",
+				"title":  "Threat one duplicate",
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(duplicateThreatRec, duplicateThreatCall)
+	require.Equal(suite.T(), http.StatusBadRequest, duplicateThreatRec.Code)
+	require.Contains(suite.T(), duplicateThreatRec.Body.String(), "threatIds contains duplicate system/id pairs")
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateValidationBoundaries() {

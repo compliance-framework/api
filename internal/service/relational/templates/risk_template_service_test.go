@@ -22,7 +22,7 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 		LikelihoodHint: strPtr("medium"),
 		ImpactHint:     strPtr("high"),
 		ViolationIDs:   []string{"missing_secret_scanning"},
-		IsActive:       true,
+		IsActive:       boolPtr(true),
 		ThreatRefs: []ThreatRefInput{
 			{
 				System:     "https://cwe.mitre.org",
@@ -77,7 +77,7 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 		LikelihoodHint: strPtr("low"),
 		ImpactHint:     strPtr("medium"),
 		ViolationIDs:   []string{"missing_secret_scanning", "missing_push_protection"},
-		IsActive:       false,
+		IsActive:       boolPtr(false),
 		ThreatRefs: []ThreatRefInput{
 			{
 				System:     "https://cwe.mitre.org",
@@ -166,7 +166,7 @@ func TestRiskTemplateService_CreateValidationErrors(t *testing.T) {
 			mutate: func(payload *RiskTemplatePayload) {
 				payload.ThreatRefs = append(payload.ThreatRefs, payload.ThreatRefs[0])
 			},
-			message: "threatRefs contains duplicate system/id pairs",
+			message: "threatIds contains duplicate system/id pairs",
 		},
 		{
 			name: "duplicate remediation order index",
@@ -206,7 +206,7 @@ func TestRiskTemplateService_Delete(t *testing.T) {
 		Name:          "Template to delete",
 		Title:         "Template to delete",
 		Statement:     "Template to delete.",
-		IsActive:      true,
+		IsActive:      boolPtr(true),
 		ThreatRefs: []ThreatRefInput{
 			{
 				System:     "https://cwe.mitre.org",
@@ -232,6 +232,14 @@ func TestRiskTemplateService_Delete(t *testing.T) {
 	var remediationCount int64
 	require.NoError(t, db.Model(&RemediationTemplate{}).Where("id = ?", *created.RemediationTemplateID).Count(&remediationCount).Error)
 	require.Equal(t, int64(0), remediationCount)
+
+	var threatRefCount int64
+	require.NoError(t, db.Model(&RiskTemplateThreatRef{}).Where("risk_template_id = ?", *created.ID).Count(&threatRefCount).Error)
+	require.Equal(t, int64(0), threatRefCount)
+
+	var remediationTaskCount int64
+	require.NoError(t, db.Model(&RemediationTask{}).Where("remediation_template_id = ?", *created.RemediationTemplateID).Count(&remediationTaskCount).Error)
+	require.Equal(t, int64(0), remediationTaskCount)
 }
 
 func TestRiskTemplateService_CreateTrimsRiskLevelHints(t *testing.T) {
@@ -246,7 +254,7 @@ func TestRiskTemplateService_CreateTrimsRiskLevelHints(t *testing.T) {
 		Statement:      "Template statement.",
 		LikelihoodHint: strPtr(" low "),
 		ImpactHint:     strPtr(" high "),
-		IsActive:       true,
+		IsActive:       boolPtr(true),
 		ThreatRefs: []ThreatRefInput{
 			{
 				System:     "https://cwe.mitre.org",
@@ -293,7 +301,7 @@ func validRiskTemplatePayload() RiskTemplatePayload {
 		Title:         "Undetected secrets committed to repository",
 		Statement:     "Secret scanning is disabled and secrets may leak.",
 		ViolationIDs:  []string{"missing_secret_scanning"},
-		IsActive:      true,
+		IsActive:      boolPtr(true),
 		ThreatRefs: []ThreatRefInput{
 			{
 				System:     "https://cwe.mitre.org",
