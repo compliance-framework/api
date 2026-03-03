@@ -14,6 +14,7 @@ type RiskEventType string
 
 const (
 	RiskEventTypeCreated        RiskEventType = "created"
+	RiskEventTypeLastSeen       RiskEventType = "last_seen"
 	RiskEventTypeStatusChange   RiskEventType = "status_changed"
 	RiskEventTypeAccepted       RiskEventType = "accepted"
 	RiskEventTypeReviewed       RiskEventType = "reviewed"
@@ -34,6 +35,8 @@ type RiskEvent struct {
 	OccurredAt   time.Time         `json:"occurredAt" gorm:"not null;index"`
 	Payload      datatypes.JSONMap `json:"payload" gorm:"type:jsonb"`
 	RiskSnapshot datatypes.JSONMap `json:"riskSnapshot" gorm:"type:jsonb"`
+
+	Risk *Risk `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskEvent) TableName() string {

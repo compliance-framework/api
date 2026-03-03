@@ -48,7 +48,9 @@ func (suite *DigestApiIntegrationSuite) SetupSuite() {
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 
 	// Register handlers
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, digestService, nil, nil, nil)
+	services := &APIServices{}
+	services.DigestService = digestService
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, services)
 }
 
 func (suite *DigestApiIntegrationSuite) SetupTest() {

@@ -39,19 +39,19 @@ type evidenceTemplateLabelSchemaFieldAPIResponse struct {
 }
 
 type evidenceTemplateAPIResponse struct {
-	ID               uuid.UUID                                    `json:"id"`
-	CreatedAt        time.Time                                    `json:"createdAt"`
-	UpdatedAt        time.Time                                    `json:"updatedAt"`
-	PluginID         string                                       `json:"pluginId"`
-	PolicyPackage    string                                       `json:"policyPackage"`
-	Title            string                                       `json:"title"`
-	Description      string                                       `json:"description"`
-	Methods          []string                                     `json:"methods"`
-	IsActive         bool                                         `json:"isActive"`
-	SelectorLabels   []evidenceTemplateSelectorLabelAPIResponse   `json:"selectorLabels"`
-	LabelSchema      []evidenceTemplateLabelSchemaFieldAPIResponse `json:"labelSchema"`
-	RiskTemplateIDs  []uuid.UUID                                  `json:"riskTemplateIds"`
-	SubjectTemplateIDs []uuid.UUID                                `json:"subjectTemplateIds"`
+	ID                 uuid.UUID                                     `json:"id"`
+	CreatedAt          time.Time                                     `json:"createdAt"`
+	UpdatedAt          time.Time                                     `json:"updatedAt"`
+	PluginID           string                                        `json:"pluginId"`
+	PolicyPackage      string                                        `json:"policyPackage"`
+	Title              string                                        `json:"title"`
+	Description        string                                        `json:"description"`
+	Methods            []string                                      `json:"methods"`
+	IsActive           bool                                          `json:"isActive"`
+	SelectorLabels     []evidenceTemplateSelectorLabelAPIResponse    `json:"selectorLabels"`
+	LabelSchema        []evidenceTemplateLabelSchemaFieldAPIResponse `json:"labelSchema"`
+	RiskTemplateIDs    []uuid.UUID                                   `json:"riskTemplateIds"`
+	SubjectTemplateIDs []uuid.UUID                                   `json:"subjectTemplateIds"`
 }
 
 type evidenceTemplateDataEnvelope struct {
@@ -69,7 +69,8 @@ func (suite *EvidenceTemplateApiIntegrationSuite) SetupTest() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	handlerpkg.RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
+	services := &handlerpkg.APIServices{}
+	handlerpkg.RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, services)
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) authedRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {

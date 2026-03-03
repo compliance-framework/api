@@ -12,6 +12,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -480,6 +481,9 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 			"steps": {
 				MaxWorkers: 10,
 			},
+			"risk": {
+				MaxWorkers: 2,
+			},
 		},
 		Workers:      workers,
 		PeriodicJobs: periodicJobs,
@@ -623,5 +627,27 @@ func (s *Service) EnqueueSendEmailFrom(ctx context.Context, args *SendEmailFromA
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send email from job: %w", err)
 	}
+	return nil
+}
+
+// EnqueueRiskProcessEvidenceFailure enqueues a risk process evidence failure job
+func (s *Service) EnqueueRiskProcessEvidenceFailure(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+
+	args := &RiskProcessEvidenceFailureArgs{
+		EvidenceID:  evidenceID,
+		EvidenceEnd: evidenceEnd,
+		Status:      status,
+	}
+
+	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
+		{Args: args, InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure()},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enqueue risk process evidence failure job: %w", err)
+	}
+
 	return nil
 }

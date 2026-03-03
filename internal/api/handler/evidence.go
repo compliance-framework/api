@@ -7,7 +7,6 @@ import (
 
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
-	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
@@ -24,9 +23,9 @@ type EvidenceHandler struct {
 	sugar           *zap.SugaredLogger
 }
 
-func NewEvidenceHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *EvidenceHandler {
+func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService) *EvidenceHandler {
 	return &EvidenceHandler{
-		evidenceService: evidencesvc.NewEvidenceService(db, cfg),
+		evidenceService: evidenceService,
 		sugar:           sugar,
 	}
 }
@@ -336,7 +335,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Status:     datatypes.NewJSONType(input.Status),
 	}
 
-	created, err := h.evidenceService.Create(evidencesvc.CreateEvidenceParams{
+	created, err := h.evidenceService.Create(ctx.Request().Context(), evidencesvc.CreateEvidenceParams{
 		Evidence:       evidence,
 		Components:     components,
 		InventoryItems: inventoryItems,

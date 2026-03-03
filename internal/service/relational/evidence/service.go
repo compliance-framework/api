@@ -1,15 +1,22 @@
 package evidence
 
 import (
+	"context"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// RiskJobEnqueuer interface to avoid circular imports
+type RiskJobEnqueuer interface {
+	EnqueueRiskProcessEvidenceFailure(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error
+}
 
 type StatusCount struct {
 	Count  int64  `json:"count"`
@@ -17,12 +24,14 @@ type StatusCount struct {
 }
 
 type EvidenceService struct {
-	db  *gorm.DB
-	cfg *config.Config
+	db           *gorm.DB
+	logger       *zap.SugaredLogger
+	cfg          *config.Config
+	riskEnqueuer RiskJobEnqueuer
 }
 
-func NewEvidenceService(db *gorm.DB, cfg *config.Config) *EvidenceService {
-	return &EvidenceService{db: db, cfg: cfg}
+func NewEvidenceService(db *gorm.DB, logger *zap.SugaredLogger, cfg *config.Config, riskEnqueuer RiskJobEnqueuer) *EvidenceService {
+	return &EvidenceService{db: db, logger: logger, cfg: cfg, riskEnqueuer: riskEnqueuer}
 }
 
 type CreateEvidenceParams struct {
@@ -34,81 +43,129 @@ type CreateEvidenceParams struct {
 	Labels         []relational.Labels
 }
 
-func (s *EvidenceService) Create(params CreateEvidenceParams) (*relational.Evidence, error) {
-	for i := range params.Components {
-		if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Components[i]).Error; err != nil {
-			return nil, err
-		}
+func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParams) (*relational.Evidence, error) {
+	var evidence *relational.Evidence
+	var shouldEnqueueRiskJob bool
+	var riskJobArgs struct {
+		evidenceID  uuid.UUID
+		evidenceEnd string
+		status      string
 	}
 
-	for i := range params.InventoryItems {
-		if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.InventoryItems[i]).Error; err != nil {
-			return nil, err
+	// Use a complete database transaction
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Create all related entities first
+		for i := range params.Components {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Components[i]).Error; err != nil {
+				return err
+			}
 		}
-	}
 
-	for i := range params.Activities {
-		if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Activities[i]).Error; err != nil {
-			return nil, err
+		for i := range params.InventoryItems {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.InventoryItems[i]).Error; err != nil {
+				return err
+			}
 		}
-	}
 
-	for i := range params.Subjects {
-		if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Subjects[i]).Error; err != nil {
-			return nil, err
+		for i := range params.Activities {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Activities[i]).Error; err != nil {
+				return err
+			}
 		}
-	}
 
-	for i := range params.Labels {
-		if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Labels[i]).Error; err != nil {
-			return nil, err
+		for i := range params.Subjects {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Subjects[i]).Error; err != nil {
+				return err
+			}
 		}
-	}
 
-	if params.Evidence.Expires == nil && s.cfg != nil {
-		baseDate := params.Evidence.End
-		if baseDate.IsZero() {
-			baseDate = time.Now().UTC()
+		for i := range params.Labels {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Labels[i]).Error; err != nil {
+				return err
+			}
 		}
-		expiryDate := baseDate.AddDate(0, s.cfg.EvidenceDefaultExpiryMonths, 0)
-		params.Evidence.Expires = &expiryDate
-	}
 
-	if err := s.db.Create(&params.Evidence).Error; err != nil {
+		// Set expiry if not provided
+		if params.Evidence.Expires == nil && s.cfg != nil {
+			baseDate := params.Evidence.End
+			if baseDate.IsZero() {
+				baseDate = time.Now().UTC()
+			}
+			expiryDate := baseDate.AddDate(0, s.cfg.EvidenceDefaultExpiryMonths, 0)
+			params.Evidence.Expires = &expiryDate
+		}
+
+		// Detect if evidence status is "not-satisfied" so we can enqueue a risk job after commit.
+		statusData := params.Evidence.Status.Data()
+
+		// Create the evidence record — BeforeCreate sets params.Evidence.ID here.
+		if err := tx.Create(&params.Evidence).Error; err != nil {
+			return err
+		}
+		evidence = &params.Evidence
+
+		// Capture job args after Create so that params.Evidence.ID is guaranteed non-nil.
+		if statusData.State == relational.EvidenceStatusNotSatisfied {
+			shouldEnqueueRiskJob = true
+			riskJobArgs.evidenceID = *params.Evidence.ID
+			riskJobArgs.evidenceEnd = params.Evidence.End.Format(time.RFC3339)
+			riskJobArgs.status = statusData.State
+		}
+
+		// Create associations
+		if len(params.Activities) > 0 {
+			if err := tx.Model(&params.Evidence).Association("Activities").Append(params.Activities); err != nil {
+				return err
+			}
+		}
+
+		if len(params.InventoryItems) > 0 {
+			if err := tx.Model(&params.Evidence).Association("InventoryItems").Append(params.InventoryItems); err != nil {
+				return err
+			}
+		}
+
+		if len(params.Components) > 0 {
+			if err := tx.Model(&params.Evidence).Association("Components").Append(params.Components); err != nil {
+				return err
+			}
+		}
+
+		if len(params.Subjects) > 0 {
+			if err := tx.Model(&params.Evidence).Association("Subjects").Append(params.Subjects); err != nil {
+				return err
+			}
+		}
+
+		if len(params.Labels) > 0 {
+			if err := tx.Model(&params.Evidence).Association("Labels").Append(params.Labels); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return nil, err
 	}
 
-	if len(params.Activities) > 0 {
-		if err := s.db.Model(&params.Evidence).Association("Activities").Append(params.Activities); err != nil {
-			return nil, err
+	// Enqueue the risk job synchronously after the transaction commits.
+	// Note: this is not strictly atomic — if the process crashes between commit and enqueue the job
+	// is lost. River's UniqueOpts.ByArgs deduplication prevents double-processing if the same
+	// evidence is re-submitted. For true atomicity, river.InsertTx with a pgx.Tx would be required,
+	// but that is not directly accessible from within a GORM transaction.
+	if shouldEnqueueRiskJob && s.riskEnqueuer != nil {
+		if err := s.riskEnqueuer.EnqueueRiskProcessEvidenceFailure(ctx,
+			riskJobArgs.evidenceID, riskJobArgs.evidenceEnd, riskJobArgs.status); err != nil {
+			if s.logger != nil {
+				s.logger.Errorw("Failed to enqueue risk process evidence failure",
+					"error", err, "evidence_id", riskJobArgs.evidenceID)
+			}
 		}
 	}
 
-	if len(params.InventoryItems) > 0 {
-		if err := s.db.Model(&params.Evidence).Association("InventoryItems").Append(params.InventoryItems); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(params.Components) > 0 {
-		if err := s.db.Model(&params.Evidence).Association("Components").Append(params.Components); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(params.Subjects) > 0 {
-		if err := s.db.Model(&params.Evidence).Association("Subjects").Append(params.Subjects); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(params.Labels) > 0 {
-		if err := s.db.Model(&params.Evidence).Association("Labels").Append(params.Labels); err != nil {
-			return nil, err
-		}
-	}
-
-	return &params.Evidence, nil
+	return evidence, nil
 }
 
 func (s *EvidenceService) GetByID(id uuid.UUID) (*relational.Evidence, error) {
