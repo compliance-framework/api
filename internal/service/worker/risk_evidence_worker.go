@@ -395,9 +395,11 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 		return fmt.Errorf("failed to update existing risk: %w", err)
 	}
 
-	// Link the new evidence to the risk (idempotent — no error if link already exists)
-	if err := w.linkEvidenceToRisk(ctx, *existingRisk.ID, *evidence.ID); err != nil {
-		w.logger.Warnw("Failed to link evidence to risk", "error", err, "risk_id", existingRisk.ID, "evidence_id", evidence.ID)
+	// Re-create all risk links (evidence, subjects, components) for this new piece of evidence.
+	// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
+	// and also keeps subject/component associations up to date as new evidence arrives.
+	if err := w.createRiskLinks(ctx, w.db, *existingRisk.ID, evidence); err != nil {
+		w.logger.Warnw("Failed to create/update risk links", "error", err, "risk_id", existingRisk.ID, "evidence_id", evidence.ID)
 	}
 
 	// Emit a risk_event(last_seen) using the typed constant
