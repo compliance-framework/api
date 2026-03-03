@@ -171,6 +171,8 @@ func (s *EvidenceTemplateService) Create(payload EvidenceTemplatePayload) (*Evid
 	}
 
 	if payload.IsActive != nil && !*payload.IsActive {
+		// GORM applies the model default (`default:true`) for false booleans in this insert path
+		// under Postgres. Force the persisted value so create behavior matches the API payload.
 		if err := tx.Model(&EvidenceTemplate{}).Where("id = ?", *row.ID).Update("is_active", false).Error; err != nil {
 			tx.Rollback()
 			return nil, err
@@ -321,23 +323,40 @@ func (s *EvidenceTemplateService) FindMatchesForEvidence(labelsByKey map[string]
 		normalizedLabels[strings.ToLower(k)] = v
 	}
 
-	var templates []EvidenceTemplate
+	// Phase 1: load only selector labels to keep the candidate scan lightweight.
+	// Preloading LabelSchema, RiskTemplates, and SubjectTemplates for every active
+	// template would waste I/O for templates that won't match.
+	var candidates []EvidenceTemplate
 	if err := s.db.
 		Where("is_active = ?", true).
+		Preload("SelectorLabels", preloadEvidenceTemplateSelectorLabels).
+		Order("created_at asc").
+		Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+
+	matchedIDs := make([]uuid.UUID, 0, len(candidates))
+	for _, tmpl := range candidates {
+		if evaluateFilterInMemory(SelectorLabelsToFilter(tmpl.SelectorLabels), normalizedLabels) {
+			matchedIDs = append(matchedIDs, *tmpl.ID)
+		}
+	}
+
+	if len(matchedIDs) == 0 {
+		return []EvidenceTemplate{}, nil
+	}
+
+	// Phase 2: load full associations only for the matched templates.
+	var matched []EvidenceTemplate
+	if err := s.db.
+		Where("id IN ?", matchedIDs).
 		Preload("SelectorLabels", preloadEvidenceTemplateSelectorLabels).
 		Preload("LabelSchema", preloadEvidenceTemplateLabelSchema).
 		Preload("RiskTemplates").
 		Preload("SubjectTemplates").
 		Order("created_at asc").
-		Find(&templates).Error; err != nil {
+		Find(&matched).Error; err != nil {
 		return nil, err
-	}
-
-	matched := make([]EvidenceTemplate, 0, len(templates))
-	for _, tmpl := range templates {
-		if evaluateFilterInMemory(SelectorLabelsToFilter(tmpl.SelectorLabels), normalizedLabels) {
-			matched = append(matched, tmpl)
-		}
 	}
 
 	return matched, nil
