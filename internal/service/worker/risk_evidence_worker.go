@@ -132,15 +132,24 @@ func (w *RiskEvidenceWorker) matchEvidenceTemplates(ctx context.Context, evidenc
 		evidenceLabelMap[label.Name] = label.Value
 	}
 
-	// Get all active evidence templates
+	// Get all active evidence templates. Cap at 200 (consistent with the templates service scan
+	// limit) to avoid unbounded memory usage. Log a warning if the limit is reached so operators
+	// are alerted before templates are silently dropped.
+	const maxTemplateScan = 200
 	var allTemplates []templates.EvidenceTemplate
 	err := w.db.WithContext(ctx).
 		Preload("SelectorLabels").
 		Where("is_active = ?", true).
+		Limit(maxTemplateScan).
 		Find(&allTemplates).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load evidence templates: %w", err)
+	}
+
+	if len(allTemplates) == maxTemplateScan {
+		w.logger.Warnw("Evidence template scan reached the limit; some templates may not have been evaluated",
+			"limit", maxTemplateScan)
 	}
 
 	var matchedTemplates []templates.EvidenceTemplate
@@ -241,7 +250,7 @@ func (w *RiskEvidenceWorker) extractViolationIDs(props []relational.Prop) []stri
 	var violationIDs []string
 
 	for _, prop := range props {
-		// Look for props with name "violation_id" or similar patterns
+		// Look for props with name exactly "violation_id"
 		if prop.Name == "violation_id" && prop.Value != "" {
 			violationIDs = append(violationIDs, prop.Value)
 		}
@@ -267,7 +276,10 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 	// TODO: we are using Evidence.Components as a proxy for now, but in reality this should use SubjectTemplates to find the appropriate SystemComponents -> SSPIds
 
 	// Get unique SSP IDs from evidence components
-	sspIDs := w.extractSSPIDsFromComponents(ctx, evidence.Components)
+	sspIDs, err := w.extractSSPIDsFromComponents(ctx, evidence.Components)
+	if err != nil {
+		return fmt.Errorf("failed to extract SSP IDs from components: %w", err)
+	}
 	// Create/update one risk per SSP
 	// If no SSPIDs are valid, no risks are needed
 	var errs []error
@@ -307,10 +319,12 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 	return errors.Join(errs...)
 }
 
-// extractSSPIDsFromComponents extracts unique SSP IDs from evidence components
-func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, components []relational.SystemComponent) []uuid.UUID {
+// extractSSPIDsFromComponents extracts unique SSP IDs from evidence components.
+// Returns an error on DB failure so the caller (and River job) can retry rather than
+// silently producing no risks.
+func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, components []relational.SystemComponent) ([]uuid.UUID, error) {
 	if len(components) == 0 {
-		return []uuid.UUID{}
+		return []uuid.UUID{}, nil
 	}
 
 	// Extract unique SystemImplementation IDs from components
@@ -325,18 +339,15 @@ func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, co
 	}
 
 	if len(implIDs) == 0 {
-		return []uuid.UUID{}
+		return []uuid.UUID{}, nil
 	}
 
 	// Load SystemImplementations to get SSP IDs
 	var implementations []relational.SystemImplementation
-	err := w.db.WithContext(ctx).
+	if err := w.db.WithContext(ctx).
 		Where("id IN ?", implIDs).
-		Find(&implementations).Error
-
-	if err != nil {
-		w.logger.Warnw("Failed to load system implementations", "error", err, "impl_ids", implIDs)
-		return []uuid.UUID{}
+		Find(&implementations).Error; err != nil {
+		return nil, fmt.Errorf("failed to load system implementations for impl IDs %v: %w", implIDs, err)
 	}
 
 	// Extract unique SSP IDs
@@ -350,7 +361,7 @@ func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, co
 		}
 	}
 
-	return sspIDs
+	return sspIDs, nil
 }
 
 // computeDedupeKeyForSSP computes the dedupe key for a risk.

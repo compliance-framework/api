@@ -28,6 +28,14 @@ type APIServices struct {
 }
 
 func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, services *APIServices) {
+	if services == nil {
+		services = &APIServices{}
+	}
+	// Default EvidenceService when callers (e.g. test suites) don't provide one.
+	if services.EvidenceService == nil {
+		services.EvidenceService = evidencesvc.NewEvidenceService(db, logger, config, services.WorkerService)
+	}
+
 	healthHandler := NewHealthHandler(logger, db)
 	healthHandler.Register(server.API().Group("/health"))
 

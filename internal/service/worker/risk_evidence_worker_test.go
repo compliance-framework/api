@@ -1004,7 +1004,8 @@ func TestRiskEvidenceWorker_extractSSPIDsFromComponents(t *testing.T) {
 	components := []relational.SystemComponent{*component1, *component2, *component3}
 
 	// Extract SSP IDs
-	sspIDs := worker.extractSSPIDsFromComponents(ctx, components)
+	sspIDs, err := worker.extractSSPIDsFromComponents(ctx, components)
+	require.NoError(t, err)
 
 	// Should return only one unique SSP ID (from components 1 & 2)
 	assert.Len(t, sspIDs, 1)
@@ -1018,8 +1019,8 @@ func TestRiskEvidenceWorker_extractSSPIDsFromComponents_NoComponents(t *testing.
 	ctx := context.Background()
 
 	// Empty components list
-	sspIDs := worker.extractSSPIDsFromComponents(ctx, []relational.SystemComponent{})
-
+	sspIDs, err := worker.extractSSPIDsFromComponents(ctx, []relational.SystemComponent{})
+	require.NoError(t, err)
 	assert.Empty(t, sspIDs)
 }
 
@@ -1048,7 +1049,7 @@ func TestRiskEvidenceWorker_extractSSPIDsFromComponents_NoImplementations(t *tes
 	components := []relational.SystemComponent{*component1, *component2}
 
 	// Extract SSP IDs
-	sspIDs := worker.extractSSPIDsFromComponents(ctx, components)
-
+	sspIDs, err := worker.extractSSPIDsFromComponents(ctx, components)
+	require.NoError(t, err)
 	assert.Empty(t, sspIDs)
 }

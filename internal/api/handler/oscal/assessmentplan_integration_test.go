@@ -43,7 +43,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
 	// Create services struct for API handlers
 	services := &handler.APIServices{
-		EvidenceService:      nil, // Will be created inside RegisterHandlers
+		EvidenceService:      nil, // RegisterHandlers will create a default EvidenceService when nil
 		WorkerService:        nil,
 		DigestService:        nil,
 		WorkflowManager:      nil,

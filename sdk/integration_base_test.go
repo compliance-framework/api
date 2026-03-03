@@ -99,7 +99,7 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), cfg, metrics)
-	// Create evidence service with worker service for risk job enqueuing
+	// Create evidence service without a worker service (risk job enqueuing disabled in this test server)
 	evidenceService := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 
 	// Create services struct for API handlers

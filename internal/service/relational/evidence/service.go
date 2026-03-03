@@ -158,8 +158,10 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 	if shouldEnqueueRiskJob && s.riskEnqueuer != nil {
 		if err := s.riskEnqueuer.EnqueueRiskProcessEvidenceFailure(ctx,
 			riskJobArgs.evidenceID, riskJobArgs.evidenceEnd, riskJobArgs.status); err != nil {
-			s.logger.Errorw("Failed to enqueue risk process evidence failure",
-				"error", err, "evidence_id", riskJobArgs.evidenceID)
+			if s.logger != nil {
+				s.logger.Errorw("Failed to enqueue risk process evidence failure",
+					"error", err, "evidence_id", riskJobArgs.evidenceID)
+			}
 		}
 	}
 
