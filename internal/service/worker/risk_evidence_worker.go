@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -119,7 +120,7 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 		First(&evidence).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to load evidence %s: %w", evidenceID, err)
+		return nil, fmt.Errorf("failed to load evidence %v: %w", evidenceID, err)
 	}
 
 	return &evidence, nil
@@ -573,7 +574,7 @@ func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, riskID uuid.UUID
 		RiskID:     riskID,
 		EventType:  eventType,
 		OccurredAt: time.Now().UTC(),
-		Payload:    payload,
+		Payload:    datatypes.JSONMap(payload),
 	}
 
 	return w.db.WithContext(ctx).Create(event).Error
