@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/labstack/echo/v4"
@@ -16,7 +17,17 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, digestService *digest.Service, workflowManager *workflow.Manager, notificationEnqueuer workflow.NotificationEnqueuer, dagExecutor *workflow.DAGExecutor) {
+// APIServices contains all services needed by API handlers
+type APIServices struct {
+	EvidenceService      *evidencesvc.EvidenceService
+	WorkerService        evidencesvc.RiskJobEnqueuer
+	DigestService        *digest.Service
+	WorkflowManager      *workflow.Manager
+	NotificationEnqueuer workflow.NotificationEnqueuer
+	DAGExecutor          *workflow.DAGExecutor
+}
+
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, services *APIServices) {
 	healthHandler := NewHealthHandler(logger, db)
 	healthHandler.Register(server.API().Group("/health"))
 
@@ -26,7 +37,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	heartbeatHandler := NewHeartbeatHandler(logger, db)
 	heartbeatHandler.Register(server.API().Group("/agent/heartbeat"))
 
-	evidenceHandler := NewEvidenceHandler(logger, db, config)
+	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService, config)
 	evidenceHandler.Register(server.API().Group("/evidence"))
 
 	riskHandler := NewRiskHandler(logger, db)
@@ -61,8 +72,8 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	userHandler.RegisterSelfRoutes(userGroup)
 
 	// Digest handler (admin only)
-	if digestService != nil {
-		digestHandler := NewDigestHandler(digestService, logger)
+	if services.DigestService != nil {
+		digestHandler := NewDigestHandler(services.DigestService, logger)
 		digestGroup := server.API().Group("/admin/digest")
 		digestGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 		digestGroup.Use(middleware.RequireAdminGroups(db, config, logger))
@@ -70,7 +81,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	}
 
 	// Register workflow handlers
-	registerWorkflowHandlers(server, logger, db, config, workflowManager, notificationEnqueuer, dagExecutor)
+	registerWorkflowHandlers(server, logger, db, config, services.WorkflowManager, services.NotificationEnqueuer, services.DAGExecutor)
 }
 
 // registerWorkflowHandlers registers all workflow-related HTTP handlers with authentication

@@ -41,7 +41,16 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil, nil)
+	// Create services struct for API handlers
+	services := &handler.APIServices{
+		EvidenceService:      nil, // Will be created inside RegisterHandlers
+		WorkerService:        nil,
+		DigestService:        nil,
+		WorkflowManager:      nil,
+		NotificationEnqueuer: nil,
+		DAGExecutor:          nil,
+	}
+	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, services)
 	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
 }
 

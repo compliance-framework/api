@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 
 	"github.com/compliance-framework/api/sdk"
@@ -98,7 +99,20 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), cfg, metrics)
-	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
+	// Create evidence service with worker service for risk job enqueuing
+	evidenceService := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+
+	// Create services struct for API handlers
+	services := &handler.APIServices{
+		EvidenceService:      evidenceService,
+		WorkerService:        nil,
+		DigestService:        nil,
+		WorkflowManager:      nil,
+		NotificationEnqueuer: nil,
+		DAGExecutor:          nil,
+	}
+
+	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 
 	suite.Server = server
 

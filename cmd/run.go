@@ -12,6 +12,7 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/compliance-framework/api/internal/workflow"
@@ -99,7 +100,21 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg, digestService, workflowManager, workerService, workerService.GetDAGExecutor())
+
+	// Create evidence service with worker service for risk job enqueuing
+	evidenceService := evidencesvc.NewEvidenceService(db, sugar, cfg, workerService)
+
+	// Create services struct for API handlers
+	services := &handler.APIServices{
+		EvidenceService:      evidenceService,
+		WorkerService:        workerService,
+		DigestService:        digestService,
+		WorkflowManager:      workflowManager,
+		NotificationEnqueuer: workerService,
+		DAGExecutor:          workerService.GetDAGExecutor(),
+	}
+
+	handler.RegisterHandlers(server, sugar, db, cfg, services)
 	oscal.RegisterHandlers(server, sugar, db, cfg)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 

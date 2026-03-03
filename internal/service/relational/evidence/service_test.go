@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -35,7 +37,7 @@ func newEvidenceServiceTestDB(t *testing.T) *gorm.DB {
 
 func TestEvidenceService_Create_WithLabels(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, nil)
+	svc := NewEvidenceService(db, nil, nil, nil)
 
 	evidenceID := internal.Pointer(uuid.New())
 	streamUUID := uuid.New()
@@ -56,7 +58,7 @@ func TestEvidenceService_Create_WithLabels(t *testing.T) {
 		},
 	}
 
-	result, err := svc.Create(params)
+	result, err := svc.Create(context.Background(), params)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, evidenceID, result.ID)
@@ -79,7 +81,9 @@ func TestEvidenceService_Create_AutoSetsExpiry(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
 
 	// cfg with 3 months expiry
-	svc := NewEvidenceService(db, &config.Config{EvidenceDefaultExpiryMonths: 3})
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	svc := NewEvidenceService(db, logger.Sugar(), &config.Config{EvidenceDefaultExpiryMonths: 3}, nil)
 
 	now := time.Now().UTC()
 	end := now.Add(-time.Minute)
@@ -93,7 +97,7 @@ func TestEvidenceService_Create_AutoSetsExpiry(t *testing.T) {
 		},
 	}
 
-	result, err := svc.Create(params)
+	result, err := svc.Create(context.Background(), params)
 	require.NoError(t, err)
 	require.NotNil(t, result.Expires)
 	expected := end.AddDate(0, 3, 0)
@@ -102,7 +106,9 @@ func TestEvidenceService_Create_AutoSetsExpiry(t *testing.T) {
 
 func TestEvidenceService_Create_PreservesExplicitExpiry(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, &config.Config{EvidenceDefaultExpiryMonths: 3})
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	svc := NewEvidenceService(db, logger.Sugar(), &config.Config{EvidenceDefaultExpiryMonths: 3}, nil)
 
 	now := time.Now().UTC()
 	explicitExpiry := now.Add(90 * 24 * time.Hour)
@@ -117,7 +123,7 @@ func TestEvidenceService_Create_PreservesExplicitExpiry(t *testing.T) {
 		},
 	}
 
-	result, err := svc.Create(params)
+	result, err := svc.Create(context.Background(), params)
 	require.NoError(t, err)
 	require.NotNil(t, result.Expires)
 	require.WithinDuration(t, explicitExpiry, *result.Expires, time.Second)
@@ -125,19 +131,19 @@ func TestEvidenceService_Create_PreservesExplicitExpiry(t *testing.T) {
 
 func TestEvidenceService_Create_DuplicateLabelsAreIdempotent(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, nil)
+	svc := NewEvidenceService(db, nil, nil, nil)
 
 	label := relational.Labels{Name: "env", Value: "prod"}
 
 	// First evidence
-	_, err := svc.Create(CreateEvidenceParams{
+	_, err := svc.Create(context.Background(), CreateEvidenceParams{
 		Evidence: relational.Evidence{UUID: uuid.New(), Title: "e1", Start: time.Now().Add(-time.Hour), End: time.Now()},
 		Labels:   []relational.Labels{label},
 	})
 	require.NoError(t, err)
 
-	// Second evidence with same label - label upsert should not fail
-	_, err = svc.Create(CreateEvidenceParams{
+	// Second evidence with same label
+	_, err = svc.Create(context.Background(), CreateEvidenceParams{
 		Evidence: relational.Evidence{UUID: uuid.New(), Title: "e2", Start: time.Now().Add(-time.Hour), End: time.Now()},
 		Labels:   []relational.Labels{label},
 	})
@@ -154,7 +160,7 @@ func TestEvidenceService_Create_DuplicateLabelsAreIdempotent(t *testing.T) {
 
 func TestEvidenceService_GetByID(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, nil)
+	svc := NewEvidenceService(db, nil, nil, nil)
 
 	id := internal.Pointer(uuid.New())
 	now := time.Now().UTC()
@@ -176,7 +182,7 @@ func TestEvidenceService_GetByID(t *testing.T) {
 
 func TestEvidenceService_GetByID_NotFound(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, nil)
+	svc := NewEvidenceService(db, nil, nil, nil)
 
 	_, err := svc.GetByID(uuid.New())
 	require.Error(t, err)
@@ -185,7 +191,7 @@ func TestEvidenceService_GetByID_NotFound(t *testing.T) {
 
 func TestEvidenceService_GetHistory(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, nil)
+	svc := NewEvidenceService(db, nil, nil, nil)
 
 	streamUUID := uuid.New()
 	now := time.Now().UTC()
@@ -223,10 +229,9 @@ func TestEvidenceService_GetHistory(t *testing.T) {
 
 func TestEvidenceService_GetHistory_EmptyForUnknownStream(t *testing.T) {
 	db := newEvidenceServiceTestDB(t)
-	svc := NewEvidenceService(db, nil)
+	svc := NewEvidenceService(db, nil, nil, nil)
 
 	results, err := svc.GetHistory(uuid.New())
 	require.NoError(t, err)
 	require.Empty(t, results)
 }
-
