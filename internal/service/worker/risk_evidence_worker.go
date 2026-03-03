@@ -141,6 +141,7 @@ func (w *RiskEvidenceWorker) matchEvidenceTemplates(ctx context.Context, evidenc
 	err := w.db.WithContext(ctx).
 		Preload("SelectorLabels").
 		Where("is_active = ?", true).
+		Order("id ASC").
 		Limit(maxTemplateScan).
 		Find(&allTemplates).Error
 
@@ -260,13 +261,26 @@ func (w *RiskEvidenceWorker) extractViolationIDs(props []relational.Prop) []stri
 	return violationIDs
 }
 
-// violationMatches checks if any evidence violation ID matches the template's violation IDs
+// violationMatches checks if any evidence violation ID matches the template's violation IDs.
+// Uses a set lookup (O(N+M)) rather than nested loops (O(N*M)).
 func (w *RiskEvidenceWorker) violationMatches(templateViolationIDs, evidenceViolationIDs []string) bool {
-	for _, evidenceID := range evidenceViolationIDs {
-		for _, templateID := range templateViolationIDs {
-			if evidenceID == templateID {
-				return true
-			}
+	if len(templateViolationIDs) == 0 || len(evidenceViolationIDs) == 0 {
+		return false
+	}
+
+	// Build a set from the shorter slice to minimise allocations.
+	shorter, longer := templateViolationIDs, evidenceViolationIDs
+	if len(evidenceViolationIDs) < len(templateViolationIDs) {
+		shorter, longer = evidenceViolationIDs, templateViolationIDs
+	}
+
+	set := make(map[string]struct{}, len(shorter))
+	for _, id := range shorter {
+		set[id] = struct{}{}
+	}
+	for _, id := range longer {
+		if _, ok := set[id]; ok {
+			return true
 		}
 	}
 	return false
@@ -409,8 +423,10 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 	// Re-create all risk links (evidence, subjects, components) for this new piece of evidence.
 	// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
 	// and also keeps subject/component associations up to date as new evidence arrives.
+	var errs []error
 	if err := w.createRiskLinks(ctx, w.db, *existingRisk.ID, evidence); err != nil {
-		w.logger.Warnw("Failed to create/update risk links", "error", err, "risk_id", existingRisk.ID, "evidence_id", evidence.ID)
+		w.logger.Errorw("Failed to create/update risk links", "error", err, "risk_id", existingRisk.ID, "evidence_id", evidence.ID)
+		errs = append(errs, fmt.Errorf("failed to create risk links: %w", err))
 	}
 
 	// Emit a risk_event(last_seen) using the typed constant
@@ -419,7 +435,12 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 		"previous_last_seen": previousLastSeen,
 		"new_last_seen":      now,
 	}); err != nil {
-		w.logger.Warnw("Failed to emit risk event", "error", err, "risk_id", existingRisk.ID)
+		w.logger.Errorw("Failed to emit risk event", "error", err, "risk_id", existingRisk.ID)
+		errs = append(errs, fmt.Errorf("failed to emit risk event: %w", err))
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	w.logger.Infow("Updated existing risk",

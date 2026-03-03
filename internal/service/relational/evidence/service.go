@@ -105,7 +105,7 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 		evidence = &params.Evidence
 
 		// Capture job args after Create so that params.Evidence.ID is guaranteed non-nil.
-		if statusData.State == "not-satisfied" {
+		if statusData.State == relational.EvidenceStatusNotSatisfied {
 			shouldEnqueueRiskJob = true
 			riskJobArgs.evidenceID = *params.Evidence.ID
 			riskJobArgs.evidenceEnd = params.Evidence.End.Format(time.RFC3339)
