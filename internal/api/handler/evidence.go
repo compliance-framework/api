@@ -22,14 +22,12 @@ import (
 type EvidenceHandler struct {
 	evidenceService *evidencesvc.EvidenceService
 	sugar           *zap.SugaredLogger
-	config          *config.Config
 }
 
 func NewEvidenceHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *EvidenceHandler {
 	return &EvidenceHandler{
 		evidenceService: evidencesvc.NewEvidenceService(db, cfg),
 		sugar:           sugar,
-		config:          cfg,
 	}
 }
 
@@ -553,13 +551,8 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 		filters = append(filters, filter.Filter.Data())
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
 	if len(filters) == 0 {
-		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: []evidencesvc.StatusCount{}})
 	}
 
 	evidenceList, err := h.evidenceService.GetLatestForFilters(filters...)
@@ -579,14 +572,9 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
-type StatusCount struct {
-	Count  int64  `json:"count"`
-	Status string `json:"status"`
-}
-
 type StatusInterval struct {
-	Interval time.Time     `json:"interval"`
-	Statuses []StatusCount `json:"statuses"`
+	Interval time.Time                 `json:"interval"`
+	Statuses []evidencesvc.StatusCount `json:"statuses"`
 }
 
 // StatusOverTime godoc
@@ -623,7 +611,7 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 	type result struct {
 		idx      int
 		interval time.Time
-		data     []StatusCount
+		data     []evidencesvc.StatusCount
 		err      error
 	}
 
@@ -641,11 +629,7 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 				ch <- result{idx: i, err: err}
 				return
 			}
-			statusCounts := make([]StatusCount, 0, len(rows))
-			for _, r := range rows {
-				statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
-			}
-			ch <- result{idx: i, interval: now.Add(-d), data: statusCounts}
+			ch <- result{idx: i, interval: now.Add(-d), data: rows}
 		}(i, d)
 	}
 
@@ -694,7 +678,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 	type result struct {
 		idx      int
 		interval time.Time
-		data     []StatusCount
+		data     []evidencesvc.StatusCount
 		err      error
 	}
 
@@ -712,11 +696,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 				ch <- result{idx: i, err: err}
 				return
 			}
-			statusCounts := make([]StatusCount, 0, len(rows))
-			for _, r := range rows {
-				statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
-			}
-			ch <- result{idx: i, interval: now.Add(-d), data: statusCounts}
+			ch <- result{idx: i, interval: now.Add(-d), data: rows}
 		}(i, d)
 	}
 
@@ -739,7 +719,7 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Control ID"
-//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Success		200	{object}	GenericDataListResponse[evidence.StatusCount]
 //	@Failure		500	{object}	api.Error
 //	@Router			/evidence/compliance-by-control/{id} [get]
 func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
@@ -757,13 +737,8 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 		filters = append(filters, filter.Filter.Data())
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
 	if len(filters) == 0 {
-		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
+		return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: []evidencesvc.StatusCount{}})
 	}
 
 	rows, err := h.evidenceService.GetStatusCountsByFilters(filters...)
@@ -771,12 +746,7 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	statusCounts := make([]StatusCount, 0, len(rows))
-	for _, r := range rows {
-		statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
-	}
-
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: statusCounts})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: rows})
 }
 
 // ComplianceByFilter godoc
@@ -786,7 +756,7 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Filter/Dashboard ID (UUID)"
-//	@Success		200	{object}	GenericDataListResponse[handler.ComplianceByControl.StatusCount]
+//	@Success		200	{object}	GenericDataListResponse[evidence.StatusCount]
 //	@Failure		400	{object}	api.Error	"Invalid UUID"
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -806,20 +776,10 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	type StatusCount struct {
-		Count  int64  `json:"count"`
-		Status string `json:"status"`
-	}
-
 	rows, err := h.evidenceService.GetStatusCountsByFilters(filter.Filter.Data())
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	statusCounts := make([]StatusCount, 0, len(rows))
-	for _, r := range rows {
-		statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
-	}
-
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: statusCounts})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[evidencesvc.StatusCount]{Data: rows})
 }

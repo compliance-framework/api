@@ -24,6 +24,11 @@ func newEvidenceServiceTestDB(t *testing.T) *gorm.DB {
 		&relational.Labels{},
 		&relational.BackMatter{},
 		&relational.BackMatterResource{},
+		&relational.Activity{},
+		&relational.Step{},
+		&relational.SystemComponent{},
+		&relational.InventoryItem{},
+		&relational.AssessmentSubject{},
 	))
 	return db
 }

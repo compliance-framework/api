@@ -1032,7 +1032,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
                         }
                     },
                     "500": {
@@ -1067,7 +1067,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
                         }
                     },
                     "400": {
@@ -21407,6 +21407,17 @@
                 }
             }
         },
+        "evidence.StatusCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "gorm.DeletedAt": {
             "type": "object",
             "properties": {
@@ -21416,17 +21427,6 @@
                 "valid": {
                     "description": "Valid is true if Time is not NULL",
                     "type": "boolean"
-                }
-            }
-        },
-        "handler.ComplianceByControl.StatusCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
                 }
             }
         },
@@ -21808,14 +21808,14 @@
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount": {
+        "handler.GenericDataListResponse-evidence_StatusCount": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.ComplianceByControl.StatusCount"
+                        "$ref": "#/definitions/evidence.StatusCount"
                     }
                 }
             }
@@ -23355,17 +23355,6 @@
                 }
             }
         },
-        "handler.StatusCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.StatusInterval": {
             "type": "object",
             "properties": {
@@ -23375,7 +23364,7 @@
                 "statuses": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.StatusCount"
+                        "$ref": "#/definitions/evidence.StatusCount"
                     }
                 }
             }

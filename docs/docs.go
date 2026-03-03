@@ -1038,7 +1038,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
                         }
                     },
                     "500": {
@@ -1073,7 +1073,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
                         }
                     },
                     "400": {
@@ -21413,6 +21413,17 @@ const docTemplate = `{
                 }
             }
         },
+        "evidence.StatusCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "gorm.DeletedAt": {
             "type": "object",
             "properties": {
@@ -21422,17 +21433,6 @@ const docTemplate = `{
                 "valid": {
                     "description": "Valid is true if Time is not NULL",
                     "type": "boolean"
-                }
-            }
-        },
-        "handler.ComplianceByControl.StatusCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
                 }
             }
         },
@@ -21814,14 +21814,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount": {
+        "handler.GenericDataListResponse-evidence_StatusCount": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.ComplianceByControl.StatusCount"
+                        "$ref": "#/definitions/evidence.StatusCount"
                     }
                 }
             }
@@ -23361,17 +23361,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.StatusCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.StatusInterval": {
             "type": "object",
             "properties": {
@@ -23381,7 +23370,7 @@ const docTemplate = `{
                 "statuses": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.StatusCount"
+                        "$ref": "#/definitions/evidence.StatusCount"
                     }
                 }
             }
