@@ -102,6 +102,13 @@ definitions:
         format: int64
         type: integer
     type: object
+  evidence.StatusCount:
+    properties:
+      count:
+        type: integer
+      status:
+        type: string
+    type: object
   gorm.DeletedAt:
     properties:
       time:
@@ -109,13 +116,6 @@ definitions:
       valid:
         description: Valid is true if Time is not NULL
         type: boolean
-    type: object
-  handler.ComplianceByControl.StatusCount:
-    properties:
-      count:
-        type: integer
-      status:
-        type: string
     type: object
   handler.EvidenceActivity:
     properties:
@@ -406,12 +406,12 @@ definitions:
           type: array
         type: array
     type: object
-  handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount:
+  handler.GenericDataListResponse-evidence_StatusCount:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
+          $ref: '#/definitions/evidence.StatusCount'
         type: array
     type: object
   handler.GenericDataListResponse-handler_FilterWithAssociations:
@@ -1325,20 +1325,13 @@ definitions:
       total:
         type: integer
     type: object
-  handler.StatusCount:
-    properties:
-      count:
-        type: integer
-      status:
-        type: string
-    type: object
   handler.StatusInterval:
     properties:
       interval:
         type: string
       statuses:
         items:
-          $ref: '#/definitions/handler.StatusCount'
+          $ref: '#/definitions/evidence.StatusCount'
         type: array
     type: object
   handler.SubscriptionsResponse:
@@ -8701,7 +8694,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
+            $ref: '#/definitions/handler.GenericDataListResponse-evidence_StatusCount'
         "500":
           description: Internal Server Error
           schema:
@@ -8724,7 +8717,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
+            $ref: '#/definitions/handler.GenericDataListResponse-evidence_StatusCount'
         "400":
           description: Invalid UUID
           schema:
