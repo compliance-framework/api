@@ -280,7 +280,7 @@ func TestRiskEvidenceWorker_Work_NoMatchingTemplates(t *testing.T) {
 
 	// Create evidence with labels that won't match any templates
 	evidence := &relational.Evidence{
-		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
+		UUIDModel: relational.UUIDModel{},
 		UUID:      uuid.New(),
 		Title:     "Test Evidence",
 		Start:     time.Now().Add(-1 * time.Hour),

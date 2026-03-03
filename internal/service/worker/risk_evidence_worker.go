@@ -481,20 +481,22 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		if err := tx.Create(&newRisk).Error; err != nil {
 			return fmt.Errorf("failed to create new risk: %w", err)
 		}
-		return w.createRiskLinks(ctx, tx, *newRisk.ID, evidence)
+		if err := w.createRiskLinks(ctx, tx, *newRisk.ID, evidence); err != nil {
+			return err
+		}
+		// Emit a risk_event(created) using the typed constant
+		if err := w.emitRiskEvent(ctx, tx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
+			"evidence_id": evidence.ID,
+			"template_id": riskTemplate.ID,
+			"dedupe_key":  dedupeKey,
+			"ssp_id":      sspID,
+		}); err != nil {
+			return fmt.Errorf("failed to emit created risk event: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return err
-	}
-
-	// Emit a risk_event(created) using the typed constant
-	if err := w.emitRiskEvent(ctx, w.db, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
-		"evidence_id": evidence.ID,
-		"template_id": riskTemplate.ID,
-		"dedupe_key":  dedupeKey,
-		"ssp_id":      sspID,
-	}); err != nil {
-		w.logger.Warnw("Failed to emit risk event", "error", err, "risk_id", newRisk.ID)
 	}
 
 	w.logger.Infow("Created new risk",
