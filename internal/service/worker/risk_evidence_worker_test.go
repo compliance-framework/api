@@ -10,11 +10,11 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
-	"gorm.io/datatypes"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -29,7 +29,6 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, db.AutoMigrate(
 		&relational.Evidence{},
 		&relational.Labels{},
-		&relational.Prop{},
 		&relational.AssessmentSubject{},
 		&relational.SelectSubjectById{},
 		&relational.SystemComponent{},

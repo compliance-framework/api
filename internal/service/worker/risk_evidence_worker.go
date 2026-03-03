@@ -554,7 +554,6 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 	return nil
 }
 
-// emitRiskEvent creates a risk event record
 // emitRiskEvent creates a risk event record using the provided DB handle.
 // Accepts a *gorm.DB so the caller can pass a transaction handle.
 func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, db *gorm.DB, riskID uuid.UUID, eventType string, payload map[string]interface{}) error {
