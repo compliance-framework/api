@@ -10,6 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +73,7 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 			{Name: "environment", Value: "production"},
 			{Name: "category", Value: "security"},
 		},
-		Props: []relational.Prop{
+		Props: datatypes.JSONSlice[relational.Prop]{
 			{Name: "violation_id", Value: "VIOL-001"},
 		},
 	}
