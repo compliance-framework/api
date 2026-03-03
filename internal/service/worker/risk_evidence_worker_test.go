@@ -745,46 +745,6 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, updatedRisk.LastSeenAt.After(existingRisk.LastSeenAt))
 }
-
-func TestRiskEvidenceWorker_linkEvidenceToRisk(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-	ctx := context.Background()
-
-	// Create test risk and evidence
-	riskID := uuid.New()
-	evidence := createTestEvidence(t, worker.db)
-
-	// Link evidence to risk
-	err := worker.linkEvidenceToRisk(ctx, riskID, *evidence.ID)
-
-	assert.NoError(t, err)
-
-	// Verify the link was created
-	var link risks.RiskEvidenceLink
-	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", riskID, *evidence.ID).
-		First(&link).Error
-	assert.NoError(t, err)
-	assert.Equal(t, riskID, link.RiskID)
-	assert.Equal(t, *evidence.ID, link.EvidenceID)
-}
-
-func TestRiskEvidenceWorker_linkEvidenceToRisk_Idempotent(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-	ctx := context.Background()
-
-	riskID := uuid.New()
-	evidence := createTestEvidence(t, worker.db)
-
-	// Link the same evidence twice — second call must not return an error
-	require.NoError(t, worker.linkEvidenceToRisk(ctx, riskID, *evidence.ID))
-	assert.NoError(t, worker.linkEvidenceToRisk(ctx, riskID, *evidence.ID))
-}
-
 func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	t.Parallel()
 
@@ -890,7 +850,7 @@ func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {
 	}
 
 	// Emit risk event
-	err := worker.emitRiskEvent(ctx, riskID, eventType, payload)
+	err := worker.emitRiskEvent(ctx, worker.db, riskID, eventType, payload)
 
 	assert.NoError(t, err)
 
@@ -947,7 +907,7 @@ func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
 			ctx := context.Background()
 			riskID := uuid.New()
 
-			err := worker.emitRiskEvent(ctx, riskID, tc.eventType, tc.payload)
+			err := worker.emitRiskEvent(ctx, worker.db, riskID, tc.eventType, tc.payload)
 			assert.NoError(t, err)
 
 			// Verify the event was created

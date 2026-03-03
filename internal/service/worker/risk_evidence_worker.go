@@ -405,43 +405,41 @@ func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskT
 	return fmt.Sprintf("%s:%s:%s", sspID.String(), riskTemplate.ID.String(), strings.Join(subjectKeys, ","))
 }
 
-// updateExistingRisk updates an existing risk with new evidence
+// updateExistingRisk updates an existing risk with new evidence.
+// The save, link upserts, and event insertion run in a single transaction so that
+// a partial failure cannot leave the risk with a bumped LastSeenAt but missing links/events.
 func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRisk *risks.Risk, riskTemplate templates.RiskTemplate, evidence *relational.Evidence) error {
 	now := time.Now().UTC()
 
 	// Capture previous value before mutation so the event payload is accurate.
 	previousLastSeen := existingRisk.LastSeenAt
 
-	// Update last seen time
-	existingRisk.LastSeenAt = now
+	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		existingRisk.LastSeenAt = now
+		if err := tx.Save(existingRisk).Error; err != nil {
+			return fmt.Errorf("failed to update existing risk: %w", err)
+		}
 
-	// Save the updated risk
-	err := w.db.WithContext(ctx).Save(existingRisk).Error
+		// Re-create all risk links (evidence, subjects, components) for this new piece of evidence.
+		// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
+		// and also keeps subject/component associations up to date as new evidence arrives.
+		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, evidence); err != nil {
+			return fmt.Errorf("failed to create risk links: %w", err)
+		}
+
+		// Emit a risk_event(last_seen) using the typed constant.
+		if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeLastSeen), map[string]interface{}{
+			"evidence_id":        evidence.ID,
+			"previous_last_seen": previousLastSeen,
+			"new_last_seen":      now,
+		}); err != nil {
+			return fmt.Errorf("failed to emit risk event: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("failed to update existing risk: %w", err)
-	}
-
-	// Re-create all risk links (evidence, subjects, components) for this new piece of evidence.
-	// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
-	// and also keeps subject/component associations up to date as new evidence arrives.
-	var errs []error
-	if err := w.createRiskLinks(ctx, w.db, *existingRisk.ID, evidence); err != nil {
-		w.logger.Errorw("Failed to create/update risk links", "error", err, "risk_id", existingRisk.ID, "evidence_id", evidence.ID)
-		errs = append(errs, fmt.Errorf("failed to create risk links: %w", err))
-	}
-
-	// Emit a risk_event(last_seen) using the typed constant
-	if err := w.emitRiskEvent(ctx, *existingRisk.ID, string(risks.RiskEventTypeLastSeen), map[string]interface{}{
-		"evidence_id":        evidence.ID,
-		"previous_last_seen": previousLastSeen,
-		"new_last_seen":      now,
-	}); err != nil {
-		w.logger.Errorw("Failed to emit risk event", "error", err, "risk_id", existingRisk.ID)
-		errs = append(errs, fmt.Errorf("failed to emit risk event: %w", err))
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+		return err
 	}
 
 	w.logger.Infow("Updated existing risk",
@@ -490,7 +488,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 	}
 
 	// Emit a risk_event(created) using the typed constant
-	if err := w.emitRiskEvent(ctx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
+	if err := w.emitRiskEvent(ctx, w.db, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
 		"evidence_id": evidence.ID,
 		"template_id": riskTemplate.ID,
 		"dedupe_key":  dedupeKey,
@@ -508,18 +506,6 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 	)
 
 	return nil
-}
-
-// linkEvidenceToRisk creates a link between a risk and evidence.
-// Uses OnConflict{DoNothing} so that retries after transient failures are idempotent.
-func (w *RiskEvidenceWorker) linkEvidenceToRisk(ctx context.Context, riskID, evidenceID uuid.UUID) error {
-	link := &risks.RiskEvidenceLink{
-		RiskID:     riskID,
-		EvidenceID: evidenceID,
-		CreatedAt:  time.Now().UTC(),
-	}
-
-	return w.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(link).Error
 }
 
 // createRiskLinks creates all necessary links for a risk (evidence, subject, component, control).
@@ -569,7 +555,9 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 }
 
 // emitRiskEvent creates a risk event record
-func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, riskID uuid.UUID, eventType string, payload map[string]interface{}) error {
+// emitRiskEvent creates a risk event record using the provided DB handle.
+// Accepts a *gorm.DB so the caller can pass a transaction handle.
+func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, db *gorm.DB, riskID uuid.UUID, eventType string, payload map[string]interface{}) error {
 	event := &risks.RiskEvent{
 		RiskID:     riskID,
 		EventType:  eventType,
@@ -577,5 +565,5 @@ func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, riskID uuid.UUID
 		Payload:    datatypes.JSONMap(payload),
 	}
 
-	return w.db.WithContext(ctx).Create(event).Error
+	return db.WithContext(ctx).Create(event).Error
 }
