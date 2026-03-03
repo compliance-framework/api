@@ -6690,6 +6690,21 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-templates_evidenceTemplateResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-templates_riskTemplateResponse:
     properties:
       data:
@@ -6734,6 +6749,82 @@ definitions:
         type: integer
       totalPages:
         type: integer
+    type: object
+  templates.evidenceTemplateDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.evidenceTemplateResponse'
+    type: object
+  templates.evidenceTemplateLabelSchemaFieldRequest:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+      required:
+        type: boolean
+    type: object
+  templates.evidenceTemplateLabelSchemaFieldResponse:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+      required:
+        type: boolean
+    type: object
+  templates.evidenceTemplateResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse'
+        type: array
+      methods:
+        items:
+          type: string
+        type: array
+      pluginId:
+        type: string
+      policyPackage:
+        type: string
+      riskTemplateIds:
+        items:
+          type: string
+        type: array
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateSelectorLabelResponse'
+        type: array
+      subjectTemplateIds:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  templates.evidenceTemplateSelectorLabelRequest:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  templates.evidenceTemplateSelectorLabelResponse:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
     type: object
   templates.remediationTaskRequest:
     properties:
@@ -6903,6 +6994,39 @@ definitions:
       title:
         type: string
       url:
+        type: string
+    type: object
+  templates.upsertEvidenceTemplateRequest:
+    properties:
+      description:
+        type: string
+      isActive:
+        type: boolean
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest'
+        type: array
+      methods:
+        items:
+          type: string
+        type: array
+      pluginId:
+        type: string
+      policyPackage:
+        type: string
+      riskTemplateIds:
+        items:
+          type: string
+        type: array
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateSelectorLabelRequest'
+        type: array
+      subjectTemplateIds:
+        items:
+          type: string
+        type: array
+      title:
         type: string
     type: object
   templates.upsertRiskTemplateRequest:
@@ -8348,6 +8472,187 @@ paths:
       summary: Create new Evidence
       tags:
       - Evidence
+  /evidence-templates:
+    get:
+      description: List evidence templates with optional filters and pagination.
+      parameters:
+      - description: Plugin ID
+        in: query
+        name: pluginId
+        type: string
+      - description: Policy package
+        in: query
+        name: policyPackage
+        type: string
+      - description: Active flag
+        in: query
+        name: isActive
+        type: boolean
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_evidenceTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List evidence templates
+      tags:
+      - Evidence Templates
+    post:
+      consumes:
+      - application/json
+      description: Create an evidence template with selector labels, label schema,
+        and linked risk/subject template IDs.
+      parameters:
+      - description: Evidence template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create evidence template
+      tags:
+      - Evidence Templates
+  /evidence-templates/{id}:
+    delete:
+      description: Delete an evidence template and its associated selector labels,
+        label schema, and join rows.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete evidence template
+      tags:
+      - Evidence Templates
+    get:
+      description: Get an evidence template by ID.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get evidence template
+      tags:
+      - Evidence Templates
+    put:
+      consumes:
+      - application/json
+      description: Update an evidence template and atomically replace selector labels,
+        label schema, and linked IDs.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update evidence template
+      tags:
+      - Evidence Templates
   /evidence/{id}:
     get:
       description: Retrieves a single Evidence record by its unique ID, including
