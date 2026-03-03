@@ -112,8 +112,8 @@ func (s *EvidenceTemplateService) List(params EvidenceTemplateListParams) ([]Evi
 	if err := query.
 		Preload("SelectorLabels", preloadEvidenceTemplateSelectorLabels).
 		Preload("LabelSchema", preloadEvidenceTemplateLabelSchema).
-		Preload("RiskTemplates").
-		Preload("SubjectTemplates").
+		Preload("RiskTemplates", preloadEvidenceTemplateRiskTemplates).
+		Preload("SubjectTemplates", preloadEvidenceTemplateSubjectTemplates).
 		Order("created_at desc").
 		Limit(params.Limit).
 		Offset(params.Offset).
@@ -360,8 +360,8 @@ func (s *EvidenceTemplateService) FindMatchesForEvidence(labelsByKey map[string]
 		Where("id IN ?", matchedIDs).
 		Preload("SelectorLabels", preloadEvidenceTemplateSelectorLabels).
 		Preload("LabelSchema", preloadEvidenceTemplateLabelSchema).
-		Preload("RiskTemplates").
-		Preload("SubjectTemplates").
+		Preload("RiskTemplates", preloadEvidenceTemplateRiskTemplates).
+		Preload("SubjectTemplates", preloadEvidenceTemplateSubjectTemplates).
 		Order("created_at asc").
 		Find(&matched).Error; err != nil {
 		return nil, err
@@ -746,8 +746,8 @@ func fetchEvidenceTemplateByID(db *gorm.DB, id uuid.UUID) (*EvidenceTemplate, er
 	if err := db.
 		Preload("SelectorLabels", preloadEvidenceTemplateSelectorLabels).
 		Preload("LabelSchema", preloadEvidenceTemplateLabelSchema).
-		Preload("RiskTemplates").
-		Preload("SubjectTemplates").
+		Preload("RiskTemplates", preloadEvidenceTemplateRiskTemplates).
+		Preload("SubjectTemplates", preloadEvidenceTemplateSubjectTemplates).
 		First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
@@ -760,4 +760,12 @@ func preloadEvidenceTemplateSelectorLabels(db *gorm.DB) *gorm.DB {
 
 func preloadEvidenceTemplateLabelSchema(db *gorm.DB) *gorm.DB {
 	return db.Order("key ASC")
+}
+
+func preloadEvidenceTemplateRiskTemplates(db *gorm.DB) *gorm.DB {
+	return db.Order("risk_template_id ASC")
+}
+
+func preloadEvidenceTemplateSubjectTemplates(db *gorm.DB) *gorm.DB {
+	return db.Order("subject_template_id ASC")
 }

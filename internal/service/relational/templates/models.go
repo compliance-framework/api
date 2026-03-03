@@ -192,10 +192,8 @@ func (EvidenceTemplateSubjectTemplate) TableName() string {
 	return "evidence_template_subject_templates"
 }
 
-// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
-// review if needed in the future and consider removing it.
-// AssessmentSubjectIdentity is not referenced by any current API path (directly or indirectly).
-// Originally staged for future evidence/assessment wiring.
+// TODO[codex-5-3-high]: Staged for future evidence/assessment wiring.
+// Remove if subject-template identity resolution is no longer used.
 type AssessmentSubjectIdentity struct {
 	EntityType          string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
 	IdentityHash        string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`
@@ -206,10 +204,8 @@ func (AssessmentSubjectIdentity) TableName() string {
 	return "assessment_subject_identities"
 }
 
-// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
-// review if needed in the future and consider removing it.
-// SystemComponentIdentity is not referenced by any current API path (directly or indirectly).
-// Originally staged for future subject-template identity resolution wiring.
+// TODO[codex-5-3-high]: Staged for future evidence/assessment wiring.
+// Remove if subject-template identity resolution is no longer used.
 type SystemComponentIdentity struct {
 	EntityType             string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
 	IdentityHash           string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`
