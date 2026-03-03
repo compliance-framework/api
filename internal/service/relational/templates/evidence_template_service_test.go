@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -381,6 +382,30 @@ func TestEvidenceTemplateService_SelectorLabelsToFilter(t *testing.T) {
 
 	require.NotNil(t, filter.Scope.Scopes[1].Condition)
 	require.Equal(t, "plugin.id", filter.Scope.Scopes[1].Label)
+}
+
+func TestEvidenceTemplateService_FindMatchesReturnsErrorWhenScanLimitHit(t *testing.T) {
+	db := newEvidenceTemplateTestDB(t)
+	svc := NewEvidenceTemplateService(db)
+
+	for i := 0; i < maxEvidenceTemplatesScan+1; i++ {
+		_, err := svc.Create(EvidenceTemplatePayload{
+			PluginID:      fmt.Sprintf("plugin-%d", i),
+			PolicyPackage: "pkg",
+			Title:         fmt.Sprintf("Template %d", i),
+			SelectorLabels: []EvidenceTemplateSelectorLabelInput{
+				{Key: "plugin.id", Value: fmt.Sprintf("plugin-%d", i)},
+			},
+			LabelSchema: []EvidenceTemplateLabelSchemaFieldInput{
+				{Key: "key"},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	_, err := svc.FindMatchesForEvidence(map[string]string{"plugin.id": "plugin-0"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "reached scan limit")
 }
 
 func TestEvidenceTemplateService_SelectorLabelsToFilterEmpty(t *testing.T) {

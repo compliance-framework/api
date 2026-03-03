@@ -173,7 +173,9 @@ func (EvidenceTemplateLabelSchemaField) TableName() string {
 
 type EvidenceTemplateRiskTemplate struct {
 	EvidenceTemplateID uuid.UUID `json:"evidenceTemplateId" gorm:"type:uuid;not null;primaryKey"`
-	RiskTemplateID     uuid.UUID `json:"riskTemplateId" gorm:"type:uuid;not null;primaryKey"`
+	// index supports efficient reverse-lookups and deletes by risk_template_id alone
+	// (the composite PK is (evidence_template_id, risk_template_id), which doesn't serve single-column scans).
+	RiskTemplateID uuid.UUID `json:"riskTemplateId" gorm:"type:uuid;not null;primaryKey;index"`
 }
 
 func (EvidenceTemplateRiskTemplate) TableName() string {
@@ -182,15 +184,18 @@ func (EvidenceTemplateRiskTemplate) TableName() string {
 
 type EvidenceTemplateSubjectTemplate struct {
 	EvidenceTemplateID uuid.UUID `json:"evidenceTemplateId" gorm:"type:uuid;not null;primaryKey"`
-	SubjectTemplateID  uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;primaryKey"`
+	// index supports efficient reverse-lookups and deletes by subject_template_id alone.
+	SubjectTemplateID uuid.UUID `json:"subjectTemplateId" gorm:"type:uuid;not null;primaryKey;index"`
 }
 
 func (EvidenceTemplateSubjectTemplate) TableName() string {
 	return "evidence_template_subject_templates"
 }
 
-// TODO[codex-5-3-high]: Staged for future evidence/assessment wiring.
-// Remove if subject-template identity resolution is no longer used.
+// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
+// review if needed in the future and consider removing it.
+// AssessmentSubjectIdentity is not referenced by any current API path (directly or indirectly).
+// Originally staged for future evidence/assessment wiring.
 type AssessmentSubjectIdentity struct {
 	EntityType          string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
 	IdentityHash        string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`
@@ -201,8 +206,10 @@ func (AssessmentSubjectIdentity) TableName() string {
 	return "assessment_subject_identities"
 }
 
-// TODO[codex-5-3-high]: Staged for future evidence/assessment wiring.
-// Remove if subject-template identity resolution is no longer used.
+// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
+// review if needed in the future and consider removing it.
+// SystemComponentIdentity is not referenced by any current API path (directly or indirectly).
+// Originally staged for future subject-template identity resolution wiring.
 type SystemComponentIdentity struct {
 	EntityType             string    `json:"entityType" gorm:"column:entity_type;type:text;primaryKey"`
 	IdentityHash           string    `json:"identityHash" gorm:"column:identity_hash;type:char(64);primaryKey"`

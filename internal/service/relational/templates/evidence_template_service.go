@@ -17,6 +17,7 @@ const (
 	maxEvidenceTemplateLabelSchema    = 100
 	maxEvidenceTemplateRiskLinks      = 200
 	maxEvidenceTemplateSubjectLinks   = 200
+	maxEvidenceTemplatesScan          = 200
 
 	evidenceTemplateMethodTest      = "TEST"
 	evidenceTemplateMethodExamine   = "EXAMINE"
@@ -331,8 +332,15 @@ func (s *EvidenceTemplateService) FindMatchesForEvidence(labelsByKey map[string]
 		Where("is_active = ?", true).
 		Preload("SelectorLabels", preloadEvidenceTemplateSelectorLabels).
 		Order("created_at asc").
+		Limit(maxEvidenceTemplatesScan + 1).
 		Find(&candidates).Error; err != nil {
 		return nil, err
+	}
+	if len(candidates) > maxEvidenceTemplatesScan {
+		return nil, fmt.Errorf(
+			"FindMatchesForEvidence reached scan limit of %d active evidence templates; reduce active template count",
+			maxEvidenceTemplatesScan,
+		)
 	}
 
 	matchedIDs := make([]uuid.UUID, 0, len(candidates))
@@ -379,7 +387,7 @@ func evaluateScopeInMemory(scope labelfilter.Scope, labelsByKey map[string]strin
 	if scope.IsCondition() {
 		return evaluateConditionInMemory(*scope.Condition, labelsByKey)
 	}
-	// todo[sonnet]: this code might be dead code. Left as part of the implementation design.
+	// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
 	// review if needed in the future and consider removing it.
 	// A Scope with both Query and Condition nil is never produced by SelectorLabelsToFilter.
 	return false
@@ -398,7 +406,7 @@ func evaluateQueryInMemory(query labelfilter.Query, labelsByKey map[string]strin
 		}
 		return true
 	case "or":
-		// todo[sonnet]: this code might be dead code. Left as part of the implementation design.
+		// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
 		// review if needed in the future and consider removing it.
 		// SelectorLabelsToFilter only ever emits "AND" queries; the OR path is never reached by
 		// the current sole caller (FindMatchesForEvidence).
@@ -415,7 +423,7 @@ func evaluateQueryInMemory(query labelfilter.Query, labelsByKey map[string]strin
 func evaluateConditionInMemory(condition labelfilter.Condition, labelsByKey map[string]string) bool {
 	value, ok := labelsByKey[strings.ToLower(condition.Label)]
 	if !ok {
-		// todo[sonnet]: this code might be dead code. Left as part of the implementation design.
+		// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
 		// review if needed in the future and consider removing it.
 		// SelectorLabelsToFilter only emits "=" operators; the "!=" absent-key path is never
 		// reached by the current sole caller (FindMatchesForEvidence).
@@ -423,7 +431,7 @@ func evaluateConditionInMemory(condition labelfilter.Condition, labelsByKey map[
 	}
 	matches := strings.EqualFold(value, condition.Value)
 	if condition.Operator == "!=" {
-		// todo[sonnet]: this code might be dead code. Left as part of the implementation design.
+		// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
 		// review if needed in the future and consider removing it.
 		// SelectorLabelsToFilter only emits "=" operators; the "!=" present-key path is never
 		// reached by the current sole caller (FindMatchesForEvidence).
@@ -442,7 +450,7 @@ func evaluateConditionInMemory(condition labelfilter.Condition, labelsByKey map[
 // validation), so this case should not occur on persisted templates.
 func SelectorLabelsToFilter(selectors []EvidenceTemplateSelectorLabel) labelfilter.Filter {
 	if len(selectors) == 0 {
-		// todo[sonnet]: this code might be dead code. Left as part of the implementation design.
+		// TODO[sonnet]: this code might be dead code. Left as part of the implementation design.
 		// review if needed in the future and consider removing it.
 		// Empty selectors are rejected at write time (selectorLabels ≥ 1 enforced by validation),
 		// so persisted templates never reach this path via FindMatchesForEvidence.
