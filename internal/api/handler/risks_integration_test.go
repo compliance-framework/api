@@ -42,7 +42,7 @@ func (suite *RiskApiIntegrationSuite) SetupTest() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := NewEmptyAPIServices()
+	services := &APIServices{}
 	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, services)
 }
 

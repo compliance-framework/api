@@ -7,7 +7,6 @@ import (
 
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
-	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
@@ -24,7 +23,7 @@ type EvidenceHandler struct {
 	sugar           *zap.SugaredLogger
 }
 
-func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService, cfg *config.Config) *EvidenceHandler {
+func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService) *EvidenceHandler {
 	return &EvidenceHandler{
 		evidenceService: evidenceService,
 		sugar:           sugar,

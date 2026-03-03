@@ -69,7 +69,7 @@ func (suite *EvidenceTemplateApiIntegrationSuite) SetupTest() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := handlerpkg.NewEmptyAPIServices()
+	services := &handlerpkg.APIServices{}
 	handlerpkg.RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, services)
 }
 

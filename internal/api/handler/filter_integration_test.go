@@ -52,7 +52,7 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)
@@ -97,7 +97,7 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)
@@ -139,7 +139,7 @@ func (suite *FilterApiIntegrationSuite) TestCreate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(createReq)
@@ -169,7 +169,7 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 
 		// Create filter linked to AC-1
@@ -248,7 +248,7 @@ func (suite *FilterApiIntegrationSuite) TestList() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 
 		// Create filter linked to our system component
@@ -346,7 +346,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(updateReq)
@@ -405,7 +405,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(updateReq)
@@ -483,7 +483,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(updateReq)
@@ -559,7 +559,7 @@ func (suite *FilterApiIntegrationSuite) TestUpdate() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 		rec := httptest.NewRecorder()
 		reqBody, _ := json.Marshal(updateReq)

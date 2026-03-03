@@ -112,6 +112,7 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 	err := w.db.WithContext(ctx).
 		Preload("Labels").
 		Preload("Subjects").
+		Preload("Subjects.IncludeSubjects").
 		Preload("Components").
 		Preload("InventoryItems").
 		Where("id = ?", evidenceID).
@@ -303,7 +304,7 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 			err = w.updateExistingRisk(ctx, &existingRisk, riskTemplate, evidence)
 		} else {
 			// No existing risk - create new one
-			err = w.createNewRiskForSSP(ctx, riskTemplate, evidence, &sspID, dedupeKey)
+			err = w.createNewRiskForSSP(ctx, riskTemplate, evidence, sspID, dedupeKey)
 		}
 
 		if err != nil {
@@ -365,18 +366,28 @@ func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, co
 }
 
 // computeDedupeKeyForSSP computes the dedupe key for a risk.
-// The key uses sorted subject identity keys (not evidence.UUID) so that two separate agents
-// reporting the same violation for the same subjects map to the same risk, enabling correct
-// deduplication across agents. Format: ssp_id:risk_template_id:sorted_subject_ids
+// The key uses sorted, stable subject identity keys so that two separate agents reporting the
+// same violation for the same subjects map to the same risk, enabling correct deduplication.
+// We prefer SubjectUUID from IncludeSubjects (the stable entity reference) and fall back to
+// the AssessmentSubject row ID only when IncludeSubjects is empty.
+// Format: ssp_id:risk_template_id:sorted_subject_identity_keys
 func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID) string {
-	subjectIDs := make([]string, 0, len(evidence.Subjects))
+	subjectKeys := make([]string, 0, len(evidence.Subjects))
 	for _, subject := range evidence.Subjects {
-		if subject.ID != nil {
-			subjectIDs = append(subjectIDs, subject.ID.String())
+		hasStableKey := false
+		for _, inc := range subject.IncludeSubjects {
+			if inc.SubjectUUID != uuid.Nil {
+				subjectKeys = append(subjectKeys, inc.SubjectUUID.String())
+				hasStableKey = true
+			}
+		}
+		// Fall back to the row ID when no IncludeSubjects are populated.
+		if !hasStableKey && subject.ID != nil {
+			subjectKeys = append(subjectKeys, subject.ID.String())
 		}
 	}
-	sort.Strings(subjectIDs)
-	return fmt.Sprintf("%s:%s:%s", sspID.String(), riskTemplate.ID.String(), strings.Join(subjectIDs, ","))
+	sort.Strings(subjectKeys)
+	return fmt.Sprintf("%s:%s:%s", sspID.String(), riskTemplate.ID.String(), strings.Join(subjectKeys, ","))
 }
 
 // updateExistingRisk updates an existing risk with new evidence
@@ -423,14 +434,14 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 // createNewRiskForSSP creates a new risk based on the template, evidence, and SSP.
 // The risk row and all its links are created inside a single transaction so that a
 // link failure cannot leave an orphaned risk with no evidence.
-func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID *uuid.UUID, dedupeKey string) error {
+func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID, dedupeKey string) error {
 	now := time.Now().UTC()
 
 	newRisk := risks.Risk{
 		Title:          riskTemplate.Title,
 		Description:    riskTemplate.Statement,
 		Status:         string(risks.RiskStatusOpen),
-		SSPID:          *sspID,
+		SSPID:          sspID,
 		RiskTemplateID: riskTemplate.ID,
 		SourceType:     string(risks.RiskSourceTypeEvidenceAuto),
 		DedupeKey:      dedupeKey,

@@ -30,6 +30,7 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&relational.Labels{},
 		&relational.Prop{},
 		&relational.AssessmentSubject{},
+		&relational.SelectSubjectById{},
 		&relational.SystemComponent{},
 		&relational.SystemImplementation{},
 		&relational.InventoryItem{},

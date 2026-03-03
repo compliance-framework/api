@@ -159,7 +159,7 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := NewEmptyAPIServices()
+	services := &APIServices{}
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 	services.EvidenceService = evidenceSvc
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -215,7 +215,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -271,7 +271,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -327,7 +327,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -394,7 +394,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -469,7 +469,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -571,7 +571,7 @@ func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := NewEmptyAPIServices()
+	services := &APIServices{}
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 	services.EvidenceService = evidenceSvc
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -695,7 +695,7 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -729,7 +729,7 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
@@ -746,7 +746,7 @@ func (suite *EvidenceApiIntegrationSuite) TestComplianceByFilter() {
 		logger, _ := zap.NewDevelopment()
 		metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 		server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-		services := NewEmptyAPIServices()
+		services := &APIServices{}
 		evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
 		services.EvidenceService = evidenceSvc
 		RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)

@@ -40,7 +40,7 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreateValidation() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := NewEmptyAPIServices()
+	services := &APIServices{}
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(heartbeat)
@@ -63,7 +63,7 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreate() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := NewEmptyAPIServices()
+	services := &APIServices{}
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(heartbeat)
@@ -97,7 +97,7 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatOverTime() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := NewEmptyAPIServices()
+	services := &APIServices{}
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/agent/heartbeat/over-time/", nil)

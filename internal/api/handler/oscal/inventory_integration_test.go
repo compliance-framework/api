@@ -43,7 +43,7 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB)
 	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger, suite.Config, nil)
-	suite.evidenceHandler = handler.NewEvidenceHandler(logger, evidenceSvc, suite.Config)
+	suite.evidenceHandler = handler.NewEvidenceHandler(logger, evidenceSvc)
 
 	// Initialize server
 	metrics := api.NewMetricsHandler(context.Background(), logger)
