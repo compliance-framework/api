@@ -10,26 +10,26 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type EvidenceHandler struct {
-	db     *gorm.DB
-	sugar  *zap.SugaredLogger
-	config *config.Config
+	evidenceService *evidencesvc.EvidenceService
+	sugar           *zap.SugaredLogger
+	config          *config.Config
 }
 
 func NewEvidenceHandler(sugar *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *EvidenceHandler {
 	return &EvidenceHandler{
-		sugar:  sugar,
-		db:     db,
-		config: cfg,
+		evidenceService: evidencesvc.NewEvidenceService(db, cfg),
+		sugar:           sugar,
+		config:          cfg,
 	}
 }
 
@@ -175,7 +175,6 @@ type EvidenceCreateRequest struct {
 //	@Security		OAuth2Password
 //	@Router			/evidence [post]
 func (h *EvidenceHandler) Create(ctx echo.Context) error {
-	// Bind the incoming JSON payload into a slice of SDK findings.
 	var input *EvidenceCreateRequest
 	if err := ctx.Bind(&input); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -195,7 +194,6 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 	}
 
 	components := []relational.SystemComponent{}
-	// First, Inventory
 	for _, i := range input.Components {
 		id, err := internal.SeededUUID(map[string]string{
 			"identifier": i.Identifier,
@@ -221,11 +219,9 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			Links: relational.ConvertOscalToLinks(&input.Links),
 		}
 		components = append(components, model)
-		h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
 	}
 
 	inventoryItems := []relational.InventoryItem{}
-	// First, Inventory
 	for _, i := range input.InventoryItems {
 		id, err := internal.SeededUUID(map[string]string{
 			"identifier": i.Identifier,
@@ -254,11 +250,9 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			})
 		}
 		inventoryItems = append(inventoryItems, model)
-		h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
 	}
 
 	activities := []relational.Activity{}
-	// First, Inventory
 	for _, i := range input.Activities {
 		model := relational.Activity{
 			UUIDModel: relational.UUIDModel{
@@ -283,7 +277,6 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			})
 		}
 		activities = append(activities, model)
-		h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
 	}
 
 	subjects := []relational.AssessmentSubject{}
@@ -307,41 +300,20 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 			Links:       relational.ConvertOscalToLinks(&input.Links),
 		}
 		subjects = append(subjects, model)
-		h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
 	}
 
 	labels := []relational.Labels{}
 	for name, value := range input.Labels {
-		model := relational.Labels{
+		labels = append(labels, relational.Labels{
 			Name:  name,
 			Value: value,
-		}
-		labels = append(labels, model)
-		h.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&model)
+		})
 	}
 
 	var backMatter *relational.BackMatter
 	if input.BackMatter != nil {
 		backMatter = &relational.BackMatter{}
 		backMatter.UnmarshalOscal(*input.BackMatter)
-	}
-
-	// Auto-set expiration if not provided
-	expires := input.Expires
-	if expires == nil {
-		// Use End date if available, otherwise use current time
-		baseDate := input.End
-		if baseDate.IsZero() {
-			baseDate = time.Now().UTC()
-		}
-		// Add configured months to base date
-		expiryDate := baseDate.AddDate(0, h.config.EvidenceDefaultExpiryMonths, 0)
-		expires = &expiryDate
-		h.sugar.Debugw("Auto-set evidence expiration",
-			"uuid", input.UUID,
-			"baseDate", baseDate,
-			"expiryMonths", h.config.EvidenceDefaultExpiryMonths,
-			"expiresAt", expiryDate)
 	}
 
 	evidence := relational.Evidence{
@@ -354,7 +326,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Remarks:     input.Remarks,
 		Start:       input.Start,
 		End:         input.End,
-		Expires:     expires,
+		Expires:     input.Expires,
 		Props:       relational.ConvertOscalToProps(&input.Props),
 		Links:       relational.ConvertOscalToLinks(&input.Links),
 		Origins: relational.ConvertList(&input.Origins, func(ol oscalTypes_1_1_3.Origin) relational.Origin {
@@ -366,32 +338,19 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Status:     datatypes.NewJSONType(input.Status),
 	}
 
-	if err := h.db.Create(&evidence).Error; err != nil {
+	created, err := h.evidenceService.Create(evidencesvc.CreateEvidenceParams{
+		Evidence:       evidence,
+		Components:     components,
+		InventoryItems: inventoryItems,
+		Activities:     activities,
+		Subjects:       subjects,
+		Labels:         labels,
+	})
+	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	if err = h.db.Model(&evidence).Association("Activities").Append(activities); err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	if err = h.db.Model(&evidence).Association("InventoryItems").Append(inventoryItems); err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	if err = h.db.Model(&evidence).Association("Components").Append(components); err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	if err = h.db.Model(&evidence).Association("Subjects").Append(subjects); err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	if err = h.db.Model(&evidence).Association("Labels").Append(labels); err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
-	// Return a 201 Created response with no content.
-	return ctx.JSON(http.StatusCreated, GenericDataResponse[relational.Evidence]{Data: evidence})
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[relational.Evidence]{Data: *created})
 }
 
 // Search godoc
@@ -407,21 +366,15 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Failure		500		{object}	api.Error
 //	@Router			/evidence/search [post]
 func (h *EvidenceHandler) Search(ctx echo.Context) error {
-	var err error
 	filter := &labelfilter.Filter{}
 	req := filteredSearchRequest{}
 
-	// Bind the incoming request to the filter.
-	if err = req.bind(ctx, filter); err != nil {
+	if err := req.bind(ctx, filter); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	results := []relational.Evidence{}
-	query, err := relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(h.db), h.db, *filter)
+	results, err := h.evidenceService.Search(*filter)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-	if err = query.Preload("Labels").Find(&results).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -499,17 +452,9 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	var evidence relational.Evidence
-	if err := h.db.
-		Preload("Labels").
-		Preload("BackMatter").
-		Preload("BackMatter.Resources").
-		Preload("Activities").
-		Preload("Activities.Steps").
-		Preload("InventoryItems").
-		Preload("Components").
-		Preload("Subjects").
-		First(&evidence, "id = ?", id).Error; err != nil {
+
+	evidence, err := h.evidenceService.GetByID(id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -518,8 +463,7 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 	}
 
 	output := &OscalLikeEvidence{}
-	err = output.FromEvidence(&evidence)
-	if err != nil {
+	if err = output.FromEvidence(evidence); err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -545,16 +489,9 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	var evidences []relational.Evidence
-	if err := h.db.
-		Preload("Labels").
-		Preload("Activities").
-		Preload("Activities.Steps").
-		Preload("InventoryItems").
-		Preload("Components").
-		Preload("Subjects").
-		Order("evidences.end DESC").
-		Find(&evidences, "uuid = ?", id).Error; err != nil {
+
+	evidences, err := h.evidenceService.GetHistory(id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -563,11 +500,9 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 	}
 
 	output := []*OscalLikeEvidence{}
-
 	for _, e := range evidences {
 		out := &OscalLikeEvidence{}
-		err = out.FromEvidence(&e)
-		if err != nil {
+		if err = out.FromEvidence(&e); err != nil {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 		output = append(output, out)
@@ -599,8 +534,8 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	}
 
 	id := ctx.Param("id")
-	control := &relational.Control{}
-	if err := h.db.Preload("Filters").First(control, "id = ?", id).Error; err != nil {
+	control, err := h.evidenceService.GetControlByID(id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -624,28 +559,18 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	}
 
 	if len(filters) == 0 {
-		// If there are no filters assigned for the control, we should return nothing explicitly, otherwise we return everything implicitly
 		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
 	}
 
-	latestQuery := h.db.Session(&gorm.Session{})
-	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
-	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filters...)
+	evidenceList, err := h.evidenceService.GetLatestForFilters(filters...)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	evidence := []relational.Evidence{}
-	if err := q.Model(&relational.Evidence{}).
-		Scan(&evidence).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-	}
-
 	response.Data = []OscalLikeEvidence{}
-	for _, e := range evidence {
+	for _, e := range evidenceList {
 		out := &OscalLikeEvidence{}
-		err = out.FromEvidence(&e)
-		if err != nil {
+		if err = out.FromEvidence(&e); err != nil {
 			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 		}
 		response.Data = append(response.Data, *out)
@@ -679,11 +604,10 @@ type StatusInterval struct {
 //	@Failure		500			{object}	api.Error
 //	@Router			/evidence/status-over-time [post]
 func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
-	var err error
 	filter := &labelfilter.Filter{}
 	req := filteredSearchRequest{}
 
-	if err = req.bind(ctx, filter); err != nil {
+	if err := req.bind(ctx, filter); err != nil {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
@@ -707,25 +631,21 @@ func (h *EvidenceHandler) StatusOverTime(ctx echo.Context) error {
 	now := time.Now()
 	for i, d := range intervals {
 		go func(i int, d time.Duration) {
-			latestQuery := h.db.Session(&gorm.Session{})
-			latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
+			var endBefore *time.Time
 			if d > 0 {
-				latestQuery = latestQuery.Where("evidences.end < ?", now.Add(-d).UTC())
+				t := now.Add(-d).UTC()
+				endBefore = &t
 			}
-			q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, *filter)
+			rows, err := h.evidenceService.GetStatusCountsAtPoint(*filter, endBefore)
 			if err != nil {
 				ch <- result{idx: i, err: err}
 				return
 			}
-			rows := []StatusCount{}
-			if err := q.Model(&relational.Evidence{}).
-				Select("count(*) as count, status->>'state' as status").
-				Group("status->>'state'").
-				Scan(&rows).Error; err != nil {
-				ch <- result{idx: i, err: err}
-				return
+			statusCounts := make([]StatusCount, 0, len(rows))
+			for _, r := range rows {
+				statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
 			}
-			ch <- result{idx: i, interval: now.Add(-d), data: rows}
+			ch <- result{idx: i, interval: now.Add(-d), data: statusCounts}
 		}(i, d)
 	}
 
@@ -782,26 +702,21 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 	now := time.Now()
 	for i, d := range intervals {
 		go func(i int, d time.Duration) {
-			latestQuery := h.db.Session(&gorm.Session{})
-			latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
-			latestQuery = latestQuery.Where("uuid = ?", id.String())
+			var endBefore *time.Time
 			if d > 0 {
-				latestQuery = latestQuery.Where("evidences.end < ?", now.Add(-d).UTC())
+				t := now.Add(-d).UTC()
+				endBefore = &t
 			}
-			q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, labelfilter.Filter{})
+			rows, err := h.evidenceService.GetStatusCountsByUUIDAtPoint(id, endBefore)
 			if err != nil {
 				ch <- result{idx: i, err: err}
 				return
 			}
-			rows := []StatusCount{}
-			if err := q.Model(&relational.Evidence{}).
-				Select("count(*) as count, status->>'state' as status").
-				Group("status->>'state'").
-				Scan(&rows).Error; err != nil {
-				ch <- result{idx: i, err: err}
-				return
+			statusCounts := make([]StatusCount, 0, len(rows))
+			for _, r := range rows {
+				statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
 			}
-			ch <- result{idx: i, interval: now.Add(-d), data: rows}
+			ch <- result{idx: i, interval: now.Add(-d), data: statusCounts}
 		}(i, d)
 	}
 
@@ -829,8 +744,8 @@ func (h *EvidenceHandler) StatusOverTimeByUUID(ctx echo.Context) error {
 //	@Router			/evidence/compliance-by-control/{id} [get]
 func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 	id := ctx.Param("id")
-	control := &relational.Control{}
-	if err := h.db.Preload("Filters").First(control, "id = ?", id).Error; err != nil {
+	control, err := h.evidenceService.GetControlByID(id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -848,26 +763,20 @@ func (h *EvidenceHandler) ComplianceByControl(ctx echo.Context) error {
 	}
 
 	if len(filters) == 0 {
-		// If there are no filters assigned for the control, we should return nothing explicitly, otherwise we return everything implicitly
 		return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: []StatusCount{}})
 	}
 
-	latestQuery := h.db.Session(&gorm.Session{})
-	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
-	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filters...)
+	rows, err := h.evidenceService.GetStatusCountsByFilters(filters...)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	rows := []StatusCount{}
-	if err := q.Model(&relational.Evidence{}).
-		Select("count(*) as count, status->>'state' as status").
-		Group("status->>'state'").
-		Scan(&rows).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	statusCounts := make([]StatusCount, 0, len(rows))
+	for _, r := range rows {
+		statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: rows})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: statusCounts})
 }
 
 // ComplianceByFilter godoc
@@ -889,8 +798,8 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	filter := &relational.Filter{}
-	if err := h.db.First(filter, "id = ?", id).Error; err != nil {
+	filter, err := h.evidenceService.GetFilterByID(id)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -902,20 +811,15 @@ func (h *EvidenceHandler) ComplianceByFilter(ctx echo.Context) error {
 		Status string `json:"status"`
 	}
 
-	latestQuery := h.db.Session(&gorm.Session{})
-	latestQuery = relational.GetLatestEvidenceStreamsQuery(latestQuery)
-	q, err := relational.GetEvidenceSearchByFilterQuery(latestQuery, h.db, filter.Filter.Data())
+	rows, err := h.evidenceService.GetStatusCountsByFilters(filter.Filter.Data())
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	rows := []StatusCount{}
-	if err := q.Model(&relational.Evidence{}).
-		Select("count(*) as count, status->>'state' as status").
-		Group("status->>'state'").
-		Scan(&rows).Error; err != nil {
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	statusCounts := make([]StatusCount, 0, len(rows))
+	for _, r := range rows {
+		statusCounts = append(statusCounts, StatusCount{Count: r.Count, Status: r.Status})
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: rows})
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[StatusCount]{Data: statusCounts})
 }
