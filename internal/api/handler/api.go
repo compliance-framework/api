@@ -20,7 +20,7 @@ import (
 // APIServices contains all services needed by API handlers
 type APIServices struct {
 	EvidenceService      *evidencesvc.EvidenceService
-	WorkerService        evidencesvc.RiskJobEnqueuer
+	RiskEnqueuer         evidencesvc.RiskJobEnqueuer
 	DigestService        *digest.Service
 	WorkflowManager      *workflow.Manager
 	NotificationEnqueuer workflow.NotificationEnqueuer
@@ -33,7 +33,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	}
 	// Default EvidenceService when callers (e.g. test suites) don't provide one.
 	if services.EvidenceService == nil {
-		services.EvidenceService = evidencesvc.NewEvidenceService(db, logger, config, services.WorkerService)
+		services.EvidenceService = evidencesvc.NewEvidenceService(db, logger, config, services.RiskEnqueuer)
 	}
 
 	healthHandler := NewHealthHandler(logger, db)

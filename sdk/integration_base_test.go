@@ -105,7 +105,7 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 	// Create services struct for API handlers
 	services := &handler.APIServices{
 		EvidenceService:      evidenceService,
-		WorkerService:        nil,
+		RiskEnqueuer:         nil,
 		DigestService:        nil,
 		WorkflowManager:      nil,
 		NotificationEnqueuer: nil,

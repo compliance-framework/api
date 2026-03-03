@@ -107,7 +107,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	// Create services struct for API handlers
 	services := &handler.APIServices{
 		EvidenceService:      evidenceService,
-		WorkerService:        workerService,
+		RiskEnqueuer:         workerService,
 		DigestService:        digestService,
 		WorkflowManager:      workflowManager,
 		NotificationEnqueuer: workerService,

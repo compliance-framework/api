@@ -44,7 +44,7 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 	// Create services struct for API handlers
 	services := &handler.APIServices{
 		EvidenceService:      nil, // RegisterHandlers will create a default EvidenceService when nil
-		WorkerService:        nil,
+		RiskEnqueuer:         nil,
 		DigestService:        nil,
 		WorkflowManager:      nil,
 		NotificationEnqueuer: nil,
