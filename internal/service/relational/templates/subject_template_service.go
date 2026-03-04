@@ -33,7 +33,6 @@ const (
 	maxSubjectTemplateSelectorLabels   = 50
 	maxSubjectTemplateLabelSchemaItems = 100
 	maxRuntimeComponentTemplatesScan   = 200
-	maxSubjectTemplateTextLength       = 1000
 )
 
 var allowedSubjectTemplateTypes = map[string]struct{}{
@@ -779,11 +778,16 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 		if err != nil {
 			return nil, err
 		}
-		schemaLabels := []string{}
+		// Build schema label keys leniently: include only those keys that are present
+		// in the evidence labels. Unlike identity labels, schema labels may be optional
+		// (e.g., contextual labels like "env"), so missing keys should not cause an error.
+		schemaLabelKeys := []string{}
 		for _, label := range template.LabelSchema {
-			schemaLabels = append(schemaLabels, label.Key)
+			if _, ok := labelsByKey[label.Key]; ok {
+				schemaLabelKeys = append(schemaLabelKeys, label.Key)
+			}
 		}
-		schemaLabelPairs, err := projectIdentityLabelPairs(schemaLabels, input.EvidenceLabels)
+		schemaLabelPairs, err := projectIdentityLabelPairs(schemaLabelKeys, input.EvidenceLabels)
 		if err != nil {
 			return nil, err
 		}
