@@ -615,6 +615,29 @@ func TestRiskEvidenceWorker_loadRiskTemplates_EmptyPolicyValue(t *testing.T) {
 	assert.Len(t, loaded, 0)
 }
 
+func TestRiskEvidenceWorker_loadRiskTemplates_CaseInsensitivePolicyValue(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a risk template with policy package "test-policy"
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+
+	// Create evidence labels with different case for _policy value
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "TEST-POLICY"},
+	}
+
+	// Load risk templates - should match despite case difference in value
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 1)
+	assert.Equal(t, riskTemplate.ID, loaded[0].ID)
+}
+
 func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testing.T) {
 	t.Parallel()
 

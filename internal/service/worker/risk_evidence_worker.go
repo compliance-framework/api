@@ -60,7 +60,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	if len(riskTemplates) == 0 {
-		w.logger.Infow("No matching risk templates found for _policy label", "evidence_id", args.EvidenceID)
+		w.logger.Infow("No matching risk templates found for evidence", "evidence_id", args.EvidenceID)
 		return nil
 	}
 
@@ -120,13 +120,14 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 
 // loadRiskTemplates loads risk templates based on the _policy label from evidence
 // matching against the policy_package field in risk_template.
-// Supports multiple _policy labels and performs case-insensitive, whitespace-trimmed matching.
+// Supports multiple _policy labels. Label names and values are matched case-insensitively,
+// and label values are trimmed of whitespace.
 func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabels []relational.Labels, evidenceID uuid.UUID) ([]templates.RiskTemplate, error) {
 	// Extract all _policy label values from evidence (case-insensitive, trimmed, deduplicated)
 	policyPackages := make(map[string]struct{})
 	for _, label := range evidenceLabels {
 		if strings.EqualFold(label.Name, "_policy") {
-			normalized := strings.TrimSpace(label.Value)
+			normalized := strings.ToLower(strings.TrimSpace(label.Value))
 			if normalized != "" {
 				policyPackages[normalized] = struct{}{}
 			}
@@ -143,11 +144,13 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	for pkg := range policyPackages {
 		policyPackageList = append(policyPackageList, pkg)
 	}
+	// Ensure deterministic order for queries, logs, and error messages
+	sort.Strings(policyPackageList)
 
-	// Query risk templates where policy_package matches any of the _policy label values
+	// Query risk templates where policy_package matches any of the _policy label values (case-insensitive)
 	var riskTemplates []templates.RiskTemplate
 	err := w.db.WithContext(ctx).
-		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
+		Where("LOWER(policy_package) IN ? AND is_active = ?", policyPackageList, true).
 		Find(&riskTemplates).Error
 
 	if err != nil {
