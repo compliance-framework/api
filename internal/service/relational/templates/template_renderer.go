@@ -29,13 +29,13 @@ func renderTemplate(tmplStr string, labels map[string]string) (string, error) {
 
 // validateTemplateAgainstSchema validates that all template variables reference keys in the label schema.
 // Returns an error if the template references undefined keys.
-func validateTemplateAgainstSchema(tmplStr string, labelSchema []SubjectTemplateLabelSchemaField) error {
-	if tmplStr == "" {
+func validateTemplateAgainstSchema(tmplStr *string, labelSchema []SubjectTemplateLabelSchemaField) error {
+	if tmplStr == nil || *tmplStr == "" {
 		return nil
 	}
 
 	// Parse the template to extract variable references
-	tmpl, err := template.New("validation").Parse(tmplStr)
+	tmpl, err := template.New("validation").Parse(*tmplStr)
 	if err != nil {
 		return fmt.Errorf("invalid template syntax: %w", err)
 	}

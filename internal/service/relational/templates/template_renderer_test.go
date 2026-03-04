@@ -33,7 +33,7 @@ func TestRenderTemplate(t *testing.T) {
 			expected: "",
 		},
 		{
-			name:     "missing variable uses empty string",
+			name:     "missing variable renders as no value",
 			template: "Service: {{.service}}",
 			labels:   map[string]string{},
 			expected: "Service: <no value>",
@@ -95,7 +95,7 @@ func TestValidateTemplateAgainstSchema(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:      "template referencing unexisting keys",
+			name:      "template referencing nonexistent keys",
 			template:  "{{.foo}} in {{.cluster}}",
 			expectErr: true,
 		},
@@ -107,7 +107,7 @@ func TestValidateTemplateAgainstSchema(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTemplateAgainstSchema(tt.template, schema)
+			err := validateTemplateAgainstSchema(&tt.template, schema)
 			if tt.expectErr {
 				require.Error(t, err)
 			} else {

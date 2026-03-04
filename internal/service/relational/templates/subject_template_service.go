@@ -33,6 +33,7 @@ const (
 	maxSubjectTemplateSelectorLabels   = 50
 	maxSubjectTemplateLabelSchemaItems = 100
 	maxRuntimeComponentTemplatesScan   = 200
+	maxSubjectTemplateTextLength       = 1000
 )
 
 var allowedSubjectTemplateTypes = map[string]struct{}{
@@ -750,6 +751,7 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 		Where("type = ? AND source_mode = ?", subjectTemplateTypeComponent, subjectTemplateSourceModeRuntimeDerived).
 		Joins("JOIN subject_template_selector_labels ON subject_template_selector_labels.subject_template_id = subject_templates.id AND subject_template_selector_labels.key = ? AND subject_template_selector_labels.value = ?", "_plugin", pluginValue).
 		Preload("SelectorLabels", preloadSubjectTemplateSelectorLabels).
+		Preload("LabelSchema", preloadSubjectTemplateLabelSchema).
 		Order("created_at asc").
 		Limit(maxRuntimeComponentTemplatesScan + 1).
 		Find(&templates).Error; err != nil {
@@ -777,10 +779,18 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 		if err != nil {
 			return nil, err
 		}
+		schemaLabels := []string{}
+		for _, label := range template.LabelSchema {
+			schemaLabels = append(schemaLabels, label.Key)
+		}
+		schemaLabelPairs, err := projectIdentityLabelPairs(schemaLabels, input.EvidenceLabels)
+		if err != nil {
+			return nil, err
+		}
 
-		identityHash := buildEntityIdentityHash("component", identityPairs)
+		identityHash := buildEntityIdentityHash(template.Type, identityPairs)
 
-		definedComponentID, err := s.resolveOrCreateComponentDefinition(template, identityPairs, identityHash)
+		definedComponentID, err := s.resolveOrCreateComponentDefinition(template, identityPairs, schemaLabelPairs, identityHash)
 		if err != nil {
 			return nil, err
 		}
@@ -797,7 +807,7 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 	return result, nil
 }
 
-func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template SubjectTemplate, identityPairs []identityLabelPair, identityHash string) (*uuid.UUID, error) {
+func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template SubjectTemplate, identityPairs []identityLabelPair, schemaLabels []identityLabelPair, identityHash string) (*uuid.UUID, error) {
 	// Check if identity already exists.
 	var existingIdentity ComponentDefinitionIdentity
 	if err := s.db.Where("entity_type = ? AND identity_hash = ?", subjectTemplateTypeComponent, identityHash).First(&existingIdentity).Error; err == nil {
@@ -808,7 +818,7 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 
 	// Build label map for template rendering
 	labelMap := make(map[string]string)
-	for _, pair := range identityPairs {
+	for _, pair := range schemaLabels {
 		labelMap[pair.Key] = pair.Value
 	}
 
@@ -1266,26 +1276,30 @@ func validateSubjectTemplatePayload(payload *SubjectTemplatePayload) error {
 			Description: field.Description,
 		})
 	}
+	if err := validateSubjectTemplateOptionalText("titleTemplate", payload.TitleTemplate); err != nil {
+		return newValidationError(fmt.Sprintf("titleTemplate validation failed: %v", err))
+	}
+	if err := validateSubjectTemplateOptionalText("descriptionTemplate", payload.DescriptionTemplate); err != nil {
+		return newValidationError(fmt.Sprintf("descriptionTemplate validation failed: %v", err))
+	}
+	if err := validateSubjectTemplateOptionalText("purposeTemplate", payload.PurposeTemplate); err != nil {
+		return newValidationError(fmt.Sprintf("purposeTemplate validation failed: %v", err))
+	}
+	if err := validateSubjectTemplateOptionalText("remarksTemplate", payload.RemarksTemplate); err != nil {
+		return newValidationError(fmt.Sprintf("remarksTemplate validation failed: %v", err))
+	}
 
-	if payload.TitleTemplate != nil {
-		if err := validateTemplateAgainstSchema(*payload.TitleTemplate, labelSchemaFields); err != nil {
-			return newValidationError(fmt.Sprintf("titleTemplate validation failed: %v", err))
-		}
+	if err := validateTemplateAgainstSchema(payload.TitleTemplate, labelSchemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("titleTemplate validation failed: %v", err))
 	}
-	if payload.DescriptionTemplate != nil {
-		if err := validateTemplateAgainstSchema(*payload.DescriptionTemplate, labelSchemaFields); err != nil {
-			return newValidationError(fmt.Sprintf("descriptionTemplate validation failed: %v", err))
-		}
+	if err := validateTemplateAgainstSchema(payload.DescriptionTemplate, labelSchemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("descriptionTemplate validation failed: %v", err))
 	}
-	if payload.PurposeTemplate != nil {
-		if err := validateTemplateAgainstSchema(*payload.PurposeTemplate, labelSchemaFields); err != nil {
-			return newValidationError(fmt.Sprintf("purposeTemplate validation failed: %v", err))
-		}
+	if err := validateTemplateAgainstSchema(payload.PurposeTemplate, labelSchemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("purposeTemplate validation failed: %v", err))
 	}
-	if payload.RemarksTemplate != nil {
-		if err := validateTemplateAgainstSchema(*payload.RemarksTemplate, labelSchemaFields); err != nil {
-			return newValidationError(fmt.Sprintf("remarksTemplate validation failed: %v", err))
-		}
+	if err := validateTemplateAgainstSchema(payload.RemarksTemplate, labelSchemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("remarksTemplate validation failed: %v", err))
 	}
 
 	return nil
