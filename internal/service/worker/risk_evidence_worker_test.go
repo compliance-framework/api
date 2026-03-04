@@ -71,6 +71,7 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 		Labels: []relational.Labels{
 			{Name: "environment", Value: "production"},
 			{Name: "category", Value: "security"},
+			{Name: "_policy", Value: "test-policy"},
 		},
 		Props: datatypes.JSONSlice[relational.Prop]{
 			{Name: "violation_id", Value: "VIOL-001"},
@@ -214,9 +215,8 @@ func TestRiskEvidenceWorker_Work_Success(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test data: risk template → evidence template → evidence with a component linked to an SSP
+	// Create test data: risk template and evidence with a component linked to an SSP
 	riskTemplate := createTestRiskTemplate(t, worker.db)
-	_ = createTestEvidenceTemplate(t, worker.db, riskTemplate.ID)
 	evidence, ssp := createTestEvidenceWithSSP(t, worker.db)
 
 	args := RiskProcessEvidenceFailureArgs{
@@ -278,7 +278,7 @@ func TestRiskEvidenceWorker_Work_NoMatchingTemplates(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create evidence with labels that won't match any templates
+	// Create evidence with _policy label that won't match any risk templates
 	evidence := &relational.Evidence{
 		UUIDModel: relational.UUIDModel{},
 		UUID:      uuid.New(),
@@ -286,7 +286,7 @@ func TestRiskEvidenceWorker_Work_NoMatchingTemplates(t *testing.T) {
 		Start:     time.Now().Add(-1 * time.Hour),
 		End:       time.Now(),
 		Labels: []relational.Labels{
-			{Name: "environment", Value: "staging"}, // Different from template
+			{Name: "_policy", Value: "non-existent-policy"},
 		},
 	}
 
@@ -313,11 +313,10 @@ func TestRiskEvidenceWorker_Work_NoComponents_NoRisks(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create templates
-	riskTemplate := createTestRiskTemplate(t, worker.db)
-	_ = createTestEvidenceTemplate(t, worker.db, riskTemplate.ID)
+	// Create risk template
+	_ = createTestRiskTemplate(t, worker.db)
 
-	// Evidence with matching labels but NO components — no SSPs can be resolved
+	// Evidence with matching _policy label but NO components — no SSPs can be resolved
 	evidence := createTestEvidence(t, worker.db)
 
 	args := RiskProcessEvidenceFailureArgs{
@@ -337,33 +336,16 @@ func TestRiskEvidenceWorker_Work_NoComponents_NoRisks(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 }
 
-func TestRiskEvidenceWorker_Work_WildcardTemplate(t *testing.T) {
+func TestRiskEvidenceWorker_Work_PolicyLabelMatch(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template and an evidence template with NO selector labels (wildcard).
-	// A wildcard template must match all evidence regardless of labels.
+	// Create a risk template with a specific policy package
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	wildcardTemplateID := uuid.New()
-	wildcardTemplate := &templates.EvidenceTemplate{
-		UUIDModel:     relational.UUIDModel{ID: &wildcardTemplateID},
-		PluginID:      "wildcard-plugin",
-		PolicyPackage: "wildcard-policy",
-		Title:         "Wildcard Template",
-		IsActive:      true,
-		// No SelectorLabels — matches everything
-	}
-	require.NoError(t, worker.db.Create(wildcardTemplate).Error)
-	rel := &templates.EvidenceTemplateRiskTemplate{
-		EvidenceTemplateID: wildcardTemplateID,
-		RiskTemplateID:     *riskTemplate.ID,
-	}
-	require.NoError(t, worker.db.Create(rel).Error)
-
-	// Evidence with completely different labels — wildcard should still match
+	// Evidence with matching _policy label
 	evidence, ssp := createTestEvidenceWithSSP(t, worker.db)
 
 	args := RiskProcessEvidenceFailureArgs{
@@ -376,12 +358,12 @@ func TestRiskEvidenceWorker_Work_WildcardTemplate(t *testing.T) {
 	err := worker.Work(ctx, job)
 	assert.NoError(t, err)
 
-	// Risk must have been created from the wildcard template
+	// Risk must have been created from the matching policy package
 	var count int64
 	require.NoError(t, worker.db.Model(&risks.Risk{}).
 		Where("ssp_id = ? AND risk_template_id = ?", ssp.ID, riskTemplate.ID).
 		Count(&count).Error)
-	assert.Equal(t, int64(1), count, "wildcard template should have created a risk")
+	assert.Equal(t, int64(1), count, "risk template with matching policy package should have created a risk")
 }
 
 func TestRiskEvidenceWorker_loadEvidenceWithRelations(t *testing.T) {
@@ -400,7 +382,7 @@ func TestRiskEvidenceWorker_loadEvidenceWithRelations(t *testing.T) {
 	assert.NotNil(t, loaded)
 	assert.Equal(t, evidence.ID, loaded.ID)
 	assert.Equal(t, evidence.UUID, loaded.UUID)
-	assert.Len(t, loaded.Labels, 2)
+	assert.Len(t, loaded.Labels, 3) // environment, category, _policy
 	assert.Len(t, loaded.Props, 1)
 }
 
@@ -534,32 +516,153 @@ func TestRiskEvidenceWorker_loadRiskTemplates(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test data
+	// Create test risk template with policy package "test-policy"
 	riskTemplate := createTestRiskTemplate(t, worker.db)
-	evidenceTemplate := createTestEvidenceTemplate(t, worker.db, riskTemplate.ID)
+
+	// Create evidence labels with matching _policy label
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "test-policy"},
+	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, []templates.EvidenceTemplate{*evidenceTemplate})
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 1)
 	assert.Equal(t, riskTemplate.ID, loaded[0].ID)
 }
 
-func TestRiskEvidenceWorker_loadRiskTemplates_NoRelationships(t *testing.T) {
+func TestRiskEvidenceWorker_loadRiskTemplates_NoPolicyLabel(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create evidence template without risk template relationships
-	evidenceTemplate := createTestEvidenceTemplate(t, worker.db, nil)
+	// Create evidence labels without _policy label
+	evidenceLabels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, []templates.EvidenceTemplate{*evidenceTemplate})
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 0)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_NoMatchingPolicyPackage(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a risk template with policy package "test-policy"
+	_ = createTestRiskTemplate(t, worker.db)
+
+	// Create evidence labels with different _policy label
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "different-policy"},
+	}
+
+	// Load risk templates
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 0)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_MultipleMatchingTemplates(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create multiple risk templates with the same policy package
+	template1ID := uuid.New()
+	template1 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &template1ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "shared-policy",
+		Name:          "Risk Template 1",
+		Title:         "Risk Template 1",
+		Statement:     "Test risk statement 1",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(template1).Error)
+
+	template2ID := uuid.New()
+	template2 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &template2ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "shared-policy",
+		Name:          "Risk Template 2",
+		Title:         "Risk Template 2",
+		Statement:     "Test risk statement 2",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-002"},
+	}
+	require.NoError(t, worker.db.Create(template2).Error)
+
+	// Create evidence labels with matching _policy label
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "shared-policy"},
+	}
+
+	// Load risk templates
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 2)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create an active risk template
+	activeTemplateID := uuid.New()
+	activeTemplate := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &activeTemplateID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Active Risk Template",
+		Title:         "Active Risk Template",
+		Statement:     "Test risk statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(activeTemplate).Error)
+
+	// Create an inactive risk template with same policy package
+	inactiveTemplateID := uuid.New()
+	inactiveTemplate := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &inactiveTemplateID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Inactive Risk Template",
+		Title:         "Inactive Risk Template",
+		Statement:     "Test risk statement",
+		IsActive:      false,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(inactiveTemplate).Error)
+	// Explicitly update to ensure IsActive is set to false (SQLite may have default behavior)
+	require.NoError(t, worker.db.Model(inactiveTemplate).Update("is_active", false).Error)
+
+	// Create evidence labels with matching _policy label
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "test-policy"},
+	}
+
+	// Load risk templates
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 1)
+	assert.Equal(t, activeTemplateID, *loaded[0].ID)
 }
 
 func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
