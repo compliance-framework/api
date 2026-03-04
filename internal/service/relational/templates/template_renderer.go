@@ -14,7 +14,7 @@ func renderTemplate(tmplStr string, labels map[string]string) (string, error) {
 		return "", nil
 	}
 
-	tmpl, err := template.New("field").Parse(tmplStr)
+	tmpl, err := template.New("field").Option("missingkey=zero").Parse(tmplStr)
 	if err != nil {
 		return "", fmt.Errorf("invalid template: %w", err)
 	}
@@ -35,7 +35,7 @@ func validateTemplateAgainstSchema(tmplStr *string, labelSchema []SubjectTemplat
 	}
 
 	// Parse the template to extract variable references
-	tmpl, err := template.New("validation").Parse(*tmplStr)
+	tmpl, err := template.New("validation").Option("missingkey=zero").Parse(*tmplStr)
 	if err != nil {
 		return fmt.Errorf("invalid template syntax: %w", err)
 	}

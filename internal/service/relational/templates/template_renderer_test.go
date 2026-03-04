@@ -33,10 +33,10 @@ func TestRenderTemplate(t *testing.T) {
 			expected: "",
 		},
 		{
-			name:     "missing variable renders as no value",
+			name:     "missing variable renders as empty",
 			template: "Service: {{.service}}",
 			labels:   map[string]string{},
-			expected: "Service: <no value>",
+			expected: "Service: ",
 		},
 		{
 			name:      "invalid template syntax",
