@@ -148,9 +148,10 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	sort.Strings(policyPackageList)
 
 	// Query risk templates where policy_package matches any of the _policy label values (case-insensitive)
+	// Note: We normalize evidence labels to lowercase, so we expect policy_package to be stored in lowercase
 	var riskTemplates []templates.RiskTemplate
 	err := w.db.WithContext(ctx).
-		Where("LOWER(policy_package) IN ? AND is_active = ?", policyPackageList, true).
+		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
 		Find(&riskTemplates).Error
 
 	if err != nil {
