@@ -53,7 +53,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 2. Risk Templates: Load RiskTemplates based on `_policy` label from evidence
-	riskTemplates, err := w.loadRiskTemplates(ctx, evidence.Labels)
+	riskTemplates, err := w.loadRiskTemplates(ctx, evidence.Labels, args.EvidenceID)
 	if err != nil {
 		w.logger.Errorw("Failed to load risk templates", "error", err, "evidence_id", args.EvidenceID)
 		return err
@@ -118,89 +118,45 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 	return &evidence, nil
 }
 
-// matchEvidenceTemplates matches evidence labels against evidence template selector labels
-func (w *RiskEvidenceWorker) matchEvidenceTemplates(ctx context.Context, evidenceLabels []relational.Labels) ([]templates.EvidenceTemplate, error) {
-	// Convert evidence labels to a map for easier lookup
-	evidenceLabelMap := make(map[string]string)
-	for _, label := range evidenceLabels {
-		evidenceLabelMap[label.Name] = label.Value
-	}
-
-	// Get all active evidence templates. Cap at 200 (consistent with the templates service scan
-	// limit) to avoid unbounded memory usage. Log a warning if the limit is reached so operators
-	// are alerted before templates are silently dropped.
-	const maxTemplateScan = 200
-	var allTemplates []templates.EvidenceTemplate
-	err := w.db.WithContext(ctx).
-		Preload("SelectorLabels").
-		Where("is_active = ?", true).
-		Order("id ASC").
-		Limit(maxTemplateScan).
-		Find(&allTemplates).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to load evidence templates: %w", err)
-	}
-
-	if len(allTemplates) == maxTemplateScan {
-		w.logger.Warnw("Evidence template scan reached the limit; some templates may not have been evaluated",
-			"limit", maxTemplateScan)
-	}
-
-	var matchedTemplates []templates.EvidenceTemplate
-
-	for _, template := range allTemplates {
-		// Check if all selector labels match the evidence labels
-		if w.templateMatchesLabels(template, evidenceLabelMap) {
-			matchedTemplates = append(matchedTemplates, template)
-		}
-	}
-
-	return matchedTemplates, nil
-}
-
-// templateMatchesLabels checks if a template's selector labels all match the evidence labels.
-// A template with zero selector labels acts as a wildcard and matches ALL evidence,
-// regardless of labels. This is intentional but should be used carefully — wildcard
-// templates will trigger risk creation for every not-satisfied evidence record.
-func (w *RiskEvidenceWorker) templateMatchesLabels(template templates.EvidenceTemplate, evidenceLabels map[string]string) bool {
-	for _, selectorLabel := range template.SelectorLabels {
-		if evidenceValue, exists := evidenceLabels[selectorLabel.Key]; !exists || evidenceValue != selectorLabel.Value {
-			return false
-		}
-	}
-	return true
-}
-
 // loadRiskTemplates loads risk templates based on the _policy label from evidence
-// matching against the policy_package field in risk_template
-func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabels []relational.Labels) ([]templates.RiskTemplate, error) {
-	// Extract _policy label value from evidence
-	var policyPackage string
+// matching against the policy_package field in risk_template.
+// Supports multiple _policy labels and performs case-insensitive, whitespace-trimmed matching.
+func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabels []relational.Labels, evidenceID uuid.UUID) ([]templates.RiskTemplate, error) {
+	// Extract all _policy label values from evidence (case-insensitive, trimmed, deduplicated)
+	policyPackages := make(map[string]struct{})
 	for _, label := range evidenceLabels {
-		if label.Name == "_policy" {
-			policyPackage = label.Value
-			break
+		if strings.EqualFold(label.Name, "_policy") {
+			normalized := strings.TrimSpace(label.Value)
+			if normalized != "" {
+				policyPackages[normalized] = struct{}{}
+			}
 		}
 	}
 
-	if policyPackage == "" {
-		w.logger.Infow("No _policy label found in evidence")
+	if len(policyPackages) == 0 {
+		w.logger.Debugw("No _policy label found in evidence", "evidence_id", evidenceID)
 		return nil, nil
 	}
 
-	// Query risk templates where policy_package matches the _policy label value
+	// Convert map keys to slice for IN query
+	policyPackageList := make([]string, 0, len(policyPackages))
+	for pkg := range policyPackages {
+		policyPackageList = append(policyPackageList, pkg)
+	}
+
+	// Query risk templates where policy_package matches any of the _policy label values
 	var riskTemplates []templates.RiskTemplate
 	err := w.db.WithContext(ctx).
-		Where("policy_package = ? AND is_active = ?", policyPackage, true).
+		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
 		Find(&riskTemplates).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to load risk templates for policy package %s: %w", policyPackage, err)
+		return nil, fmt.Errorf("failed to load risk templates for policy packages %v: %w", policyPackageList, err)
 	}
 
-	w.logger.Infow("Loaded risk templates by policy package",
-		"policy_package", policyPackage,
+	w.logger.Debugw("Loaded risk templates by policy package",
+		"evidence_id", evidenceID,
+		"policy_packages", policyPackageList,
 		"count", len(riskTemplates))
 
 	return riskTemplates, nil

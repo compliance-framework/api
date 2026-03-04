@@ -305,6 +305,21 @@ func TestRiskEvidenceWorker_Work_NoMatchingTemplates(t *testing.T) {
 	err := worker.Work(ctx, job)
 
 	assert.NoError(t, err) // Should not error, just log and return
+
+	// Verify no risks were created
+	var riskCount int64
+	require.NoError(t, worker.db.Model(&risks.Risk{}).Count(&riskCount).Error)
+	assert.Equal(t, int64(0), riskCount, "no risks should be created when no templates match")
+
+	// Verify no risk links were created
+	var linkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).Count(&linkCount).Error)
+	assert.Equal(t, int64(0), linkCount, "no risk links should be created when no templates match")
+
+	// Verify no risk events were created
+	var eventCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvent{}).Count(&eventCount).Error)
+	assert.Equal(t, int64(0), eventCount, "no risk events should be created when no templates match")
 }
 
 func TestRiskEvidenceWorker_Work_NoComponents_NoRisks(t *testing.T) {
@@ -400,116 +415,6 @@ func TestRiskEvidenceWorker_loadEvidenceWithRelations_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to load evidence")
 }
 
-func TestRiskEvidenceWorker_matchEvidenceTemplates(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-	ctx := context.Background()
-
-	// Create test template
-	template := createTestEvidenceTemplate(t, worker.db, nil)
-
-	// Create evidence labels that match the template
-	evidenceLabels := []relational.Labels{
-		{Name: "environment", Value: "production"},
-		{Name: "category", Value: "security"},
-	}
-
-	// Match templates
-	matched, err := worker.matchEvidenceTemplates(ctx, evidenceLabels)
-
-	assert.NoError(t, err)
-	assert.Len(t, matched, 1)
-	assert.Equal(t, template.ID, matched[0].ID)
-}
-
-func TestRiskEvidenceWorker_matchEvidenceTemplates_NoMatch(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-	ctx := context.Background()
-
-	// Create test template
-	createTestEvidenceTemplate(t, worker.db, nil)
-
-	// Create evidence labels that don't match any template
-	evidenceLabels := []relational.Labels{
-		{Name: "environment", Value: "staging"}, // Different value
-		{Name: "category", Value: "security"},
-	}
-
-	// Match templates
-	matched, err := worker.matchEvidenceTemplates(ctx, evidenceLabels)
-
-	assert.NoError(t, err)
-	assert.Len(t, matched, 0)
-}
-
-func TestRiskEvidenceWorker_templateMatchesLabels(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-
-	// Create template with selector labels
-	template := templates.EvidenceTemplate{
-		SelectorLabels: []templates.EvidenceTemplateSelectorLabel{
-			{Key: "environment", Value: "production"},
-			{Key: "category", Value: "security"},
-		},
-	}
-
-	// Test matching labels
-	evidenceLabels := map[string]string{
-		"environment": "production",
-		"category":    "security",
-		"extra":       "value",
-	}
-
-	assert.True(t, worker.templateMatchesLabels(template, evidenceLabels))
-}
-
-func TestRiskEvidenceWorker_templateMatchesLabels_MissingLabel(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-
-	// Create template with selector labels
-	template := templates.EvidenceTemplate{
-		SelectorLabels: []templates.EvidenceTemplateSelectorLabel{
-			{Key: "environment", Value: "production"},
-			{Key: "category", Value: "security"},
-		},
-	}
-
-	// Test labels missing required selector
-	evidenceLabels := map[string]string{
-		"environment": "production",
-		// "category" is missing
-	}
-
-	assert.False(t, worker.templateMatchesLabels(template, evidenceLabels))
-}
-
-func TestRiskEvidenceWorker_templateMatchesLabels_WrongValue(t *testing.T) {
-	t.Parallel()
-
-	worker := createTestRiskEvidenceWorker(t)
-
-	// Create template with selector labels
-	template := templates.EvidenceTemplate{
-		SelectorLabels: []templates.EvidenceTemplateSelectorLabel{
-			{Key: "environment", Value: "production"},
-		},
-	}
-
-	// Test labels with wrong value
-	evidenceLabels := map[string]string{
-		"environment": "staging", // Wrong value
-	}
-
-	assert.False(t, worker.templateMatchesLabels(template, evidenceLabels))
-}
-
 func TestRiskEvidenceWorker_loadRiskTemplates(t *testing.T) {
 	t.Parallel()
 
@@ -525,7 +430,8 @@ func TestRiskEvidenceWorker_loadRiskTemplates(t *testing.T) {
 	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 1)
@@ -544,7 +450,8 @@ func TestRiskEvidenceWorker_loadRiskTemplates_NoPolicyLabel(t *testing.T) {
 	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 0)
@@ -565,7 +472,8 @@ func TestRiskEvidenceWorker_loadRiskTemplates_NoMatchingPolicyPackage(t *testing
 	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 0)
@@ -610,10 +518,149 @@ func TestRiskEvidenceWorker_loadRiskTemplates_MultipleMatchingTemplates(t *testi
 	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 2)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_MultiplePolicyLabels(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create two risk templates with different policy packages
+	template1ID := uuid.New()
+	template1 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &template1ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "policy-one",
+		Name:          "Risk Template 1",
+		Title:         "Risk Template 1",
+		Statement:     "Test risk statement 1",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(template1).Error)
+
+	template2ID := uuid.New()
+	template2 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &template2ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "policy-two",
+		Name:          "Risk Template 2",
+		Title:         "Risk Template 2",
+		Statement:     "Test risk statement 2",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-002"},
+	}
+	require.NoError(t, worker.db.Create(template2).Error)
+
+	// Create evidence labels with multiple _policy labels
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "policy-one"},
+		{Name: "_policy", Value: "policy-two"},
+	}
+
+	// Load risk templates - should match both
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 2)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_CaseInsensitiveLabelName(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a risk template
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+
+	// Create evidence labels with different case for _policy label name
+	evidenceLabels := []relational.Labels{
+		{Name: "_POLICY", Value: "test-policy"},
+	}
+
+	// Load risk templates - should match despite case difference
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 1)
+	assert.Equal(t, riskTemplate.ID, loaded[0].ID)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_WhitespaceTrimming(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a risk template
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+
+	// Create evidence labels with whitespace around value
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "  test-policy  "},
+	}
+
+	// Load risk templates - should match after trimming
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 1)
+	assert.Equal(t, riskTemplate.ID, loaded[0].ID)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_DuplicatePolicyLabels(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a risk template
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+
+	// Create evidence labels with duplicate _policy labels (same value)
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: "test-policy"},
+		{Name: "_policy", Value: "test-policy"},
+		{Name: "_policy", Value: "  test-policy  "}, // With whitespace
+	}
+
+	// Load risk templates - should deduplicate and match once
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 1)
+	assert.Equal(t, riskTemplate.ID, loaded[0].ID)
+}
+
+func TestRiskEvidenceWorker_loadRiskTemplates_EmptyPolicyValue(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create evidence labels with empty _policy value
+	evidenceLabels := []relational.Labels{
+		{Name: "_policy", Value: ""},
+		{Name: "_policy", Value: "   "}, // Only whitespace
+	}
+
+	// Load risk templates - should return empty as values are empty/whitespace
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
+
+	assert.NoError(t, err)
+	assert.Len(t, loaded, 0)
 }
 
 func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testing.T) {
@@ -658,7 +705,8 @@ func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testi
 	}
 
 	// Load risk templates
-	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels)
+	evidenceID := uuid.New()
+	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
 	assert.NoError(t, err)
 	assert.Len(t, loaded, 1)
