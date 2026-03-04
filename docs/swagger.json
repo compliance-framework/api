@@ -31827,6 +31827,9 @@
                 "createdAt": {
                     "type": "string"
                 },
+                "descriptionTemplate": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -31857,6 +31860,12 @@
                         "$ref": "#/definitions/relational.Prop"
                     }
                 },
+                "purposeTemplate": {
+                    "type": "string"
+                },
+                "remarksTemplate": {
+                    "type": "string"
+                },
                 "selectorLabels": {
                     "type": "array",
                     "items": {
@@ -31864,6 +31873,9 @@
                     }
                 },
                 "sourceMode": {
+                    "type": "string"
+                },
+                "titleTemplate": {
                     "type": "string"
                 },
                 "type": {
@@ -32035,6 +32047,9 @@
                 "type"
             ],
             "properties": {
+                "descriptionTemplate": {
+                    "type": "string"
+                },
                 "identityLabelKeys": {
                     "type": "array",
                     "items": {
@@ -32062,6 +32077,12 @@
                         "$ref": "#/definitions/relational.Prop"
                     }
                 },
+                "purposeTemplate": {
+                    "type": "string"
+                },
+                "remarksTemplate": {
+                    "type": "string"
+                },
                 "selectorLabels": {
                     "type": "array",
                     "items": {
@@ -32069,6 +32090,9 @@
                     }
                 },
                 "sourceMode": {
+                    "type": "string"
+                },
+                "titleTemplate": {
                     "type": "string"
                 },
                 "type": {

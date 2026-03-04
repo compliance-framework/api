@@ -31833,6 +31833,9 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "descriptionTemplate": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -31863,6 +31866,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Prop"
                     }
                 },
+                "purposeTemplate": {
+                    "type": "string"
+                },
+                "remarksTemplate": {
+                    "type": "string"
+                },
                 "selectorLabels": {
                     "type": "array",
                     "items": {
@@ -31870,6 +31879,9 @@ const docTemplate = `{
                     }
                 },
                 "sourceMode": {
+                    "type": "string"
+                },
+                "titleTemplate": {
                     "type": "string"
                 },
                 "type": {
@@ -32041,6 +32053,9 @@ const docTemplate = `{
                 "type"
             ],
             "properties": {
+                "descriptionTemplate": {
+                    "type": "string"
+                },
                 "identityLabelKeys": {
                     "type": "array",
                     "items": {
@@ -32068,6 +32083,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Prop"
                     }
                 },
+                "purposeTemplate": {
+                    "type": "string"
+                },
+                "remarksTemplate": {
+                    "type": "string"
+                },
                 "selectorLabels": {
                     "type": "array",
                     "items": {
@@ -32075,6 +32096,9 @@ const docTemplate = `{
                     }
                 },
                 "sourceMode": {
+                    "type": "string"
+                },
+                "titleTemplate": {
                     "type": "string"
                 },
                 "type": {
