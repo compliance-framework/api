@@ -1281,16 +1281,16 @@ func validateSubjectTemplatePayload(payload *SubjectTemplatePayload) error {
 		})
 	}
 	if err := validateSubjectTemplateOptionalText("titleTemplate", payload.TitleTemplate); err != nil {
-		return newValidationError(fmt.Sprintf("titleTemplate validation failed: %v", err))
+		return newValidationError(err.Error())
 	}
 	if err := validateSubjectTemplateOptionalText("descriptionTemplate", payload.DescriptionTemplate); err != nil {
-		return newValidationError(fmt.Sprintf("descriptionTemplate validation failed: %v", err))
+		return newValidationError(err.Error())
 	}
 	if err := validateSubjectTemplateOptionalText("purposeTemplate", payload.PurposeTemplate); err != nil {
-		return newValidationError(fmt.Sprintf("purposeTemplate validation failed: %v", err))
+		return newValidationError(err.Error())
 	}
 	if err := validateSubjectTemplateOptionalText("remarksTemplate", payload.RemarksTemplate); err != nil {
-		return newValidationError(fmt.Sprintf("remarksTemplate validation failed: %v", err))
+		return newValidationError(err.Error())
 	}
 
 	if err := validateTemplateAgainstSchema(payload.TitleTemplate, labelSchemaFields); err != nil {
