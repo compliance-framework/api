@@ -82,54 +82,6 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 	return evidence
 }
 
-// createTestEvidenceTemplate creates a test evidence template
-func createTestEvidenceTemplate(t *testing.T, db *gorm.DB, riskTemplateID *uuid.UUID) *templates.EvidenceTemplate {
-	t.Helper()
-	templateID := uuid.New()
-	template := &templates.EvidenceTemplate{
-		UUIDModel:     relational.UUIDModel{ID: &templateID},
-		PluginID:      "test-plugin",
-		PolicyPackage: "test-policy",
-		Title:         "Test Template",
-		Description:   "Test template description",
-		IsActive:      true,
-	}
-
-	require.NoError(t, db.Create(template).Error)
-
-	// Create selector labels
-	selectorLabel1 := &templates.EvidenceTemplateSelectorLabel{
-		UUIDModel:          relational.UUIDModel{ID: &uuid.UUID{}},
-		EvidenceTemplateID: templateID,
-		Key:                "environment",
-		Value:              "production",
-	}
-	selectorLabel2 := &templates.EvidenceTemplateSelectorLabel{
-		UUIDModel:          relational.UUIDModel{ID: &uuid.UUID{}},
-		EvidenceTemplateID: templateID,
-		Key:                "category",
-		Value:              "security",
-	}
-	// Generate unique IDs for the selector labels
-	selectorLabel1.ID = &uuid.UUID{}
-	*selectorLabel1.ID = uuid.New()
-	selectorLabel2.ID = &uuid.UUID{}
-	*selectorLabel2.ID = uuid.New()
-	require.NoError(t, db.Create(selectorLabel1).Error)
-	require.NoError(t, db.Create(selectorLabel2).Error)
-
-	// Create relationship with risk template if provided
-	if riskTemplateID != nil {
-		rel := &templates.EvidenceTemplateRiskTemplate{
-			EvidenceTemplateID: templateID,
-			RiskTemplateID:     *riskTemplateID,
-		}
-		require.NoError(t, db.Create(rel).Error)
-	}
-
-	return template
-}
-
 // createTestRiskTemplate creates a test risk template
 func createTestRiskTemplate(t *testing.T, db *gorm.DB) *templates.RiskTemplate {
 	t.Helper()
