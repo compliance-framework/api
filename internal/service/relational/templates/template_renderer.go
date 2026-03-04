@@ -47,7 +47,7 @@ func validateTemplateAgainstSchema(tmplStr string, labelSchema []SubjectTemplate
 	}
 
 	// Extract field references from the template tree
-	referencedKeys := extractTemplateFields(tmpl.Tree.Root)
+	referencedKeys := extractTemplateFields(tmpl.Root)
 
 	// Check if all referenced keys are in the schema
 	for key := range referencedKeys {
