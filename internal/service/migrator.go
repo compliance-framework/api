@@ -135,6 +135,9 @@ func MigrateUp(db *gorm.DB) error {
 
 		// Compliance-Framework - not related to OSCAL
 		&relational.SSOUserLink{},
+		&relational.CcfPoamItem{},
+		&relational.CcfPoamItemMilestone{},
+		&relational.CcfPoamItemRiskLink{},
 		&relational.User{},
 		&Heartbeat{},
 		&relational.Evidence{},
@@ -341,6 +344,10 @@ func MigrateDown(db *gorm.DB) error {
 		"poam_observations",
 		"poam_findings",
 		"poam_risks",
+
+		&relational.CcfPoamItemRiskLink{},
+		&relational.CcfPoamItemMilestone{},
+		&relational.CcfPoamItem{},
 
 		&relational.User{},
 

@@ -698,6 +698,22 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
         type: array
     type: object
+  handler.GenericDataListResponse-relational_CcfPoamItem:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.CcfPoamItem'
+        type: array
+    type: object
+  handler.GenericDataListResponse-relational_CcfPoamItemMilestone:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.CcfPoamItemMilestone'
+        type: array
+    type: object
   handler.GenericDataListResponse-relational_Evidence:
     properties:
       data:
@@ -771,6 +787,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.OscalLikeEvidence'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_PoamItemWithLinksResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.PoamItemWithLinksResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_UserHandler:
@@ -1165,6 +1188,20 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Task'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-relational_CcfPoamItem:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.CcfPoamItem'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-relational_CcfPoamItemMilestone:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/relational.CcfPoamItemMilestone'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-relational_Evidence:
     properties:
       data:
@@ -1271,6 +1308,15 @@ definitions:
       total:
         type: integer
     type: object
+  handler.PoamItemWithLinksResponse:
+    properties:
+      item:
+        $ref: '#/definitions/relational.CcfPoamItem'
+      riskLinks:
+        items:
+          $ref: '#/definitions/relational.CcfPoamItemRiskLink'
+        type: array
+    type: object
   handler.StatusCount:
     properties:
       count:
@@ -1306,6 +1352,48 @@ definitions:
     required:
     - filter
     - name
+    type: object
+  handler.createMilestone:
+    properties:
+      description:
+        type: string
+      dueDate:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  handler.createPoam:
+    properties:
+      deadline:
+        type: string
+      description:
+        type: string
+      milestones:
+        items:
+          $ref: '#/definitions/handler.createMilestone'
+        type: array
+      pocEmail:
+        type: string
+      pocName:
+        type: string
+      pocPhone:
+        type: string
+      remarks:
+        type: string
+      resourceRequired:
+        type: string
+      riskIds:
+        items:
+          type: string
+        type: array
+      sspId:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
     type: object
   labelfilter.Condition:
     properties:
@@ -4450,6 +4538,67 @@ definitions:
           $ref: '#/definitions/relational.Prop'
         type: array
       remarks:
+        type: string
+    type: object
+  relational.CcfPoamItem:
+    properties:
+      createdAt:
+        type: string
+      deadline:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      milestones:
+        items:
+          $ref: '#/definitions/relational.CcfPoamItemMilestone'
+        type: array
+      pocEmail:
+        type: string
+      pocName:
+        type: string
+      pocPhone:
+        type: string
+      remarks:
+        type: string
+      resourceRequired:
+        type: string
+      sspID:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  relational.CcfPoamItemMilestone:
+    properties:
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      dueDate:
+        type: string
+      id:
+        type: string
+      poamItemID:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  relational.CcfPoamItemRiskLink:
+    properties:
+      poamItemID:
+        type: string
+      riskID:
         type: string
     type: object
   relational.ComponentDefinition:
@@ -16345,6 +16494,295 @@ paths:
       summary: Update a system user
       tags:
       - System Security Plans
+  /poam-items:
+    get:
+      description: List POAM items filtered by status, sspId, riskId, or deadlineBefore.
+      parameters:
+      - description: open|in-progress|completed|overdue
+        in: query
+        name: status
+        type: string
+      - description: SSP UUID
+        in: query
+        name: sspId
+        type: string
+      - description: Risk UUID
+        in: query
+        name: riskId
+        type: string
+      - description: RFC3339 timestamp
+        in: query
+        name: deadlineBefore
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_CcfPoamItem'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List POAM items
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      description: Creates a POAM item with optional milestones and risk links in
+        a single transaction.
+      parameters:
+      - description: POAM item payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createPoam'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_CcfPoamItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Create a POAM item
+      tags:
+      - POAM Items
+  /poam-items/{id}:
+    delete:
+      description: Deletes a POAM item and cascades to milestones and risk links.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: no content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete POAM item
+      tags:
+      - POAM Items
+    get:
+      description: Get a POAM item with its milestones and risk links.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_PoamItemWithLinksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Get POAM item
+      tags:
+      - POAM Items
+    put:
+      consumes:
+      - application/json
+      description: Updates mutable fields of a POAM item.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_CcfPoamItem'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update POAM item
+      tags:
+      - POAM Items
+  /poam-items/{id}/milestones:
+    get:
+      description: List all milestones for a POAM item.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_CcfPoamItemMilestone'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: List milestones
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      description: Add a milestone to a POAM item.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Milestone payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createMilestone'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_CcfPoamItemMilestone'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Add milestone
+      tags:
+      - POAM Items
+  /poam-items/{id}/milestones/{milestoneId}:
+    delete:
+      description: Delete a milestone from a POAM item.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Milestone ID
+        in: path
+        name: milestoneId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: no content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Delete milestone
+      tags:
+      - POAM Items
+    put:
+      consumes:
+      - application/json
+      description: Update milestone fields; when status becomes completed, sets completed_at.
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Milestone ID
+        in: path
+        name: milestoneId
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-relational_CcfPoamItemMilestone'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: Update milestone
+      tags:
+      - POAM Items
   /users/{id}/change-password:
     post:
       consumes:

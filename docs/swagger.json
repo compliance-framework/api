@@ -16285,6 +16285,439 @@
                 }
             }
         },
+        "/poam-items": {
+            "get": {
+                "description": "List POAM items filtered by status, sspId, riskId, or deadlineBefore.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List POAM items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "open|in-progress|completed|overdue",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "SSP UUID",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk UUID",
+                        "name": "riskId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC3339 timestamp",
+                        "name": "deadlineBefore",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_CcfPoamItem"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a POAM item with optional milestones and risk links in a single transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Create a POAM item",
+                "parameters": [
+                    {
+                        "description": "POAM item payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createPoam"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_CcfPoamItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/poam-items/{id}": {
+            "get": {
+                "description": "Get a POAM item with its milestones and risk links.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Get POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PoamItemWithLinksResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates mutable fields of a POAM item.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Update POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_CcfPoamItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a POAM item and cascades to milestones and risk links.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "no content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/poam-items/{id}/milestones": {
+            "get": {
+                "description": "List all milestones for a POAM item.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List milestones",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_CcfPoamItemMilestone"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Add a milestone to a POAM item.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Add milestone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Milestone payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createMilestone"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_CcfPoamItemMilestone"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/poam-items/{id}/milestones/{milestoneId}": {
+            "put": {
+                "description": "Update milestone fields; when status becomes completed, sets completed_at.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Update milestone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Milestone ID",
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-relational_CcfPoamItemMilestone"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a milestone from a POAM item.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete milestone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Milestone ID",
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "no content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users/me": {
             "get": {
                 "description": "Retrieves the details of the currently logged-in user",
@@ -17542,6 +17975,30 @@
                 }
             }
         },
+        "handler.GenericDataListResponse-relational_CcfPoamItem": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.CcfPoamItem"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-relational_CcfPoamItemMilestone": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.CcfPoamItemMilestone"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-relational_Evidence": {
             "type": "object",
             "properties": {
@@ -17662,6 +18119,19 @@
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_PoamItemWithLinksResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.PoamItemWithLinksResponse"
                         }
                     ]
                 }
@@ -18395,6 +18865,32 @@
                 }
             }
         },
+        "handler.GenericDataResponse-relational_CcfPoamItem": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.CcfPoamItem"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-relational_CcfPoamItemMilestone": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/relational.CcfPoamItemMilestone"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-relational_Evidence": {
             "type": "object",
             "properties": {
@@ -18555,6 +19051,20 @@
                 }
             }
         },
+        "handler.PoamItemWithLinksResponse": {
+            "type": "object",
+            "properties": {
+                "item": {
+                    "$ref": "#/definitions/relational.CcfPoamItem"
+                },
+                "riskLinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.CcfPoamItemRiskLink"
+                    }
+                }
+            }
+        },
         "handler.StatusCount": {
             "type": "object",
             "properties": {
@@ -18606,6 +19116,70 @@
                     "$ref": "#/definitions/labelfilter.Filter"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createMilestone": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "dueDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createPoam": {
+            "type": "object",
+            "properties": {
+                "deadline": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "milestones": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.createMilestone"
+                    }
+                },
+                "pocEmail": {
+                    "type": "string"
+                },
+                "pocName": {
+                    "type": "string"
+                },
+                "pocPhone": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "resourceRequired": {
+                    "type": "string"
+                },
+                "riskIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -23389,6 +23963,99 @@
                     }
                 },
                 "remarks": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.CcfPoamItem": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "deadline": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "milestones": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.CcfPoamItemMilestone"
+                    }
+                },
+                "pocEmail": {
+                    "type": "string"
+                },
+                "pocName": {
+                    "type": "string"
+                },
+                "pocPhone": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "resourceRequired": {
+                    "type": "string"
+                },
+                "sspID": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.CcfPoamItemMilestone": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "dueDate": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "poamItemID": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.CcfPoamItemRiskLink": {
+            "type": "object",
+            "properties": {
+                "poamItemID": {
+                    "type": "string"
+                },
+                "riskID": {
                     "type": "string"
                 }
             }
