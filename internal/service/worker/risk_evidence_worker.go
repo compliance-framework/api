@@ -53,6 +53,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 2. Template Matching: Match the applicable EvidenceTemplate using selector_labels
+	// TODO[gusfcarvalho] - we don't need to find EvidenceTemplates anymore - remove this
 	matchedTemplates, err := w.matchEvidenceTemplates(ctx, evidence.Labels)
 	if err != nil {
 		w.logger.Errorw("Failed to match evidence templates", "error", err, "evidence_id", args.EvidenceID)
@@ -65,6 +66,8 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 3. Risk Templates: Load the linked RiskTemplate set from the matched EvidenceTemplate
+	// TODO[gusfcarvalho] - we will load risk templates based on `_policy` label on the evidence
+	// we need to update this method `loadRiskTemplates` accordingly
 	riskTemplates, err := w.loadRiskTemplates(ctx, matchedTemplates)
 	if err != nil {
 		w.logger.Errorw("Failed to load risk templates", "error", err, "evidence_id", args.EvidenceID)
