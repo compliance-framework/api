@@ -6384,6 +6384,8 @@ definitions:
     type: object
   relational.SystemComponent:
     properties:
+      definedComponentId:
+        type: string
       description:
         type: string
       evidence:

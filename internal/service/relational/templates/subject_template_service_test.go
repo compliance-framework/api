@@ -553,11 +553,15 @@ func newSubjectTemplateTestDB(t *testing.T) *gorm.DB {
 		&SubjectTemplateLabelSchemaField{},
 		&AssessmentSubjectIdentity{},
 		&SystemComponentIdentity{},
+		&ComponentDefinitionIdentity{},
 		&subjectResolverAssessmentSubjectRow{},
 		&subjectResolverSystemComponentRow{},
 		&subjectResolverSystemImplementationRow{},
+		&relational.ComponentDefinition{},
+		&relational.DefinedComponent{},
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.SystemComponentLabel{},
+		&riskrel.ComponentDefinitionLabel{},
 	))
 
 	return db
@@ -587,6 +591,7 @@ type subjectResolverSystemComponentRow struct {
 	Props                  datatypes.JSONSlice[relational.Prop] `gorm:"column:props;type:jsonb"`
 	Links                  datatypes.JSONSlice[relational.Link] `gorm:"column:links;type:jsonb"`
 	SystemImplementationID uuid.UUID                            `gorm:"column:system_implementation_id;type:uuid"`
+	DefinedComponentID     *uuid.UUID                           `gorm:"column:defined_component_id;type:uuid"`
 }
 
 func (subjectResolverSystemComponentRow) TableName() string {
@@ -616,6 +621,346 @@ func createTestSystemSecurityPlanAndImplementation(t *testing.T, db *gorm.DB) uu
 	require.NoError(t, db.Create(&row).Error)
 
 	return systemSecurityPlanID
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionHappyPath(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	_, err := svc.Create(SubjectTemplatePayload{
+		Name:              "GitHub Runtime Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id", "cluster"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.DefinedComponentIDs, 1)
+
+	var cdCount int64
+	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
+	require.Equal(t, int64(1), cdCount)
+
+	var dcCount int64
+	require.NoError(t, db.Table("defined_components").Count(&dcCount).Error)
+	require.Equal(t, int64(1), dcCount)
+
+	var identityCount int64
+	require.NoError(t, db.Model(&ComponentDefinitionIdentity{}).Count(&identityCount).Error)
+	require.Equal(t, int64(1), identityCount)
+
+	var labelCount int64
+	require.NoError(t, db.Model(&riskrel.ComponentDefinitionLabel{}).Count(&labelCount).Error)
+	require.Equal(t, int64(2), labelCount)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionIdempotent(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	_, err := svc.Create(SubjectTemplatePayload{
+		Name:              "GitHub Runtime Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id", "cluster"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+
+	labels := []relational.Labels{
+		{Name: "_plugin", Value: "github"},
+		{Name: "asset_id", Value: "srv-123"},
+		{Name: "cluster", Value: "prod-us"},
+	}
+
+	first, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{EvidenceLabels: labels})
+	require.NoError(t, err)
+	require.Len(t, first.DefinedComponentIDs, 1)
+
+	second, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{EvidenceLabels: labels})
+	require.NoError(t, err)
+	require.Len(t, second.DefinedComponentIDs, 1)
+	require.Equal(t, first.DefinedComponentIDs[0], second.DefinedComponentIDs[0])
+
+	var cdCount int64
+	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
+	require.Equal(t, int64(1), cdCount)
+
+	var dcCount int64
+	require.NoError(t, db.Table("defined_components").Count(&dcCount).Error)
+	require.Equal(t, int64(1), dcCount)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionPluginPrefilter(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	// Create a GitHub template
+	_, err := svc.Create(SubjectTemplatePayload{
+		Name:              "GitHub Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id", "cluster"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a GitLab template
+	_, err = svc.Create(SubjectTemplatePayload{
+		Name:              "GitLab Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id", "cluster"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "gitlab"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Evidence for GitHub only
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.DefinedComponentIDs, 1)
+
+	// Should only create one CD (GitHub), not GitLab
+	var cdCount int64
+	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
+	require.Equal(t, int64(1), cdCount)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionNoPlugin(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "asset_id", Value: "srv-123"},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.DefinedComponentIDs)
+}
+
+func TestSubjectTemplateService_FindSystemComponentsByDefinedComponentIDs(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+	systemSecurityPlanID := createTestSystemSecurityPlanAndImplementation(t, db)
+
+	// Create a component template with _plugin selector
+	template, err := svc.Create(SubjectTemplatePayload{
+		Name:              "GitHub Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id", "cluster"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+
+	// First, resolve a ComponentDefinition
+	cdResult, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, cdResult.DefinedComponentIDs, 1)
+
+	// No SystemComponents linked yet
+	scs, err := svc.FindSystemComponentsByDefinedComponentIDs(cdResult.DefinedComponentIDs)
+	require.NoError(t, err)
+	require.Empty(t, scs)
+
+	// Create a SystemComponent via the existing resolver
+	sc, err := svc.ResolveOrUpsertSystemComponent(ResolveOrUpsertSystemComponentInput{
+		SubjectTemplateID:    *template.ID,
+		SystemSecurityPlanID: systemSecurityPlanID,
+		EvidenceLabels: []relational.Labels{
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sc)
+
+	// Link the SystemComponent to the DefinedComponent
+	require.NoError(t, db.Table("system_components").Where("id = ?", *sc.ID).Update("defined_component_id", cdResult.DefinedComponentIDs[0]).Error)
+
+	// Now FindSystemComponentsByDefinedComponentIDs should return it
+	scs, err = svc.FindSystemComponentsByDefinedComponentIDs(cdResult.DefinedComponentIDs)
+	require.NoError(t, err)
+	require.Len(t, scs, 1)
+	require.Equal(t, *sc.ID, *scs[0].ID)
+}
+
+func TestSubjectTemplateService_FindSystemComponentsByDefinedComponentIDsEmpty(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	scs, err := svc.FindSystemComponentsByDefinedComponentIDs(nil)
+	require.NoError(t, err)
+	require.Nil(t, scs)
+
+	scs, err = svc.FindSystemComponentsByDefinedComponentIDs([]uuid.UUID{})
+	require.NoError(t, err)
+	require.Nil(t, scs)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionWithTemplates(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	titleTemplate := "GitHub Repo: {{.asset_id}}"
+	descriptionTemplate := "Repository {{.asset_id}} in cluster {{.cluster}}"
+	purposeTemplate := "Source code management"
+	remarksTemplate := "Managed by {{.cluster}} team"
+
+	template, err := svc.Create(SubjectTemplatePayload{
+		Name:                "GitHub Component",
+		Type:                "component",
+		TitleTemplate:       &titleTemplate,
+		DescriptionTemplate: &descriptionTemplate,
+		PurposeTemplate:     &purposeTemplate,
+		RemarksTemplate:     &remarksTemplate,
+		IdentityLabelKeys:   []string{"asset_id", "cluster"},
+		SourceMode:          "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, template.TitleTemplate)
+	require.Equal(t, titleTemplate, *template.TitleTemplate)
+
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "my-repo"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.DefinedComponentIDs, 1)
+
+	var dc relational.DefinedComponent
+	require.NoError(t, db.First(&dc, "id = ?", result.DefinedComponentIDs[0]).Error)
+	require.Equal(t, "GitHub Repo: my-repo", dc.Title)
+	require.Equal(t, "Repository my-repo in cluster prod-us", dc.Description)
+	require.Equal(t, "Source code management", dc.Purpose)
+	require.Equal(t, "Managed by prod-us team", dc.Remarks)
+}
+
+func TestSubjectTemplateService_CreateWithInvalidTemplate(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	invalidTemplate := "{{.invalid_key}}"
+	_, err := svc.Create(SubjectTemplatePayload{
+		Name:              "Invalid Template",
+		Type:              "component",
+		TitleTemplate:     &invalidTemplate,
+		IdentityLabelKeys: []string{"asset_id"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "titleTemplate validation failed")
+}
+
+func TestSubjectTemplateService_CreateWithValidTemplateNoRender(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	template, err := svc.Create(SubjectTemplatePayload{
+		Name:              "No Template Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+		},
+	})
+	require.NoError(t, err)
+	require.Nil(t, template.TitleTemplate)
+
+	result, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "my-repo"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.DefinedComponentIDs, 1)
+
+	var dc relational.DefinedComponent
+	require.NoError(t, db.First(&dc, "id = ?", result.DefinedComponentIDs[0]).Error)
+	require.Equal(t, "No Template Component", dc.Title)
+	require.Equal(t, "", dc.Description)
 }
 
 func validSubjectTemplatePayload() SubjectTemplatePayload {

@@ -31012,6 +31012,9 @@ const docTemplate = `{
         "relational.SystemComponent": {
             "type": "object",
             "properties": {
+                "definedComponentId": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },

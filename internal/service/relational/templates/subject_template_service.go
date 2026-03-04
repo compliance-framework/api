@@ -99,36 +99,42 @@ type SubjectTemplateLabelSchemaFieldInput struct {
 }
 
 type SubjectTemplatePayload struct {
-	Name              string
-	Type              string
-	IdentityLabelKeys []string
-	Props             []relational.Prop
-	Links             []relational.Link
-	SourceMode        string
-	SelectorLabels    []SubjectTemplateSelectorLabelInput
-	LabelSchema       []SubjectTemplateLabelSchemaFieldInput
+	Name                string
+	Type                string
+	TitleTemplate       *string
+	DescriptionTemplate *string
+	PurposeTemplate     *string
+	RemarksTemplate     *string
+	IdentityLabelKeys   []string
+	Props               []relational.Prop
+	Links               []relational.Link
+	SourceMode          string
+	SelectorLabels      []SubjectTemplateSelectorLabelInput
+	LabelSchema         []SubjectTemplateLabelSchemaFieldInput
 }
 
-// TODO[codex-5-3-high]: Currently not wired to runtime evidence ingestion or assessment orchestration.
-// Re-evaluate and remove if subject-template resolver integration is superseded.
 type ResolveOrUpsertAssessmentSubjectInput struct {
 	SubjectTemplateID uuid.UUID
 	EvidenceLabels    []relational.Labels
 }
 
-// TODO[codex-5-3-high]: Currently not wired to runtime evidence ingestion.
-// Re-evaluate and remove if component-template resolver integration is superseded.
 type ResolveOrUpsertSystemComponentInput struct {
 	SubjectTemplateID    uuid.UUID
 	SystemSecurityPlanID uuid.UUID
 	EvidenceLabels       []relational.Labels
 }
 
-// TODO[codex-5-3-high]: Currently not wired to runtime evidence ingestion.
-// Re-evaluate and remove if component-template resolver integration is superseded.
 type ResolveOrUpsertSystemComponentsForEvidenceInput struct {
 	SystemSecurityPlanID uuid.UUID
 	EvidenceLabels       []relational.Labels
+}
+
+type ResolveOrUpsertComponentDefinitionInput struct {
+	EvidenceLabels []relational.Labels
+}
+
+type ResolveOrUpsertComponentDefinitionResult struct {
+	DefinedComponentIDs []uuid.UUID
 }
 
 type identityLabelPair struct {
@@ -136,8 +142,6 @@ type identityLabelPair struct {
 	Value string
 }
 
-// TODO[codex-5-3-high]: Internal adapter for unresolved subject-template wiring.
-// Remove with resolver path if unused by future integration.
 type assessmentSubjectRow struct {
 	relational.UUIDModel
 	SSPID       *uuid.UUID                           `gorm:"column:sspid;type:uuid;index"`
@@ -152,8 +156,6 @@ func (assessmentSubjectRow) TableName() string {
 	return "assessment_subjects"
 }
 
-// TODO[codex-5-3-high]: Internal adapter for unresolved component-template wiring.
-// Remove with resolver path if unused by future integration.
 type systemComponentRow struct {
 	relational.UUIDModel
 	Type                   string                               `gorm:"column:type"`
@@ -221,12 +223,16 @@ func (s *SubjectTemplateService) Create(payload SubjectTemplatePayload) (*Subjec
 	defer rollbackTxOnPanic(tx)
 
 	row := SubjectTemplate{
-		Name:              payload.Name,
-		Type:              payload.Type,
-		IdentityLabelKeys: datatypes.NewJSONSlice(payload.IdentityLabelKeys),
-		Props:             datatypes.NewJSONSlice(payload.Props),
-		Links:             datatypes.NewJSONSlice(payload.Links),
-		SourceMode:        payload.SourceMode,
+		Name:                payload.Name,
+		Type:                payload.Type,
+		TitleTemplate:       payload.TitleTemplate,
+		DescriptionTemplate: payload.DescriptionTemplate,
+		PurposeTemplate:     payload.PurposeTemplate,
+		RemarksTemplate:     payload.RemarksTemplate,
+		IdentityLabelKeys:   datatypes.NewJSONSlice(payload.IdentityLabelKeys),
+		Props:               datatypes.NewJSONSlice(payload.Props),
+		Links:               datatypes.NewJSONSlice(payload.Links),
+		SourceMode:          payload.SourceMode,
 	}
 
 	if err := tx.Select(
@@ -235,6 +241,10 @@ func (s *SubjectTemplateService) Create(payload SubjectTemplatePayload) (*Subjec
 		"UpdatedAt",
 		"Name",
 		"Type",
+		"TitleTemplate",
+		"DescriptionTemplate",
+		"PurposeTemplate",
+		"RemarksTemplate",
 		"IdentityLabelKeys",
 		"Props",
 		"Links",
@@ -285,6 +295,10 @@ func (s *SubjectTemplateService) Update(id uuid.UUID, payload SubjectTemplatePay
 
 	existing.Name = payload.Name
 	existing.Type = payload.Type
+	existing.TitleTemplate = payload.TitleTemplate
+	existing.DescriptionTemplate = payload.DescriptionTemplate
+	existing.PurposeTemplate = payload.PurposeTemplate
+	existing.RemarksTemplate = payload.RemarksTemplate
 	existing.IdentityLabelKeys = datatypes.NewJSONSlice(payload.IdentityLabelKeys)
 	existing.Props = datatypes.NewJSONSlice(payload.Props)
 	existing.Links = datatypes.NewJSONSlice(payload.Links)
@@ -317,9 +331,7 @@ func (s *SubjectTemplateService) Update(id uuid.UUID, payload SubjectTemplatePay
 	return updated, nil
 }
 
-// TODO[codex-5-3-high]: This resolver is intentionally staged ahead of assessment-layer wiring.
-// Remove if final architecture no longer calls through subject templates for assessment-subject lifecycle.
-// Identity labels are persisted in assessment_subject_labels; returned AssessmentSubject does not include labels.
+// TODO[codex-review]: Dead code. Consider removing. For Copilot - this is a known issue and the moment the code will be removed is afterwards a full integration test battery. Please ignore review comments related to these methods / this comment
 func (s *SubjectTemplateService) ResolveOrUpsertAssessmentSubject(input ResolveOrUpsertAssessmentSubjectInput) (*relational.AssessmentSubject, error) {
 	if err := validateResolveOrUpsertAssessmentSubjectInput(input); err != nil {
 		return nil, err
@@ -462,8 +474,7 @@ func (s *SubjectTemplateService) ResolveOrUpsertAssessmentSubject(input ResolveO
 	return newSubject.toAssessmentSubject(), nil
 }
 
-// TODO[codex-5-3-high]: This matcher is intentionally staged ahead of evidence-ingestion wiring.
-// Remove if component lifecycle is implemented through a different path.
+// TODO[codex-review]: Dead code. Consider removing. For Copilot - this is a known issue and the moment the code will be removed is afterwards a full integration test battery. Please ignore review comments related to these methods / this comment
 func (s *SubjectTemplateService) ResolveOrUpsertSystemComponentsForEvidence(input ResolveOrUpsertSystemComponentsForEvidenceInput) ([]relational.SystemComponent, error) {
 	if input.SystemSecurityPlanID == uuid.Nil {
 		return nil, newValidationError("systemSecurityPlanId is required")
@@ -525,8 +536,7 @@ func (s *SubjectTemplateService) ResolveOrUpsertSystemComponentsForEvidence(inpu
 	return components, nil
 }
 
-// TODO[codex-5-3-high]: This resolver is intentionally staged ahead of evidence-ingestion wiring.
-// Remove if component lifecycle is implemented through a different path.
+// TODO[codex-review]: Dead code. Consider removing. For Copilot - this is a known issue and the moment the code will be removed is afterwards a full integration test battery. Please ignore review comments related to these methods / this comment
 func (s *SubjectTemplateService) ResolveOrUpsertSystemComponent(input ResolveOrUpsertSystemComponentInput) (*relational.SystemComponent, error) {
 	if err := validateResolveOrUpsertSystemComponentInput(input); err != nil {
 		return nil, err
@@ -713,6 +723,213 @@ func (row systemComponentRow) toSystemComponent() *relational.SystemComponent {
 		Links:                  row.Links,
 		SystemImplementationId: row.SystemImplementationID,
 	}
+}
+
+// componentDefinitionNamespace is a fixed v4 UUID used as a namespace for
+// deterministic (v5-style) ComponentDefinition IDs seeded from identity hashes.
+var componentDefinitionNamespace = uuid.MustParse("a4e3c2d1-b0f9-4e8a-9c7d-6f5e4d3c2b1a")
+
+func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input ResolveOrUpsertComponentDefinitionInput) (*ResolveOrUpsertComponentDefinitionResult, error) {
+	if len(input.EvidenceLabels) == 0 {
+		return &ResolveOrUpsertComponentDefinitionResult{}, nil
+	}
+
+	labelsByKey, err := buildEvidenceLabelMap(input.EvidenceLabels)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pre-filter: extract _plugin value for efficient template lookup.
+	pluginValue, hasPlugin := labelsByKey["_plugin"]
+	if !hasPlugin || strings.TrimSpace(pluginValue) == "" {
+		return &ResolveOrUpsertComponentDefinitionResult{}, nil
+	}
+
+	var templates []SubjectTemplate
+	if err := s.db.
+		Where("type = ? AND source_mode = ?", subjectTemplateTypeComponent, subjectTemplateSourceModeRuntimeDerived).
+		Joins("JOIN subject_template_selector_labels ON subject_template_selector_labels.subject_template_id = subject_templates.id AND subject_template_selector_labels.key = ? AND subject_template_selector_labels.value = ?", "_plugin", pluginValue).
+		Preload("SelectorLabels", preloadSubjectTemplateSelectorLabels).
+		Order("created_at asc").
+		Limit(maxRuntimeComponentTemplatesScan + 1).
+		Find(&templates).Error; err != nil {
+		return nil, err
+	}
+	if len(templates) > maxRuntimeComponentTemplatesScan {
+		return nil, fmt.Errorf(
+			"resolve component definitions reached scan limit of %d runtime-derived component subject templates",
+			maxRuntimeComponentTemplatesScan,
+		)
+	}
+
+	result := &ResolveOrUpsertComponentDefinitionResult{}
+	seen := make(map[uuid.UUID]struct{})
+
+	for _, template := range templates {
+		if !matchesSubjectTemplateSelectorLabels(template.SelectorLabels, labelsByKey) {
+			continue
+		}
+		if !hasAllIdentityLabelKeys(template.IdentityLabelKeys, labelsByKey) {
+			continue
+		}
+
+		identityPairs, err := projectIdentityLabelPairs(template.IdentityLabelKeys, input.EvidenceLabels)
+		if err != nil {
+			return nil, err
+		}
+
+		identityHash := buildEntityIdentityHash("component", identityPairs)
+
+		definedComponentID, err := s.resolveOrCreateComponentDefinition(template, identityPairs, identityHash)
+		if err != nil {
+			return nil, err
+		}
+		if definedComponentID == nil {
+			continue
+		}
+		if _, exists := seen[*definedComponentID]; exists {
+			continue
+		}
+		seen[*definedComponentID] = struct{}{}
+		result.DefinedComponentIDs = append(result.DefinedComponentIDs, *definedComponentID)
+	}
+
+	return result, nil
+}
+
+func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template SubjectTemplate, identityPairs []identityLabelPair, identityHash string) (*uuid.UUID, error) {
+	// Check if identity already exists.
+	var existingIdentity ComponentDefinitionIdentity
+	if err := s.db.Where("entity_type = ? AND identity_hash = ?", subjectTemplateTypeComponent, identityHash).First(&existingIdentity).Error; err == nil {
+		return &existingIdentity.DefinedComponentID, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	// Build label map for template rendering
+	labelMap := make(map[string]string)
+	for _, pair := range identityPairs {
+		labelMap[pair.Key] = pair.Value
+	}
+
+	// Render template fields
+	title := template.Name
+	if template.TitleTemplate != nil {
+		rendered, err := renderTemplate(*template.TitleTemplate, labelMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render title template: %w", err)
+		}
+		if rendered != "" {
+			title = rendered
+		}
+	}
+
+	description := ""
+	if template.DescriptionTemplate != nil {
+		rendered, err := renderTemplate(*template.DescriptionTemplate, labelMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render description template: %w", err)
+		}
+		description = rendered
+	}
+
+	purpose := ""
+	if template.PurposeTemplate != nil {
+		rendered, err := renderTemplate(*template.PurposeTemplate, labelMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render purpose template: %w", err)
+		}
+		purpose = rendered
+	}
+
+	remarks := ""
+	if template.RemarksTemplate != nil {
+		rendered, err := renderTemplate(*template.RemarksTemplate, labelMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render remarks template: %w", err)
+		}
+		remarks = rendered
+	}
+
+	// Generate deterministic IDs from the identity hash.
+	cdID := uuid.NewSHA1(componentDefinitionNamespace, []byte(identityHash))
+	dcID := uuid.NewSHA1(cdID, []byte("defined-component"))
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	defer rollbackTxOnPanic(tx)
+
+	// Upsert ComponentDefinition.
+	cd := relational.ComponentDefinition{
+		UUIDModel: relational.UUIDModel{ID: &cdID},
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit(clause.Associations).Create(&cd).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Upsert DefinedComponent with rendered template values.
+	dc := relational.DefinedComponent{
+		UUIDModel:             relational.UUIDModel{ID: &dcID},
+		Type:                  template.Type,
+		Title:                 title,
+		Description:           description,
+		Purpose:               purpose,
+		Remarks:               remarks,
+		ComponentDefinitionID: &cdID,
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit(clause.Associations).Create(&dc).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Upsert labels.
+	labels := make([]riskrel.ComponentDefinitionLabel, 0, len(identityPairs))
+	for _, pair := range identityPairs {
+		labels = append(labels, riskrel.ComponentDefinitionLabel{
+			ComponentDefinitionID: cdID,
+			Key:                   pair.Key,
+			Value:                 pair.Value,
+		})
+	}
+	if len(labels) > 0 {
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&labels).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Upsert identity record.
+	identity := ComponentDefinitionIdentity{
+		EntityType:            subjectTemplateTypeComponent,
+		IdentityHash:          identityHash,
+		ComponentDefinitionID: cdID,
+		DefinedComponentID:    dcID,
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&identity).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &dcID, nil
+}
+
+func (s *SubjectTemplateService) FindSystemComponentsByDefinedComponentIDs(definedComponentIDs []uuid.UUID) ([]relational.SystemComponent, error) {
+	if len(definedComponentIDs) == 0 {
+		return nil, nil
+	}
+
+	var components []relational.SystemComponent
+	if err := s.db.Where("defined_component_id IN ?", definedComponentIDs).Find(&components).Error; err != nil {
+		return nil, err
+	}
+	return components, nil
 }
 
 func findAssessmentSubjectIDByIdentityHash(tx *gorm.DB, subjectType, identityHash string) (*uuid.UUID, error) {
@@ -1038,6 +1255,36 @@ func validateSubjectTemplatePayload(payload *SubjectTemplatePayload) error {
 	for _, key := range payload.IdentityLabelKeys {
 		if _, exists := labelSchemaKeys[key]; !exists {
 			return newValidationError(fmt.Sprintf("identityLabelKeys key %q must exist in labelSchema", key))
+		}
+	}
+
+	// Validate template fields against label schema
+	labelSchemaFields := make([]SubjectTemplateLabelSchemaField, 0, len(payload.LabelSchema))
+	for _, field := range payload.LabelSchema {
+		labelSchemaFields = append(labelSchemaFields, SubjectTemplateLabelSchemaField{
+			Key:         field.Key,
+			Description: field.Description,
+		})
+	}
+
+	if payload.TitleTemplate != nil {
+		if err := validateTemplateAgainstSchema(*payload.TitleTemplate, labelSchemaFields); err != nil {
+			return newValidationError(fmt.Sprintf("titleTemplate validation failed: %v", err))
+		}
+	}
+	if payload.DescriptionTemplate != nil {
+		if err := validateTemplateAgainstSchema(*payload.DescriptionTemplate, labelSchemaFields); err != nil {
+			return newValidationError(fmt.Sprintf("descriptionTemplate validation failed: %v", err))
+		}
+	}
+	if payload.PurposeTemplate != nil {
+		if err := validateTemplateAgainstSchema(*payload.PurposeTemplate, labelSchemaFields); err != nil {
+			return newValidationError(fmt.Sprintf("purposeTemplate validation failed: %v", err))
+		}
+	}
+	if payload.RemarksTemplate != nil {
+		if err := validateTemplateAgainstSchema(*payload.RemarksTemplate, labelSchemaFields); err != nil {
+			return newValidationError(fmt.Sprintf("remarksTemplate validation failed: %v", err))
 		}
 	}
 

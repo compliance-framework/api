@@ -7,6 +7,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -16,6 +17,13 @@ import (
 // RiskJobEnqueuer interface to avoid circular imports
 type RiskJobEnqueuer interface {
 	EnqueueRiskProcessEvidenceFailure(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error
+}
+
+// ComponentDefinitionResolver resolves or creates ComponentDefinition + DefinedComponent records
+// from evidence labels and returns the SystemComponents linked to those DefinedComponents.
+type ComponentDefinitionResolver interface {
+	ResolveOrUpsertComponentDefinition(input templates.ResolveOrUpsertComponentDefinitionInput) (*templates.ResolveOrUpsertComponentDefinitionResult, error)
+	FindSystemComponentsByDefinedComponentIDs(definedComponentIDs []uuid.UUID) ([]relational.SystemComponent, error)
 }
 
 type StatusCount struct {
@@ -28,10 +36,23 @@ type EvidenceService struct {
 	logger       *zap.SugaredLogger
 	cfg          *config.Config
 	riskEnqueuer RiskJobEnqueuer
+	cdResolver   ComponentDefinitionResolver
 }
 
-func NewEvidenceService(db *gorm.DB, logger *zap.SugaredLogger, cfg *config.Config, riskEnqueuer RiskJobEnqueuer) *EvidenceService {
-	return &EvidenceService{db: db, logger: logger, cfg: cfg, riskEnqueuer: riskEnqueuer}
+func NewEvidenceService(db *gorm.DB, logger *zap.SugaredLogger, cfg *config.Config, riskEnqueuer RiskJobEnqueuer, opts ...EvidenceServiceOption) *EvidenceService {
+	svc := &EvidenceService{db: db, logger: logger, cfg: cfg, riskEnqueuer: riskEnqueuer}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+type EvidenceServiceOption func(*EvidenceService)
+
+func WithComponentDefinitionResolver(resolver ComponentDefinitionResolver) EvidenceServiceOption {
+	return func(s *EvidenceService) {
+		s.cdResolver = resolver
+	}
 }
 
 type CreateEvidenceParams struct {
@@ -50,6 +71,11 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 		evidenceID  uuid.UUID
 		evidenceEnd string
 		status      string
+	}
+
+	// Resolve ComponentDefinitions from labels and merge any linked SystemComponents.
+	if s.cdResolver != nil && len(params.Labels) > 0 {
+		params.Components = s.resolveAndMergeComponents(params.Labels, params.Components)
 	}
 
 	// Use a complete database transaction
@@ -299,4 +325,62 @@ func (s *EvidenceService) GetControlByID(id string) (*relational.Control, error)
 		return nil, err
 	}
 	return &control, nil
+}
+
+// resolveAndMergeComponents uses the ComponentDefinition resolver to discover
+// SystemComponents from evidence labels and merges them into the existing list,
+// deduplicating by ID.
+func (s *EvidenceService) resolveAndMergeComponents(labels []relational.Labels, existing []relational.SystemComponent) []relational.SystemComponent {
+	definedComponentIDs := s.resolveDefinedComponentIDs(labels)
+	if len(definedComponentIDs) == 0 {
+		return existing
+	}
+
+	discovered, err := s.cdResolver.FindSystemComponentsByDefinedComponentIDs(definedComponentIDs)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warnw("Failed to find system components by defined component IDs", "error", err)
+		}
+		return existing
+	}
+
+	return mergeSystemComponents(existing, discovered)
+}
+
+func (s *EvidenceService) resolveDefinedComponentIDs(labels []relational.Labels) []uuid.UUID {
+	result, err := s.cdResolver.ResolveOrUpsertComponentDefinition(templates.ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: labels,
+	})
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warnw("Failed to resolve component definitions from evidence labels", "error", err)
+		}
+		return nil
+	}
+	if result == nil {
+		return nil
+	}
+	return result.DefinedComponentIDs
+}
+
+func mergeSystemComponents(existing, discovered []relational.SystemComponent) []relational.SystemComponent {
+	seen := make(map[uuid.UUID]struct{}, len(existing))
+	for _, c := range existing {
+		if c.ID != nil {
+			seen[*c.ID] = struct{}{}
+		}
+	}
+
+	for _, sc := range discovered {
+		if sc.ID == nil {
+			continue
+		}
+		if _, exists := seen[*sc.ID]; exists {
+			continue
+		}
+		seen[*sc.ID] = struct{}{}
+		existing = append(existing, sc)
+	}
+
+	return existing
 }
