@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/relational/templates"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -234,4 +235,106 @@ func TestEvidenceService_GetHistory_EmptyForUnknownStream(t *testing.T) {
 	results, err := svc.GetHistory(uuid.New())
 	require.NoError(t, err)
 	require.Empty(t, results)
+}
+
+// mockCDResolver is a mock implementation of ComponentDefinitionResolver for testing.
+type mockCDResolver struct {
+	definedComponentIDs []uuid.UUID
+	systemComponents    []relational.SystemComponent
+}
+
+func (m *mockCDResolver) ResolveOrUpsertComponentDefinition(_ templates.ResolveOrUpsertComponentDefinitionInput) (*templates.ResolveOrUpsertComponentDefinitionResult, error) {
+	return &templates.ResolveOrUpsertComponentDefinitionResult{
+		DefinedComponentIDs: m.definedComponentIDs,
+	}, nil
+}
+
+func (m *mockCDResolver) FindSystemComponentsByDefinedComponentIDs(_ []uuid.UUID) ([]relational.SystemComponent, error) {
+	return m.systemComponents, nil
+}
+
+func TestEvidenceService_Create_MergesResolverSystemComponents(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+
+	// Create a pre-existing SystemComponent in the DB.
+	scID := internal.Pointer(uuid.New())
+	sc := relational.SystemComponent{
+		UUIDModel:   relational.UUIDModel{ID: scID},
+		Type:        "component",
+		Title:       "resolved component",
+		Description: "auto-discovered",
+	}
+	require.NoError(t, db.Create(&sc).Error)
+
+	resolver := &mockCDResolver{
+		definedComponentIDs: []uuid.UUID{uuid.New()},
+		systemComponents:    []relational.SystemComponent{sc},
+	}
+
+	svc := NewEvidenceService(db, nil, nil, nil, WithComponentDefinitionResolver(resolver))
+
+	params := CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:  uuid.New(),
+			Title: "evidence with resolver",
+			Start: time.Now().Add(-time.Hour),
+			End:   time.Now(),
+		},
+		Labels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+		},
+	}
+
+	result, err := svc.Create(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify the evidence has the resolver-discovered component associated.
+	var linkCount int64
+	require.NoError(t, db.Table("evidence_components").Where("evidence_id = ?", *result.ID).Count(&linkCount).Error)
+	require.Equal(t, int64(1), linkCount)
+}
+
+func TestEvidenceService_Create_DeduplicatesResolverSystemComponents(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+
+	scID := internal.Pointer(uuid.New())
+	sc := relational.SystemComponent{
+		UUIDModel:   relational.UUIDModel{ID: scID},
+		Type:        "component",
+		Title:       "shared component",
+		Description: "both explicit and resolved",
+	}
+	require.NoError(t, db.Create(&sc).Error)
+
+	resolver := &mockCDResolver{
+		definedComponentIDs: []uuid.UUID{uuid.New()},
+		systemComponents:    []relational.SystemComponent{sc},
+	}
+
+	svc := NewEvidenceService(db, nil, nil, nil, WithComponentDefinitionResolver(resolver))
+
+	params := CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:  uuid.New(),
+			Title: "evidence with dedup",
+			Start: time.Now().Add(-time.Hour),
+			End:   time.Now(),
+		},
+		Components: []relational.SystemComponent{sc}, // Already passed explicitly
+		Labels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+		},
+	}
+
+	result, err := svc.Create(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Should only have 1 link, not 2 (dedup).
+	var linkCount int64
+	require.NoError(t, db.Table("evidence_components").Where("evidence_id = ?", *result.ID).Count(&linkCount).Error)
+	require.Equal(t, int64(1), linkCount)
 }

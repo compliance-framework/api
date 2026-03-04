@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	templatesvc "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/compliance-framework/api/internal/workflow"
@@ -101,8 +102,12 @@ func RunServer(cmd *cobra.Command, args []string) {
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
 
+	// Create subject template service for component definition resolution
+	subjectTemplateService := templatesvc.NewSubjectTemplateService(db)
+
 	// Create evidence service with worker service for risk job enqueuing
-	evidenceService := evidencesvc.NewEvidenceService(db, sugar, cfg, workerService)
+	evidenceService := evidencesvc.NewEvidenceService(db, sugar, cfg, workerService,
+		evidencesvc.WithComponentDefinitionResolver(subjectTemplateService))
 
 	// Create services struct for API handlers
 	services := &handler.APIServices{

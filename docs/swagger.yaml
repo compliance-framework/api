@@ -6384,6 +6384,8 @@ definitions:
     type: object
   relational.SystemComponent:
     properties:
+      definedComponentId:
+        type: string
       description:
         type: string
       evidence:
@@ -6922,6 +6924,8 @@ definitions:
     properties:
       createdAt:
         type: string
+      descriptionTemplate:
+        type: string
       id:
         type: string
       identityLabelKeys:
@@ -6942,11 +6946,17 @@ definitions:
         items:
           $ref: '#/definitions/relational.Prop'
         type: array
+      purposeTemplate:
+        type: string
+      remarksTemplate:
+        type: string
       selectorLabels:
         items:
           $ref: '#/definitions/templates.subjectTemplateSelectorLabelResponse'
         type: array
       sourceMode:
+        type: string
+      titleTemplate:
         type: string
       type:
         type: string
@@ -7053,6 +7063,8 @@ definitions:
     type: object
   templates.upsertSubjectTemplateRequest:
     properties:
+      descriptionTemplate:
+        type: string
       identityLabelKeys:
         items:
           type: string
@@ -7071,11 +7083,17 @@ definitions:
         items:
           $ref: '#/definitions/relational.Prop'
         type: array
+      purposeTemplate:
+        type: string
+      remarksTemplate:
+        type: string
       selectorLabels:
         items:
           $ref: '#/definitions/templates.subjectTemplateSelectorLabelRequest'
         type: array
       sourceMode:
+        type: string
+      titleTemplate:
         type: string
       type:
         type: string
