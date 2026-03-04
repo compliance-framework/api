@@ -47,14 +47,18 @@ type subjectTemplateLabelSchemaFieldRequest struct {
 }
 
 type upsertSubjectTemplateRequest struct {
-	Name              string                                   `json:"name" validate:"required"`
-	Type              string                                   `json:"type" validate:"required"`
-	IdentityLabelKeys []string                                 `json:"identityLabelKeys" validate:"required"`
-	Props             []relational.Prop                        `json:"props"`
-	Links             []relational.Link                        `json:"links"`
-	SourceMode        string                                   `json:"sourceMode" validate:"required"`
-	SelectorLabels    []subjectTemplateSelectorLabelRequest    `json:"selectorLabels" validate:"required"`
-	LabelSchema       []subjectTemplateLabelSchemaFieldRequest `json:"labelSchema" validate:"required"`
+	Name                string                                   `json:"name" validate:"required"`
+	Type                string                                   `json:"type" validate:"required"`
+	TitleTemplate       *string                                  `json:"titleTemplate"`
+	DescriptionTemplate *string                                  `json:"descriptionTemplate"`
+	PurposeTemplate     *string                                  `json:"purposeTemplate"`
+	RemarksTemplate     *string                                  `json:"remarksTemplate"`
+	IdentityLabelKeys   []string                                 `json:"identityLabelKeys" validate:"required"`
+	Props               []relational.Prop                        `json:"props"`
+	Links               []relational.Link                        `json:"links"`
+	SourceMode          string                                   `json:"sourceMode" validate:"required"`
+	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selectorLabels" validate:"required"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"labelSchema" validate:"required"`
 }
 
 type subjectTemplateSelectorLabelResponse struct {
@@ -68,17 +72,21 @@ type subjectTemplateLabelSchemaFieldResponse struct {
 }
 
 type subjectTemplateResponse struct {
-	ID                uuid.UUID                                 `json:"id"`
-	CreatedAt         time.Time                                 `json:"createdAt"`
-	UpdatedAt         time.Time                                 `json:"updatedAt"`
-	Name              string                                    `json:"name"`
-	Type              string                                    `json:"type"`
-	IdentityLabelKeys []string                                  `json:"identityLabelKeys"`
-	Props             []relational.Prop                         `json:"props"`
-	Links             []relational.Link                         `json:"links"`
-	SourceMode        string                                    `json:"sourceMode"`
-	SelectorLabels    []subjectTemplateSelectorLabelResponse    `json:"selectorLabels"`
-	LabelSchema       []subjectTemplateLabelSchemaFieldResponse `json:"labelSchema"`
+	ID                  uuid.UUID                                 `json:"id"`
+	CreatedAt           time.Time                                 `json:"createdAt"`
+	UpdatedAt           time.Time                                 `json:"updatedAt"`
+	Name                string                                    `json:"name"`
+	Type                string                                    `json:"type"`
+	TitleTemplate       *string                                   `json:"titleTemplate"`
+	DescriptionTemplate *string                                   `json:"descriptionTemplate"`
+	PurposeTemplate     *string                                   `json:"purposeTemplate"`
+	RemarksTemplate     *string                                   `json:"remarksTemplate"`
+	IdentityLabelKeys   []string                                  `json:"identityLabelKeys"`
+	Props               []relational.Prop                         `json:"props"`
+	Links               []relational.Link                         `json:"links"`
+	SourceMode          string                                    `json:"sourceMode"`
+	SelectorLabels      []subjectTemplateSelectorLabelResponse    `json:"selectorLabels"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldResponse `json:"labelSchema"`
 }
 
 type subjectTemplateDataResponse struct {
@@ -235,14 +243,18 @@ func (h *SubjectTemplateHandler) Update(ctx echo.Context) error {
 
 func mapSubjectTemplateRequestToPayload(req upsertSubjectTemplateRequest) templaterel.SubjectTemplatePayload {
 	payload := templaterel.SubjectTemplatePayload{
-		Name:              req.Name,
-		Type:              req.Type,
-		IdentityLabelKeys: append([]string{}, req.IdentityLabelKeys...),
-		Props:             append([]relational.Prop{}, req.Props...),
-		Links:             append([]relational.Link{}, req.Links...),
-		SourceMode:        req.SourceMode,
-		SelectorLabels:    make([]templaterel.SubjectTemplateSelectorLabelInput, 0, len(req.SelectorLabels)),
-		LabelSchema:       make([]templaterel.SubjectTemplateLabelSchemaFieldInput, 0, len(req.LabelSchema)),
+		Name:                req.Name,
+		Type:                req.Type,
+		TitleTemplate:       req.TitleTemplate,
+		DescriptionTemplate: req.DescriptionTemplate,
+		PurposeTemplate:     req.PurposeTemplate,
+		RemarksTemplate:     req.RemarksTemplate,
+		IdentityLabelKeys:   append([]string{}, req.IdentityLabelKeys...),
+		Props:               append([]relational.Prop{}, req.Props...),
+		Links:               append([]relational.Link{}, req.Links...),
+		SourceMode:          req.SourceMode,
+		SelectorLabels:      make([]templaterel.SubjectTemplateSelectorLabelInput, 0, len(req.SelectorLabels)),
+		LabelSchema:         make([]templaterel.SubjectTemplateLabelSchemaFieldInput, 0, len(req.LabelSchema)),
 	}
 
 	for _, label := range req.SelectorLabels {
@@ -263,17 +275,21 @@ func mapSubjectTemplateRequestToPayload(req upsertSubjectTemplateRequest) templa
 
 func mapSubjectTemplateToResponse(row templaterel.SubjectTemplate) subjectTemplateResponse {
 	resp := subjectTemplateResponse{
-		ID:                *row.ID,
-		CreatedAt:         row.CreatedAt,
-		UpdatedAt:         row.UpdatedAt,
-		Name:              row.Name,
-		Type:              row.Type,
-		IdentityLabelKeys: append([]string{}, row.IdentityLabelKeys...),
-		Props:             append([]relational.Prop{}, row.Props...),
-		Links:             append([]relational.Link{}, row.Links...),
-		SourceMode:        row.SourceMode,
-		SelectorLabels:    make([]subjectTemplateSelectorLabelResponse, 0, len(row.SelectorLabels)),
-		LabelSchema:       make([]subjectTemplateLabelSchemaFieldResponse, 0, len(row.LabelSchema)),
+		ID:                  *row.ID,
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+		Name:                row.Name,
+		Type:                row.Type,
+		TitleTemplate:       row.TitleTemplate,
+		DescriptionTemplate: row.DescriptionTemplate,
+		PurposeTemplate:     row.PurposeTemplate,
+		RemarksTemplate:     row.RemarksTemplate,
+		IdentityLabelKeys:   append([]string{}, row.IdentityLabelKeys...),
+		Props:               append([]relational.Prop{}, row.Props...),
+		Links:               append([]relational.Link{}, row.Links...),
+		SourceMode:          row.SourceMode,
+		SelectorLabels:      make([]subjectTemplateSelectorLabelResponse, 0, len(row.SelectorLabels)),
+		LabelSchema:         make([]subjectTemplateLabelSchemaFieldResponse, 0, len(row.LabelSchema)),
 	}
 
 	for _, label := range row.SelectorLabels {
