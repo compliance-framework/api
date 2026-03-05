@@ -40,9 +40,9 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	// Initialize handlers
 	logger := zap.NewNop().Sugar()
 	suite.handler = NewInventoryHandler(logger, suite.DB)
-	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB, nil)
-	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger, suite.Config, nil)
+	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB, evidenceSvc)
+	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
 	suite.evidenceHandler = handler.NewEvidenceHandler(logger, evidenceSvc)
 
 	// Initialize server

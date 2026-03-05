@@ -2,7 +2,6 @@ package relational
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/google/uuid"
@@ -51,10 +50,13 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 	}
 	systemImplID := *systemImpl.ID
 
-	// 2. Fetch the ImplementedRequirement to get the ControlId
+	// 2. Fetch the ImplementedRequirement to get the ControlId, ensuring it belongs to this SSP
 	var implReq ImplementedRequirement
-	if err := s.db.First(&implReq, "id = ?", implReqID).Error; err != nil {
-		return nil, fmt.Errorf("implemented requirement not found: %w", err)
+	if err := s.db.
+		Joins("JOIN control_implementations ON control_implementations.id = implemented_requirements.control_implementation_id").
+		Where("implemented_requirements.id = ? AND control_implementations.system_security_plan_id = ?", implReqID, sspID).
+		First(&implReq).Error; err != nil {
+		return nil, fmt.Errorf("implemented requirement not found for SSP %s: %w", sspID, err)
 	}
 
 	// 3. Load Filters associated with this control via the filter_controls join table.
@@ -67,7 +69,8 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 	//
 	// TODO: To scope by catalog, join through:
 	//   SSP → ProfileID → Profile → resolved Catalog IDs → filter_controls.control_catalog_id
-	// This would require additional join chains + passing the SSP ID to this method.
+	// This requires deriving the relevant catalog IDs from the SSP/profile and including
+	// filter_controls.control_catalog_id in the join conditions.
 	var filters []Filter
 	if err := s.db.
 		Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
@@ -107,7 +110,7 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 	//    SubjectTemplateService when ComponentDefinitions are auto-created from evidence.
 	subQ := s.db.Table("component_definition_labels cdl").
 		Select("cdl.component_definition_id").
-		Joins("JOIN evidence_labels el ON el.labels_name = cdl.key AND el.labels_value = cdl.value").
+		Joins("JOIN evidence_labels el ON LOWER(el.labels_name) = LOWER(cdl.key) AND LOWER(el.labels_value) = LOWER(cdl.value)").
 		Where("el.evidence_id IN ?", evidenceIDs)
 
 	var candidates []DefinedComponent
@@ -231,200 +234,28 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 }
 
 // ApplyForSSP iterates all ImplementedRequirements for the SSP and applies component suggestions for each.
-// Optimized to batch-load all suggestions and bulk-insert components to avoid N+1 queries.
 func (s *SystemComponentSuggestionService) ApplyForSSP(sspID uuid.UUID) error {
-	// 1. Get the SystemImplementation for this SSP
-	var systemImpl SystemImplementation
-	if err := s.db.Where("system_security_plan_id = ?", sspID).First(&systemImpl).Error; err != nil {
-		return fmt.Errorf("system implementation not found for SSP %s: %w", sspID, err)
-	}
-	systemImplID := *systemImpl.ID
-
-	// 2. Get the ControlImplementation for this SSP
 	var controlImpl ControlImplementation
 	if err := s.db.Where("system_security_plan_id = ?", sspID).First(&controlImpl).Error; err != nil {
 		return fmt.Errorf("control implementation not found for SSP %s: %w", sspID, err)
 	}
 
-	// 3. Get all ImplementedRequirements for this ControlImplementation
 	var implReqs []ImplementedRequirement
 	if err := s.db.Where("control_implementation_id = ?", controlImpl.ID).Find(&implReqs).Error; err != nil {
 		return fmt.Errorf("failed to fetch implemented requirements: %w", err)
 	}
 
-	if len(implReqs) == 0 {
-		return nil
-	}
-
-	// 4. Batch-load all control IDs
-	controlIDs := make([]string, len(implReqs))
-	implReqMap := make(map[string]uuid.UUID, len(implReqs)) // controlID -> implReqID
-	for i, req := range implReqs {
-		controlIDs[i] = req.ControlId
-		implReqMap[req.ControlId] = *req.ID
-	}
-
-	// 5. Batch-load all filters for these controls
-	var filters []Filter
-	if err := s.db.
-		Joins("JOIN filter_controls ON filter_controls.filter_id = filters.id").
-		Where("UPPER(filter_controls.control_id) IN ?", upperStrings(controlIDs)).
-		Find(&filters).Error; err != nil {
-		return fmt.Errorf("failed to query filters: %w", err)
-	}
-
-	if len(filters) == 0 {
-		return nil
-	}
-
-	// 6. Get latest Evidence for all filters
-	labelFilters := make([]labelfilter.Filter, len(filters))
-	for i, f := range filters {
-		labelFilters[i] = f.Filter.Data()
-	}
-	evidences, err := s.evidenceSvc.GetLatestForFilters(labelFilters...)
-	if err != nil {
-		return fmt.Errorf("failed to get evidence for filters: %w", err)
-	}
-
-	if len(evidences) == 0 {
-		return nil
-	}
-
-	evidenceIDs := make([]uuid.UUID, len(evidences))
-	for i, e := range evidences {
-		evidenceIDs[i] = *e.ID
-	}
-
-	// 7. Batch-load all candidate DefinedComponents
-	subQ := s.db.Table("component_definition_labels cdl").
-		Select("cdl.component_definition_id").
-		Joins("JOIN evidence_labels el ON el.labels_name = cdl.key AND el.labels_value = cdl.value").
-		Where("el.evidence_id IN ?", evidenceIDs)
-
-	var candidates []DefinedComponent
-	if err := s.db.
-		Where("component_definition_id IN (?)", subQ).
-		Find(&candidates).Error; err != nil {
-		return fmt.Errorf("failed to query defined components: %w", err)
-	}
-
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	candidateIDs := make([]uuid.UUID, len(candidates))
-	for i, c := range candidates {
-		candidateIDs[i] = *c.ID
-	}
-
-	// 8. Batch-load existing SystemComponents to avoid duplicates
-	var existingIDs []uuid.UUID
-	if err := s.db.
-		Model(&SystemComponent{}).
-		Where("system_implementation_id = ? AND defined_component_id IN ?", systemImplID, candidateIDs).
-		Pluck("defined_component_id", &existingIDs).Error; err != nil {
-		return fmt.Errorf("failed to query existing system components: %w", err)
-	}
-
-	existingSet := make(map[uuid.UUID]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
-		existingSet[id] = struct{}{}
-	}
-
-	// 9. Build map of controlID -> matching DefinedComponents
-	// We need to re-query filters with control associations to map components to controls
-	type filterControl struct {
-		FilterID  uuid.UUID
-		ControlID string
-	}
-	var filterControls []filterControl
-	if err := s.db.Table("filter_controls").
-		Select("filter_id, control_id").
-		Where("UPPER(control_id) IN ?", upperStrings(controlIDs)).
-		Scan(&filterControls).Error; err != nil {
-		return fmt.Errorf("failed to query filter controls: %w", err)
-	}
-
-	// Map filterID -> []controlID
-	filterToControls := make(map[uuid.UUID][]string)
-	for _, fc := range filterControls {
-		filterToControls[fc.FilterID] = append(filterToControls[fc.FilterID], fc.ControlID)
-	}
-
-	// Map each candidate to its applicable controls via filter matching
-	// This is simplified - we match any candidate that came from filters associated with the control
-	controlToComponents := make(map[string][]DefinedComponent)
-	for _, candidate := range candidates {
-		// Find which filters would match this component (via evidence labels)
-		// For simplicity, we'll associate the component with all controls from matching filters
-		// This is an approximation but maintains the same behavior as the per-requirement approach
-		for _, filter := range filters {
-			if controls, ok := filterToControls[*filter.ID]; ok {
-				for _, controlID := range controls {
-					if _, alreadyLinked := existingSet[*candidate.ID]; !alreadyLinked {
-						controlToComponents[controlID] = append(controlToComponents[controlID], candidate)
-					}
-				}
-			}
+	// Apply suggestions for each ImplementedRequirement
+	// Note: While this will cause N+1 Query problems, it is a
+	// chosen trade-off for now, as a batch-like approach would have
+	// cross-product over-linking issues
+	// When this endpoint starts to be a bottleneck, we should probably move to an
+	// Asynchronous operation.
+	for _, implReq := range implReqs {
+		if err := s.ApplyForImplementedRequirement(sspID, *implReq.ID); err != nil {
+			return fmt.Errorf("failed to apply suggestions for requirement %s: %w", *implReq.ID, err)
 		}
 	}
 
-	// 10. Bulk-insert SystemComponents and ByComponents in a single transaction
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		for controlID, components := range controlToComponents {
-			implReqID, ok := implReqMap[controlID]
-			if !ok {
-				continue
-			}
-
-			for _, component := range components {
-				definedComponentID := *component.ID
-
-				// Use FirstOrCreate to ensure idempotency
-				status := SystemComponentStatus{State: "operational"}
-				sysComp := SystemComponent{
-					Type:                   component.Type,
-					Title:                  component.Title,
-					Description:            component.Description,
-					Purpose:                component.Purpose,
-					Status:                 datatypes.NewJSONType(status),
-					SystemImplementationId: systemImplID,
-					DefinedComponentID:     &definedComponentID,
-				}
-				if err := tx.Where("system_implementation_id = ? AND defined_component_id = ?",
-					systemImplID, definedComponentID).
-					FirstOrCreate(&sysComp).Error; err != nil {
-					return fmt.Errorf("failed to create system component for defined component %s: %w", definedComponentID, err)
-				}
-
-				// Create ByComponent link
-				parentID := implReqID
-				parentType := "implemented_requirements"
-				implStatus := ImplementationStatus{State: "implemented"}
-				byComponent := ByComponent{
-					ComponentUUID:        *sysComp.ID,
-					Description:          component.Description,
-					ParentID:             &parentID,
-					ParentType:           &parentType,
-					ImplementationStatus: datatypes.NewJSONType(implStatus),
-				}
-				if err := tx.Where("component_uuid = ? AND parent_id = ?",
-					*sysComp.ID, parentID).
-					FirstOrCreate(&byComponent).Error; err != nil {
-					return fmt.Errorf("failed to create by-component for system component %s: %w", *sysComp.ID, err)
-				}
-			}
-		}
-		return nil
-	})
-}
-
-// upperStrings converts a slice of strings to uppercase for case-insensitive matching
-func upperStrings(strs []string) []string {
-	result := make([]string, len(strs))
-	for i, s := range strs {
-		result[i] = strings.ToUpper(s)
-	}
-	return result
+	return nil
 }

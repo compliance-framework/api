@@ -16000,7 +16000,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a new system component for a given SSP.",
+                "description": "Creates a new system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16020,12 +16020,17 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "System Component data",
+                        "description": "System Component data with optional definedComponentId field",
                         "name": "component",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                            "type": "object",
+                            "properties": {
+                                "definedComponentId": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 ],
@@ -16122,7 +16127,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates an existing system component for a given SSP.",
+                "description": "Updates an existing system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16149,12 +16154,17 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "System Component data",
+                        "description": "System Component data with optional definedComponentId field",
                         "name": "component",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                            "type": "object",
+                            "properties": {
+                                "definedComponentId": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 ],

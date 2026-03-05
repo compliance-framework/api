@@ -2286,12 +2286,12 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx echo.Cont
 // CreateSystemImplementationComponent godoc
 //
 //	@Summary		Create a new system component
-//	@Description	Creates a new system component for a given SSP.
+//	@Description	Creates a new system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string								true	"SSP ID"
-//	@Param			component	body		oscalTypes_1_1_3.SystemComponent	true	"System Component data"
+//	@Param			id			path		string																true	"SSP ID"
+//	@Param			component	body		object{oscalTypes_1_1_3.SystemComponent,definedComponentId=string}	true	"System Component data with optional definedComponentId field"
 //	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
@@ -2351,13 +2351,13 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 // UpdateSystemImplementationComponent godoc
 //
 //	@Summary		Update a system component
-//	@Description	Updates an existing system component for a given SSP.
+//	@Description	Updates an existing system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string								true	"SSP ID"
-//	@Param			componentId	path		string								true	"Component ID"
-//	@Param			component	body		oscalTypes_1_1_3.SystemComponent	true	"System Component data"
+//	@Param			id			path		string																true	"SSP ID"
+//	@Param			componentId	path		string																true	"Component ID"
+//	@Param			component	body		object{oscalTypes_1_1_3.SystemComponent,definedComponentId=string}	true	"System Component data with optional definedComponentId field"
 //	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
@@ -4052,6 +4052,9 @@ func (h *SystemSecurityPlanHandler) SuggestComponents(ctx echo.Context) error {
 
 	suggestions, err := h.suggestionService.SuggestForImplementedRequirement(sspID, reqID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
 		h.sugar.Errorw("failed to get component suggestions", "sspID", sspID, "reqID", reqID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -4088,6 +4091,9 @@ func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx echo.Context) error {
 	}
 
 	if err := h.suggestionService.ApplyForImplementedRequirement(sspID, reqID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
 		h.sugar.Errorw("failed to apply component suggestions", "sspID", sspID, "reqID", reqID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -4116,6 +4122,9 @@ func (h *SystemSecurityPlanHandler) BulkApplyComponentSuggestions(ctx echo.Conte
 	}
 
 	if err := h.suggestionService.ApplyForSSP(sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
 		h.sugar.Errorw("failed to bulk apply component suggestions", "sspID", sspID, "error", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

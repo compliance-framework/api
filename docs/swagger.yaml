@@ -18496,19 +18496,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new system component for a given SSP.
+      description: Creates a new system component for a given SSP. Accepts an optional
+        definedComponentId field to link to a DefinedComponent.
       parameters:
       - description: SSP ID
         in: path
         name: id
         required: true
         type: string
-      - description: System Component data
+      - description: System Component data with optional definedComponentId field
         in: body
         name: component
         required: true
         schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+          properties:
+            definedComponentId:
+              type: string
+          type: object
       produces:
       - application/json
       responses:
@@ -18608,7 +18612,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Updates an existing system component for a given SSP.
+      description: Updates an existing system component for a given SSP. Accepts an
+        optional definedComponentId field to link to a DefinedComponent.
       parameters:
       - description: SSP ID
         in: path
@@ -18620,12 +18625,15 @@ paths:
         name: componentId
         required: true
         type: string
-      - description: System Component data
+      - description: System Component data with optional definedComponentId field
         in: body
         name: component
         required: true
         schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+          properties:
+            definedComponentId:
+              type: string
+          type: object
       produces:
       - application/json
       responses:
