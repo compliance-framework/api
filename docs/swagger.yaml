@@ -1802,6 +1802,41 @@ definitions:
     - RuleOperatorContains
     - RuleOperatorRegex
     - RuleOperatorIn
+  oscal.SystemComponentRequest:
+    properties:
+      definedComponentId:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      protocols:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Protocol'
+        type: array
+      purpose:
+        type: string
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemComponentStatus'
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
   oscal.rule:
     properties:
       name:
@@ -18509,10 +18544,7 @@ paths:
         name: component
         required: true
         schema:
-          properties:
-            definedComponentId:
-              type: string
-          type: object
+          $ref: '#/definitions/oscal.SystemComponentRequest'
       produces:
       - application/json
       responses:
@@ -18630,10 +18662,7 @@ paths:
         name: component
         required: true
         schema:
-          properties:
-            definedComponentId:
-              type: string
-          type: object
+          $ref: '#/definitions/oscal.SystemComponentRequest'
       produces:
       - application/json
       responses:

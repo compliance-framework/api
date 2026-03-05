@@ -29,6 +29,11 @@ type SystemSecurityPlanHandler struct {
 	suggestionService *relational.SystemComponentSuggestionService
 }
 
+type SystemComponentRequest struct {
+	oscalTypes_1_1_3.SystemComponent
+	DefinedComponentID *uuid.UUID `json:"definedComponentId,omitempty"`
+}
+
 func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenceSvc *evidencesvc.EvidenceService) *SystemSecurityPlanHandler {
 	return &SystemSecurityPlanHandler{
 		sugar:             sugar,
@@ -2290,8 +2295,8 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx echo.Cont
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string																true	"SSP ID"
-//	@Param			component	body		object{oscalTypes_1_1_3.SystemComponent,definedComponentId=string}	true	"System Component data with optional definedComponentId field"
+//	@Param			id			path		string					true	"SSP ID"
+//	@Param			component	body		SystemComponentRequest	true	"System Component data with optional definedComponentId field"
 //	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
@@ -2321,10 +2326,7 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
-	var req struct {
-		oscalTypes_1_1_3.SystemComponent
-		DefinedComponentID *uuid.UUID `json:"definedComponentId,omitempty"`
-	}
+	var req SystemComponentRequest
 	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Warnw("Invalid create component request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -2355,9 +2357,9 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string																true	"SSP ID"
-//	@Param			componentId	path		string																true	"Component ID"
-//	@Param			component	body		object{oscalTypes_1_1_3.SystemComponent,definedComponentId=string}	true	"System Component data with optional definedComponentId field"
+//	@Param			id			path		string					true	"SSP ID"
+//	@Param			componentId	path		string					true	"Component ID"
+//	@Param			component	body		SystemComponentRequest	true	"System Component data with optional definedComponentId field"
 //	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
@@ -2403,10 +2405,7 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	var req struct {
-		oscalTypes_1_1_3.SystemComponent
-		DefinedComponentID *uuid.UUID `json:"definedComponentId,omitempty"`
-	}
+	var req SystemComponentRequest
 	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Warnw("Invalid update component request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))

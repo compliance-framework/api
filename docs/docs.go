@@ -16025,12 +16025,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "definedComponentId": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/oscal.SystemComponentRequest"
                         }
                     }
                 ],
@@ -16159,12 +16154,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "definedComponentId": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/oscal.SystemComponentRequest"
                         }
                     }
                 ],
@@ -24250,6 +24240,59 @@ const docTemplate = `{
                 "RuleOperatorRegex",
                 "RuleOperatorIn"
             ]
+        },
+        "oscal.SystemComponentRequest": {
+            "type": "object",
+            "properties": {
+                "definedComponentId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Protocol"
+                    }
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponentStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
         },
         "oscal.rule": {
             "type": "object",

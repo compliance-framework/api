@@ -165,6 +165,18 @@ func MigrateUp(db *gorm.DB) error {
 		if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_filter_controls_upper_control_id ON filter_controls (UPPER(control_id))`).Error; err != nil {
 			return err
 		}
+
+		// Add partial unique index for system_components to ensure idempotency
+		// This prevents duplicate (system_implementation_id, defined_component_id) pairs
+		// while still allowing multiple rows with NULL defined_component_id
+		// The WHERE clause makes this a partial index that only enforces uniqueness when defined_component_id IS NOT NULL
+		if err := db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+			ON system_components (system_implementation_id, defined_component_id)
+			WHERE defined_component_id IS NOT NULL
+		`).Error; err != nil {
+			return err
+		}
 	}
 	// SQLite and other databases will fall back to regular index on control_id (created by GORM)
 
