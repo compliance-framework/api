@@ -13649,6 +13649,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/system-security-plans/{id}/bulk-apply-component-suggestions": {
+            "post": {
+                "description": "For each ImplementedRequirement, creates SystemComponents from matching DefinedComponents and links them via ByComponent.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Bulk apply component suggestions for all implemented requirements in an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/control-implementation": {
             "get": {
                 "description": "Retrieves the Control Implementation for a given System Security Plan.",
@@ -13978,6 +14024,59 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion": {
+            "post": {
+                "description": "Creates SystemComponents from DefinedComponents that implement the same control and links them via ByComponent.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Apply component suggestions for an implemented requirement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Implemented Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}": {
@@ -14412,6 +14511,65 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components": {
+            "post": {
+                "description": "Returns DefinedComponents that implement the same control and are not yet present in the SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Suggest system components for an implemented requirement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Implemented Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_SystemComponentSuggestion"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/import-profile": {
@@ -15842,7 +16000,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a new system component for a given SSP.",
+                "description": "Creates a new system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15862,12 +16020,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "System Component data",
+                        "description": "System Component data with optional definedComponentId field",
                         "name": "component",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                            "$ref": "#/definitions/oscal.SystemComponentRequest"
                         }
                     }
                 ],
@@ -15964,7 +16122,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates an existing system component for a given SSP.",
+                "description": "Updates an existing system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15991,12 +16149,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "System Component data",
+                        "description": "System Component data with optional definedComponentId field",
                         "name": "component",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                            "$ref": "#/definitions/oscal.SystemComponentRequest"
                         }
                     }
                 ],
@@ -22282,6 +22440,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-relational_SystemComponentSuggestion": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemComponentSuggestion"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-relational_User": {
             "type": "object",
             "properties": {
@@ -24070,6 +24240,59 @@ const docTemplate = `{
                 "RuleOperatorRegex",
                 "RuleOperatorIn"
             ]
+        },
+        "oscal.SystemComponentRequest": {
+            "type": "object",
+            "properties": {
+                "definedComponentId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Protocol"
+                    }
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponentStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
         },
         "oscal.rule": {
             "type": "object",
@@ -31070,6 +31293,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.SystemComponentSuggestion": {
+            "type": "object",
+            "properties": {
+                "componentDefinitionId": {
+                    "type": "string"
+                },
+                "definedComponentId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "purpose": {
                     "type": "string"
                 },
                 "type": {

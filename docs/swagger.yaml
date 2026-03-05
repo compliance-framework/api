@@ -718,6 +718,14 @@ definitions:
           $ref: '#/definitions/relational.Evidence'
         type: array
     type: object
+  handler.GenericDataListResponse-relational_SystemComponentSuggestion:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.SystemComponentSuggestion'
+        type: array
+    type: object
   handler.GenericDataListResponse-relational_User:
     properties:
       data:
@@ -1794,6 +1802,41 @@ definitions:
     - RuleOperatorContains
     - RuleOperatorRegex
     - RuleOperatorIn
+  oscal.SystemComponentRequest:
+    properties:
+      definedComponentId:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      protocols:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Protocol'
+        type: array
+      purpose:
+        type: string
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemComponentStatus'
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
   oscal.rule:
     properties:
       name:
@@ -6423,6 +6466,21 @@ definitions:
       systemImplementationId:
         type: string
       title:
+        type: string
+      type:
+        type: string
+    type: object
+  relational.SystemComponentSuggestion:
+    properties:
+      componentDefinitionId:
+        type: string
+      definedComponentId:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      purpose:
         type: string
       type:
         type: string
@@ -16905,6 +16963,37 @@ paths:
       summary: Update a back-matter resource for a SSP
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/bulk-apply-component-suggestions:
+    post:
+      description: For each ImplementedRequirement, creates SystemComponents from
+        matching DefinedComponents and links them via ByComponent.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Bulk apply component suggestions for all implemented requirements in
+        an SSP
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation:
     get:
       description: Retrieves the Control Implementation for a given System Security
@@ -17124,6 +17213,41 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update an implemented requirement for a SSP
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion:
+    post:
+      description: Creates SystemComponents from DefinedComponents that implement
+        the same control and links them via ByComponent.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Apply component suggestions for an implemented requirement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}:
@@ -17422,6 +17546,45 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a by-component within a statement (within an implemented requirement)
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components:
+    post:
+      description: Returns DefinedComponents that implement the same control and are
+        not yet present in the SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SystemComponentSuggestion'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Suggest system components for an implemented requirement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/import-profile:
@@ -18368,19 +18531,20 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new system component for a given SSP.
+      description: Creates a new system component for a given SSP. Accepts an optional
+        definedComponentId field to link to a DefinedComponent.
       parameters:
       - description: SSP ID
         in: path
         name: id
         required: true
         type: string
-      - description: System Component data
+      - description: System Component data with optional definedComponentId field
         in: body
         name: component
         required: true
         schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+          $ref: '#/definitions/oscal.SystemComponentRequest'
       produces:
       - application/json
       responses:
@@ -18480,7 +18644,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Updates an existing system component for a given SSP.
+      description: Updates an existing system component for a given SSP. Accepts an
+        optional definedComponentId field to link to a DefinedComponent.
       parameters:
       - description: SSP ID
         in: path
@@ -18492,12 +18657,12 @@ paths:
         name: componentId
         required: true
         type: string
-      - description: System Component data
+      - description: System Component data with optional definedComponentId field
         in: body
         name: component
         required: true
         schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+          $ref: '#/definitions/oscal.SystemComponentRequest'
       produces:
       - application/json
       responses:

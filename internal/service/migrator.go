@@ -157,6 +157,35 @@ func MigrateUp(db *gorm.DB) error {
 		return err
 	}
 
+	// Create functional index for case-insensitive control_id lookups in filter_controls join table
+	// This improves performance of UPPER(control_id) queries in the suggestion service
+	// Note: GORM doesn't support functional indexes via struct tags, so we use raw SQL
+
+	// Using db.Name() as opposed to `db.Dialector.Name()`
+	// Having the second one is a violation of staticcheck rule QF1008.
+	// ref: https://staticcheck.dev/docs/checks/#QF1008
+	if db.Name() == "postgres" {
+		// PostgreSQL supports functional indexes
+		if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_filter_controls_upper_control_id ON filter_controls (UPPER(control_id))`).Error; err != nil {
+			return err
+		}
+
+		// Add partial unique index for system_components to ensure idempotency
+		// This prevents duplicate (system_implementation_id, defined_component_id) pairs
+		// while still allowing multiple rows with NULL defined_component_id
+		// The WHERE clause makes this a partial index that only enforces uniqueness when defined_component_id IS NOT NULL
+		if err := db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+			ON system_components (system_implementation_id, defined_component_id)
+			WHERE defined_component_id IS NOT NULL
+		`).Error; err != nil {
+			return err
+		}
+	}
+	// For SQLite and other databases we do not create functional/unique indexes here.
+	// They will rely on their default query plans; a plain index on control_id
+	// is typically not used for expression predicates like UPPER(control_id) without an expression index.
+
 	return err
 }
 
