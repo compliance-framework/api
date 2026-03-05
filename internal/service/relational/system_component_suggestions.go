@@ -223,8 +223,7 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 				ParentType:           &parentType,
 				ImplementationStatus: datatypes.NewJSONType(implStatus),
 			}
-			if err := tx.Where("component_uuid = ? AND parent_id = ?",
-				*component.ID, parentID).
+			if err := tx.Where("component_uuid = ? AND parent_id = ? AND parent_type = ?", *component.ID, parentID, parentType).
 				FirstOrCreate(&byComponent).Error; err != nil {
 				return fmt.Errorf("failed to create by-component for system component %s: %w", *component.ID, err)
 			}

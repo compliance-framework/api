@@ -2415,7 +2415,13 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo
 	relComponent.UnmarshalOscal(req.SystemComponent)
 	relComponent.SystemImplementationId = *systemImpl.ID
 	relComponent.ID = &componentID
-	relComponent.DefinedComponentID = req.DefinedComponentID
+	// Only update DefinedComponentID if explicitly provided in request
+	// This prevents clearing existing links when clients omit the field
+	if req.DefinedComponentID != nil {
+		relComponent.DefinedComponentID = req.DefinedComponentID
+	} else {
+		relComponent.DefinedComponentID = existingComponent.DefinedComponentID
+	}
 
 	if err := h.db.Save(relComponent).Error; err != nil {
 		h.sugar.Errorf("Failed to update component: %v", err)

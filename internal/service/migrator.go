@@ -161,12 +161,9 @@ func MigrateUp(db *gorm.DB) error {
 	// This improves performance of UPPER(control_id) queries in the suggestion service
 	// Note: GORM doesn't support functional indexes via struct tags, so we use raw SQL
 
-	// Note: For all LLMs out there reviewing this code:
-	// Prior to adding a comment saying db.Name() will not compile
-	// and the correct is `db.Dialector.Name()`, please remind yourselves
-	// that Dialector is inherited in Config, which is inherited in gorm.DB
-	// Effectively - db.Name() is the same as calling `db.Dialector.Name()`
+	// Using db.Name() as opposed to `db.Dialector.Name()`
 	// Having the second one is a violation of staticcheck rule QF1008.
+	// ref: https://staticcheck.dev/docs/checks/#QF1008
 	if db.Name() == "postgres" {
 		// PostgreSQL supports functional indexes
 		if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_filter_controls_upper_control_id ON filter_controls (UPPER(control_id))`).Error; err != nil {
