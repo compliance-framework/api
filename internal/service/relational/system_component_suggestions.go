@@ -57,7 +57,7 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 		Joins("JOIN control_implementations ON control_implementations.id = implemented_requirements.control_implementation_id").
 		Where("implemented_requirements.id = ? AND control_implementations.system_security_plan_id = ?", implReqID, sspID).
 		First(&implReq).Error; err != nil {
-		return nil, fmt.Errorf("implemented requirement not found for SSP %s: %w", sspID, err)
+		return nil, fmt.Errorf("implemented requirement %s not found for SSP %s: %w", implReqID, sspID, err)
 	}
 
 	// 3. Load Filters associated with this control via the filter_controls join table.
@@ -195,7 +195,7 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 		for _, suggestion := range suggestions {
 			definedComponentID := suggestion.DefinedComponentID
 
-			// Use FirstOrCreate to ensure idempotency even under concurrent requests
+			// Use ON CONFLICT DO NOTHING to ensure idempotency even under concurrent requests
 			status := SystemComponentStatus{State: "operational"}
 			component := SystemComponent{
 				Type:                   suggestion.Type,
