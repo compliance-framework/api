@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // EvidenceQuerier provides access to the latest evidence records matching label filters.
@@ -205,26 +206,44 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 				SystemImplementationId: systemImplID,
 				DefinedComponentID:     &definedComponentID,
 			}
-			if err := tx.Where("system_implementation_id = ? AND defined_component_id = ?",
-				systemImplID, definedComponentID).
-				FirstOrCreate(&component).Error; err != nil {
+			// Use ON CONFLICT DO NOTHING to handle concurrent requests gracefully
+			// The partial unique index on (system_implementation_id, defined_component_id) WHERE defined_component_id IS NOT NULL ensures idempotency
+			// We don't specify Columns because partial indexes can't be targeted that way
+			if err := tx.Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).Create(&component).Error; err != nil {
 				return fmt.Errorf("failed to create system component for defined component %s: %w", definedComponentID, err)
+			}
+			// Load the component to get its ID (either newly created or existing)
+			if err := tx.Where("system_implementation_id = ? AND defined_component_id = ?",
+				systemImplID, definedComponentID).First(&component).Error; err != nil {
+				return fmt.Errorf("failed to load system component for defined component %s: %w", definedComponentID, err)
 			}
 
 			// Create a ByComponent linking the SystemComponent to the ImplementedRequirement
-			// Check if it already exists to maintain idempotency
 			parentID := implReqID
 			parentType := "implemented_requirements"
 			implStatus := ImplementationStatus{State: "implemented"}
+			// Generate deterministic UUID from the unique key (component_uuid, parent_id, parent_type)
+			// This ensures concurrent requests generate the same UUID, making the operation idempotent
+			// via the primary key constraint, without blocking legitimate duplicate ByComponents
+			deterministicID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(
+				component.ID.String()+":"+parentID.String()+":"+parentType,
+			))
 			byComponent := ByComponent{
+				UUIDModel: UUIDModel{
+					ID: &deterministicID,
+				},
 				ComponentUUID:        *component.ID,
 				Description:          suggestion.Description,
 				ParentID:             &parentID,
 				ParentType:           &parentType,
 				ImplementationStatus: datatypes.NewJSONType(implStatus),
 			}
-			if err := tx.Where("component_uuid = ? AND parent_id = ? AND parent_type = ?", *component.ID, parentID, parentType).
-				FirstOrCreate(&byComponent).Error; err != nil {
+			// Use ON CONFLICT DO NOTHING - the deterministic UUID ensures idempotency
+			if err := tx.Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).Create(&byComponent).Error; err != nil {
 				return fmt.Errorf("failed to create by-component for system component %s: %w", *component.ID, err)
 			}
 		}

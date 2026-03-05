@@ -182,7 +182,9 @@ func MigrateUp(db *gorm.DB) error {
 			return err
 		}
 	}
-	// SQLite and other databases will fall back to regular index on control_id (created by GORM)
+	// For SQLite and other databases we do not create functional/unique indexes here.
+	// They will rely on their default query plans; a plain index on control_id
+	// is typically not used for expression predicates like UPPER(control_id) without an expression index.
 
 	return err
 }

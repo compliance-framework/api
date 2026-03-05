@@ -173,7 +173,23 @@ func (t *TestMigrator) Up() error {
 	); err != nil {
 		return err
 	}
-	return riskrel.EnsureIndexes(t.db)
+	if err := riskrel.EnsureIndexes(t.db); err != nil {
+		return err
+	}
+
+	// Add unique constraints for idempotent operations (matching production migration)
+	if t.db.Name() == "postgres" {
+		// Partial unique index for system_components
+		if err := t.db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+			ON system_components (system_implementation_id, defined_component_id)
+			WHERE defined_component_id IS NOT NULL
+		`).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (t *TestMigrator) Down() error {

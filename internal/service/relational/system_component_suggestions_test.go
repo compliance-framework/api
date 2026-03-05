@@ -61,6 +61,14 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	)
 	require.NoError(t, err)
 
+	// Add unique constraints needed for ON CONFLICT clauses
+	// SQLite supports partial indexes with WHERE clause
+	require.NoError(t, db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+		ON system_components (system_implementation_id, defined_component_id)
+		WHERE defined_component_id IS NOT NULL
+	`).Error)
+
 	// Manually create the tables needed for the Filter → Evidence → ComponentDefinitionLabel chain,
 	// avoiding the complex dependency graph that AutoMigrate would otherwise pull in.
 	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS filters (
