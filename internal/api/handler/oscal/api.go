@@ -4,11 +4,12 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config) {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService) {
 	oscalGroup := server.API().Group("/oscal")
 	oscalGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 
@@ -18,7 +19,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	profileHandler := NewProfileHandler(logger, db)
 	profileHandler.Register(oscalGroup.Group("/profiles"))
 
-	sspHandler := NewSystemSecurityPlanHandler(logger, db)
+	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc)
 	sspHandler.Register(oscalGroup.Group("/system-security-plans"))
 
 	partyHandler := NewPartyHandler(logger, db)

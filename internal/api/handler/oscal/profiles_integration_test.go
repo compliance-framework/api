@@ -16,6 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -64,7 +65,8 @@ func (suite *ProfileIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	profileFp, err := os.Open("../../../../testdata/profile_fedramp_low.json")
 	suite.Require().NoError(err, "Failed to open profile file")

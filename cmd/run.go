@@ -120,7 +120,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	}
 
 	handler.RegisterHandlers(server, sugar, db, cfg, services)
-	oscal.RegisterHandlers(server, sugar, db, cfg)
+	oscal.RegisterHandlers(server, sugar, db, cfg, evidenceService)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 
 	sugar.Infow("Allowed Origins", "origins", cfg.APIAllowedOrigins)

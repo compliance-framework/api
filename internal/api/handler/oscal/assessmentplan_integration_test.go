@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -51,7 +52,8 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 		DAGExecutor:          nil,
 	}
 	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, services)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, suite.logger, suite.Config, nil)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc)
 }
 
 func (suite *AssessmentPlanApiIntegrationSuite) SetupTest() {

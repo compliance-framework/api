@@ -15,6 +15,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -42,7 +43,8 @@ func (suite *AssessmentResultsApiIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, suite.logger, suite.Config, nil)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc)
 }
 
 func (suite *AssessmentResultsApiIntegrationSuite) SetupTest() {

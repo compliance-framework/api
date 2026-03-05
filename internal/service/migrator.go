@@ -157,6 +157,17 @@ func MigrateUp(db *gorm.DB) error {
 		return err
 	}
 
+	// Create functional index for case-insensitive control_id lookups in filter_controls join table
+	// This improves performance of UPPER(control_id) queries in the suggestion service
+	// Note: GORM doesn't support functional indexes via struct tags, so we use raw SQL
+	if db.Dialector.Name() == "postgres" {
+		// PostgreSQL supports functional indexes
+		if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_filter_controls_upper_control_id ON filter_controls (UPPER(control_id))`).Error; err != nil {
+			return err
+		}
+	}
+	// SQLite and other databases will fall back to regular index on control_id (created by GORM)
+
 	return err
 }
 
