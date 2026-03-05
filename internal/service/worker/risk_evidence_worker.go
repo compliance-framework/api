@@ -52,36 +52,26 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return err
 	}
 
-	// 2. Template Matching: Match the applicable EvidenceTemplate using selector_labels
-	// TODO[gusfcarvalho] - we don't need to find EvidenceTemplates anymore - remove this
-	matchedTemplates, err := w.matchEvidenceTemplates(ctx, evidence.Labels)
-	if err != nil {
-		w.logger.Errorw("Failed to match evidence templates", "error", err, "evidence_id", args.EvidenceID)
-		return err
-	}
-
-	if len(matchedTemplates) == 0 {
-		w.logger.Infow("No matching evidence templates found", "evidence_id", args.EvidenceID)
-		return nil
-	}
-
-	// 3. Risk Templates: Load the linked RiskTemplate set from the matched EvidenceTemplate
-	// TODO[gusfcarvalho] - we will load risk templates based on `_policy` label on the evidence
-	// we need to update this method `loadRiskTemplates` accordingly
-	riskTemplates, err := w.loadRiskTemplates(ctx, matchedTemplates)
+	// 2. Risk Templates: Load RiskTemplates based on `_policy` label from evidence
+	riskTemplates, err := w.loadRiskTemplates(ctx, evidence.Labels, args.EvidenceID)
 	if err != nil {
 		w.logger.Errorw("Failed to load risk templates", "error", err, "evidence_id", args.EvidenceID)
 		return err
 	}
 
-	// 4. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
+	if len(riskTemplates) == 0 {
+		w.logger.Infow("No matching risk templates found for evidence", "evidence_id", args.EvidenceID)
+		return nil
+	}
+
+	// 3. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
 	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(ctx, riskTemplates, []relational.Prop(evidence.Props))
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
 	}
 
-	// 5. Risk Creation/Update: For each candidate RiskTemplate, create one risk per SSP.
+	// 4. Risk Creation/Update: For each candidate RiskTemplate, create one risk per SSP.
 	// Collect per-template errors so River can retry the whole job if any template fails.
 	var errs []error
 	for _, riskTemplate := range filteredRiskTemplates {
@@ -100,7 +90,6 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 
 	w.logger.Infow("Risk evidence failure job processed successfully",
 		"evidence_id", args.EvidenceID,
-		"matched_templates", len(matchedTemplates),
 		"risk_templates", len(filteredRiskTemplates),
 	)
 
@@ -129,101 +118,50 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 	return &evidence, nil
 }
 
-// matchEvidenceTemplates matches evidence labels against evidence template selector labels
-func (w *RiskEvidenceWorker) matchEvidenceTemplates(ctx context.Context, evidenceLabels []relational.Labels) ([]templates.EvidenceTemplate, error) {
-	// Convert evidence labels to a map for easier lookup
-	evidenceLabelMap := make(map[string]string)
+// loadRiskTemplates loads risk templates based on the _policy label from evidence
+// matching against the policy_package field in risk_template.
+// Supports multiple _policy labels. Label names and values are matched case-insensitively,
+// and label values are trimmed of whitespace.
+func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabels []relational.Labels, evidenceID uuid.UUID) ([]templates.RiskTemplate, error) {
+	// Extract all _policy label values from evidence (case-insensitive, trimmed, deduplicated)
+	policyPackages := make(map[string]struct{})
 	for _, label := range evidenceLabels {
-		evidenceLabelMap[label.Name] = label.Value
-	}
-
-	// Get all active evidence templates. Cap at 200 (consistent with the templates service scan
-	// limit) to avoid unbounded memory usage. Log a warning if the limit is reached so operators
-	// are alerted before templates are silently dropped.
-	const maxTemplateScan = 200
-	var allTemplates []templates.EvidenceTemplate
-	err := w.db.WithContext(ctx).
-		Preload("SelectorLabels").
-		Where("is_active = ?", true).
-		Order("id ASC").
-		Limit(maxTemplateScan).
-		Find(&allTemplates).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to load evidence templates: %w", err)
-	}
-
-	if len(allTemplates) == maxTemplateScan {
-		w.logger.Warnw("Evidence template scan reached the limit; some templates may not have been evaluated",
-			"limit", maxTemplateScan)
-	}
-
-	var matchedTemplates []templates.EvidenceTemplate
-
-	for _, template := range allTemplates {
-		// Check if all selector labels match the evidence labels
-		if w.templateMatchesLabels(template, evidenceLabelMap) {
-			matchedTemplates = append(matchedTemplates, template)
+		if strings.EqualFold(label.Name, "_policy") {
+			normalized := strings.ToLower(strings.TrimSpace(label.Value))
+			if normalized != "" {
+				policyPackages[normalized] = struct{}{}
+			}
 		}
 	}
 
-	return matchedTemplates, nil
-}
-
-// templateMatchesLabels checks if a template's selector labels all match the evidence labels.
-// A template with zero selector labels acts as a wildcard and matches ALL evidence,
-// regardless of labels. This is intentional but should be used carefully — wildcard
-// templates will trigger risk creation for every not-satisfied evidence record.
-func (w *RiskEvidenceWorker) templateMatchesLabels(template templates.EvidenceTemplate, evidenceLabels map[string]string) bool {
-	for _, selectorLabel := range template.SelectorLabels {
-		if evidenceValue, exists := evidenceLabels[selectorLabel.Key]; !exists || evidenceValue != selectorLabel.Value {
-			return false
-		}
-	}
-	return true
-}
-
-// loadRiskTemplates loads risk templates linked to the matched evidence templates
-func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceTemplates []templates.EvidenceTemplate) ([]templates.RiskTemplate, error) {
-	if len(evidenceTemplates) == 0 {
+	if len(policyPackages) == 0 {
+		w.logger.Debugw("No _policy label found in evidence", "evidence_id", evidenceID)
 		return nil, nil
 	}
 
-	// Extract evidence template IDs
-	evidenceTemplateIDs := make([]uuid.UUID, len(evidenceTemplates))
-	for i, template := range evidenceTemplates {
-		evidenceTemplateIDs[i] = *template.ID
+	// Convert map keys to slice for IN query
+	policyPackageList := make([]string, 0, len(policyPackages))
+	for pkg := range policyPackages {
+		policyPackageList = append(policyPackageList, pkg)
 	}
+	// Ensure deterministic order for queries, logs, and error messages
+	sort.Strings(policyPackageList)
 
-	// Get evidence template risk template relationships
-	var relationships []templates.EvidenceTemplateRiskTemplate
-	err := w.db.WithContext(ctx).
-		Where("evidence_template_id IN ?", evidenceTemplateIDs).
-		Find(&relationships).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to load evidence template risk template relationships: %w", err)
-	}
-
-	if len(relationships) == 0 {
-		return nil, nil
-	}
-
-	// Extract risk template IDs
-	riskTemplateIDs := make([]uuid.UUID, len(relationships))
-	for i, rel := range relationships {
-		riskTemplateIDs[i] = rel.RiskTemplateID
-	}
-
-	// Load risk templates
+	// Query risk templates where policy_package matches any of the _policy label values (case-insensitive)
+	// Note: We normalize evidence labels to lowercase, so we expect policy_package to be stored in lowercase
 	var riskTemplates []templates.RiskTemplate
-	err = w.db.WithContext(ctx).
-		Where("id IN ? AND is_active = ?", riskTemplateIDs, true).
+	err := w.db.WithContext(ctx).
+		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
 		Find(&riskTemplates).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to load risk templates: %w", err)
+		return nil, fmt.Errorf("failed to load risk templates for policy packages %v: %w", policyPackageList, err)
 	}
+
+	w.logger.Debugw("Loaded risk templates by policy package",
+		"evidence_id", evidenceID,
+		"policy_packages", policyPackageList,
+		"count", len(riskTemplates))
 
 	return riskTemplates, nil
 }

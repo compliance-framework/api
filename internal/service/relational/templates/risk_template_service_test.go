@@ -356,6 +356,64 @@ func TestRiskTemplateService_DeleteCleansEvidenceTemplateLinks(t *testing.T) {
 	require.Equal(t, int64(0), linkCountAfter)
 }
 
+func TestRiskTemplateService_PolicyPackageNormalization(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	// Create with mixed case and whitespace
+	created, err := svc.Create(RiskTemplatePayload{
+		PluginID:      "github-repositories",
+		PolicyPackage: "  Compliance_Framework.Secret_Scanning_Enabled  ",
+		Name:          "Test template",
+		Title:         "Test template",
+		Statement:     "Test statement.",
+		ViolationIDs:  []string{"violation-1"},
+		IsActive:      boolPtr(true),
+		ThreatRefs: []ThreatRefInput{
+			{
+				System:     "https://cwe.mitre.org",
+				ExternalID: "CWE-312",
+				Title:      "Test",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", created.PolicyPackage)
+
+	// Update with different case
+	updated, err := svc.Update(*created.ID, RiskTemplatePayload{
+		PluginID:      "github-repositories",
+		PolicyPackage: "  COMPLIANCE_FRAMEWORK.SECRET_SCANNING_ENABLED  ",
+		Name:          "Test template updated",
+		Title:         "Test template updated",
+		Statement:     "Test statement updated.",
+		ViolationIDs:  []string{"violation-1"},
+		IsActive:      boolPtr(true),
+		ThreatRefs: []ThreatRefInput{
+			{
+				System:     "https://cwe.mitre.org",
+				ExternalID: "CWE-312",
+				Title:      "Test",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", updated.PolicyPackage)
+
+	// List with different case should find it
+	rows, total, err := svc.List(RiskTemplateListParams{
+		Filters: RiskTemplateListFilters{
+			PolicyPackage: strPtr("  Compliance_Framework.Secret_Scanning_Enabled  "),
+		},
+		Limit:  10,
+		Offset: 0,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, rows, 1)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", rows[0].PolicyPackage)
+}
+
 func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
