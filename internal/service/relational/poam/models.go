@@ -151,10 +151,10 @@ func (m *PoamItemMilestone) BeforeCreate(_ *gorm.DB) error {
 // Uses a composite primary key and OnDelete:CASCADE to match the Risk service
 // link table pattern (e.g., risk_evidence_links).
 type PoamItemRiskLink struct {
-	PoamItemID uuid.UUID  `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
-	RiskID     uuid.UUID  `gorm:"type:uuid;primaryKey;index" json:"riskId"`
-	CreatedAt  time.Time  `                                  json:"createdAt"`
-	PoamItem   *PoamItem  `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
+	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
+	RiskID     uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"riskId"`
+	CreatedAt  time.Time `                                  json:"createdAt"`
+	PoamItem   *PoamItem `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName returns the physical table name.
@@ -162,10 +162,10 @@ func (PoamItemRiskLink) TableName() string { return "ccf_poam_item_risk_links" }
 
 // PoamItemEvidenceLink is the join table linking PoamItems to Evidence records.
 type PoamItemEvidenceLink struct {
-	PoamItemID uuid.UUID  `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
-	EvidenceID uuid.UUID  `gorm:"type:uuid;primaryKey;index" json:"evidenceId"`
-	CreatedAt  time.Time  `                                  json:"createdAt"`
-	PoamItem   *PoamItem  `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
+	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
+	EvidenceID uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"evidenceId"`
+	CreatedAt  time.Time `                                  json:"createdAt"`
+	PoamItem   *PoamItem `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName returns the physical table name.
@@ -173,11 +173,11 @@ func (PoamItemEvidenceLink) TableName() string { return "ccf_poam_item_evidence_
 
 // PoamItemControlLink is the join table linking PoamItems to Controls.
 type PoamItemControlLink struct {
-	PoamItemID uuid.UUID  `gorm:"type:uuid;primaryKey"             json:"poamItemId"`
-	CatalogID  uuid.UUID  `gorm:"type:uuid;primaryKey;index"       json:"catalogId"`
-	ControlID  string     `gorm:"type:text;not null;primaryKey"    json:"controlId"`
-	CreatedAt  time.Time  `                                        json:"createdAt"`
-	PoamItem   *PoamItem  `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
+	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"             json:"poamItemId"`
+	CatalogID  uuid.UUID `gorm:"type:uuid;primaryKey;index"       json:"catalogId"`
+	ControlID  string    `gorm:"type:text;not null;primaryKey"    json:"controlId"`
+	CreatedAt  time.Time `                                        json:"createdAt"`
+	PoamItem   *PoamItem `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName returns the physical table name.
@@ -185,10 +185,10 @@ func (PoamItemControlLink) TableName() string { return "ccf_poam_item_control_li
 
 // PoamItemFindingLink is the join table linking PoamItems to Findings.
 type PoamItemFindingLink struct {
-	PoamItemID uuid.UUID  `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
-	FindingID  uuid.UUID  `gorm:"type:uuid;primaryKey;index" json:"findingId"`
-	CreatedAt  time.Time  `                                  json:"createdAt"`
-	PoamItem   *PoamItem  `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
+	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
+	FindingID  uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"findingId"`
+	CreatedAt  time.Time `                                  json:"createdAt"`
+	PoamItem   *PoamItem `json:"-" gorm:"foreignKey:PoamItemID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName returns the physical table name.

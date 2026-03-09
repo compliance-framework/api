@@ -56,14 +56,14 @@ type UpdatePoamItemParams struct {
 	PlannedCompletionDate *time.Time
 	AcceptanceRationale   *string
 	// Link management — applied inside the same transaction as the scalar update.
-	AddRiskIDs      []uuid.UUID
-	RemoveRiskIDs   []uuid.UUID
-	AddEvidenceIDs  []uuid.UUID
+	AddRiskIDs        []uuid.UUID
+	RemoveRiskIDs     []uuid.UUID
+	AddEvidenceIDs    []uuid.UUID
 	RemoveEvidenceIDs []uuid.UUID
-	AddControlRefs  []ControlRef
+	AddControlRefs    []ControlRef
 	RemoveControlRefs []ControlRef
-	AddFindingIDs   []uuid.UUID
-	RemoveFindingIDs []uuid.UUID
+	AddFindingIDs     []uuid.UUID
+	RemoveFindingIDs  []uuid.UUID
 }
 
 // CreateMilestoneParams carries all data required to create a single milestone.

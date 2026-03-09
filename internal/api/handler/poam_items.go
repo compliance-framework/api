@@ -63,29 +63,29 @@ func (h *PoamItemsHandler) Register(g *echo.Group) {
 // ---------------------------------------------------------------------------
 
 type createPoamItemRequest struct {
-	SspID                 string                    `json:"sspId"                 validate:"required"`
-	Title                 string                    `json:"title"                 validate:"required"`
-	Description           string                    `json:"description"`
-	Status                string                    `json:"status"`
-	SourceType            string                    `json:"sourceType"`
-	PrimaryOwnerUserID    *string                   `json:"primaryOwnerUserId"`
-	PlannedCompletionDate *time.Time                `json:"plannedCompletionDate"`
-	CreatedFromRiskID     *string                   `json:"createdFromRiskId"`
-	AcceptanceRationale   *string                   `json:"acceptanceRationale"`
-	RiskIDs               []string                  `json:"riskIds"`
-	EvidenceIDs           []string                  `json:"evidenceIds"`
-	ControlRefs           []poamControlRefRequest   `json:"controlRefs"`
-	FindingIDs            []string                  `json:"findingIds"`
-	Milestones            []createMilestoneRequest  `json:"milestones"`
+	SspID                 string                   `json:"sspId"                 validate:"required"`
+	Title                 string                   `json:"title"                 validate:"required"`
+	Description           string                   `json:"description"`
+	Status                string                   `json:"status"`
+	SourceType            string                   `json:"sourceType"`
+	PrimaryOwnerUserID    *string                  `json:"primaryOwnerUserId"`
+	PlannedCompletionDate *time.Time               `json:"plannedCompletionDate"`
+	CreatedFromRiskID     *string                  `json:"createdFromRiskId"`
+	AcceptanceRationale   *string                  `json:"acceptanceRationale"`
+	RiskIDs               []string                 `json:"riskIds"`
+	EvidenceIDs           []string                 `json:"evidenceIds"`
+	ControlRefs           []poamControlRefRequest  `json:"controlRefs"`
+	FindingIDs            []string                 `json:"findingIds"`
+	Milestones            []createMilestoneRequest `json:"milestones"`
 }
 
 type updatePoamItemRequest struct {
-	Title                 *string                   `json:"title"`
-	Description           *string                   `json:"description"`
-	Status                *string                   `json:"status"`
-	PrimaryOwnerUserID    *string                   `json:"primaryOwnerUserId"`
-	PlannedCompletionDate *time.Time                `json:"plannedCompletionDate"`
-	AcceptanceRationale   *string                   `json:"acceptanceRationale"`
+	Title                 *string    `json:"title"`
+	Description           *string    `json:"description"`
+	Status                *string    `json:"status"`
+	PrimaryOwnerUserID    *string    `json:"primaryOwnerUserId"`
+	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
+	AcceptanceRationale   *string    `json:"acceptanceRationale"`
 	// Link management — add/remove in the same call as scalar updates.
 	AddRiskIDs        []string                `json:"addRiskIds"`
 	RemoveRiskIDs     []string                `json:"removeRiskIds"`
@@ -257,20 +257,20 @@ func toMilestoneResponse(m *poamsvc.PoamItemMilestone) milestoneResponse {
 
 // List godoc
 //
-//	@Summary		List POAM items
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			status			query		string	false	"Filter by status (open|in-progress|completed|overdue)"
-//	@Param			sspId			query		string	false	"Filter by SSP UUID"
-//	@Param			riskId			query		string	false	"Filter by linked risk UUID"
-//	@Param			deadlineBefore	query		string	false	"Filter by planned_completion_date before (RFC3339)"
-//	@Param			overdueOnly		query		bool	false	"Return only overdue items"
-//	@Param			ownerRef		query		string	false	"Filter by primary_owner_user_id UUID"
-//	@Success		200				{object}	GenericDataListResponse[poamItemResponse]
-//	@Failure		400				{object}	api.Error
-//	@Failure		500				{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items [get]
+//	@Summary	List POAM items
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		status			query		string	false	"Filter by status (open|in-progress|completed|overdue)"
+//	@Param		sspId			query		string	false	"Filter by SSP UUID"
+//	@Param		riskId			query		string	false	"Filter by linked risk UUID"
+//	@Param		deadlineBefore	query		string	false	"Filter by planned_completion_date before (RFC3339)"
+//	@Param		overdueOnly		query		bool	false	"Return only overdue items"
+//	@Param		ownerRef		query		string	false	"Filter by primary_owner_user_id UUID"
+//	@Success	200				{object}	GenericDataListResponse[poamItemResponse]
+//	@Failure	400				{object}	api.Error
+//	@Failure	500				{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items [get]
 func (h *PoamItemsHandler) List(c echo.Context) error {
 	filters, err := parsePoamListFilters(c)
 	if err != nil {
@@ -289,17 +289,17 @@ func (h *PoamItemsHandler) List(c echo.Context) error {
 
 // Create godoc
 //
-//	@Summary		Create a POAM item
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			body	body		createPoamItemRequest	true	"POAM item payload"
-//	@Success		201		{object}	GenericDataResponse[poamItemResponse]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items [post]
+//	@Summary	Create a POAM item
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		createPoamItemRequest	true	"POAM item payload"
+//	@Success	201		{object}	GenericDataResponse[poamItemResponse]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items [post]
 func (h *PoamItemsHandler) Create(c echo.Context) error {
 	var in createPoamItemRequest
 	if err := c.Bind(&in); err != nil {
@@ -401,16 +401,16 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 
 // Get godoc
 //
-//	@Summary		Get a POAM item
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataResponse[poamItemResponse]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id} [get]
+//	@Summary	Get a POAM item
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		id	path		string	true	"POAM item ID"
+//	@Success	200	{object}	GenericDataResponse[poamItemResponse]
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id} [get]
 func (h *PoamItemsHandler) Get(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -428,18 +428,18 @@ func (h *PoamItemsHandler) Get(c echo.Context) error {
 
 // Update godoc
 //
-//	@Summary		Update a POAM item
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id		path		string					true	"POAM item ID"
-//	@Param			body	body		updatePoamItemRequest	true	"Update payload"
-//	@Success		200		{object}	GenericDataResponse[poamItemResponse]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id} [put]
+//	@Summary	Update a POAM item
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string					true	"POAM item ID"
+//	@Param		body	body		updatePoamItemRequest	true	"Update payload"
+//	@Success	200		{object}	GenericDataResponse[poamItemResponse]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id} [put]
 func (h *PoamItemsHandler) Update(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -530,15 +530,15 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 
 // Delete godoc
 //
-//	@Summary		Delete a POAM item
-//	@Tags			POAM Items
-//	@Param			id	path	string	true	"POAM item ID"
-//	@Success		204	"No Content"
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id} [delete]
+//	@Summary	Delete a POAM item
+//	@Tags		POAM Items
+//	@Param		id	path	string	true	"POAM item ID"
+//	@Success	204	"No Content"
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id} [delete]
 func (h *PoamItemsHandler) Delete(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -559,16 +559,16 @@ func (h *PoamItemsHandler) Delete(c echo.Context) error {
 
 // ListMilestones godoc
 //
-//	@Summary		List milestones for a POAM item
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataListResponse[milestoneResponse]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/milestones [get]
+//	@Summary	List milestones for a POAM item
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		id	path		string	true	"POAM item ID"
+//	@Success	200	{object}	GenericDataListResponse[milestoneResponse]
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/milestones [get]
 func (h *PoamItemsHandler) ListMilestones(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -593,18 +593,18 @@ func (h *PoamItemsHandler) ListMilestones(c echo.Context) error {
 
 // AddMilestone godoc
 //
-//	@Summary		Add a milestone to a POAM item
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id		path		string					true	"POAM item ID"
-//	@Param			body	body		createMilestoneRequest	true	"Milestone payload"
-//	@Success		201		{object}	GenericDataResponse[milestoneResponse]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/milestones [post]
+//	@Summary	Add a milestone to a POAM item
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string					true	"POAM item ID"
+//	@Param		body	body		createMilestoneRequest	true	"Milestone payload"
+//	@Success	201		{object}	GenericDataResponse[milestoneResponse]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/milestones [post]
 func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -641,19 +641,19 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 
 // UpdateMilestone godoc
 //
-//	@Summary		Update a milestone
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id			path		string					true	"POAM item ID"
-//	@Param			milestoneId	path		string					true	"Milestone ID"
-//	@Param			body		body		updateMilestoneRequest	true	"Milestone update payload"
-//	@Success		200			{object}	GenericDataResponse[milestoneResponse]
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/milestones/{milestoneId} [put]
+//	@Summary	Update a milestone
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id			path		string					true	"POAM item ID"
+//	@Param		milestoneId	path		string					true	"Milestone ID"
+//	@Param		body		body		updateMilestoneRequest	true	"Milestone update payload"
+//	@Success	200			{object}	GenericDataResponse[milestoneResponse]
+//	@Failure	400			{object}	api.Error
+//	@Failure	404			{object}	api.Error
+//	@Failure	500			{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/milestones/{milestoneId} [put]
 func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -688,16 +688,16 @@ func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
 
 // DeleteMilestone godoc
 //
-//	@Summary		Delete a milestone
-//	@Tags			POAM Items
-//	@Param			id			path	string	true	"POAM item ID"
-//	@Param			milestoneId	path	string	true	"Milestone ID"
-//	@Success		204			"No Content"
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/milestones/{milestoneId} [delete]
+//	@Summary	Delete a milestone
+//	@Tags		POAM Items
+//	@Param		id			path	string	true	"POAM item ID"
+//	@Param		milestoneId	path	string	true	"Milestone ID"
+//	@Success	204			"No Content"
+//	@Failure	400			{object}	api.Error
+//	@Failure	404			{object}	api.Error
+//	@Failure	500			{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/milestones/{milestoneId} [delete]
 func (h *PoamItemsHandler) DeleteMilestone(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -722,16 +722,16 @@ func (h *PoamItemsHandler) DeleteMilestone(c echo.Context) error {
 
 // ListRisks godoc
 //
-//	@Summary		List linked risks
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemRiskLink]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/risks [get]
+//	@Summary	List linked risks
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		id	path		string	true	"POAM item ID"
+//	@Success	200	{object}	GenericDataListResponse[poamsvc.PoamItemRiskLink]
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/risks [get]
 func (h *PoamItemsHandler) ListRisks(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -752,18 +752,18 @@ func (h *PoamItemsHandler) ListRisks(c echo.Context) error {
 
 // AddRiskLink godoc
 //
-//	@Summary		Add a risk link
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id		path		string			true	"POAM item ID"
-//	@Param			body	body		addLinkRequest	true	"Risk ID payload"
-//	@Success		201		{object}	GenericDataResponse[poamsvc.PoamItemRiskLink]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/risks [post]
+//	@Summary	Add a risk link
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"POAM item ID"
+//	@Param		body	body		addLinkRequest	true	"Risk ID payload"
+//	@Success	201		{object}	GenericDataResponse[poamsvc.PoamItemRiskLink]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/risks [post]
 func (h *PoamItemsHandler) AddRiskLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -795,16 +795,16 @@ func (h *PoamItemsHandler) AddRiskLink(c echo.Context) error {
 
 // DeleteRiskLink godoc
 //
-//	@Summary		Delete a risk link
-//	@Tags			POAM Items
-//	@Param			id		path	string	true	"POAM item ID"
-//	@Param			riskId	path	string	true	"Risk ID"
-//	@Success		204		"No Content"
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/risks/{riskId} [delete]
+//	@Summary	Delete a risk link
+//	@Tags		POAM Items
+//	@Param		id		path	string	true	"POAM item ID"
+//	@Param		riskId	path	string	true	"Risk ID"
+//	@Success	204		"No Content"
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/risks/{riskId} [delete]
 func (h *PoamItemsHandler) DeleteRiskLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -829,16 +829,16 @@ func (h *PoamItemsHandler) DeleteRiskLink(c echo.Context) error {
 
 // ListEvidence godoc
 //
-//	@Summary		List linked evidence
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemEvidenceLink]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/evidence [get]
+//	@Summary	List linked evidence
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		id	path		string	true	"POAM item ID"
+//	@Success	200	{object}	GenericDataListResponse[poamsvc.PoamItemEvidenceLink]
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/evidence [get]
 func (h *PoamItemsHandler) ListEvidence(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -859,18 +859,18 @@ func (h *PoamItemsHandler) ListEvidence(c echo.Context) error {
 
 // AddEvidenceLink godoc
 //
-//	@Summary		Add an evidence link
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id		path		string			true	"POAM item ID"
-//	@Param			body	body		addLinkRequest	true	"Evidence ID payload"
-//	@Success		201		{object}	GenericDataResponse[poamsvc.PoamItemEvidenceLink]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/evidence [post]
+//	@Summary	Add an evidence link
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"POAM item ID"
+//	@Param		body	body		addLinkRequest	true	"Evidence ID payload"
+//	@Success	201		{object}	GenericDataResponse[poamsvc.PoamItemEvidenceLink]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/evidence [post]
 func (h *PoamItemsHandler) AddEvidenceLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -902,16 +902,16 @@ func (h *PoamItemsHandler) AddEvidenceLink(c echo.Context) error {
 
 // DeleteEvidenceLink godoc
 //
-//	@Summary		Delete an evidence link
-//	@Tags			POAM Items
-//	@Param			id			path	string	true	"POAM item ID"
-//	@Param			evidenceId	path	string	true	"Evidence ID"
-//	@Success		204			"No Content"
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/evidence/{evidenceId} [delete]
+//	@Summary	Delete an evidence link
+//	@Tags		POAM Items
+//	@Param		id			path	string	true	"POAM item ID"
+//	@Param		evidenceId	path	string	true	"Evidence ID"
+//	@Success	204			"No Content"
+//	@Failure	400			{object}	api.Error
+//	@Failure	404			{object}	api.Error
+//	@Failure	500			{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/evidence/{evidenceId} [delete]
 func (h *PoamItemsHandler) DeleteEvidenceLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -936,16 +936,16 @@ func (h *PoamItemsHandler) DeleteEvidenceLink(c echo.Context) error {
 
 // ListControls godoc
 //
-//	@Summary		List linked controls
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemControlLink]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/controls [get]
+//	@Summary	List linked controls
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		id	path		string	true	"POAM item ID"
+//	@Success	200	{object}	GenericDataListResponse[poamsvc.PoamItemControlLink]
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/controls [get]
 func (h *PoamItemsHandler) ListControls(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -966,18 +966,18 @@ func (h *PoamItemsHandler) ListControls(c echo.Context) error {
 
 // AddControlLink godoc
 //
-//	@Summary		Add a control link
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id		path		string					true	"POAM item ID"
-//	@Param			body	body		poamControlRefRequest	true	"Control ref payload"
-//	@Success		201		{object}	GenericDataResponse[poamsvc.PoamItemControlLink]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/controls [post]
+//	@Summary	Add a control link
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string					true	"POAM item ID"
+//	@Param		body	body		poamControlRefRequest	true	"Control ref payload"
+//	@Success	201		{object}	GenericDataResponse[poamsvc.PoamItemControlLink]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/controls [post]
 func (h *PoamItemsHandler) AddControlLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -1009,17 +1009,17 @@ func (h *PoamItemsHandler) AddControlLink(c echo.Context) error {
 
 // DeleteControlLink godoc
 //
-//	@Summary		Delete a control link
-//	@Tags			POAM Items
-//	@Param			id			path	string	true	"POAM item ID"
-//	@Param			catalogId	path	string	true	"Catalog ID"
-//	@Param			controlId	path	string	true	"Control ID"
-//	@Success		204			"No Content"
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/controls/{catalogId}/{controlId} [delete]
+//	@Summary	Delete a control link
+//	@Tags		POAM Items
+//	@Param		id			path	string	true	"POAM item ID"
+//	@Param		catalogId	path	string	true	"Catalog ID"
+//	@Param		controlId	path	string	true	"Control ID"
+//	@Success	204			"No Content"
+//	@Failure	400			{object}	api.Error
+//	@Failure	404			{object}	api.Error
+//	@Failure	500			{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/controls/{catalogId}/{controlId} [delete]
 func (h *PoamItemsHandler) DeleteControlLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -1048,16 +1048,16 @@ func (h *PoamItemsHandler) DeleteControlLink(c echo.Context) error {
 
 // ListFindings godoc
 //
-//	@Summary		List linked findings
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemFindingLink]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/findings [get]
+//	@Summary	List linked findings
+//	@Tags		POAM Items
+//	@Produce	json
+//	@Param		id	path		string	true	"POAM item ID"
+//	@Success	200	{object}	GenericDataListResponse[poamsvc.PoamItemFindingLink]
+//	@Failure	400	{object}	api.Error
+//	@Failure	404	{object}	api.Error
+//	@Failure	500	{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/findings [get]
 func (h *PoamItemsHandler) ListFindings(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -1078,18 +1078,18 @@ func (h *PoamItemsHandler) ListFindings(c echo.Context) error {
 
 // AddFindingLink godoc
 //
-//	@Summary		Add a finding link
-//	@Tags			POAM Items
-//	@Accept			json
-//	@Produce		json
-//	@Param			id		path		string			true	"POAM item ID"
-//	@Param			body	body		addLinkRequest	true	"Finding ID payload"
-//	@Success		201		{object}	GenericDataResponse[poamsvc.PoamItemFindingLink]
-//	@Failure		400		{object}	api.Error
-//	@Failure		404		{object}	api.Error
-//	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/findings [post]
+//	@Summary	Add a finding link
+//	@Tags		POAM Items
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"POAM item ID"
+//	@Param		body	body		addLinkRequest	true	"Finding ID payload"
+//	@Success	201		{object}	GenericDataResponse[poamsvc.PoamItemFindingLink]
+//	@Failure	400		{object}	api.Error
+//	@Failure	404		{object}	api.Error
+//	@Failure	500		{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/findings [post]
 func (h *PoamItemsHandler) AddFindingLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -1121,16 +1121,16 @@ func (h *PoamItemsHandler) AddFindingLink(c echo.Context) error {
 
 // DeleteFindingLink godoc
 //
-//	@Summary		Delete a finding link
-//	@Tags			POAM Items
-//	@Param			id			path	string	true	"POAM item ID"
-//	@Param			findingId	path	string	true	"Finding ID"
-//	@Success		204			"No Content"
-//	@Failure		400			{object}	api.Error
-//	@Failure		404			{object}	api.Error
-//	@Failure		500			{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items/{id}/findings/{findingId} [delete]
+//	@Summary	Delete a finding link
+//	@Tags		POAM Items
+//	@Param		id			path	string	true	"POAM item ID"
+//	@Param		findingId	path	string	true	"Finding ID"
+//	@Success	204			"No Content"
+//	@Failure	400			{object}	api.Error
+//	@Failure	404			{object}	api.Error
+//	@Failure	500			{object}	api.Error
+//	@Security	OAuth2Password
+//	@Router		/poam-items/{id}/findings/{findingId} [delete]
 func (h *PoamItemsHandler) DeleteFindingLink(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
