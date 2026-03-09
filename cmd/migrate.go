@@ -50,10 +50,7 @@ func migrateUp(cmd *cobra.Command, args []string) {
 	}
 	sugar := zapLogger.Sugar()
 	defer func() {
-		err := zapLogger.Sync()
-		if err != nil {
-			sugar.Error("failed to sync zap logger", "error", err)
-		}
+		_ = zapLogger.Sync() // Flushes buffer, if any. We ignore errors here (that are commonly-seen) as distracting and not of note.
 	}()
 
 	cfg := config.NewConfig(sugar)
@@ -76,10 +73,7 @@ func migrateDown(cmd *cobra.Command, args []string) {
 	}
 	sugar := zapLogger.Sugar()
 	defer func() {
-		err := zapLogger.Sync()
-		if err != nil {
-			sugar.Error("failed to sync zap logger", "error", err)
-		}
+		_ = zapLogger.Sync() // Flushes buffer, if any. We ignore errors here (that are commonly-seen) as distracting and not of note.
 	}()
 
 	cfg := config.NewConfig(sugar)

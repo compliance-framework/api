@@ -53,10 +53,7 @@ func generateHeartbeats(cmd *cobra.Command, args []string) {
 	}
 	sugar := zapLogger.Sugar()
 	defer func() {
-		err := zapLogger.Sync()
-		if err != nil {
-			log.Println("failed to sync logger:", err)
-		}
+		_ = zapLogger.Sync() // Flushes buffer, if any. We ignore errors here (that are commonly-seen) as distracting and not of note.
 	}()
 
 	cmdConfig := config.NewConfig(sugar)
