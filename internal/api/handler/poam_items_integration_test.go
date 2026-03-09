@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/service/relational"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
+	"gorm.io/gorm/clause"
 )
 
 // ---------------------------------------------------------------------------
@@ -62,6 +64,13 @@ func (suite *PoamItemsApiIntegrationSuite) authedReq(method, path string, body [
 	return rec, req
 }
 
+// ensureSSP seeds a SystemSecurityPlan row so that the Create handler's
+// EnsureSSPExists check passes. The SSP record only needs an ID.
+func (suite *PoamItemsApiIntegrationSuite) ensureSSP(id uuid.UUID) {
+	ssp := relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &id}}
+	suite.Require().NoError(suite.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&ssp).Error)
+}
+
 // seedItem inserts a PoamItem directly into the DB, bypassing the API.
 func (suite *PoamItemsApiIntegrationSuite) seedItem(sspID uuid.UUID, title, status string) poamsvc.PoamItem {
 	item := poamsvc.PoamItem{
@@ -97,6 +106,7 @@ func (suite *PoamItemsApiIntegrationSuite) seedMilestone(poamID uuid.UUID, title
 func (suite *PoamItemsApiIntegrationSuite) TestCreate_MinimalPayload() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
+	suite.ensureSSP(sspID)
 	body := createPoamItemRequest{
 		SspID:       sspID.String(),
 		Title:       "Remediate secret scanning",
@@ -118,6 +128,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_MinimalPayload() {
 func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
+	suite.ensureSSP(sspID)
 	due := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
 	body := createPoamItemRequest{
 		SspID:       sspID.String(),
@@ -145,6 +156,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithRiskLinks() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
+	suite.ensureSSP(sspID)
 	riskID := uuid.New()
 	body := createPoamItemRequest{
 		SspID:       sspID.String(),
@@ -168,6 +180,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithRiskLinks() {
 func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
+	suite.ensureSSP(sspID)
 	riskID := uuid.New()
 	evidenceID := uuid.New()
 	findingID := uuid.New()
@@ -206,6 +219,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 
 func (suite *PoamItemsApiIntegrationSuite) TestCreate_InvalidSspID() {
 	suite.Require().NoError(suite.Migrator.Refresh())
+	// No SSP seeded — invalid UUID should be rejected before the DB lookup.
 	body := map[string]interface{}{"sspId": "not-a-uuid", "title": "X", "status": "open"}
 	raw, _ := json.Marshal(body)
 	rec, req := suite.authedReq(http.MethodPost, "/api/poam-items", raw)
