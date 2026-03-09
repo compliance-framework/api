@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
-	"github.com/compliance-framework/api/internal/service/relational"
+	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -42,26 +43,28 @@ func (suite *PoamItemsApiIntegrationSuite) newServer() *api.Server {
 	return server
 }
 
-func (suite *PoamItemsApiIntegrationSuite) seedItem(sspID uuid.UUID, title, status string) relational.CcfPoamItem {
-	item := relational.CcfPoamItem{
+// seedItem inserts a PoamItem directly into the DB, bypassing the API.
+func (suite *PoamItemsApiIntegrationSuite) seedItem(sspID uuid.UUID, title, status string) poamsvc.PoamItem {
+	item := poamsvc.PoamItem{
 		ID:                 uuid.New(),
 		SspID:              sspID,
 		Title:              title,
 		Description:        "seeded for test",
 		Status:             status,
-		SourceType:         "manual",
+		SourceType:         string(poamsvc.PoamItemSourceTypeManual),
 		LastStatusChangeAt: time.Now().UTC(),
 	}
 	suite.Require().NoError(suite.DB.Create(&item).Error)
 	return item
 }
 
-func (suite *PoamItemsApiIntegrationSuite) seedMilestone(poamID uuid.UUID, title, status string, orderIdx int) relational.CcfPoamItemMilestone {
-	m := relational.CcfPoamItemMilestone{
+// seedMilestone inserts a PoamItemMilestone directly into the DB.
+func (suite *PoamItemsApiIntegrationSuite) seedMilestone(poamID uuid.UUID, title, status string, orderIdx int) poamsvc.PoamItemMilestone {
+	m := poamsvc.PoamItemMilestone{
 		ID:         uuid.New(),
 		PoamItemID: poamID,
 		Title:      title,
-		Status:     status,
+		Status:     string(poamsvc.MilestoneStatus(status)),
 		OrderIndex: orderIdx,
 	}
 	suite.Require().NoError(suite.DB.Create(&m).Error)
@@ -87,7 +90,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_MinimalPayload() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItem]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "Remediate secret scanning", resp.Data.Title)
 	assert.Equal(suite.T(), "open", resp.Data.Status)
@@ -116,7 +119,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItem]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "risk-promotion", resp.Data.SourceType)
 	assert.Len(suite.T(), resp.Data.Milestones, 2)
@@ -141,9 +144,9 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithRiskLinks() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItem]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
-	var links []relational.CcfPoamItemRiskLink
+	var links []poamsvc.PoamItemRiskLink
 	suite.Require().NoError(suite.DB.Where("poam_item_id = ?", resp.Data.ID).Find(&links).Error)
 	assert.Len(suite.T(), links, 1)
 	assert.Equal(suite.T(), riskID, links[0].RiskID)
@@ -172,19 +175,19 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItem]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	itemID := resp.Data.ID
-	var riskLinks []relational.CcfPoamItemRiskLink
+	var riskLinks []poamsvc.PoamItemRiskLink
 	suite.DB.Where("poam_item_id = ?", itemID).Find(&riskLinks)
 	assert.Len(suite.T(), riskLinks, 1)
-	var evidenceLinks []relational.CcfPoamItemEvidenceLink
+	var evidenceLinks []poamsvc.PoamItemEvidenceLink
 	suite.DB.Where("poam_item_id = ?", itemID).Find(&evidenceLinks)
 	assert.Len(suite.T(), evidenceLinks, 1)
-	var findingLinks []relational.CcfPoamItemFindingLink
+	var findingLinks []poamsvc.PoamItemFindingLink
 	suite.DB.Where("poam_item_id = ?", itemID).Find(&findingLinks)
 	assert.Len(suite.T(), findingLinks, 1)
-	var controlLinks []relational.CcfPoamItemControlLink
+	var controlLinks []poamsvc.PoamItemControlLink
 	suite.DB.Where("poam_item_id = ?", itemID).Find(&controlLinks)
 	assert.Len(suite.T(), controlLinks, 1)
 	assert.Equal(suite.T(), "AC-1", controlLinks[0].ControlID)
@@ -215,7 +218,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_NoFilter() {
 	req := httptest.NewRequest(http.MethodGet, "/api/poam-items", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 3)
 }
@@ -230,7 +233,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByStatus() {
 	req := httptest.NewRequest(http.MethodGet, "/api/poam-items?status=open", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 	assert.Equal(suite.T(), "open", resp.Data[0].Status)
@@ -247,7 +250,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterBySspId() {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?sspId=%s", sspA), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 2)
 	for _, item := range resp.Data {
@@ -261,12 +264,12 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByRiskId() {
 	riskID := uuid.New()
 	item1 := suite.seedItem(sspID, "Linked to risk", "open")
 	suite.seedItem(sspID, "Not linked", "open")
-	suite.Require().NoError(suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item1.ID, RiskID: riskID}).Error)
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item1.ID, RiskID: riskID}).Error)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?riskId=%s", riskID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 	assert.Equal(suite.T(), item1.ID, resp.Data[0].ID)
@@ -277,15 +280,15 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByDueBefore() {
 	sspID := uuid.New()
 	past := time.Now().Add(-24 * time.Hour).UTC()
 	future := time.Now().Add(30 * 24 * time.Hour).UTC()
-	itemPast := relational.CcfPoamItem{
+	itemPast := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Past due", Description: "d",
-		Status: "open", SourceType: "manual", PlannedCompletionDate: &past,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusOpen), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PlannedCompletionDate: &past, LastStatusChangeAt: time.Now().UTC(),
 	}
-	itemFuture := relational.CcfPoamItem{
+	itemFuture := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Future due", Description: "d",
-		Status: "open", SourceType: "manual", PlannedCompletionDate: &future,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusOpen), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PlannedCompletionDate: &future, LastStatusChangeAt: time.Now().UTC(),
 	}
 	suite.Require().NoError(suite.DB.Create(&itemPast).Error)
 	suite.Require().NoError(suite.DB.Create(&itemFuture).Error)
@@ -294,7 +297,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByDueBefore() {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?dueBefore=%s", cutoff), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 	assert.Equal(suite.T(), itemPast.ID, resp.Data[0].ID)
@@ -305,20 +308,20 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterOverdueOnly() {
 	sspID := uuid.New()
 	past := time.Now().Add(-24 * time.Hour).UTC()
 	future := time.Now().Add(30 * 24 * time.Hour).UTC()
-	overdueItem := relational.CcfPoamItem{
+	overdueItem := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Overdue open", Description: "d",
-		Status: "open", SourceType: "manual", PlannedCompletionDate: &past,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusOpen), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PlannedCompletionDate: &past, LastStatusChangeAt: time.Now().UTC(),
 	}
-	completedPast := relational.CcfPoamItem{
+	completedPast := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Completed past", Description: "d",
-		Status: "completed", SourceType: "manual", PlannedCompletionDate: &past,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusCompleted), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PlannedCompletionDate: &past, LastStatusChangeAt: time.Now().UTC(),
 	}
-	futureItem := relational.CcfPoamItem{
+	futureItem := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Future open", Description: "d",
-		Status: "open", SourceType: "manual", PlannedCompletionDate: &future,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusOpen), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PlannedCompletionDate: &future, LastStatusChangeAt: time.Now().UTC(),
 	}
 	suite.Require().NoError(suite.DB.Create(&overdueItem).Error)
 	suite.Require().NoError(suite.DB.Create(&completedPast).Error)
@@ -327,7 +330,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterOverdueOnly() {
 	req := httptest.NewRequest(http.MethodGet, "/api/poam-items?overdueOnly=true", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 	assert.Equal(suite.T(), overdueItem.ID, resp.Data[0].ID)
@@ -338,15 +341,15 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByOwnerRef() {
 	sspID := uuid.New()
 	ownerID := uuid.New()
 	otherOwnerID := uuid.New()
-	itemOwned := relational.CcfPoamItem{
+	itemOwned := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Owned", Description: "d",
-		Status: "open", SourceType: "manual", PrimaryOwnerUserID: &ownerID,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusOpen), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PrimaryOwnerUserID: &ownerID, LastStatusChangeAt: time.Now().UTC(),
 	}
-	itemOther := relational.CcfPoamItem{
+	itemOther := poamsvc.PoamItem{
 		ID: uuid.New(), SspID: sspID, Title: "Other owner", Description: "d",
-		Status: "open", SourceType: "manual", PrimaryOwnerUserID: &otherOwnerID,
-		LastStatusChangeAt: time.Now().UTC(),
+		Status: string(poamsvc.PoamItemStatusOpen), SourceType: string(poamsvc.PoamItemSourceTypeManual),
+		PrimaryOwnerUserID: &otherOwnerID, LastStatusChangeAt: time.Now().UTC(),
 	}
 	suite.Require().NoError(suite.DB.Create(&itemOwned).Error)
 	suite.Require().NoError(suite.DB.Create(&itemOther).Error)
@@ -354,7 +357,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByOwnerRef() {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?ownerRef=%s", ownerID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItem]
+	var resp GenericDataListResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 	assert.Equal(suite.T(), itemOwned.ID, resp.Data[0].ID)
@@ -374,7 +377,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestGet_Exists() {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[PoamItemResponse]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), item.ID, resp.Data.ID)
 	assert.Len(suite.T(), resp.Data.Milestones, 2)
@@ -406,15 +409,15 @@ func (suite *PoamItemsApiIntegrationSuite) TestGet_IncludesAllLinkSets() {
 	evidenceID := uuid.New()
 	findingID := uuid.New()
 	catalogID := uuid.New()
-	suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID})
-	suite.DB.Create(&relational.CcfPoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID})
-	suite.DB.Create(&relational.CcfPoamItemFindingLink{PoamItemID: item.ID, FindingID: findingID})
-	suite.DB.Create(&relational.CcfPoamItemControlLink{PoamItemID: item.ID, CatalogID: catalogID, ControlID: "AC-2"})
+	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID})
+	suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID})
+	suite.DB.Create(&poamsvc.PoamItemFindingLink{PoamItemID: item.ID, FindingID: findingID})
+	suite.DB.Create(&poamsvc.PoamItemControlLink{PoamItemID: item.ID, CatalogID: catalogID, ControlID: "AC-2"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[PoamItemResponse]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data.RiskLinks, 1)
 	assert.Len(suite.T(), resp.Data.EvidenceLinks, 1)
@@ -439,7 +442,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_ScalarFields() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItem]
+	var resp GenericDataResponse[poamItemResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "Updated title", resp.Data.Title)
 	assert.Equal(suite.T(), "Updated description", resp.Data.Description)
@@ -457,9 +460,9 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusToCompleted_SetsComp
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var updated relational.CcfPoamItem
+	var updated poamsvc.PoamItem
 	suite.Require().NoError(suite.DB.First(&updated, "id = ?", item.ID).Error)
-	assert.Equal(suite.T(), "completed", updated.Status)
+	assert.Equal(suite.T(), string(poamsvc.PoamItemStatusCompleted), updated.Status)
 	assert.NotNil(suite.T(), updated.CompletedAt)
 }
 
@@ -477,7 +480,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusChange_SetsLastStatu
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var updated relational.CcfPoamItem
+	var updated poamsvc.PoamItem
 	suite.Require().NoError(suite.DB.First(&updated, "id = ?", item.ID).Error)
 	assert.True(suite.T(), updated.LastStatusChangeAt.After(originalChangeAt))
 }
@@ -504,21 +507,21 @@ func (suite *PoamItemsApiIntegrationSuite) TestDelete_CascadesAllLinks() {
 	item := suite.seedItem(sspID, "To delete", "open")
 	suite.seedMilestone(item.ID, "MS1", "planned", 0)
 	riskID := uuid.New()
-	suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID})
+	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID})
 	evidenceID := uuid.New()
-	suite.DB.Create(&relational.CcfPoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID})
+	suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
 	var count int64
-	suite.DB.Model(&relational.CcfPoamItem{}).Where("id = ?", item.ID).Count(&count)
+	suite.DB.Model(&poamsvc.PoamItem{}).Where("id = ?", item.ID).Count(&count)
 	assert.Equal(suite.T(), int64(0), count)
-	suite.DB.Model(&relational.CcfPoamItemMilestone{}).Where("poam_item_id = ?", item.ID).Count(&count)
+	suite.DB.Model(&poamsvc.PoamItemMilestone{}).Where("poam_item_id = ?", item.ID).Count(&count)
 	assert.Equal(suite.T(), int64(0), count)
-	suite.DB.Model(&relational.CcfPoamItemRiskLink{}).Where("poam_item_id = ?", item.ID).Count(&count)
+	suite.DB.Model(&poamsvc.PoamItemRiskLink{}).Where("poam_item_id = ?", item.ID).Count(&count)
 	assert.Equal(suite.T(), int64(0), count)
-	suite.DB.Model(&relational.CcfPoamItemEvidenceLink{}).Where("poam_item_id = ?", item.ID).Count(&count)
+	suite.DB.Model(&poamsvc.PoamItemEvidenceLink{}).Where("poam_item_id = ?", item.ID).Count(&count)
 	assert.Equal(suite.T(), int64(0), count)
 }
 
@@ -545,7 +548,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListMilestones_OrderedByIndex() {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItemMilestone]
+	var resp GenericDataListResponse[poamMilestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 3)
 	assert.Equal(suite.T(), "First", resp.Data[0].Title)
@@ -583,7 +586,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItemMilestone]
+	var resp GenericDataResponse[poamMilestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "Deploy to staging", resp.Data.Title)
 	assert.Equal(suite.T(), "planned", resp.Data.Status)
@@ -622,9 +625,9 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_MarkCompleted_Set
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var updated relational.CcfPoamItemMilestone
+	var updated poamsvc.PoamItemMilestone
 	suite.Require().NoError(suite.DB.First(&updated, "id = ?", ms.ID).Error)
-	assert.Equal(suite.T(), "completed", updated.Status)
+	assert.Equal(suite.T(), string(poamsvc.MilestoneStatusCompleted), updated.Status)
 	assert.NotNil(suite.T(), updated.CompletionDate)
 }
 
@@ -645,7 +648,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateTitle() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItemMilestone]
+	var resp GenericDataResponse[poamMilestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "New title", resp.Data.Title)
 }
@@ -667,7 +670,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateOrderIndex(
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[relational.CcfPoamItemMilestone]
+	var resp GenericDataResponse[poamMilestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), 5, resp.Data.OrderIndex)
 }
@@ -708,7 +711,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteMilestone() {
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
 	var count int64
-	suite.DB.Model(&relational.CcfPoamItemMilestone{}).Where("id = ?", ms.ID).Count(&count)
+	suite.DB.Model(&poamsvc.PoamItemMilestone{}).Where("id = ?", ms.ID).Count(&count)
 	assert.Equal(suite.T(), int64(0), count)
 }
 
@@ -727,20 +730,20 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteMilestone_NotFound() {
 }
 
 // ---------------------------------------------------------------------------
-// Link sub-resource endpoints
+// Link sub-resource endpoints — GET
 // ---------------------------------------------------------------------------
 
 func (suite *PoamItemsApiIntegrationSuite) TestListRisks() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Risk list test", "open")
-	suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item.ID, RiskID: uuid.New()})
-	suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item.ID, RiskID: uuid.New()})
+	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: uuid.New()})
+	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: uuid.New()})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/risks", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItemRiskLink]
+	var resp GenericDataListResponse[poamsvc.PoamItemRiskLink]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 2)
 }
@@ -749,12 +752,12 @@ func (suite *PoamItemsApiIntegrationSuite) TestListEvidence() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Evidence list test", "open")
-	suite.DB.Create(&relational.CcfPoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: uuid.New()})
+	suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: uuid.New()})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/evidence", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItemEvidenceLink]
+	var resp GenericDataListResponse[poamsvc.PoamItemEvidenceLink]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 }
@@ -763,12 +766,12 @@ func (suite *PoamItemsApiIntegrationSuite) TestListControls() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Control list test", "open")
-	suite.DB.Create(&relational.CcfPoamItemControlLink{PoamItemID: item.ID, CatalogID: uuid.New(), ControlID: "SI-2"})
+	suite.DB.Create(&poamsvc.PoamItemControlLink{PoamItemID: item.ID, CatalogID: uuid.New(), ControlID: "SI-2"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItemControlLink]
+	var resp GenericDataListResponse[poamsvc.PoamItemControlLink]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 	assert.Equal(suite.T(), "SI-2", resp.Data[0].ControlID)
@@ -778,12 +781,12 @@ func (suite *PoamItemsApiIntegrationSuite) TestListFindings() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Finding list test", "open")
-	suite.DB.Create(&relational.CcfPoamItemFindingLink{PoamItemID: item.ID, FindingID: uuid.New()})
+	suite.DB.Create(&poamsvc.PoamItemFindingLink{PoamItemID: item.ID, FindingID: uuid.New()})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/findings", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[relational.CcfPoamItemFindingLink]
+	var resp GenericDataListResponse[poamsvc.PoamItemFindingLink]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 1)
 }
@@ -800,15 +803,180 @@ func (suite *PoamItemsApiIntegrationSuite) TestListLinks_ParentNotFound() {
 }
 
 // ---------------------------------------------------------------------------
+// Link sub-resource endpoints — POST / DELETE
+// ---------------------------------------------------------------------------
+
+func (suite *PoamItemsApiIntegrationSuite) TestAddRiskLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Add risk link test", "open")
+	riskID := uuid.New()
+	body := addLinkRequest{ID: riskID.String()}
+	raw, _ := json.Marshal(body)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/risks", item.ID), bytes.NewReader(raw))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemRiskLink{}).Where("poam_item_id = ? AND risk_id = ?", item.ID, riskID).Count(&count)
+	assert.Equal(suite.T(), int64(1), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestDeleteRiskLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Delete risk link test", "open")
+	riskID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID}).Error)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/risks/%s", item.ID, riskID), nil)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemRiskLink{}).Where("poam_item_id = ? AND risk_id = ?", item.ID, riskID).Count(&count)
+	assert.Equal(suite.T(), int64(0), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestAddEvidenceLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Add evidence link test", "open")
+	evidenceID := uuid.New()
+	body := addLinkRequest{ID: evidenceID.String()}
+	raw, _ := json.Marshal(body)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/evidence", item.ID), bytes.NewReader(raw))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemEvidenceLink{}).Where("poam_item_id = ? AND evidence_id = ?", item.ID, evidenceID).Count(&count)
+	assert.Equal(suite.T(), int64(1), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestDeleteEvidenceLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Delete evidence link test", "open")
+	evidenceID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID}).Error)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/evidence/%s", item.ID, evidenceID), nil)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemEvidenceLink{}).Where("poam_item_id = ? AND evidence_id = ?", item.ID, evidenceID).Count(&count)
+	assert.Equal(suite.T(), int64(0), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestAddFindingLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Add finding link test", "open")
+	findingID := uuid.New()
+	body := addLinkRequest{ID: findingID.String()}
+	raw, _ := json.Marshal(body)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/findings", item.ID), bytes.NewReader(raw))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemFindingLink{}).Where("poam_item_id = ? AND finding_id = ?", item.ID, findingID).Count(&count)
+	assert.Equal(suite.T(), int64(1), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestDeleteFindingLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Delete finding link test", "open")
+	findingID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemFindingLink{PoamItemID: item.ID, FindingID: findingID}).Error)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/findings/%s", item.ID, findingID), nil)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemFindingLink{}).Where("poam_item_id = ? AND finding_id = ?", item.ID, findingID).Count(&count)
+	assert.Equal(suite.T(), int64(0), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestAddControlLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Add control link test", "open")
+	catalogID := uuid.New()
+	body := poamAddControlLinkRequest{CatalogID: catalogID.String(), ControlID: "AC-3"}
+	raw, _ := json.Marshal(body)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), bytes.NewReader(raw))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemControlLink{}).Where("poam_item_id = ? AND control_id = ?", item.ID, "AC-3").Count(&count)
+	assert.Equal(suite.T(), int64(1), count)
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestDeleteControlLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	item := suite.seedItem(sspID, "Delete control link test", "open")
+	catalogID := uuid.New()
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemControlLink{PoamItemID: item.ID, CatalogID: catalogID, ControlID: "AC-4"}).Error)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodDelete,
+		fmt.Sprintf("/api/poam-items/%s/controls/%s/AC-4", item.ID, catalogID),
+		nil,
+	)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemControlLink{}).Where("poam_item_id = ? AND catalog_id = ? AND control_id = ?", item.ID, catalogID, "AC-4").Count(&count)
+	assert.Equal(suite.T(), int64(0), count)
+}
+
+// ---------------------------------------------------------------------------
 // Uniqueness constraint — duplicate risk link
 // ---------------------------------------------------------------------------
 
-func (suite *PoamItemsApiIntegrationSuite) TestCreate_DuplicateRiskLink_IsRejected() {
+// TestCreate_DuplicateRiskLink_IsIdempotent verifies that POSTing the same risk
+// link twice returns HTTP 201 both times (ON CONFLICT DO NOTHING — same pattern
+// as the Risk service). The unique constraint still exists in the DB; the
+// service simply re-fetches and returns the existing record on conflict.
+func (suite *PoamItemsApiIntegrationSuite) TestCreate_DuplicateRiskLink_IsIdempotent() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	riskID := uuid.New()
 	item := suite.seedItem(sspID, "Dup risk test", "open")
-	suite.Require().NoError(suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID}).Error)
-	err := suite.DB.Create(&relational.CcfPoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID}).Error
-	assert.Error(suite.T(), err, "duplicate risk link should be rejected by unique constraint")
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	body := fmt.Sprintf(`{"id":"%s"}`, riskID)
+
+	// First POST — creates the link.
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/poam-items/%s/risks", item.ID), strings.NewReader(body))
+	req1.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req1.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	suite.newServer().E().ServeHTTP(rec1, req1)
+	assert.Equal(suite.T(), http.StatusCreated, rec1.Code, "first POST should return 201")
+
+	// Second POST — idempotent, should also return 201.
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/poam-items/%s/risks", item.ID), strings.NewReader(body))
+	req2.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req2.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	suite.newServer().E().ServeHTTP(rec2, req2)
+	assert.Equal(suite.T(), http.StatusCreated, rec2.Code, "duplicate POST should be idempotent (201)")
+
+	// Verify only one link exists in the DB.
+	var count int64
+	suite.DB.Model(&poamsvc.PoamItemRiskLink{}).Where("poam_item_id = ? AND risk_id = ?", item.ID, riskID).Count(&count)
+	assert.Equal(suite.T(), int64(1), count, "only one risk link should exist")
 }
