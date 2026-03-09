@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +40,26 @@ func (suite *PoamItemsApiIntegrationSuite) newServer() *api.Server {
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil)
 	return server
+}
+
+// authedReq creates an authenticated HTTP request with a valid JWT token.
+// body may be nil for requests without a payload (GET, DELETE).
+func (suite *PoamItemsApiIntegrationSuite) authedReq(method, path string, body []byte) (*httptest.ResponseRecorder, *http.Request) {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	var reader *bytes.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	} else {
+		reader = bytes.NewReader([]byte{})
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, reader)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	return rec, req
 }
 
 // seedItem inserts a PoamItem directly into the DB, bypassing the API.
@@ -85,9 +104,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_MinimalPayload() {
 		Status:      "open",
 	}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/poam-items", bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, "/api/poam-items", raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -114,9 +131,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 		},
 	}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/poam-items", bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, "/api/poam-items", raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -139,9 +154,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithRiskLinks() {
 		RiskIDs:     []string{riskID.String()},
 	}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/poam-items", bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, "/api/poam-items", raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -170,9 +183,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 		ControlRefs: []poamControlRefRequest{{CatalogID: catalogID.String(), ControlID: "AC-1"}},
 	}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/poam-items", bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, "/api/poam-items", raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -197,9 +208,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_InvalidSspID() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	body := map[string]interface{}{"sspId": "not-a-uuid", "title": "X", "status": "open"}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/poam-items", bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, "/api/poam-items", raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
@@ -214,8 +223,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_NoFilter() {
 	suite.seedItem(sspID, "Item A", "open")
 	suite.seedItem(sspID, "Item B", "in-progress")
 	suite.seedItem(uuid.New(), "Item C", "completed")
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/poam-items", nil)
+	rec, req := suite.authedReq(http.MethodGet, "/api/poam-items", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -229,8 +237,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByStatus() {
 	suite.seedItem(sspID, "Open item", "open")
 	suite.seedItem(sspID, "In-progress item", "in-progress")
 	suite.seedItem(sspID, "Completed item", "completed")
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/poam-items?status=open", nil)
+	rec, req := suite.authedReq(http.MethodGet, "/api/poam-items?status=open", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -246,8 +253,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterBySspId() {
 	suite.seedItem(sspA, "SSP-A item 1", "open")
 	suite.seedItem(sspA, "SSP-A item 2", "open")
 	suite.seedItem(sspB, "SSP-B item", "open")
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?sspId=%s", sspA), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?sspId=%s", sspA), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -265,8 +271,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByRiskId() {
 	item1 := suite.seedItem(sspID, "Linked to risk", "open")
 	suite.seedItem(sspID, "Not linked", "open")
 	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item1.ID, RiskID: riskID}).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?riskId=%s", riskID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?riskId=%s", riskID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -293,8 +298,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByDueBefore() {
 	suite.Require().NoError(suite.DB.Create(&itemPast).Error)
 	suite.Require().NoError(suite.DB.Create(&itemFuture).Error)
 	cutoff := time.Now().UTC().Format(time.RFC3339)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?dueBefore=%s", cutoff), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?dueBefore=%s", cutoff), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -326,8 +330,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterOverdueOnly() {
 	suite.Require().NoError(suite.DB.Create(&overdueItem).Error)
 	suite.Require().NoError(suite.DB.Create(&completedPast).Error)
 	suite.Require().NoError(suite.DB.Create(&futureItem).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/poam-items?overdueOnly=true", nil)
+	rec, req := suite.authedReq(http.MethodGet, "/api/poam-items?overdueOnly=true", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -353,8 +356,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByOwnerRef() {
 	}
 	suite.Require().NoError(suite.DB.Create(&itemOwned).Error)
 	suite.Require().NoError(suite.DB.Create(&itemOther).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items?ownerRef=%s", ownerID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?ownerRef=%s", ownerID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
@@ -373,8 +375,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestGet_Exists() {
 	item := suite.seedItem(sspID, "Get test item", "open")
 	suite.seedMilestone(item.ID, "Milestone A", "planned", 0)
 	suite.seedMilestone(item.ID, "Milestone B", "planned", 1)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -387,16 +388,14 @@ func (suite *PoamItemsApiIntegrationSuite) TestGet_Exists() {
 
 func (suite *PoamItemsApiIntegrationSuite) TestGet_NotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", uuid.New()), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", uuid.New()), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }
 
 func (suite *PoamItemsApiIntegrationSuite) TestGet_InvalidUUID() {
 	suite.Require().NoError(suite.Migrator.Refresh())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/poam-items/not-a-uuid", nil)
+	rec, req := suite.authedReq(http.MethodGet, "/api/poam-items/not-a-uuid", nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
@@ -413,8 +412,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestGet_IncludesAllLinkSets() {
 	suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID})
 	suite.DB.Create(&poamsvc.PoamItemFindingLink{PoamItemID: item.ID, FindingID: findingID})
 	suite.DB.Create(&poamsvc.PoamItemControlLink{PoamItemID: item.ID, CatalogID: catalogID, ControlID: "AC-2"})
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -437,9 +435,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_ScalarFields() {
 	newDesc := "Updated description"
 	body := updatePoamItemRequest{Title: &newTitle, Description: &newDesc}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataResponse[poamItemResponse]
@@ -455,9 +451,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusToCompleted_SetsComp
 	newStatus := "completed"
 	body := updatePoamItemRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var updated poamsvc.PoamItem
@@ -475,9 +469,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusChange_SetsLastStatu
 	newStatus := "in-progress"
 	body := updatePoamItemRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var updated poamsvc.PoamItem
@@ -490,9 +482,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_NotFound() {
 	newTitle := "Ghost"
 	body := updatePoamItemRequest{Title: &newTitle}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", uuid.New()), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", uuid.New()), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }
@@ -510,8 +500,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDelete_CascadesAllLinks() {
 	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID})
 	evidenceID := uuid.New()
 	suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID})
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
 	var count int64
@@ -527,8 +516,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDelete_CascadesAllLinks() {
 
 func (suite *PoamItemsApiIntegrationSuite) TestDelete_NotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s", uuid.New()), nil)
+	rec, req := suite.authedReq(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s", uuid.New()), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }
@@ -544,8 +532,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListMilestones_OrderedByIndex() {
 	suite.seedMilestone(item.ID, "Third", "planned", 2)
 	suite.seedMilestone(item.ID, "First", "planned", 0)
 	suite.seedMilestone(item.ID, "Second", "planned", 1)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[milestoneResponse]
@@ -558,8 +545,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListMilestones_OrderedByIndex() {
 
 func (suite *PoamItemsApiIntegrationSuite) TestListMilestones_ParentNotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", uuid.New()), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", uuid.New()), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }
@@ -581,9 +567,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone() {
 		OrderIndex:              0,
 	}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var resp GenericDataResponse[milestoneResponse]
@@ -597,9 +581,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone_ParentNotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	body := createMilestoneRequest{Title: "Ghost MS", Status: "planned"}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", uuid.New()), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", uuid.New()), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }
@@ -616,13 +598,11 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_MarkCompleted_Set
 	newStatus := "completed"
 	body := updateMilestoneRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodPut,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, ms.ID),
-		bytes.NewReader(raw),
+		raw,
 	)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var updated poamsvc.PoamItemMilestone
@@ -639,13 +619,11 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateTitle() {
 	newTitle := "New title"
 	body := updateMilestoneRequest{Title: &newTitle}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodPut,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, ms.ID),
-		bytes.NewReader(raw),
+		raw,
 	)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataResponse[milestoneResponse]
@@ -661,13 +639,11 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateOrderIndex(
 	newOrder := 5
 	body := updateMilestoneRequest{OrderIndex: &newOrder}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodPut,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, ms.ID),
-		bytes.NewReader(raw),
+		raw,
 	)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataResponse[milestoneResponse]
@@ -682,13 +658,11 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_NotFound() {
 	newStatus := "completed"
 	body := updateMilestoneRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodPut,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, uuid.New()),
-		bytes.NewReader(raw),
+		raw,
 	)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNotFound, rec.Code)
 }
@@ -702,8 +676,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteMilestone() {
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Delete MS test", "open")
 	ms := suite.seedMilestone(item.ID, "To delete", "planned", 0)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodDelete,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, ms.ID),
 		nil,
@@ -719,8 +692,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteMilestone_NotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Parent exists", "open")
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodDelete,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, uuid.New()),
 		nil,
@@ -739,8 +711,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListRisks() {
 	item := suite.seedItem(sspID, "Risk list test", "open")
 	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: uuid.New()})
 	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: uuid.New()})
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/risks", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/risks", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamsvc.PoamItemRiskLink]
@@ -753,8 +724,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListEvidence() {
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Evidence list test", "open")
 	suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: uuid.New()})
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/evidence", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/evidence", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamsvc.PoamItemEvidenceLink]
@@ -767,8 +737,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListControls() {
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Control list test", "open")
 	suite.DB.Create(&poamsvc.PoamItemControlLink{PoamItemID: item.ID, CatalogID: uuid.New(), ControlID: "SI-2"})
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamsvc.PoamItemControlLink]
@@ -782,8 +751,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListFindings() {
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Finding list test", "open")
 	suite.DB.Create(&poamsvc.PoamItemFindingLink{PoamItemID: item.ID, FindingID: uuid.New()})
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/findings", item.ID), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/findings", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamsvc.PoamItemFindingLink]
@@ -795,8 +763,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListLinks_ParentNotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	ghostID := uuid.New()
 	for _, path := range []string{"risks", "evidence", "controls", "findings"} {
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/%s", ghostID, path), nil)
+		rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/%s", ghostID, path), nil)
 		suite.newServer().E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusNotFound, rec.Code, "expected 404 for /poam-items/:id/%s with unknown parent", path)
 	}
@@ -813,9 +780,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddRiskLink() {
 	riskID := uuid.New()
 	body := addLinkRequest{ID: riskID.String()}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/risks", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/risks", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var count int64
@@ -829,8 +794,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteRiskLink() {
 	item := suite.seedItem(sspID, "Delete risk link test", "open")
 	riskID := uuid.New()
 	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID}).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/risks/%s", item.ID, riskID), nil)
+	rec, req := suite.authedReq(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/risks/%s", item.ID, riskID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
 	var count int64
@@ -845,9 +809,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddEvidenceLink() {
 	evidenceID := uuid.New()
 	body := addLinkRequest{ID: evidenceID.String()}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/evidence", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/evidence", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var count int64
@@ -861,8 +823,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteEvidenceLink() {
 	item := suite.seedItem(sspID, "Delete evidence link test", "open")
 	evidenceID := uuid.New()
 	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemEvidenceLink{PoamItemID: item.ID, EvidenceID: evidenceID}).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/evidence/%s", item.ID, evidenceID), nil)
+	rec, req := suite.authedReq(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/evidence/%s", item.ID, evidenceID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
 	var count int64
@@ -877,9 +838,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddFindingLink() {
 	findingID := uuid.New()
 	body := addLinkRequest{ID: findingID.String()}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/findings", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/findings", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var count int64
@@ -893,8 +852,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteFindingLink() {
 	item := suite.seedItem(sspID, "Delete finding link test", "open")
 	findingID := uuid.New()
 	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemFindingLink{PoamItemID: item.ID, FindingID: findingID}).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/findings/%s", item.ID, findingID), nil)
+	rec, req := suite.authedReq(http.MethodDelete, fmt.Sprintf("/api/poam-items/%s/findings/%s", item.ID, findingID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusNoContent, rec.Code)
 	var count int64
@@ -909,9 +867,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddControlLink() {
 	catalogID := uuid.New()
 	body := poamControlRefRequest{CatalogID: catalogID.String(), ControlID: "AC-3"}
 	raw, _ := json.Marshal(body)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), bytes.NewReader(raw))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
 	var count int64
@@ -925,8 +881,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteControlLink() {
 	item := suite.seedItem(sspID, "Delete control link test", "open")
 	catalogID := uuid.New()
 	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemControlLink{PoamItemID: item.ID, CatalogID: catalogID, ControlID: "AC-4"}).Error)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(
+	rec, req := suite.authedReq(
 		http.MethodDelete,
 		fmt.Sprintf("/api/poam-items/%s/controls/%s/AC-4", item.ID, catalogID),
 		nil,
@@ -952,26 +907,17 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_DuplicateRiskLink_IsIdempo
 	riskID := uuid.New()
 	item := suite.seedItem(sspID, "Dup risk test", "open")
 
-	token, err := suite.GetAuthToken()
-	suite.Require().NoError(err)
-
 	body := fmt.Sprintf(`{"id":"%s"}`, riskID)
 
 	// First POST — creates the link.
-	rec1 := httptest.NewRecorder()
-	req1 := httptest.NewRequest(http.MethodPost,
-		fmt.Sprintf("/api/poam-items/%s/risks", item.ID), strings.NewReader(body))
-	req1.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	req1.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	rec1, req1 := suite.authedReq(http.MethodPost,
+		fmt.Sprintf("/api/poam-items/%s/risks", item.ID), []byte(body))
 	suite.newServer().E().ServeHTTP(rec1, req1)
 	assert.Equal(suite.T(), http.StatusCreated, rec1.Code, "first POST should return 201")
 
 	// Second POST — idempotent, should also return 201.
-	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest(http.MethodPost,
-		fmt.Sprintf("/api/poam-items/%s/risks", item.ID), strings.NewReader(body))
-	req2.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	req2.Header.Set(echo.HeaderAuthorization, "Bearer "+*token)
+	rec2, req2 := suite.authedReq(http.MethodPost,
+		fmt.Sprintf("/api/poam-items/%s/risks", item.ID), []byte(body))
 	suite.newServer().E().ServeHTTP(rec2, req2)
 	assert.Equal(suite.T(), http.StatusCreated, rec2.Code, "duplicate POST should be idempotent (201)")
 
@@ -980,3 +926,4 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_DuplicateRiskLink_IsIdempo
 	suite.DB.Model(&poamsvc.PoamItemRiskLink{}).Where("poam_item_id = ? AND risk_id = ?", item.ID, riskID).Count(&count)
 	assert.Equal(suite.T(), int64(1), count, "only one risk link should exist")
 }
+
