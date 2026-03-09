@@ -14,23 +14,21 @@ import (
 	"gorm.io/gorm"
 )
 
-// PoamItemsHandler handles all HTTP operations for POAM items and their
-// sub-resources. It delegates all persistence to PoamService and contains no
-// direct database access.
+// PoamItemsHandler handles all HTTP requests for POAM items and their
+// sub-resources. It delegates all persistence to PoamService and never
+// imports gorm directly for data access.
 type PoamItemsHandler struct {
 	poamService *poamsvc.PoamService
 	sugar       *zap.SugaredLogger
 }
 
-// NewPoamItemsHandler constructs a PoamItemsHandler backed by the given db.
-func NewPoamItemsHandler(logger *zap.SugaredLogger, db *gorm.DB) *PoamItemsHandler {
-	return &PoamItemsHandler{
-		poamService: poamsvc.NewPoamService(db),
-		sugar:       logger,
-	}
+// NewPoamItemsHandler constructs a PoamItemsHandler.
+func NewPoamItemsHandler(svc *poamsvc.PoamService, sugar *zap.SugaredLogger) *PoamItemsHandler {
+	return &PoamItemsHandler{poamService: svc, sugar: sugar}
 }
 
-// Register mounts all POAM item routes onto the given Echo group.
+// Register mounts all POAM routes onto the given Echo group. JWT middleware
+// is applied at the group level in api.go.
 func (h *PoamItemsHandler) Register(g *echo.Group) {
 	g.GET("", h.List)
 	g.POST("", h.Create)
@@ -64,8 +62,43 @@ func (h *PoamItemsHandler) Register(g *echo.Group) {
 // Request / response types
 // ---------------------------------------------------------------------------
 
+type createPoamItemRequest struct {
+	SspID                 string                    `json:"sspId"                 validate:"required"`
+	Title                 string                    `json:"title"                 validate:"required"`
+	Description           string                    `json:"description"`
+	Status                string                    `json:"status"`
+	SourceType            string                    `json:"sourceType"`
+	PrimaryOwnerUserID    *string                   `json:"primaryOwnerUserId"`
+	PlannedCompletionDate *time.Time                `json:"plannedCompletionDate"`
+	CreatedFromRiskID     *string                   `json:"createdFromRiskId"`
+	AcceptanceRationale   *string                   `json:"acceptanceRationale"`
+	RiskIDs               []string                  `json:"riskIds"`
+	EvidenceIDs           []string                  `json:"evidenceIds"`
+	ControlRefs           []poamControlRefRequest   `json:"controlRefs"`
+	FindingIDs            []string                  `json:"findingIds"`
+	Milestones            []createMilestoneRequest  `json:"milestones"`
+}
+
+type updatePoamItemRequest struct {
+	Title                 *string                   `json:"title"`
+	Description           *string                   `json:"description"`
+	Status                *string                   `json:"status"`
+	PrimaryOwnerUserID    *string                   `json:"primaryOwnerUserId"`
+	PlannedCompletionDate *time.Time                `json:"plannedCompletionDate"`
+	AcceptanceRationale   *string                   `json:"acceptanceRationale"`
+	// Link management — add/remove in the same call as scalar updates.
+	AddRiskIDs        []string                `json:"addRiskIds"`
+	RemoveRiskIDs     []string                `json:"removeRiskIds"`
+	AddEvidenceIDs    []string                `json:"addEvidenceIds"`
+	RemoveEvidenceIDs []string                `json:"removeEvidenceIds"`
+	AddControlRefs    []poamControlRefRequest `json:"addControlRefs"`
+	RemoveControlRefs []poamControlRefRequest `json:"removeControlRefs"`
+	AddFindingIDs     []string                `json:"addFindingIds"`
+	RemoveFindingIDs  []string                `json:"removeFindingIds"`
+}
+
 type createMilestoneRequest struct {
-	Title                   string     `json:"title"`
+	Title                   string     `json:"title"    validate:"required"`
 	Description             string     `json:"description"`
 	Status                  string     `json:"status"`
 	ScheduledCompletionDate *time.Time `json:"scheduledCompletionDate"`
@@ -80,76 +113,66 @@ type updateMilestoneRequest struct {
 	OrderIndex              *int       `json:"orderIndex"`
 }
 
-type poamControlRef struct {
-	CatalogID string `json:"catalogId"`
-	ControlID string `json:"controlId"`
-}
-
-type createPoamRequest struct {
-	SspID                 string                   `json:"sspId"`
-	Title                 string                   `json:"title"`
-	Description           string                   `json:"description"`
-	Status                string                   `json:"status"`
-	PrimaryOwnerUserID    *string                  `json:"primaryOwnerUserId"`
-	SourceType            string                   `json:"sourceType"`
-	PlannedCompletionDate *time.Time               `json:"plannedCompletionDate"`
-	CreatedFromRiskID     *string                  `json:"createdFromRiskId"`
-	AcceptanceRationale   *string                  `json:"acceptanceRationale"`
-	RiskIDs               []string                 `json:"riskIds"`
-	EvidenceIDs           []string                 `json:"evidenceIds"`
-	ControlRefs           []poamControlRef         `json:"controlRefs"`
-	FindingIDs            []string                 `json:"findingIds"`
-	Milestones            []createMilestoneRequest `json:"milestones"`
-}
-
-type updatePoamRequest struct {
-	Title                 *string    `json:"title"`
-	Description           *string    `json:"description"`
-	Status                *string    `json:"status"`
-	PrimaryOwnerUserID    *string    `json:"primaryOwnerUserId"`
-	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
-	CompletedAt           *time.Time `json:"completedAt"`
-	AcceptanceRationale   *string    `json:"acceptanceRationale"`
-}
-
 type addLinkRequest struct {
-	ID string `json:"id"`
+	ID string `json:"id" validate:"required"`
 }
 
-type poamAddControlLinkRequest struct {
-	CatalogID string `json:"catalogId"`
-	ControlID string `json:"controlId"`
+type poamControlRefRequest struct {
+	CatalogID string `json:"catalogId" validate:"required"`
+	ControlID string `json:"controlId" validate:"required"`
 }
 
-// poamItemResponse is the typed API response for a POAM item. It avoids
-// embedding the raw GORM model directly in the HTTP layer.
+// Response types — thin wrappers that avoid exposing raw GORM models.
+
+type riskLinkResponse struct {
+	PoamItemID uuid.UUID `json:"poamItemId"`
+	RiskID     uuid.UUID `json:"riskId"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type evidenceLinkResponse struct {
+	PoamItemID uuid.UUID `json:"poamItemId"`
+	EvidenceID uuid.UUID `json:"evidenceId"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type controlLinkResponse struct {
+	PoamItemID uuid.UUID `json:"poamItemId"`
+	CatalogID  uuid.UUID `json:"catalogId"`
+	ControlID  string    `json:"controlId"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type findingLinkResponse struct {
+	PoamItemID uuid.UUID `json:"poamItemId"`
+	FindingID  uuid.UUID `json:"findingId"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
 type poamItemResponse struct {
-	ID                    uuid.UUID                      `json:"id"`
-	CreatedAt             time.Time                      `json:"createdAt"`
-	UpdatedAt             time.Time                      `json:"updatedAt"`
-	SspID                 uuid.UUID                      `json:"sspId"`
-	Title                 string                         `json:"title"`
-	Description           string                         `json:"description"`
-	Status                string                         `json:"status"`
-	SourceType            string                         `json:"sourceType"`
-	PrimaryOwnerUserID    *uuid.UUID                     `json:"primaryOwnerUserId,omitempty"`
-	PlannedCompletionDate *time.Time                     `json:"plannedCompletionDate,omitempty"`
-	CompletedAt           *time.Time                     `json:"completedAt,omitempty"`
-	CreatedFromRiskID     *uuid.UUID                     `json:"createdFromRiskId,omitempty"`
-	AcceptanceRationale   *string                        `json:"acceptanceRationale,omitempty"`
-	LastStatusChangeAt    time.Time                      `json:"lastStatusChangeAt"`
-	Milestones            []poamMilestoneResponse        `json:"milestones"`
-	RiskLinks             []poamsvc.PoamItemRiskLink     `json:"riskLinks"`
-	EvidenceLinks         []poamsvc.PoamItemEvidenceLink `json:"evidenceLinks"`
-	ControlLinks          []poamsvc.PoamItemControlLink  `json:"controlLinks"`
-	FindingLinks          []poamsvc.PoamItemFindingLink  `json:"findingLinks"`
+	ID                    uuid.UUID              `json:"id"`
+	SspID                 uuid.UUID              `json:"sspId"`
+	Title                 string                 `json:"title"`
+	Description           string                 `json:"description"`
+	Status                string                 `json:"status"`
+	SourceType            string                 `json:"sourceType"`
+	PrimaryOwnerUserID    *uuid.UUID             `json:"primaryOwnerUserId,omitempty"`
+	PlannedCompletionDate *time.Time             `json:"plannedCompletionDate,omitempty"`
+	CompletedAt           *time.Time             `json:"completedAt,omitempty"`
+	CreatedFromRiskID     *uuid.UUID             `json:"createdFromRiskId,omitempty"`
+	AcceptanceRationale   *string                `json:"acceptanceRationale,omitempty"`
+	LastStatusChangeAt    time.Time              `json:"lastStatusChangeAt"`
+	CreatedAt             time.Time              `json:"createdAt"`
+	UpdatedAt             time.Time              `json:"updatedAt"`
+	Milestones            []milestoneResponse    `json:"milestones,omitempty"`
+	RiskLinks             []riskLinkResponse     `json:"riskLinks,omitempty"`
+	EvidenceLinks         []evidenceLinkResponse `json:"evidenceLinks,omitempty"`
+	ControlLinks          []controlLinkResponse  `json:"controlLinks,omitempty"`
+	FindingLinks          []findingLinkResponse  `json:"findingLinks,omitempty"`
 }
 
-// poamMilestoneResponse is the typed API response for a POAM milestone.
-type poamMilestoneResponse struct {
+type milestoneResponse struct {
 	ID                      uuid.UUID  `json:"id"`
-	CreatedAt               time.Time  `json:"createdAt"`
-	UpdatedAt               time.Time  `json:"updatedAt"`
 	PoamItemID              uuid.UUID  `json:"poamItemId"`
 	Title                   string     `json:"title"`
 	Description             string     `json:"description"`
@@ -157,33 +180,13 @@ type poamMilestoneResponse struct {
 	ScheduledCompletionDate *time.Time `json:"scheduledCompletionDate,omitempty"`
 	CompletionDate          *time.Time `json:"completionDate,omitempty"`
 	OrderIndex              int        `json:"orderIndex"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	UpdatedAt               time.Time  `json:"updatedAt"`
 }
 
-// ---------------------------------------------------------------------------
-// Mapping helpers
-// ---------------------------------------------------------------------------
-
-func mapPoamItemToResponse(item *poamsvc.PoamItem, riskLinks []poamsvc.PoamItemRiskLink, evidenceLinks []poamsvc.PoamItemEvidenceLink, controlLinks []poamsvc.PoamItemControlLink, findingLinks []poamsvc.PoamItemFindingLink) poamItemResponse {
-	milestones := make([]poamMilestoneResponse, 0, len(item.Milestones))
-	for _, m := range item.Milestones {
-		milestones = append(milestones, mapMilestoneToResponse(&m))
-	}
-	if riskLinks == nil {
-		riskLinks = []poamsvc.PoamItemRiskLink{}
-	}
-	if evidenceLinks == nil {
-		evidenceLinks = []poamsvc.PoamItemEvidenceLink{}
-	}
-	if controlLinks == nil {
-		controlLinks = []poamsvc.PoamItemControlLink{}
-	}
-	if findingLinks == nil {
-		findingLinks = []poamsvc.PoamItemFindingLink{}
-	}
-	return poamItemResponse{
+func toPoamItemResponse(item *poamsvc.PoamItem) poamItemResponse {
+	r := poamItemResponse{
 		ID:                    item.ID,
-		CreatedAt:             item.CreatedAt,
-		UpdatedAt:             item.UpdatedAt,
 		SspID:                 item.SspID,
 		Title:                 item.Title,
 		Description:           item.Description,
@@ -195,19 +198,47 @@ func mapPoamItemToResponse(item *poamsvc.PoamItem, riskLinks []poamsvc.PoamItemR
 		CreatedFromRiskID:     item.CreatedFromRiskID,
 		AcceptanceRationale:   item.AcceptanceRationale,
 		LastStatusChangeAt:    item.LastStatusChangeAt,
-		Milestones:            milestones,
-		RiskLinks:             riskLinks,
-		EvidenceLinks:         evidenceLinks,
-		ControlLinks:          controlLinks,
-		FindingLinks:          findingLinks,
+		CreatedAt:             item.CreatedAt,
+		UpdatedAt:             item.UpdatedAt,
 	}
+	for _, m := range item.Milestones {
+		r.Milestones = append(r.Milestones, toMilestoneResponse(&m))
+	}
+	for _, l := range item.RiskLinks {
+		r.RiskLinks = append(r.RiskLinks, riskLinkResponse{
+			PoamItemID: l.PoamItemID,
+			RiskID:     l.RiskID,
+			CreatedAt:  l.CreatedAt,
+		})
+	}
+	for _, l := range item.EvidenceLinks {
+		r.EvidenceLinks = append(r.EvidenceLinks, evidenceLinkResponse{
+			PoamItemID: l.PoamItemID,
+			EvidenceID: l.EvidenceID,
+			CreatedAt:  l.CreatedAt,
+		})
+	}
+	for _, l := range item.ControlLinks {
+		r.ControlLinks = append(r.ControlLinks, controlLinkResponse{
+			PoamItemID: l.PoamItemID,
+			CatalogID:  l.CatalogID,
+			ControlID:  l.ControlID,
+			CreatedAt:  l.CreatedAt,
+		})
+	}
+	for _, l := range item.FindingLinks {
+		r.FindingLinks = append(r.FindingLinks, findingLinkResponse{
+			PoamItemID: l.PoamItemID,
+			FindingID:  l.FindingID,
+			CreatedAt:  l.CreatedAt,
+		})
+	}
+	return r
 }
 
-func mapMilestoneToResponse(m *poamsvc.PoamItemMilestone) poamMilestoneResponse {
-	return poamMilestoneResponse{
+func toMilestoneResponse(m *poamsvc.PoamItemMilestone) milestoneResponse {
+	return milestoneResponse{
 		ID:                      m.ID,
-		CreatedAt:               m.CreatedAt,
-		UpdatedAt:               m.UpdatedAt,
 		PoamItemID:              m.PoamItemID,
 		Title:                   m.Title,
 		Description:             m.Description,
@@ -215,6 +246,8 @@ func mapMilestoneToResponse(m *poamsvc.PoamItemMilestone) poamMilestoneResponse 
 		ScheduledCompletionDate: m.ScheduledCompletionDate,
 		CompletionDate:          m.CompletionDate,
 		OrderIndex:              m.OrderIndex,
+		CreatedAt:               m.CreatedAt,
+		UpdatedAt:               m.UpdatedAt,
 	}
 }
 
@@ -222,14 +255,45 @@ func mapMilestoneToResponse(m *poamsvc.PoamItemMilestone) poamMilestoneResponse 
 // POAM item handlers
 // ---------------------------------------------------------------------------
 
+// List godoc
+//
+//	@Summary		List POAM items
+//	@Tags			POAM Items
+//	@Produce		json
+//	@Param			status			query		string	false	"Filter by status (open|in-progress|completed|overdue)"
+//	@Param			sspId			query		string	false	"Filter by SSP UUID"
+//	@Param			riskId			query		string	false	"Filter by linked risk UUID"
+//	@Param			deadlineBefore	query		string	false	"Filter by planned_completion_date before (RFC3339)"
+//	@Param			overdueOnly		query		bool	false	"Return only overdue items"
+//	@Param			ownerRef		query		string	false	"Filter by primary_owner_user_id UUID"
+//	@Success		200				{object}	GenericDataListResponse[poamItemResponse]
+//	@Failure		400				{object}	api.Error
+//	@Failure		500				{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/poam-items [get]
+func (h *PoamItemsHandler) List(c echo.Context) error {
+	filters, err := parsePoamListFilters(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	items, err := h.poamService.List(filters)
+	if err != nil {
+		return h.internalError(c, "failed to list poam items", err)
+	}
+	resp := make([]poamItemResponse, 0, len(items))
+	for i := range items {
+		resp = append(resp, toPoamItemResponse(&items[i]))
+	}
+	return c.JSON(http.StatusOK, GenericDataListResponse[poamItemResponse]{Data: resp})
+}
+
 // Create godoc
 //
 //	@Summary		Create a POAM item
-//	@Description	Creates a POAM item with optional milestones and risk/evidence/control/finding links in a single transaction.
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		createPoamRequest	true	"POAM item payload"
+//	@Param			body	body		createPoamItemRequest	true	"POAM item payload"
 //	@Success		201		{object}	GenericDataResponse[poamItemResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
@@ -237,22 +301,30 @@ func mapMilestoneToResponse(m *poamsvc.PoamItemMilestone) poamMilestoneResponse 
 //	@Security		OAuth2Password
 //	@Router			/poam-items [post]
 func (h *PoamItemsHandler) Create(c echo.Context) error {
-	var in createPoamRequest
+	var in createPoamItemRequest
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if in.Title == "" {
-		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("title is required")))
+	if err := c.Validate(&in); err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+
 	sspID, err := uuid.Parse(in.SspID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("sspId must be a valid UUID")))
 	}
 	if err := h.poamService.EnsureSSPExists(sspID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("ssp not found")))
+			return c.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("ssp not found: %s", sspID)))
 		}
 		return h.internalError(c, "failed to validate ssp", err)
+	}
+
+	if in.Status != "" && !poamsvc.PoamItemStatus(in.Status).IsValid() {
+		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid status: %s", in.Status)))
+	}
+	if in.SourceType != "" && !poamsvc.PoamItemSourceType(in.SourceType).IsValid() {
+		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid sourceType: %s", in.SourceType)))
 	}
 
 	params := poamsvc.CreatePoamItemParams{
@@ -280,41 +352,43 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 		params.CreatedFromRiskID = &riskID
 	}
 
-	for _, rid := range in.RiskIDs {
-		ruuid, err := uuid.Parse(rid)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("riskIds contains invalid UUID: %s", rid)))
-		}
-		params.RiskIDs = append(params.RiskIDs, ruuid)
+	riskIDs, err := parseUUIDs(in.RiskIDs, "riskIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	for _, eid := range in.EvidenceIDs {
-		euuid, err := uuid.Parse(eid)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("evidenceIds contains invalid UUID: %s", eid)))
-		}
-		params.EvidenceIDs = append(params.EvidenceIDs, euuid)
+	params.RiskIDs = riskIDs
+
+	evidenceIDs, err := parseUUIDs(in.EvidenceIDs, "evidenceIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	for _, cr := range in.ControlRefs {
-		catID, err := uuid.Parse(cr.CatalogID)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlRefs contains invalid catalogId: %s", cr.CatalogID)))
-		}
-		params.ControlRefs = append(params.ControlRefs, poamsvc.ControlRef{CatalogID: catID, ControlID: cr.ControlID})
+	params.EvidenceIDs = evidenceIDs
+
+	findingIDs, err := parseUUIDs(in.FindingIDs, "findingIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	for _, fid := range in.FindingIDs {
-		fuuid, err := uuid.Parse(fid)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("findingIds contains invalid UUID: %s", fid)))
-		}
-		params.FindingIDs = append(params.FindingIDs, fuuid)
+	params.FindingIDs = findingIDs
+
+	controlRefs, err := parseControlRefs(in.ControlRefs)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	for _, m := range in.Milestones {
+	params.ControlRefs = controlRefs
+
+	for _, mr := range in.Milestones {
+		if mr.Title == "" {
+			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("milestone title is required")))
+		}
+		if mr.Status != "" && !poamsvc.MilestoneStatus(mr.Status).IsValid() {
+			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", mr.Status)))
+		}
 		params.Milestones = append(params.Milestones, poamsvc.CreateMilestoneParams{
-			Title:                   m.Title,
-			Description:             m.Description,
-			Status:                  m.Status,
-			ScheduledCompletionDate: m.ScheduledCompletionDate,
-			OrderIndex:              m.OrderIndex,
+			Title:                   mr.Title,
+			Description:             mr.Description,
+			Status:                  mr.Status,
+			ScheduledCompletionDate: mr.ScheduledCompletionDate,
+			OrderIndex:              mr.OrderIndex,
 		})
 	}
 
@@ -322,85 +396,19 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 	if err != nil {
 		return h.internalError(c, "failed to create poam item", err)
 	}
-
-	riskLinks, _ := h.poamService.ListRiskLinks(item.ID)
-	evidenceLinks, _ := h.poamService.ListEvidenceLinks(item.ID)
-	controlLinks, _ := h.poamService.ListControlLinks(item.ID)
-	findingLinks, _ := h.poamService.ListFindingLinks(item.ID)
-
-	return c.JSON(http.StatusCreated, GenericDataResponse[poamItemResponse]{
-		Data: mapPoamItemToResponse(item, riskLinks, evidenceLinks, controlLinks, findingLinks),
-	})
-}
-
-// List godoc
-//
-//	@Summary		List POAM items
-//	@Description	List POAM items with optional filters: status, sspId, riskId, dueBefore, overdueOnly, ownerRef.
-//	@Tags			POAM Items
-//	@Produce		json
-//	@Param			status		query		string	false	"open|in-progress|completed|overdue"
-//	@Param			sspId		query		string	false	"SSP UUID"
-//	@Param			riskId		query		string	false	"Risk UUID"
-//	@Param			dueBefore	query		string	false	"RFC3339 timestamp — items with planned_completion_date before this value"
-//	@Param			overdueOnly	query		bool	false	"true — items past planned_completion_date and not yet completed"
-//	@Param			ownerRef	query		string	false	"UUID of primary_owner_user_id"
-//	@Success		200			{object}	GenericDataListResponse[poamItemResponse]
-//	@Failure		500			{object}	api.Error
-//	@Security		OAuth2Password
-//	@Router			/poam-items [get]
-func (h *PoamItemsHandler) List(c echo.Context) error {
-	filters := poamsvc.ListFilters{}
-
-	if v := c.QueryParam("status"); v != "" {
-		filters.Status = &v
-	}
-	if v := c.QueryParam("sspId"); v != "" {
-		if id, err := uuid.Parse(v); err == nil {
-			filters.SspID = &id
-		}
-	}
-	if v := c.QueryParam("ownerRef"); v != "" {
-		if id, err := uuid.Parse(v); err == nil {
-			filters.OwnerRef = &id
-		}
-	}
-	if v := c.QueryParam("dueBefore"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			filters.DueBefore = &t
-		}
-	}
-	if c.QueryParam("overdueOnly") == "true" {
-		filters.OverdueOnly = true
-	}
-	if v := c.QueryParam("riskId"); v != "" {
-		if id, err := uuid.Parse(v); err == nil {
-			filters.RiskID = &id
-		}
-	}
-
-	items, err := h.poamService.List(filters)
-	if err != nil {
-		return h.internalError(c, "failed to list poam items", err)
-	}
-
-	resp := make([]poamItemResponse, 0, len(items))
-	for i := range items {
-		resp = append(resp, mapPoamItemToResponse(&items[i], nil, nil, nil, nil))
-	}
-	return c.JSON(http.StatusOK, GenericDataListResponse[poamItemResponse]{Data: resp})
+	return c.JSON(http.StatusCreated, GenericDataResponse[poamItemResponse]{Data: toPoamItemResponse(item)})
 }
 
 // Get godoc
 //
-//	@Summary		Get POAM item
-//	@Description	Get a single POAM item with its milestones and all link sets.
+//	@Summary		Get a POAM item
 //	@Tags			POAM Items
 //	@Produce		json
 //	@Param			id	path		string	true	"POAM item ID"
 //	@Success		200	{object}	GenericDataResponse[poamItemResponse]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/poam-items/{id} [get]
 func (h *PoamItemsHandler) Get(c echo.Context) error {
@@ -408,7 +416,6 @@ func (h *PoamItemsHandler) Get(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
 	item, err := h.poamService.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -416,26 +423,17 @@ func (h *PoamItemsHandler) Get(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to get poam item", err)
 	}
-
-	riskLinks, _ := h.poamService.ListRiskLinks(id)
-	evidenceLinks, _ := h.poamService.ListEvidenceLinks(id)
-	controlLinks, _ := h.poamService.ListControlLinks(id)
-	findingLinks, _ := h.poamService.ListFindingLinks(id)
-
-	return c.JSON(http.StatusOK, GenericDataResponse[poamItemResponse]{
-		Data: mapPoamItemToResponse(item, riskLinks, evidenceLinks, controlLinks, findingLinks),
-	})
+	return c.JSON(http.StatusOK, GenericDataResponse[poamItemResponse]{Data: toPoamItemResponse(item)})
 }
 
 // Update godoc
 //
-//	@Summary		Update POAM item
-//	@Description	Update scalar fields of a POAM item. Setting status to 'completed' automatically sets completed_at and last_status_change_at.
+//	@Summary		Update a POAM item
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string				true	"POAM item ID"
-//	@Param			body	body		updatePoamRequest	true	"Fields to update"
+//	@Param			id		path		string					true	"POAM item ID"
+//	@Param			body	body		updatePoamItemRequest	true	"Update payload"
 //	@Success		200		{object}	GenericDataResponse[poamItemResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
@@ -447,10 +445,13 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
-	var in updatePoamRequest
+	var in updatePoamItemRequest
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if in.Status != nil && !poamsvc.PoamItemStatus(*in.Status).IsValid() {
+		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid status: %s", *in.Status)))
 	}
 
 	params := poamsvc.UpdatePoamItemParams{
@@ -458,9 +459,9 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 		Description:           in.Description,
 		Status:                in.Status,
 		PlannedCompletionDate: in.PlannedCompletionDate,
-		CompletedAt:           in.CompletedAt,
 		AcceptanceRationale:   in.AcceptanceRationale,
 	}
+
 	if in.PrimaryOwnerUserID != nil {
 		ownerID, err := uuid.Parse(*in.PrimaryOwnerUserID)
 		if err != nil {
@@ -469,6 +470,54 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 		params.PrimaryOwnerUserID = &ownerID
 	}
 
+	addRiskIDs, err := parseUUIDs(in.AddRiskIDs, "addRiskIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.AddRiskIDs = addRiskIDs
+
+	removeRiskIDs, err := parseUUIDs(in.RemoveRiskIDs, "removeRiskIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.RemoveRiskIDs = removeRiskIDs
+
+	addEvidenceIDs, err := parseUUIDs(in.AddEvidenceIDs, "addEvidenceIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.AddEvidenceIDs = addEvidenceIDs
+
+	removeEvidenceIDs, err := parseUUIDs(in.RemoveEvidenceIDs, "removeEvidenceIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.RemoveEvidenceIDs = removeEvidenceIDs
+
+	addControlRefs, err := parseControlRefs(in.AddControlRefs)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.AddControlRefs = addControlRefs
+
+	removeControlRefs, err := parseControlRefs(in.RemoveControlRefs)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.RemoveControlRefs = removeControlRefs
+
+	addFindingIDs, err := parseUUIDs(in.AddFindingIDs, "addFindingIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.AddFindingIDs = addFindingIDs
+
+	removeFindingIDs, err := parseUUIDs(in.RemoveFindingIDs, "removeFindingIds")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	params.RemoveFindingIDs = removeFindingIDs
+
 	item, err := h.poamService.Update(id, params)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -476,21 +525,12 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to update poam item", err)
 	}
-
-	riskLinks, _ := h.poamService.ListRiskLinks(id)
-	evidenceLinks, _ := h.poamService.ListEvidenceLinks(id)
-	controlLinks, _ := h.poamService.ListControlLinks(id)
-	findingLinks, _ := h.poamService.ListFindingLinks(id)
-
-	return c.JSON(http.StatusOK, GenericDataResponse[poamItemResponse]{
-		Data: mapPoamItemToResponse(item, riskLinks, evidenceLinks, controlLinks, findingLinks),
-	})
+	return c.JSON(http.StatusOK, GenericDataResponse[poamItemResponse]{Data: toPoamItemResponse(item)})
 }
 
 // Delete godoc
 //
-//	@Summary		Delete POAM item
-//	@Description	Delete a POAM item and cascade-delete its milestones and all link records.
+//	@Summary		Delete a POAM item
 //	@Tags			POAM Items
 //	@Param			id	path	string	true	"POAM item ID"
 //	@Success		204	"No Content"
@@ -504,7 +544,6 @@ func (h *PoamItemsHandler) Delete(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
 	if err := h.poamService.Delete(id); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.JSON(http.StatusNotFound, api.NewError(err))
@@ -520,12 +559,11 @@ func (h *PoamItemsHandler) Delete(c echo.Context) error {
 
 // ListMilestones godoc
 //
-//	@Summary		List milestones
-//	@Description	List all milestones for a POAM item, ordered by order_index.
+//	@Summary		List milestones for a POAM item
 //	@Tags			POAM Items
 //	@Produce		json
 //	@Param			id	path		string	true	"POAM item ID"
-//	@Success		200	{object}	GenericDataListResponse[poamMilestoneResponse]
+//	@Success		200	{object}	GenericDataListResponse[milestoneResponse]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -542,29 +580,26 @@ func (h *PoamItemsHandler) ListMilestones(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to validate poam item", err)
 	}
-
 	milestones, err := h.poamService.ListMilestones(id)
 	if err != nil {
 		return h.internalError(c, "failed to list milestones", err)
 	}
-
-	resp := make([]poamMilestoneResponse, 0, len(milestones))
+	resp := make([]milestoneResponse, 0, len(milestones))
 	for i := range milestones {
-		resp = append(resp, mapMilestoneToResponse(&milestones[i]))
+		resp = append(resp, toMilestoneResponse(&milestones[i]))
 	}
-	return c.JSON(http.StatusOK, GenericDataListResponse[poamMilestoneResponse]{Data: resp})
+	return c.JSON(http.StatusOK, GenericDataListResponse[milestoneResponse]{Data: resp})
 }
 
 // AddMilestone godoc
 //
-//	@Summary		Add milestone
-//	@Description	Add a milestone to a POAM item.
+//	@Summary		Add a milestone to a POAM item
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"POAM item ID"
 //	@Param			body	body		createMilestoneRequest	true	"Milestone payload"
-//	@Success		201		{object}	GenericDataResponse[poamMilestoneResponse]
+//	@Success		201		{object}	GenericDataResponse[milestoneResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -581,15 +616,16 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to validate poam item", err)
 	}
-
 	var in createMilestoneRequest
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	if in.Title == "" {
-		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("title is required")))
+	if err := c.Validate(&in); err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
+	if in.Status != "" && !poamsvc.MilestoneStatus(in.Status).IsValid() {
+		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", in.Status)))
+	}
 	m, err := h.poamService.AddMilestone(id, poamsvc.CreateMilestoneParams{
 		Title:                   in.Title,
 		Description:             in.Description,
@@ -600,20 +636,19 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 	if err != nil {
 		return h.internalError(c, "failed to add milestone", err)
 	}
-	return c.JSON(http.StatusCreated, GenericDataResponse[poamMilestoneResponse]{Data: mapMilestoneToResponse(m)})
+	return c.JSON(http.StatusCreated, GenericDataResponse[milestoneResponse]{Data: toMilestoneResponse(m)})
 }
 
 // UpdateMilestone godoc
 //
-//	@Summary		Update milestone
-//	@Description	Update milestone fields. When status becomes 'completed', completion_date is set automatically.
+//	@Summary		Update a milestone
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path		string					true	"POAM item ID"
 //	@Param			milestoneId	path		string					true	"Milestone ID"
-//	@Param			body		body		updateMilestoneRequest	true	"Fields to update"
-//	@Success		200			{object}	GenericDataResponse[poamMilestoneResponse]
+//	@Param			body		body		updateMilestoneRequest	true	"Milestone update payload"
+//	@Success		200			{object}	GenericDataResponse[milestoneResponse]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
@@ -624,17 +659,18 @@ func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	mid, err := uuid.Parse(c.Param("milestoneId"))
+	milestoneID, err := uuid.Parse(c.Param("milestoneId"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
 	var in updateMilestoneRequest
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
-	m, err := h.poamService.UpdateMilestone(id, mid, poamsvc.UpdateMilestoneParams{
+	if in.Status != nil && !poamsvc.MilestoneStatus(*in.Status).IsValid() {
+		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", *in.Status)))
+	}
+	m, err := h.poamService.UpdateMilestone(id, milestoneID, poamsvc.UpdateMilestoneParams{
 		Title:                   in.Title,
 		Description:             in.Description,
 		Status:                  in.Status,
@@ -647,12 +683,12 @@ func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to update milestone", err)
 	}
-	return c.JSON(http.StatusOK, GenericDataResponse[poamMilestoneResponse]{Data: mapMilestoneToResponse(m)})
+	return c.JSON(http.StatusOK, GenericDataResponse[milestoneResponse]{Data: toMilestoneResponse(m)})
 }
 
 // DeleteMilestone godoc
 //
-//	@Summary		Delete milestone
+//	@Summary		Delete a milestone
 //	@Tags			POAM Items
 //	@Param			id			path	string	true	"POAM item ID"
 //	@Param			milestoneId	path	string	true	"Milestone ID"
@@ -667,12 +703,11 @@ func (h *PoamItemsHandler) DeleteMilestone(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	mid, err := uuid.Parse(c.Param("milestoneId"))
+	milestoneID, err := uuid.Parse(c.Param("milestoneId"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
-	if err := h.poamService.DeleteMilestone(id, mid); err != nil {
+	if err := h.poamService.DeleteMilestone(id, milestoneID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.JSON(http.StatusNotFound, api.NewError(err))
 		}
@@ -694,6 +729,7 @@ func (h *PoamItemsHandler) DeleteMilestone(c echo.Context) error {
 //	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemRiskLink]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/poam-items/{id}/risks [get]
 func (h *PoamItemsHandler) ListRisks(c echo.Context) error {
@@ -716,7 +752,7 @@ func (h *PoamItemsHandler) ListRisks(c echo.Context) error {
 
 // AddRiskLink godoc
 //
-//	@Summary		Add risk link
+//	@Summary		Add a risk link
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
@@ -743,6 +779,9 @@ func (h *PoamItemsHandler) AddRiskLink(c echo.Context) error {
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if err := c.Validate(&in); err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 	riskID, err := uuid.Parse(in.ID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("id must be a valid UUID")))
@@ -756,7 +795,7 @@ func (h *PoamItemsHandler) AddRiskLink(c echo.Context) error {
 
 // DeleteRiskLink godoc
 //
-//	@Summary		Delete risk link
+//	@Summary		Delete a risk link
 //	@Tags			POAM Items
 //	@Param			id		path	string	true	"POAM item ID"
 //	@Param			riskId	path	string	true	"Risk ID"
@@ -797,6 +836,7 @@ func (h *PoamItemsHandler) DeleteRiskLink(c echo.Context) error {
 //	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemEvidenceLink]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/poam-items/{id}/evidence [get]
 func (h *PoamItemsHandler) ListEvidence(c echo.Context) error {
@@ -819,7 +859,7 @@ func (h *PoamItemsHandler) ListEvidence(c echo.Context) error {
 
 // AddEvidenceLink godoc
 //
-//	@Summary		Add evidence link
+//	@Summary		Add an evidence link
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
@@ -846,6 +886,9 @@ func (h *PoamItemsHandler) AddEvidenceLink(c echo.Context) error {
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if err := c.Validate(&in); err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 	evidenceID, err := uuid.Parse(in.ID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("id must be a valid UUID")))
@@ -859,7 +902,7 @@ func (h *PoamItemsHandler) AddEvidenceLink(c echo.Context) error {
 
 // DeleteEvidenceLink godoc
 //
-//	@Summary		Delete evidence link
+//	@Summary		Delete an evidence link
 //	@Tags			POAM Items
 //	@Param			id			path	string	true	"POAM item ID"
 //	@Param			evidenceId	path	string	true	"Evidence ID"
@@ -900,6 +943,7 @@ func (h *PoamItemsHandler) DeleteEvidenceLink(c echo.Context) error {
 //	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemControlLink]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/poam-items/{id}/controls [get]
 func (h *PoamItemsHandler) ListControls(c echo.Context) error {
@@ -922,12 +966,12 @@ func (h *PoamItemsHandler) ListControls(c echo.Context) error {
 
 // AddControlLink godoc
 //
-//	@Summary		Add control link
+//	@Summary		Add a control link
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		string					true	"POAM item ID"
-//	@Param			body	body		addControlLinkRequest	true	"Control ref payload"
+//	@Param			body	body		poamControlRefRequest	true	"Control ref payload"
 //	@Success		201		{object}	GenericDataResponse[poamsvc.PoamItemControlLink]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
@@ -945,16 +989,16 @@ func (h *PoamItemsHandler) AddControlLink(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to validate poam item", err)
 	}
-	var in poamAddControlLinkRequest
+	var in poamControlRefRequest
 	if err := c.Bind(&in); err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := c.Validate(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	catID, err := uuid.Parse(in.CatalogID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("catalogId must be a valid UUID")))
-	}
-	if in.ControlID == "" {
-		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId is required")))
 	}
 	link, err := h.poamService.AddControlLink(id, poamsvc.ControlRef{CatalogID: catID, ControlID: in.ControlID})
 	if err != nil {
@@ -965,7 +1009,7 @@ func (h *PoamItemsHandler) AddControlLink(c echo.Context) error {
 
 // DeleteControlLink godoc
 //
-//	@Summary		Delete control link
+//	@Summary		Delete a control link
 //	@Tags			POAM Items
 //	@Param			id			path	string	true	"POAM item ID"
 //	@Param			catalogId	path	string	true	"Catalog ID"
@@ -1011,6 +1055,7 @@ func (h *PoamItemsHandler) DeleteControlLink(c echo.Context) error {
 //	@Success		200	{object}	GenericDataListResponse[poamsvc.PoamItemFindingLink]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/poam-items/{id}/findings [get]
 func (h *PoamItemsHandler) ListFindings(c echo.Context) error {
@@ -1033,7 +1078,7 @@ func (h *PoamItemsHandler) ListFindings(c echo.Context) error {
 
 // AddFindingLink godoc
 //
-//	@Summary		Add finding link
+//	@Summary		Add a finding link
 //	@Tags			POAM Items
 //	@Accept			json
 //	@Produce		json
@@ -1060,6 +1105,9 @@ func (h *PoamItemsHandler) AddFindingLink(c echo.Context) error {
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if err := c.Validate(&in); err != nil {
+		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
 	findingID, err := uuid.Parse(in.ID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("id must be a valid UUID")))
@@ -1073,7 +1121,7 @@ func (h *PoamItemsHandler) AddFindingLink(c echo.Context) error {
 
 // DeleteFindingLink godoc
 //
-//	@Summary		Delete finding link
+//	@Summary		Delete a finding link
 //	@Tags			POAM Items
 //	@Param			id			path	string	true	"POAM item ID"
 //	@Param			findingId	path	string	true	"Finding ID"
@@ -1102,8 +1150,91 @@ func (h *PoamItemsHandler) DeleteFindingLink(c echo.Context) error {
 }
 
 // ---------------------------------------------------------------------------
-// Error helper
+// Helpers
 // ---------------------------------------------------------------------------
+
+// parseListFilters parses and validates all query parameters for the List
+// endpoint. Returns 400-compatible errors for any malformed UUID or RFC3339
+// value rather than silently ignoring them (Copilot item 12).
+func parsePoamListFilters(c echo.Context) (poamsvc.ListFilters, error) {
+	var f poamsvc.ListFilters
+
+	if s := c.QueryParam("status"); s != "" {
+		if !poamsvc.PoamItemStatus(s).IsValid() {
+			return f, fmt.Errorf("invalid status filter: %s", s)
+		}
+		f.Status = s
+	}
+
+	if s := c.QueryParam("sspId"); s != "" {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return f, fmt.Errorf("sspId must be a valid UUID")
+		}
+		f.SspID = &id
+	}
+
+	if s := c.QueryParam("riskId"); s != "" {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return f, fmt.Errorf("riskId must be a valid UUID")
+		}
+		f.RiskID = &id
+	}
+
+	if s := c.QueryParam("deadlineBefore"); s != "" {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return f, fmt.Errorf("deadlineBefore must be an RFC3339 timestamp")
+		}
+		f.DeadlineBefore = &t
+	}
+
+	if s := c.QueryParam("overdueOnly"); s == "true" {
+		f.OverdueOnly = true
+	}
+
+	if s := c.QueryParam("ownerRef"); s != "" {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return f, fmt.Errorf("ownerRef must be a valid UUID")
+		}
+		f.OwnerRef = &id
+	}
+
+	return f, nil
+}
+
+// parseUUIDs converts a slice of raw strings to uuid.UUIDs, returning a
+// descriptive 400 error for any malformed entry.
+func parseUUIDs(raw []string, field string) ([]uuid.UUID, error) {
+	result := make([]uuid.UUID, 0, len(raw))
+	for _, s := range raw {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("%s contains invalid UUID: %s", field, s)
+		}
+		result = append(result, id)
+	}
+	return result, nil
+}
+
+// parseControlRefs converts a slice of poamControlRefRequest to ControlRef,
+// validating the catalogId UUID in each entry.
+func parseControlRefs(raw []poamControlRefRequest) ([]poamsvc.ControlRef, error) {
+	result := make([]poamsvc.ControlRef, 0, len(raw))
+	for _, r := range raw {
+		catID, err := uuid.Parse(r.CatalogID)
+		if err != nil {
+			return nil, fmt.Errorf("controlRefs contains invalid catalogId UUID: %s", r.CatalogID)
+		}
+		if r.ControlID == "" {
+			return nil, fmt.Errorf("controlRefs entry is missing controlId")
+		}
+		result = append(result, poamsvc.ControlRef{CatalogID: catID, ControlID: r.ControlID})
+	}
+	return result, nil
+}
 
 func (h *PoamItemsHandler) internalError(c echo.Context, msg string, err error) error {
 	h.sugar.Errorw(msg, "error", err)

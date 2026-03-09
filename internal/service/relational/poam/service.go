@@ -1,6 +1,7 @@
 package poam
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -45,15 +46,24 @@ type CreatePoamItemParams struct {
 }
 
 // UpdatePoamItemParams carries the fields that may be patched on an existing
-// POAM item. Only non-nil pointer fields are applied.
+// POAM item. Only non-nil pointer fields are applied. Link slices use explicit
+// add/remove semantics so callers can manage associations in one call.
 type UpdatePoamItemParams struct {
 	Title                 *string
 	Description           *string
 	Status                *string
 	PrimaryOwnerUserID    *uuid.UUID
 	PlannedCompletionDate *time.Time
-	CompletedAt           *time.Time
 	AcceptanceRationale   *string
+	// Link management — applied inside the same transaction as the scalar update.
+	AddRiskIDs      []uuid.UUID
+	RemoveRiskIDs   []uuid.UUID
+	AddEvidenceIDs  []uuid.UUID
+	RemoveEvidenceIDs []uuid.UUID
+	AddControlRefs  []ControlRef
+	RemoveControlRefs []ControlRef
+	AddFindingIDs   []uuid.UUID
+	RemoveFindingIDs []uuid.UUID
 }
 
 // CreateMilestoneParams carries all data required to create a single milestone.
@@ -181,6 +191,10 @@ func (s *PoamService) GetByID(id uuid.UUID) (*PoamItem, error) {
 		Preload("Milestones", func(db *gorm.DB) *gorm.DB {
 			return db.Order("order_index ASC")
 		}).
+		Preload("RiskLinks").
+		Preload("EvidenceLinks").
+		Preload("ControlLinks").
+		Preload("FindingLinks").
 		First(&item, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -188,44 +202,150 @@ func (s *PoamService) GetByID(id uuid.UUID) (*PoamItem, error) {
 	return &item, nil
 }
 
-// Update applies non-nil fields from params to the POAM item identified by id.
-// When status transitions to "completed", completed_at is set automatically.
-// last_status_change_at is stamped on every status change.
+// Update applies non-nil scalar fields from params to the POAM item identified
+// by id, and processes any link add/remove operations — all inside a single
+// transaction. This follows the Risk service pattern: fetch the current record,
+// mutate the struct, then call tx.Save() rather than using a raw map.
+//
+// last_status_change_at is stamped only when the status actually changes.
+// completed_at is set automatically when status transitions to "completed" and
+// cleared if status moves away from "completed". It is not settable via params.
 func (s *PoamService) Update(id uuid.UUID, params UpdatePoamItemParams) (*PoamItem, error) {
-	updates := map[string]interface{}{}
+	item, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Detect status change before mutating.
+	statusChanged := params.Status != nil && *params.Status != item.Status
 
 	if params.Title != nil {
-		updates["title"] = *params.Title
+		item.Title = *params.Title
 	}
 	if params.Description != nil {
-		updates["description"] = *params.Description
+		item.Description = *params.Description
 	}
 	if params.Status != nil {
-		updates["status"] = *params.Status
-		updates["last_status_change_at"] = time.Now().UTC()
-		if *params.Status == string(PoamItemStatusCompleted) {
-			now := time.Now().UTC()
-			updates["completed_at"] = &now
+		if !PoamItemStatus(*params.Status).IsValid() {
+			return nil, fmt.Errorf("invalid status: %s", *params.Status)
+		}
+		item.Status = *params.Status
+		if statusChanged {
+			item.LastStatusChangeAt = time.Now().UTC()
+			if *params.Status == string(PoamItemStatusCompleted) {
+				now := time.Now().UTC()
+				item.CompletedAt = &now
+			} else {
+				// Clear completed_at if moving away from completed.
+				item.CompletedAt = nil
+			}
 		}
 	}
 	if params.PrimaryOwnerUserID != nil {
-		updates["primary_owner_user_id"] = *params.PrimaryOwnerUserID
+		item.PrimaryOwnerUserID = params.PrimaryOwnerUserID
 	}
 	if params.PlannedCompletionDate != nil {
-		updates["planned_completion_date"] = params.PlannedCompletionDate
-	}
-	if params.CompletedAt != nil {
-		updates["completed_at"] = params.CompletedAt
+		item.PlannedCompletionDate = params.PlannedCompletionDate
 	}
 	if params.AcceptanceRationale != nil {
-		updates["acceptance_rationale"] = *params.AcceptanceRationale
+		item.AcceptanceRationale = params.AcceptanceRationale
 	}
 
-	if len(updates) == 0 {
+	hasLinkChanges := len(params.AddRiskIDs) > 0 || len(params.RemoveRiskIDs) > 0 ||
+		len(params.AddEvidenceIDs) > 0 || len(params.RemoveEvidenceIDs) > 0 ||
+		len(params.AddControlRefs) > 0 || len(params.RemoveControlRefs) > 0 ||
+		len(params.AddFindingIDs) > 0 || len(params.RemoveFindingIDs) > 0
+
+	if !hasLinkChanges {
+		// Scalar-only update — use a transaction for the Save.
+		tx, err := beginTx(s.db)
+		if err != nil {
+			return nil, err
+		}
+		defer rollbackTxOnPanic(tx)
+		if err := tx.Save(item).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := tx.Commit().Error; err != nil {
+			return nil, err
+		}
 		return s.GetByID(id)
 	}
 
-	if err := s.db.Model(&PoamItem{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	// Combined scalar + link update in a single transaction.
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	if err := tx.Save(item).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Risk links.
+	for _, riskID := range params.AddRiskIDs {
+		link := PoamItemRiskLink{PoamItemID: id, RiskID: riskID}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	for _, riskID := range params.RemoveRiskIDs {
+		if err := tx.Where("poam_item_id = ? AND risk_id = ?", id, riskID).Delete(&PoamItemRiskLink{}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Evidence links.
+	for _, evidenceID := range params.AddEvidenceIDs {
+		link := PoamItemEvidenceLink{PoamItemID: id, EvidenceID: evidenceID}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	for _, evidenceID := range params.RemoveEvidenceIDs {
+		if err := tx.Where("poam_item_id = ? AND evidence_id = ?", id, evidenceID).Delete(&PoamItemEvidenceLink{}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Control links.
+	for _, cr := range params.AddControlRefs {
+		link := PoamItemControlLink{PoamItemID: id, CatalogID: cr.CatalogID, ControlID: cr.ControlID}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	for _, cr := range params.RemoveControlRefs {
+		if err := tx.Where("poam_item_id = ? AND catalog_id = ? AND control_id = ?", id, cr.CatalogID, cr.ControlID).Delete(&PoamItemControlLink{}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Finding links.
+	for _, findingID := range params.AddFindingIDs {
+		link := PoamItemFindingLink{PoamItemID: id, FindingID: findingID}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	for _, findingID := range params.RemoveFindingIDs {
+		if err := tx.Where("poam_item_id = ? AND finding_id = ?", id, findingID).Delete(&PoamItemFindingLink{}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
@@ -327,40 +447,48 @@ func (s *PoamService) AddMilestone(poamItemID uuid.UUID, params CreateMilestoneP
 // completion_date is set automatically. Returns gorm.ErrRecordNotFound when the
 // milestone does not belong to the given POAM item.
 func (s *PoamService) UpdateMilestone(poamItemID, milestoneID uuid.UUID, params UpdateMilestoneParams) (*PoamItemMilestone, error) {
-	updates := map[string]interface{}{}
+	m, err := s.getMilestoneByID(poamItemID, milestoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	statusChanged := params.Status != nil && *params.Status != m.Status
 
 	if params.Title != nil {
-		updates["title"] = *params.Title
+		m.Title = *params.Title
 	}
 	if params.Description != nil {
-		updates["description"] = *params.Description
+		m.Description = *params.Description
 	}
 	if params.Status != nil {
-		updates["status"] = *params.Status
-		if *params.Status == string(MilestoneStatusCompleted) {
+		if !MilestoneStatus(*params.Status).IsValid() {
+			return nil, fmt.Errorf("invalid milestone status: %s", *params.Status)
+		}
+		m.Status = *params.Status
+		if statusChanged && *params.Status == string(MilestoneStatusCompleted) {
 			now := time.Now().UTC()
-			updates["completion_date"] = &now
+			m.CompletionDate = &now
 		}
 	}
 	if params.ScheduledCompletionDate != nil {
-		updates["scheduled_completion_date"] = params.ScheduledCompletionDate
+		m.ScheduledCompletionDate = params.ScheduledCompletionDate
 	}
 	if params.OrderIndex != nil {
-		updates["order_index"] = *params.OrderIndex
+		m.OrderIndex = *params.OrderIndex
 	}
 
-	if len(updates) == 0 {
-		return s.getMilestoneByID(poamItemID, milestoneID)
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
 	}
+	defer rollbackTxOnPanic(tx)
 
-	result := s.db.Model(&PoamItemMilestone{}).
-		Where("poam_item_id = ? AND id = ?", poamItemID, milestoneID).
-		Updates(updates)
-	if result.Error != nil {
-		return nil, result.Error
+	if err := tx.Save(m).Error; err != nil {
+		tx.Rollback()
+		return nil, err
 	}
-	if result.RowsAffected == 0 {
-		return nil, gorm.ErrRecordNotFound
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
 	}
 
 	return s.getMilestoneByID(poamItemID, milestoneID)
@@ -406,7 +534,7 @@ func (s *PoamService) ListRiskLinks(poamItemID uuid.UUID) ([]PoamItemRiskLink, e
 }
 
 // AddRiskLink creates a risk link for the given POAM item. Duplicate links are
-// silently ignored (ON CONFLICT DO NOTHING).
+// silently ignored (ON CONFLICT DO NOTHING), matching the Risk service pattern.
 func (s *PoamService) AddRiskLink(poamItemID, riskID uuid.UUID) (*PoamItemRiskLink, error) {
 	link := PoamItemRiskLink{PoamItemID: poamItemID, RiskID: riskID}
 	result := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
