@@ -65,7 +65,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 3. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
-	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(ctx, riskTemplates, []relational.Prop(evidence.Props))
+	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(ctx, riskTemplates, evidence.Labels)
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
@@ -166,10 +166,10 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	return riskTemplates, nil
 }
 
-// filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence props
-func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(ctx context.Context, riskTemplates []templates.RiskTemplate, evidenceProps []relational.Prop) ([]templates.RiskTemplate, error) {
-	// Extract violation IDs from evidence props
-	violationIDs := w.extractViolationIDs(evidenceProps)
+// filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence labels
+func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(ctx context.Context, riskTemplates []templates.RiskTemplate, evidenceLabels []relational.Labels) ([]templates.RiskTemplate, error) {
+	// Extract violation IDs from evidence labels
+	violationIDs := w.extractViolationIDs(evidenceLabels)
 
 	var filteredTemplates []templates.RiskTemplate
 
@@ -189,14 +189,14 @@ func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(ctx context.Context
 	return filteredTemplates, nil
 }
 
-// extractViolationIDs extracts violation IDs from evidence props
-func (w *RiskEvidenceWorker) extractViolationIDs(props []relational.Prop) []string {
+// extractViolationIDs extracts violation IDs from evidence labels
+func (w *RiskEvidenceWorker) extractViolationIDs(labels []relational.Labels) []string {
 	var violationIDs []string
 
-	for _, prop := range props {
-		// Look for props with name exactly "violation_id"
-		if prop.Name == "violation_id" && prop.Value != "" {
-			violationIDs = append(violationIDs, prop.Value)
+	for _, label := range labels {
+		// Look for labels with name exactly "violation_id"
+		if label.Name == "_violation_id" && label.Value != "" {
+			violationIDs = append(violationIDs, label.Value)
 		}
 	}
 
@@ -230,7 +230,6 @@ func (w *RiskEvidenceWorker) violationMatches(templateViolationIDs, evidenceViol
 
 // createOrUpdateRisksForSSPs creates or updates risks for each SSP associated with the evidence
 func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence) error {
-	// TODO: we are using Evidence.Components as a proxy for now, but in reality this should use SubjectTemplates to find the appropriate SystemComponents -> SSPIds
 
 	// Get unique SSP IDs from evidence components
 	sspIDs, err := w.extractSSPIDsFromComponents(ctx, evidence.Components)

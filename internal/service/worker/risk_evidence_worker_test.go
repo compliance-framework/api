@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -72,8 +71,6 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 			{Name: "environment", Value: "production"},
 			{Name: "category", Value: "security"},
 			{Name: "_policy", Value: "test-policy"},
-		},
-		Props: datatypes.JSONSlice[relational.Prop]{
 			{Name: "violation_id", Value: "VIOL-001"},
 		},
 	}
@@ -349,8 +346,7 @@ func TestRiskEvidenceWorker_loadEvidenceWithRelations(t *testing.T) {
 	assert.NotNil(t, loaded)
 	assert.Equal(t, evidence.ID, loaded.ID)
 	assert.Equal(t, evidence.UUID, loaded.UUID)
-	assert.Len(t, loaded.Labels, 3) // environment, category, _policy
-	assert.Len(t, loaded.Props, 1)
+	assert.Len(t, loaded.Labels, 4) // environment, category, _policy, violation_id
 }
 
 func TestRiskEvidenceWorker_loadEvidenceWithRelations_NotFound(t *testing.T) {
@@ -715,13 +711,13 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 
 	riskTemplates := []templates.RiskTemplate{*template1, *template2, *template3}
 
-	// Create evidence props with violation ID
-	evidenceProps := []relational.Prop{
+	// Create evidence labels with violation ID
+	evidenceLabels := []relational.Labels{
 		{Name: "violation_id", Value: "VIOL-001"},
 	}
 
 	// Filter templates
-	filtered, err := worker.filterRiskTemplatesByViolations(ctx, riskTemplates, evidenceProps)
+	filtered, err := worker.filterRiskTemplatesByViolations(ctx, riskTemplates, evidenceLabels)
 
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 2) // template1 and template3 should match
@@ -732,13 +728,13 @@ func TestRiskEvidenceWorker_extractViolationIDs(t *testing.T) {
 
 	worker := createTestRiskEvidenceWorker(t)
 
-	props := []relational.Prop{
+	labels := []relational.Labels{
 		{Name: "violation_id", Value: "VIOL-001"},
-		{Name: "other_prop", Value: "value"},
+		{Name: "other_label", Value: "value"},
 		{Name: "violation_id", Value: "VIOL-002"},
 	}
 
-	violationIDs := worker.extractViolationIDs(props)
+	violationIDs := worker.extractViolationIDs(labels)
 
 	assert.Len(t, violationIDs, 2)
 	assert.Contains(t, violationIDs, "VIOL-001")
