@@ -38,7 +38,7 @@ func (suite *PoamItemsApiIntegrationSuite) newServer() *api.Server {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, nil)
 	return server
 }
 
@@ -164,7 +164,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 		RiskIDs:     []string{riskID.String()},
 		EvidenceIDs: []string{evidenceID.String()},
 		FindingIDs:  []string{findingID.String()},
-		ControlRefs: []controlRef{{CatalogID: catalogID.String(), ControlID: "AC-1"}},
+		ControlRefs: []poamControlRef{{CatalogID: catalogID.String(), ControlID: "AC-1"}},
 	}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
