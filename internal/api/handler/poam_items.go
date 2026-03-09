@@ -352,6 +352,7 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 	}
 	if in.Status != nil {
 		updates["status"] = *in.Status
+		updates["last_status_change_at"] = time.Now().UTC()
 		if *in.Status == "completed" {
 			now := time.Now().UTC()
 			updates["completed_at"] = &now

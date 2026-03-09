@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // CcfPoamItem is the first-class CCF POAM work item, always scoped to an SSP.
@@ -15,9 +14,9 @@ type CcfPoamItem struct {
 	SspID                 uuid.UUID  `gorm:"type:uuid;index;not null"                                                                                     json:"sspId"`
 	Title                 string     `gorm:"not null"                                                                                                     json:"title"`
 	Description           string     `gorm:"not null"                                                                                                     json:"description"`
-	Status                string     `gorm:"type:text;index;not null;check:ccf_poam_items_status IN ('open','in-progress','completed','overdue')"         json:"status"`
+	Status                string     `gorm:"type:text;index;not null"                                                                      json:"status"`
 	PrimaryOwnerUserID    *uuid.UUID `gorm:"type:uuid;index"                                                                                              json:"primaryOwnerUserId,omitempty"`
-	SourceType            string     `gorm:"type:text;not null;default:'manual';check:ccf_poam_items_source_type IN ('risk-promotion','manual','import')" json:"sourceType"`
+	SourceType            string     `gorm:"type:text;not null;default:'manual'"                                                           json:"sourceType"`
 	PlannedCompletionDate *time.Time `gorm:"index"                                                                                                        json:"plannedCompletionDate,omitempty"`
 	CompletedAt           *time.Time `                                                                                                                    json:"completedAt,omitempty"`
 	CreatedFromRiskID     *uuid.UUID `gorm:"type:uuid"                                                                                                    json:"createdFromRiskId,omitempty"`
@@ -32,14 +31,6 @@ type CcfPoamItem struct {
 
 func (CcfPoamItem) TableName() string { return "ccf_poam_items" }
 
-// BeforeUpdate sets LastStatusChangeAt whenever the Status column changes.
-func (p *CcfPoamItem) BeforeUpdate(tx *gorm.DB) error {
-	if tx.Statement.Changed("Status") {
-		tx.Statement.SetColumn("LastStatusChangeAt", time.Now().UTC())
-	}
-	return nil
-}
-
 // CcfPoamItemMilestone is a strong-typed milestone entry for a CcfPoamItem.
 // Field names follow the Confluence design doc (v15).
 type CcfPoamItemMilestone struct {
@@ -47,7 +38,7 @@ type CcfPoamItemMilestone struct {
 	PoamItemID              uuid.UUID  `gorm:"type:uuid;index;not null"                                                                json:"poamItemId"`
 	Title                   string     `gorm:"not null"                                                                                json:"title"`
 	Description             string     `                                                                                               json:"description"`
-	Status                  string     `gorm:"type:text;not null;check:ccf_poam_item_milestones_status IN ('planned','completed')"     json:"status"`
+	Status                  string     `gorm:"type:text;not null"                                             json:"status"`
 	ScheduledCompletionDate *time.Time `                                                                                               json:"scheduledCompletionDate,omitempty"`
 	CompletionDate          *time.Time `                                                                                               json:"completionDate,omitempty"`
 	OrderIndex              int        `gorm:"not null;default:0"                                                                      json:"orderIndex"`
