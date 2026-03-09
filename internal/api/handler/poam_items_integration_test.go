@@ -312,7 +312,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByDueBefore() {
 	suite.Require().NoError(suite.DB.Create(&itemPast).Error)
 	suite.Require().NoError(suite.DB.Create(&itemFuture).Error)
 	cutoff := time.Now().UTC().Format(time.RFC3339)
-	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?dueBefore=%s", cutoff), nil)
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?deadlineBefore=%s", cutoff), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 	var resp GenericDataListResponse[poamItemResponse]
