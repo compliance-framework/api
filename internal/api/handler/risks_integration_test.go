@@ -234,6 +234,61 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	require.Equal(suite.T(), "Quarterly governance review", *reviews[len(reviews)-1].ReviewJustification)
 }
 
+func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
+	sspID := suite.newSSPID()
+	otherSSPID := suite.newSSPID()
+
+	createReq := map[string]any{
+		"title":       "Scoped risk",
+		"description": "created from scoped endpoint",
+	}
+	createRec, createHTTPReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", sspID), createReq)
+	suite.server.E().ServeHTTP(createRec, createHTTPReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.Equal(suite.T(), sspID, created.Data.SSPID.String())
+
+	listRec, listHTTPReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks?page=1&limit=20", sspID), nil)
+	suite.server.E().ServeHTTP(listRec, listHTTPReq)
+	require.Equal(suite.T(), http.StatusOK, listRec.Code)
+	var listResp struct {
+		Data []riskResponse `json:"data"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(listRec.Body.Bytes(), &listResp))
+	require.Len(suite.T(), listResp.Data, 1)
+	require.Equal(suite.T(), created.Data.ID, listResp.Data[0].ID)
+
+	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+
+	getOtherRec, getOtherReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getOtherRec, getOtherReq)
+	require.Equal(suite.T(), http.StatusNotFound, getOtherRec.Code)
+
+	updateScopedRec, updateScopedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), map[string]any{
+		"title": "Scoped risk updated",
+	})
+	suite.server.E().ServeHTTP(updateScopedRec, updateScopedReq)
+	require.Equal(suite.T(), http.StatusOK, updateScopedRec.Code)
+
+	updateOtherRec, updateOtherReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), map[string]any{
+		"title": "should fail",
+	})
+	suite.server.E().ServeHTTP(updateOtherRec, updateOtherReq)
+	require.Equal(suite.T(), http.StatusNotFound, updateOtherRec.Code)
+
+	deleteOtherRec, deleteOtherReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteOtherRec, deleteOtherReq)
+	require.Equal(suite.T(), http.StatusNotFound, deleteOtherRec.Code)
+
+	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
+}
+
 func (suite *RiskApiIntegrationSuite) TestEvidenceLinksAreIdempotent() {
 	evidence := relational.Evidence{
 		UUID:        uuid.New(),
@@ -398,7 +453,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskControlComponentSubjectEndpointsAn
 	require.NoError(suite.T(), json.Unmarshal(filterByControlRec.Body.Bytes(), &controlFiltered))
 	require.NotEmpty(suite.T(), controlFiltered.Data)
 
-	filterByEvidenceRec, filterByEvidenceReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks?evidenceId=%s&page=1&limit=10", evidence.ID), nil)
+	filterByEvidenceRec, filterByEvidenceReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks?evidenceId=%s&page=1&limit=10", evidence.UUID), nil)
 	suite.server.E().ServeHTTP(filterByEvidenceRec, filterByEvidenceReq)
 	require.Equal(suite.T(), http.StatusOK, filterByEvidenceRec.Code)
 

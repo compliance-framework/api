@@ -194,8 +194,8 @@ func (w *RiskEvidenceWorker) extractViolationIDs(labels []relational.Labels) []s
 	var violationIDs []string
 
 	for _, label := range labels {
-		// Look for labels with name exactly "violation_id"
-		if label.Name == "_violation_id" && label.Value != "" {
+		// Accept both current and legacy violation label names.
+		if (label.Name == "_violation_id" || label.Name == "violation_id") && label.Value != "" {
 			violationIDs = append(violationIDs, label.Value)
 		}
 	}
@@ -265,7 +265,7 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 		if err != nil {
 			w.logger.Errorw("Failed to create or update risk for SSP",
 				"error", err,
-				"evidence_id", evidence.ID,
+				"evidence_id", evidence.UUID,
 				"risk_template_id", riskTemplate.ID,
 				"ssp_id", sspID)
 			errs = append(errs, err)
@@ -369,7 +369,7 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 
 		// Emit a risk_event(last_seen) using the typed constant.
 		if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeLastSeen), map[string]interface{}{
-			"evidence_id":        evidence.ID,
+			"evidence_id":        evidence.UUID,
 			"previous_last_seen": previousLastSeen,
 			"new_last_seen":      now,
 		}); err != nil {
@@ -384,7 +384,7 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 
 	w.logger.Infow("Updated existing risk",
 		"risk_id", existingRisk.ID,
-		"evidence_id", evidence.ID,
+		"evidence_id", evidence.UUID,
 		"dedupe_key", existingRisk.DedupeKey,
 	)
 
@@ -426,7 +426,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		}
 		// Emit a risk_event(created) using the typed constant
 		if err := w.emitRiskEvent(ctx, tx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
-			"evidence_id": evidence.ID,
+			"evidence_id": evidence.UUID,
 			"template_id": riskTemplate.ID,
 			"dedupe_key":  dedupeKey,
 			"ssp_id":      sspID,
@@ -441,7 +441,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 
 	w.logger.Infow("Created new risk",
 		"risk_id", newRisk.ID,
-		"evidence_id", evidence.ID,
+		"evidence_id", evidence.UUID,
 		"risk_template_id", riskTemplate.ID,
 		"ssp_id", sspID,
 		"dedupe_key", dedupeKey,
@@ -459,7 +459,7 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 	// Link evidence
 	evidenceLink := &risks.RiskEvidenceLink{
 		RiskID:     riskID,
-		EvidenceID: *evidence.ID,
+		EvidenceID: evidence.UUID,
 		CreatedAt:  now,
 	}
 	if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(evidenceLink).Error; err != nil {

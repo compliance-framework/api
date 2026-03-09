@@ -53,6 +53,10 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup)
 
+	sspRiskGroup := server.API().Group("/ssp/:sspId/risks")
+	sspRiskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	riskHandler.RegisterSSPScoped(sspRiskGroup)
+
 	riskTemplateHandler := templatehandlers.NewRiskTemplateHandler(logger, db)
 	riskTemplateGroup := server.API().Group("/risk-templates")
 	riskTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))

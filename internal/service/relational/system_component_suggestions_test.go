@@ -51,6 +51,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&DefinedComponent{},
 		&ControlImplementation{},
 		&ImplementedRequirement{},
+		&Statement{},
 		&SystemImplementation{},
 		&SystemSecurityPlan{},
 		&SystemComponent{},
@@ -224,6 +225,16 @@ func seedSSPWithImplReq(t *testing.T, db *gorm.DB, controlID string) (sspID, imp
 	return *ssp.ID, *ir.ID
 }
 
+func seedStatementForImplReq(t *testing.T, db *gorm.DB, implReqID uuid.UUID, statementID string) uuid.UUID {
+	t.Helper()
+	stmt := Statement{
+		StatementId:              statementID,
+		ImplementedRequirementId: implReqID,
+	}
+	require.NoError(t, db.Create(&stmt).Error)
+	return *stmt.ID
+}
+
 // ---------------------------------------------------------------------------
 // SuggestForImplementedRequirement tests
 // ---------------------------------------------------------------------------
@@ -371,6 +382,32 @@ func TestSuggestForImplementedRequirement_ImplReqNotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSuggestForStatement_ReturnsMatchingComponent(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey, labelValue = "plugin", "sshd"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "ac-1", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	stmtID := seedStatementForImplReq(t, db, implReqID, "ac-1_smt.a")
+
+	suggestions, err := svc.SuggestForStatement(sspID, implReqID, stmtID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1)
+	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
+}
+
+func TestSuggestForStatement_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	_, err := svc.SuggestForStatement(sspID, implReqID, uuid.New())
+	assert.Error(t, err)
+}
+
 // ---------------------------------------------------------------------------
 // ApplyForImplementedRequirement tests
 // ---------------------------------------------------------------------------
@@ -446,6 +483,34 @@ func TestApplyForImplementedRequirement_NoSuggestions(t *testing.T) {
 	var count int64
 	db.Model(&SystemComponent{}).Where("system_implementation_id = ?", systemImpl.ID).Count(&count)
 	assert.Equal(t, int64(0), count)
+}
+
+func TestApplyForStatement_CreatesByComponentLinkedToStatement(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey, labelValue = "plugin", "firewall"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "sc-7", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "sc-7")
+	stmtID := seedStatementForImplReq(t, db, implReqID, "sc-7_smt.a")
+
+	err := svc.ApplyForStatement(sspID, implReqID, stmtID)
+	require.NoError(t, err)
+
+	var systemImpl SystemImplementation
+	require.NoError(t, db.Where("system_security_plan_id = ?", sspID).First(&systemImpl).Error)
+
+	var comp SystemComponent
+	require.NoError(t, db.Where("system_implementation_id = ? AND defined_component_id = ?", systemImpl.ID, dc.ID).First(&comp).Error)
+
+	var bc ByComponent
+	require.NoError(t, db.Where("component_uuid = ?", comp.ID).First(&bc).Error)
+	require.NotNil(t, bc.ParentID)
+	require.NotNil(t, bc.ParentType)
+	assert.Equal(t, stmtID, *bc.ParentID)
+	assert.Equal(t, "statements", *bc.ParentType)
 }
 
 // ---------------------------------------------------------------------------

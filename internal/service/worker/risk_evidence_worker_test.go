@@ -189,7 +189,7 @@ func TestRiskEvidenceWorker_Work_Success(t *testing.T) {
 	// Verify the evidence link was created
 	var link risks.RiskEvidenceLink
 	require.NoError(t, worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidence.ID).
+		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidence.UUID).
 		First(&link).Error)
 
 	// Verify a created event was emitted
@@ -906,7 +906,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	// Verify evidence link
 	var evidenceLink risks.RiskEvidenceLink
 	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", riskID, *evidence.ID).
+		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
 		First(&evidenceLink).Error
 	assert.NoError(t, err)
 
@@ -943,7 +943,7 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	// Verify only evidence link was created
 	var evidenceLink risks.RiskEvidenceLink
 	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", riskID, *evidence.ID).
+		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
 		First(&evidenceLink).Error
 	assert.NoError(t, err)
 

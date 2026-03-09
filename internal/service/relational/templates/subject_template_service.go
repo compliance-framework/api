@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -794,7 +796,7 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 
 		identityHash := buildEntityIdentityHash(template.Type, identityPairs)
 
-		definedComponentID, err := s.resolveOrCreateComponentDefinition(template, identityPairs, schemaLabelPairs, identityHash)
+		definedComponentID, err := s.resolveOrCreateComponentDefinition(template, pluginValue, identityPairs, schemaLabelPairs, identityHash)
 		if err != nil {
 			return nil, err
 		}
@@ -811,7 +813,7 @@ func (s *SubjectTemplateService) ResolveOrUpsertComponentDefinition(input Resolv
 	return result, nil
 }
 
-func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template SubjectTemplate, identityPairs []identityLabelPair, schemaLabels []identityLabelPair, identityHash string) (*uuid.UUID, error) {
+func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template SubjectTemplate, pluginValue string, identityPairs []identityLabelPair, schemaLabels []identityLabelPair, identityHash string) (*uuid.UUID, error) {
 	// Check if identity already exists.
 	var existingIdentity ComponentDefinitionIdentity
 	if err := s.db.Where("entity_type = ? AND identity_hash = ?", subjectTemplateTypeComponent, identityHash).First(&existingIdentity).Error; err == nil {
@@ -865,9 +867,17 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 		remarks = rendered
 	}
 
-	// Generate deterministic IDs from the identity hash.
-	cdID := uuid.NewSHA1(componentDefinitionNamespace, []byte(identityHash))
-	dcID := uuid.NewSHA1(cdID, []byte("defined-component"))
+	// Generate deterministic IDs:
+	// - ComponentDefinition groups by plugin
+	// - DefinedComponent is still identity-specific
+	normalizedPlugin := strings.ToLower(strings.TrimSpace(pluginValue))
+	cdID := uuid.NewSHA1(componentDefinitionNamespace, []byte("plugin:"+normalizedPlugin))
+	dcID := uuid.NewSHA1(cdID, []byte(identityHash))
+	now := time.Now().UTC()
+	componentDefinitionTitle := template.Name
+	if normalizedPlugin != "" {
+		componentDefinitionTitle = fmt.Sprintf("%s components", pluginValue)
+	}
 
 	tx := s.db.Begin()
 	if tx.Error != nil {
@@ -878,8 +888,14 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	// Upsert ComponentDefinition.
 	cd := relational.ComponentDefinition{
 		UUIDModel: relational.UUIDModel{ID: &cdID},
+		Metadata: relational.Metadata{
+			Title:        componentDefinitionTitle,
+			Version:      "1.0.0",
+			OscalVersion: versioning.GetLatestSupportedVersion(),
+			LastModified: &now,
+		},
 	}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit(clause.Associations).Create(&cd).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&cd).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}

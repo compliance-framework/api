@@ -59,6 +59,14 @@ func (h *RiskHandler) Register(api *echo.Group) {
 	api.POST("/:id/subjects", h.AddSubjectLink)
 }
 
+func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
+	api.GET("", h.ListForSSP)
+	api.POST("", h.CreateForSSP)
+	api.GET("/:id", h.GetForSSP)
+	api.PUT("/:id", h.UpdateForSSP)
+	api.DELETE("/:id", h.DeleteForSSP)
+}
+
 type riskOwnerAssignmentRequest struct {
 	OwnerKind string `json:"ownerKind"`
 	OwnerRef  string `json:"ownerRef"`
@@ -236,6 +244,10 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	return h.createFromRequest(ctx, req)
+}
+
+func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest) error {
 	if req.Title == "" || req.Description == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("title and description are required")))
 	}
@@ -322,6 +334,101 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusCreated, GenericDataResponse[riskResponse]{Data: mapped})
 	})
+}
+
+func (h *RiskHandler) ListForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.riskService.EnsureSSPExists(sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("ssp not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate ssp", err)
+	}
+
+	ctx.QueryParams().Set("sspId", sspID.String())
+	return h.List(ctx)
+}
+
+func (h *RiskHandler) CreateForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var req createRiskRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	req.SSPID = sspID
+	return h.createFromRequest(ctx, req)
+}
+
+func (h *RiskHandler) GetForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.Get(ctx)
+}
+
+func (h *RiskHandler) UpdateForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.Update(ctx)
+}
+
+func (h *RiskHandler) DeleteForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.Delete(ctx)
+}
+
+func (h *RiskHandler) ensureRiskBelongsToSSP(riskID, sspID uuid.UUID) error {
+	risk, err := h.riskService.GetByID(riskID)
+	if err != nil {
+		return err
+	}
+	if risk.SSPID != sspID {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // Get godoc

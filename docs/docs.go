@@ -31595,6 +31595,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "evidenceId": {
+                    "description": "EvidenceID stores the evidence stream UUID (evidences.uuid), not a single evidence row ID.",
                     "type": "string"
                 },
                 "riskId": {
