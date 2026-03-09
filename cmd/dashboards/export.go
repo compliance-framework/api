@@ -35,10 +35,7 @@ func exportDashboards(cmd *cobra.Command, args []string) {
 	}
 	sugar := zapLogger.Sugar()
 	defer func() {
-		err := zapLogger.Sync() // flushes buffer, if any
-		if err != nil {
-			sugar.Error("failed to flush sync buffer", "err", err)
-		}
+		_ = zapLogger.Sync() // Flushes buffer, if any. We ignore errors here (that are commonly-seen) as distracting and not of note.
 	}()
 
 	config := config.NewConfig(sugar)
