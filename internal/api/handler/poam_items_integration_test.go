@@ -907,7 +907,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddControlLink() {
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Add control link test", "open")
 	catalogID := uuid.New()
-	body := poamAddControlLinkRequest{CatalogID: catalogID.String(), ControlID: "AC-3"}
+	body := poamControlRefRequest{CatalogID: catalogID.String(), ControlID: "AC-3"}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/controls", item.ID), bytes.NewReader(raw))
