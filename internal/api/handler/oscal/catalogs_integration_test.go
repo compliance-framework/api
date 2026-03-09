@@ -14,8 +14,9 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
-	"github.com/compliance-framework/api/internal/tests"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	"github.com/compliance-framework/api/internal/tests"
 	oscaltypes "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +48,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogGroupID() {
 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	// Create two catalogs with the same group ID structure
 	catalogs := []oscaltypes.Catalog{
@@ -144,7 +146,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogControlID() {
 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	// Create two catalogs with the same group ID structure
 	catalogs := []oscaltypes.Catalog{
@@ -240,7 +243,8 @@ func (suite *CatalogApiIntegrationSuite) TestDuplicateCatalogChildControlID() {
 	suite.Require().NoError(err)
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	// Create two catalogs with the same group ID structure
 	catalogs := []oscaltypes.Catalog{
@@ -334,7 +338,8 @@ func (suite *CatalogApiIntegrationSuite) TestRootGroup() {
 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	// Create two catalogs with the same group ID structure
 	catalog := oscaltypes.Catalog{
@@ -395,7 +400,8 @@ func (suite *CatalogApiIntegrationSuite) TestRootControl() {
 
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	// Create two catalogs with the same group ID structure
 	catalog := oscaltypes.Catalog{
@@ -455,7 +461,8 @@ func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteGroupRemovesControls()
 	suite.Require().NoError(err)
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	catalog := oscaltypes.Catalog{
 		UUID: "D5A6E1FF-7F21-4B3C-A2B7-998877665544",
@@ -538,7 +545,8 @@ func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteControlRemovesChildren
 	suite.Require().NoError(err)
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	catalog := oscaltypes.Catalog{
 		UUID: "A1B2C3D4-E5F6-4711-8899-112233445566",
@@ -597,7 +605,8 @@ func (suite *CatalogApiIntegrationSuite) TestCascadeDeleteCatalogRemovesEverythi
 	suite.Require().NoError(err)
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	catalog := oscaltypes.Catalog{
 		UUID: "F0E1D2C3-B4A5-6789-ABCD-001122334455",
@@ -660,7 +669,8 @@ func (suite *CatalogApiIntegrationSuite) TestFilterControlsCatalogScopedDelete()
 	suite.Require().NoError(err)
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, evidenceSvc)
 
 	// Create two catalogs with the same control ID
 	catA := oscaltypes.Catalog{

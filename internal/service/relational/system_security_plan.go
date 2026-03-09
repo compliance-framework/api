@@ -915,6 +915,7 @@ type SystemComponent struct {
 	Links            datatypes.JSONSlice[Link]                 `json:"links"`
 
 	SystemImplementationId uuid.UUID
+	DefinedComponentID     *uuid.UUID `json:"definedComponentId,omitempty" gorm:"type:uuid;index"`
 
 	Evidence []Evidence `gorm:"many2many:evidence_components"`
 	Filters  []Filter   `gorm:"many2many:filter_system_components;"`

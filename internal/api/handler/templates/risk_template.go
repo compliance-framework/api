@@ -1,7 +1,6 @@
 package templates
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -154,7 +153,7 @@ func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 		Offset:  pagination.Offset,
 	})
 	if err != nil {
-		return h.internalServerError(ctx, "failed to list risk templates", err)
+		return templateInternalServerError(ctx, h.sugar, "failed to list risk templates", err)
 	}
 
 	resp := make([]riskTemplateResponse, 0, len(rows))
@@ -188,7 +187,7 @@ func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
 
 	row, err := h.service.Create(payload)
 	if err != nil {
-		return h.handleServiceError(ctx, "failed to create risk template", err)
+		return handleTemplateServiceError(ctx, h.sugar, "failed to create risk template", err)
 	}
 
 	return ctx.JSON(http.StatusCreated, riskTemplateDataResponse{Data: mapRiskTemplateToResponse(*row)})
@@ -215,7 +214,7 @@ func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
 
 	row, err := h.service.GetByID(id)
 	if err != nil {
-		return h.handleServiceError(ctx, "failed to get risk template", err)
+		return handleTemplateServiceError(ctx, h.sugar, "failed to get risk template", err)
 	}
 
 	return ctx.JSON(http.StatusOK, riskTemplateDataResponse{Data: mapRiskTemplateToResponse(*row)})
@@ -251,7 +250,7 @@ func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
 
 	row, err := h.service.Update(id, payload)
 	if err != nil {
-		return h.handleServiceError(ctx, "failed to update risk template", err)
+		return handleTemplateServiceError(ctx, h.sugar, "failed to update risk template", err)
 	}
 
 	return ctx.JSON(http.StatusOK, riskTemplateDataResponse{Data: mapRiskTemplateToResponse(*row)})
@@ -277,27 +276,10 @@ func (h *RiskTemplateHandler) Delete(ctx echo.Context) error {
 	}
 
 	if err := h.service.Delete(id); err != nil {
-		return h.handleServiceError(ctx, "failed to delete risk template", err)
+		return handleTemplateServiceError(ctx, h.sugar, "failed to delete risk template", err)
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
-}
-
-func (h *RiskTemplateHandler) handleServiceError(ctx echo.Context, message string, err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ctx.JSON(http.StatusNotFound, api.NotFound())
-	}
-	if templaterel.IsValidationError(err) {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-	return h.internalServerError(ctx, message, err)
-}
-
-func (h *RiskTemplateHandler) internalServerError(ctx echo.Context, message string, err error) error {
-	if h.sugar != nil {
-		h.sugar.Errorw(message, "error", err)
-	}
-	return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("internal server error")))
 }
 
 func mapRequestToPayload(req upsertRiskTemplateRequest) templaterel.RiskTemplatePayload {

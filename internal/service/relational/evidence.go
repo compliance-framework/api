@@ -12,6 +12,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// EvidenceStatusNotSatisfied is the OSCAL ObjectiveStatus.State value indicating a failed check.
+const EvidenceStatusNotSatisfied = "not-satisfied"
+
 type Evidence struct {
 	// ID is the unique ID for this specific observation, and will be used as the primary key in the database.
 	UUIDModel

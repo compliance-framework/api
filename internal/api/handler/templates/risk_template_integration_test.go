@@ -70,7 +70,8 @@ func (suite *RiskTemplateApiIntegrationSuite) SetupTest() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	handlerpkg.RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, nil, nil, nil, nil)
+	services := &handlerpkg.APIServices{}
+	handlerpkg.RegisterHandlers(suite.server, logger.Sugar(), suite.DB, suite.Config, services)
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) authedRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {

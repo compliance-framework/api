@@ -13,6 +13,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
 	"github.com/labstack/echo/v4"
@@ -22,15 +23,22 @@ import (
 )
 
 type SystemSecurityPlanHandler struct {
-	sugar        *zap.SugaredLogger
-	db           *gorm.DB
-	profileCache sync.Map // map[uuid.UUID][]string
+	sugar             *zap.SugaredLogger
+	db                *gorm.DB
+	profileCache      sync.Map // map[uuid.UUID][]string
+	suggestionService *relational.SystemComponentSuggestionService
 }
 
-func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB) *SystemSecurityPlanHandler {
+type SystemComponentRequest struct {
+	oscalTypes_1_1_3.SystemComponent
+	DefinedComponentID *uuid.UUID `json:"definedComponentId,omitempty"`
+}
+
+func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenceSvc *evidencesvc.EvidenceService) *SystemSecurityPlanHandler {
 	return &SystemSecurityPlanHandler{
-		sugar: sugar,
-		db:    db,
+		sugar:             sugar,
+		db:                db,
+		suggestionService: relational.NewSystemComponentSuggestionService(db, evidenceSvc),
 	}
 }
 
@@ -209,6 +217,9 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components/:byComponentId", h.DeleteImplementedRequirementStatementByComponent)
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/by-components", h.CreateImplementedRequirementStatementByComponent)
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId", h.DeleteImplementedRequirement)
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/suggest-components", h.SuggestComponents)
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/apply-suggestion", h.ApplySuggestion)
+	api.POST("/:id/bulk-apply-component-suggestions", h.BulkApplyComponentSuggestions)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.PUT("/:id/back-matter", h.UpdateBackMatter)
 	api.GET("/:id/back-matter/resources", h.GetBackMatterResources)
@@ -2280,12 +2291,12 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationUser(ctx echo.Cont
 // CreateSystemImplementationComponent godoc
 //
 //	@Summary		Create a new system component
-//	@Description	Creates a new system component for a given SSP.
+//	@Description	Creates a new system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string								true	"SSP ID"
-//	@Param			component	body		oscalTypes_1_1_3.SystemComponent	true	"System Component data"
+//	@Param			id			path		string					true	"SSP ID"
+//	@Param			component	body		SystemComponentRequest	true	"System Component data with optional definedComponentId field"
 //	@Success		201			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
@@ -2315,20 +2326,21 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
-	var oscalComponent oscalTypes_1_1_3.SystemComponent
-	if err := ctx.Bind(&oscalComponent); err != nil {
+	var req SystemComponentRequest
+	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Warnw("Invalid create component request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	if err := h.validateSystemComponentInput(&oscalComponent); err != nil {
+	if err := h.validateSystemComponentInput(&req.SystemComponent); err != nil {
 		h.sugar.Warnw("Invalid component input", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	relComponent := &relational.SystemComponent{}
-	relComponent.UnmarshalOscal(oscalComponent)
+	relComponent.UnmarshalOscal(req.SystemComponent)
 	relComponent.SystemImplementationId = *systemImpl.ID
+	relComponent.DefinedComponentID = req.DefinedComponentID
 
 	if err := h.db.Create(relComponent).Error; err != nil {
 		h.sugar.Errorf("Failed to create component: %v", err)
@@ -2341,13 +2353,13 @@ func (h *SystemSecurityPlanHandler) CreateSystemImplementationComponent(ctx echo
 // UpdateSystemImplementationComponent godoc
 //
 //	@Summary		Update a system component
-//	@Description	Updates an existing system component for a given SSP.
+//	@Description	Updates an existing system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.
 //	@Tags			System Security Plans
 //	@Accept			json
 //	@Produce		json
-//	@Param			id			path		string								true	"SSP ID"
-//	@Param			componentId	path		string								true	"Component ID"
-//	@Param			component	body		oscalTypes_1_1_3.SystemComponent	true	"System Component data"
+//	@Param			id			path		string					true	"SSP ID"
+//	@Param			componentId	path		string					true	"Component ID"
+//	@Param			component	body		SystemComponentRequest	true	"System Component data with optional definedComponentId field"
 //	@Success		200			{object}	handler.GenericDataResponse[oscalTypes_1_1_3.SystemComponent]
 //	@Failure		400			{object}	api.Error
 //	@Failure		404			{object}	api.Error
@@ -2393,16 +2405,23 @@ func (h *SystemSecurityPlanHandler) UpdateSystemImplementationComponent(ctx echo
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	var oscalComponent oscalTypes_1_1_3.SystemComponent
-	if err := ctx.Bind(&oscalComponent); err != nil {
+	var req SystemComponentRequest
+	if err := ctx.Bind(&req); err != nil {
 		h.sugar.Warnw("Invalid update component request", "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	relComponent := &relational.SystemComponent{}
-	relComponent.UnmarshalOscal(oscalComponent)
+	relComponent.UnmarshalOscal(req.SystemComponent)
 	relComponent.SystemImplementationId = *systemImpl.ID
 	relComponent.ID = &componentID
+	// Only update DefinedComponentID if explicitly provided in request
+	// This prevents clearing existing links when clients omit the field
+	if req.DefinedComponentID != nil {
+		relComponent.DefinedComponentID = req.DefinedComponentID
+	} else {
+		relComponent.DefinedComponentID = existingComponent.DefinedComponentID
+	}
 
 	if err := h.db.Save(relComponent).Error; err != nil {
 		h.sugar.Errorf("Failed to update component: %v", err)
@@ -4005,4 +4024,115 @@ func (h *SystemSecurityPlanHandler) extractControlIDsFromProfile(profile *relati
 
 	h.sugar.Infow("Extracted control IDs from profile", "count", len(controlIDs))
 	return controlIDs, nil
+}
+
+// SuggestComponents godoc
+//
+//	@Summary		Suggest system components for an implemented requirement
+//	@Description	Returns DefinedComponents that implement the same control and are not yet present in the SSP.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id		path		string	true	"SSP ID"
+//	@Param			reqId	path		string	true	"Implemented Requirement ID"
+//	@Success		200		{object}	handler.GenericDataListResponse[relational.SystemComponentSuggestion]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components [post]
+func (h *SystemSecurityPlanHandler) SuggestComponents(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	reqIDParam := ctx.Param("reqId")
+	reqID, err := uuid.Parse(reqIDParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid implemented requirement id", "reqId", reqIDParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	suggestions, err := h.suggestionService.SuggestForImplementedRequirement(sspID, reqID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("failed to get component suggestions", "sspID", sspID, "reqID", reqID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[relational.SystemComponentSuggestion]{Data: suggestions})
+}
+
+// ApplySuggestion godoc
+//
+//	@Summary		Apply component suggestions for an implemented requirement
+//	@Description	Creates SystemComponents from DefinedComponents that implement the same control and links them via ByComponent.
+//	@Tags			System Security Plans
+//	@Param			id		path	string	true	"SSP ID"
+//	@Param			reqId	path	string	true	"Implemented Requirement ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion [post]
+func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	reqIDParam := ctx.Param("reqId")
+	reqID, err := uuid.Parse(reqIDParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid implemented requirement id", "reqId", reqIDParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if err := h.suggestionService.ApplyForImplementedRequirement(sspID, reqID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("failed to apply component suggestions", "sspID", sspID, "reqID", reqID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
+// BulkApplyComponentSuggestions godoc
+//
+//	@Summary		Bulk apply component suggestions for all implemented requirements in an SSP
+//	@Description	For each ImplementedRequirement, creates SystemComponents from matching DefinedComponents and links them via ByComponent.
+//	@Tags			System Security Plans
+//	@Param			id	path	string	true	"SSP ID"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/bulk-apply-component-suggestions [post]
+func (h *SystemSecurityPlanHandler) BulkApplyComponentSuggestions(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	sspID, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid SSP id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if err := h.suggestionService.ApplyForSSP(sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("failed to bulk apply component suggestions", "sspID", sspID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
 }

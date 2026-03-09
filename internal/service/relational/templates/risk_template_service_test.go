@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -322,6 +323,97 @@ func TestRiskTemplateService_CreateNormalizesEmptyRiskLevelHints(t *testing.T) {
 	require.Equal(t, "", *created.ImpactHint)
 }
 
+func TestRiskTemplateService_DeleteCleansEvidenceTemplateLinks(t *testing.T) {
+	db := newRiskTemplateTestDBWithEvidence(t)
+	riskSvc := NewRiskTemplateService(db)
+	evidenceSvc := NewEvidenceTemplateService(db)
+
+	riskTemplate, err := riskSvc.Create(validRiskTemplatePayload())
+	require.NoError(t, err)
+
+	_, err = evidenceSvc.Create(EvidenceTemplatePayload{
+		PluginID:        "github-repositories",
+		PolicyPackage:   "compliance_framework.secret_scanning_enabled",
+		Title:           "Linked evidence template",
+		RiskTemplateIDs: []uuid.UUID{*riskTemplate.ID},
+		SelectorLabels: []EvidenceTemplateSelectorLabelInput{
+			{Key: "_policy", Value: "compliance_framework.secret_scanning_enabled"},
+		},
+		LabelSchema: []EvidenceTemplateLabelSchemaFieldInput{
+			{Key: "github.org"},
+		},
+	})
+	require.NoError(t, err)
+
+	var linkCountBefore int64
+	require.NoError(t, db.Model(&EvidenceTemplateRiskTemplate{}).Where("risk_template_id = ?", *riskTemplate.ID).Count(&linkCountBefore).Error)
+	require.Equal(t, int64(1), linkCountBefore)
+
+	require.NoError(t, riskSvc.Delete(*riskTemplate.ID))
+
+	var linkCountAfter int64
+	require.NoError(t, db.Model(&EvidenceTemplateRiskTemplate{}).Where("risk_template_id = ?", *riskTemplate.ID).Count(&linkCountAfter).Error)
+	require.Equal(t, int64(0), linkCountAfter)
+}
+
+func TestRiskTemplateService_PolicyPackageNormalization(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	// Create with mixed case and whitespace
+	created, err := svc.Create(RiskTemplatePayload{
+		PluginID:      "github-repositories",
+		PolicyPackage: "  Compliance_Framework.Secret_Scanning_Enabled  ",
+		Name:          "Test template",
+		Title:         "Test template",
+		Statement:     "Test statement.",
+		ViolationIDs:  []string{"violation-1"},
+		IsActive:      boolPtr(true),
+		ThreatRefs: []ThreatRefInput{
+			{
+				System:     "https://cwe.mitre.org",
+				ExternalID: "CWE-312",
+				Title:      "Test",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", created.PolicyPackage)
+
+	// Update with different case
+	updated, err := svc.Update(*created.ID, RiskTemplatePayload{
+		PluginID:      "github-repositories",
+		PolicyPackage: "  COMPLIANCE_FRAMEWORK.SECRET_SCANNING_ENABLED  ",
+		Name:          "Test template updated",
+		Title:         "Test template updated",
+		Statement:     "Test statement updated.",
+		ViolationIDs:  []string{"violation-1"},
+		IsActive:      boolPtr(true),
+		ThreatRefs: []ThreatRefInput{
+			{
+				System:     "https://cwe.mitre.org",
+				ExternalID: "CWE-312",
+				Title:      "Test",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", updated.PolicyPackage)
+
+	// List with different case should find it
+	rows, total, err := svc.List(RiskTemplateListParams{
+		Filters: RiskTemplateListFilters{
+			PolicyPackage: strPtr("  Compliance_Framework.Secret_Scanning_Enabled  "),
+		},
+		Limit:  10,
+		Offset: 0,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, rows, 1)
+	require.Equal(t, "compliance_framework.secret_scanning_enabled", rows[0].PolicyPackage)
+}
+
 func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -332,6 +424,30 @@ func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 		&RiskTemplateThreatRef{},
 		&RemediationTemplate{},
 		&RemediationTask{},
+		&EvidenceTemplateRiskTemplate{},
+	))
+
+	return db
+}
+
+func newRiskTemplateTestDBWithEvidence(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(
+		&RiskTemplate{},
+		&RiskTemplateThreatRef{},
+		&RemediationTemplate{},
+		&RemediationTask{},
+		&SubjectTemplate{},
+		&SubjectTemplateSelectorLabel{},
+		&SubjectTemplateLabelSchemaField{},
+		&EvidenceTemplate{},
+		&EvidenceTemplateSelectorLabel{},
+		&EvidenceTemplateLabelSchemaField{},
+		&EvidenceTemplateRiskTemplate{},
+		&EvidenceTemplateSubjectTemplate{},
 	))
 
 	return db

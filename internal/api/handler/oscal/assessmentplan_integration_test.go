@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -41,8 +42,18 @@ func (suite *AssessmentPlanApiIntegrationSuite) SetupSuite() {
 	suite.logger = logger.Sugar()
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
-	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, nil, nil, nil, nil)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config)
+	// Create services struct for API handlers
+	services := &handler.APIServices{
+		EvidenceService:      nil, // RegisterHandlers will create a default EvidenceService when nil
+		RiskEnqueuer:         nil,
+		DigestService:        nil,
+		WorkflowManager:      nil,
+		NotificationEnqueuer: nil,
+		DAGExecutor:          nil,
+	}
+	handler.RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, services)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, suite.logger, suite.Config, nil)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc)
 }
 
 func (suite *AssessmentPlanApiIntegrationSuite) SetupTest() {

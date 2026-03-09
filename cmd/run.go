@@ -12,6 +12,8 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	templatesvc "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/compliance-framework/api/internal/workflow"
@@ -99,8 +101,26 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	metrics := api.NewMetricsHandler(ctx, sugar)
 	server := api.NewServer(ctx, sugar, cfg, metrics)
-	handler.RegisterHandlers(server, sugar, db, cfg, digestService, workflowManager, workerService, workerService.GetDAGExecutor())
-	oscal.RegisterHandlers(server, sugar, db, cfg)
+
+	// Create subject template service for component definition resolution
+	subjectTemplateService := templatesvc.NewSubjectTemplateService(db)
+
+	// Create evidence service with worker service for risk job enqueuing
+	evidenceService := evidencesvc.NewEvidenceService(db, sugar, cfg, workerService,
+		evidencesvc.WithComponentDefinitionResolver(subjectTemplateService))
+
+	// Create services struct for API handlers
+	services := &handler.APIServices{
+		EvidenceService:      evidenceService,
+		RiskEnqueuer:         workerService,
+		DigestService:        digestService,
+		WorkflowManager:      workflowManager,
+		NotificationEnqueuer: workerService,
+		DAGExecutor:          workerService.GetDAGExecutor(),
+	}
+
+	handler.RegisterHandlers(server, sugar, db, cfg, services)
+	oscal.RegisterHandlers(server, sugar, db, cfg, evidenceService)
 	auth.RegisterHandlers(server, sugar, db, cfg, metrics, emailService, workerService)
 
 	sugar.Infow("Allowed Origins", "origins", cfg.APIAllowedOrigins)

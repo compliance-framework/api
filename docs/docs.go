@@ -736,6 +736,285 @@ const docTemplate = `{
                 ]
             }
         },
+        "/evidence-templates": {
+            "get": {
+                "description": "List evidence templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "List evidence templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "pluginId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy package",
+                        "name": "policyPackage",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Active flag",
+                        "name": "isActive",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_evidenceTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create an evidence template with selector labels, label schema, and linked risk/subject template IDs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Create evidence template",
+                "parameters": [
+                    {
+                        "description": "Evidence template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/evidence-templates/{id}": {
+            "get": {
+                "description": "Get an evidence template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Get evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update an evidence template and atomically replace selector labels, label schema, and linked IDs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Update evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evidence template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete an evidence template and its associated selector labels, label schema, and join rows.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Delete evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/evidence/compliance-by-control/{id}": {
             "get": {
                 "description": "Retrieves the count of evidence statuses for filters associated with a specific Control ID.",
@@ -759,7 +1038,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
                         }
                     },
                     "500": {
@@ -794,7 +1073,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount"
+                            "$ref": "#/definitions/handler.GenericDataListResponse-evidence_StatusCount"
                         }
                     },
                     "400": {
@@ -13370,6 +13649,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/system-security-plans/{id}/bulk-apply-component-suggestions": {
+            "post": {
+                "description": "For each ImplementedRequirement, creates SystemComponents from matching DefinedComponents and links them via ByComponent.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Bulk apply component suggestions for all implemented requirements in an SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{id}/control-implementation": {
             "get": {
                 "description": "Retrieves the Control Implementation for a given System Security Plan.",
@@ -13699,6 +14024,59 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion": {
+            "post": {
+                "description": "Creates SystemComponents from DefinedComponents that implement the same control and links them via ByComponent.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Apply component suggestions for an implemented requirement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Implemented Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}": {
@@ -14133,6 +14511,65 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components": {
+            "post": {
+                "description": "Returns DefinedComponents that implement the same control and are not yet present in the SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Suggest system components for an implemented requirement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Implemented Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_SystemComponentSuggestion"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/oscal/system-security-plans/{id}/import-profile": {
@@ -15563,7 +16000,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a new system component for a given SSP.",
+                "description": "Creates a new system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15583,12 +16020,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "System Component data",
+                        "description": "System Component data with optional definedComponentId field",
                         "name": "component",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                            "$ref": "#/definitions/oscal.SystemComponentRequest"
                         }
                     }
                 ],
@@ -15685,7 +16122,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates an existing system component for a given SSP.",
+                "description": "Updates an existing system component for a given SSP. Accepts an optional definedComponentId field to link to a DefinedComponent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15712,12 +16149,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "System Component data",
+                        "description": "System Component data with optional definedComponentId field",
                         "name": "component",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                            "$ref": "#/definitions/oscal.SystemComponentRequest"
                         }
                     }
                 ],
@@ -17614,6 +18051,232 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-risks_RiskSubjectLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/subject-templates": {
+            "get": {
+                "description": "List subject templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "List subject templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Source mode",
+                        "name": "sourceMode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_subjectTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a subject template with selector labels and label schema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Create subject template",
+                "parameters": [
+                    {
+                        "description": "Subject template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertSubjectTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/subject-templates/{id}": {
+            "get": {
+                "description": "Get a subject template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Get subject template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update a subject template and atomically replace selector labels and label schema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Update subject template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Subject template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertSubjectTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
                         }
                     },
                     "400": {
@@ -20908,6 +21571,17 @@ const docTemplate = `{
                 }
             }
         },
+        "evidence.StatusCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "gorm.DeletedAt": {
             "type": "object",
             "properties": {
@@ -20917,17 +21591,6 @@ const docTemplate = `{
                 "valid": {
                     "description": "Valid is true if Time is not NULL",
                     "type": "boolean"
-                }
-            }
-        },
-        "handler.ComplianceByControl.StatusCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
                 }
             }
         },
@@ -21309,14 +21972,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount": {
+        "handler.GenericDataListResponse-evidence_StatusCount": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.ComplianceByControl.StatusCount"
+                        "$ref": "#/definitions/evidence.StatusCount"
                     }
                 }
             }
@@ -21773,6 +22436,18 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Evidence"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-relational_SystemComponentSuggestion": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.SystemComponentSuggestion"
                     }
                 }
             }
@@ -22856,17 +23531,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.StatusCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "handler.StatusInterval": {
             "type": "object",
             "properties": {
@@ -22876,7 +23540,7 @@ const docTemplate = `{
                 "statuses": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.StatusCount"
+                        "$ref": "#/definitions/evidence.StatusCount"
                     }
                 }
             }
@@ -23576,6 +24240,59 @@ const docTemplate = `{
                 "RuleOperatorRegex",
                 "RuleOperatorIn"
             ]
+        },
+        "oscal.SystemComponentRequest": {
+            "type": "object",
+            "properties": {
+                "definedComponentId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Protocol"
+                    }
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsible-roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleRole"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponentStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
         },
         "oscal.rule": {
             "type": "object",
@@ -30518,6 +31235,9 @@ const docTemplate = `{
         "relational.SystemComponent": {
             "type": "object",
             "properties": {
+                "definedComponentId": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -30573,6 +31293,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.SystemComponentSuggestion": {
+            "type": "object",
+            "properties": {
+                "componentDefinitionId": {
+                    "type": "string"
+                },
+                "definedComponentId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "purpose": {
                     "type": "string"
                 },
                 "type": {
@@ -30968,6 +31711,29 @@ const docTemplate = `{
                 }
             }
         },
+        "service.ListResponse-templates_evidenceTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-templates_riskTemplateResponse": {
             "type": "object",
             "properties": {
@@ -30975,6 +31741,29 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.riskTemplateResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-templates_subjectTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateResponse"
                     }
                 },
                 "limit": {
@@ -31011,6 +31800,123 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "templates.evidenceTemplateDataResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.evidenceTemplateResponse"
+                }
+            }
+        },
+        "templates.evidenceTemplateLabelSchemaFieldRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "templates.evidenceTemplateLabelSchemaFieldResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "templates.evidenceTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "labelSchema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pluginId": {
+                    "type": "string"
+                },
+                "policyPackage": {
+                    "type": "string"
+                },
+                "riskTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "selectorLabels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelResponse"
+                    }
+                },
+                "subjectTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.evidenceTemplateSelectorLabelRequest": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.evidenceTemplateSelectorLabelResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -31137,6 +32043,123 @@ const docTemplate = `{
                 }
             }
         },
+        "templates.subjectTemplateDataResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.subjectTemplateResponse"
+                }
+            }
+        },
+        "templates.subjectTemplateLabelSchemaFieldRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.subjectTemplateLabelSchemaFieldResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.subjectTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "descriptionTemplate": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "identityLabelKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labelSchema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateLabelSchemaFieldResponse"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "purposeTemplate": {
+                    "type": "string"
+                },
+                "remarksTemplate": {
+                    "type": "string"
+                },
+                "selectorLabels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateSelectorLabelResponse"
+                    }
+                },
+                "sourceMode": {
+                    "type": "string"
+                },
+                "titleTemplate": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.subjectTemplateSelectorLabelRequest": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.subjectTemplateSelectorLabelResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "templates.threatIDRequest": {
             "type": "object",
             "properties": {
@@ -31167,6 +32190,56 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.upsertEvidenceTemplateRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "labelSchema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest"
+                    }
+                },
+                "methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pluginId": {
+                    "type": "string"
+                },
+                "policyPackage": {
+                    "type": "string"
+                },
+                "riskTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "selectorLabels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelRequest"
+                    }
+                },
+                "subjectTemplateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -31212,6 +32285,70 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "templates.upsertSubjectTemplateRequest": {
+            "type": "object",
+            "required": [
+                "identityLabelKeys",
+                "labelSchema",
+                "name",
+                "selectorLabels",
+                "sourceMode",
+                "type"
+            ],
+            "properties": {
+                "descriptionTemplate": {
+                    "type": "string"
+                },
+                "identityLabelKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labelSchema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateLabelSchemaFieldRequest"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "purposeTemplate": {
+                    "type": "string"
+                },
+                "remarksTemplate": {
+                    "type": "string"
+                },
+                "selectorLabels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateSelectorLabelRequest"
+                    }
+                },
+                "sourceMode": {
+                    "type": "string"
+                },
+                "titleTemplate": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },

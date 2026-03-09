@@ -127,10 +127,22 @@ func (t *TestMigrator) Up() error {
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.InventoryItemLabel{},
 		&riskrel.SystemComponentLabel{},
+		&riskrel.ComponentDefinitionLabel{},
 		&templaterel.RiskTemplate{},
 		&templaterel.RiskTemplateThreatRef{},
 		&templaterel.RemediationTemplate{},
 		&templaterel.RemediationTask{},
+		&templaterel.SubjectTemplate{},
+		&templaterel.SubjectTemplateSelectorLabel{},
+		&templaterel.SubjectTemplateLabelSchemaField{},
+		&templaterel.AssessmentSubjectIdentity{},
+		&templaterel.SystemComponentIdentity{},
+		&templaterel.ComponentDefinitionIdentity{},
+		&templaterel.EvidenceTemplate{},
+		&templaterel.EvidenceTemplateSelectorLabel{},
+		&templaterel.EvidenceTemplateLabelSchemaField{},
+		&templaterel.EvidenceTemplateRiskTemplate{},
+		&templaterel.EvidenceTemplateSubjectTemplate{},
 
 		&relational.Profile{},
 		&relational.Import{},
@@ -161,7 +173,23 @@ func (t *TestMigrator) Up() error {
 	); err != nil {
 		return err
 	}
-	return riskrel.EnsureIndexes(t.db)
+	if err := riskrel.EnsureIndexes(t.db); err != nil {
+		return err
+	}
+
+	// Add unique constraints for idempotent operations (matching production migration)
+	if t.db.Name() == "postgres" {
+		// Partial unique index for system_components
+		if err := t.db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_system_components_unique_impl_defined 
+			ON system_components (system_implementation_id, defined_component_id)
+			WHERE defined_component_id IS NOT NULL
+		`).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (t *TestMigrator) Down() error {
@@ -293,10 +321,22 @@ func (t *TestMigrator) Down() error {
 		&riskrel.AssessmentSubjectLabel{},
 		&riskrel.InventoryItemLabel{},
 		&riskrel.SystemComponentLabel{},
+		&riskrel.ComponentDefinitionLabel{},
 		&templaterel.RiskTemplate{},
 		&templaterel.RiskTemplateThreatRef{},
 		&templaterel.RemediationTemplate{},
 		&templaterel.RemediationTask{},
+		&templaterel.EvidenceTemplateSubjectTemplate{},
+		&templaterel.EvidenceTemplateRiskTemplate{},
+		&templaterel.EvidenceTemplateLabelSchemaField{},
+		&templaterel.EvidenceTemplateSelectorLabel{},
+		&templaterel.EvidenceTemplate{},
+		&templaterel.AssessmentSubjectIdentity{},
+		&templaterel.SystemComponentIdentity{},
+		&templaterel.ComponentDefinitionIdentity{},
+		&templaterel.SubjectTemplateSelectorLabel{},
+		&templaterel.SubjectTemplateLabelSchemaField{},
+		&templaterel.SubjectTemplate{},
 		"finding_related_observations",
 		"finding_related_risks",
 		"poam_item_related_observations",

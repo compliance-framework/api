@@ -20,6 +20,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/api/middleware"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -39,9 +40,10 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	// Initialize handlers
 	logger := zap.NewNop().Sugar()
 	suite.handler = NewInventoryHandler(logger, suite.DB)
-	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB)
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger, suite.Config, nil)
+	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB, evidenceSvc)
 	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
-	suite.evidenceHandler = handler.NewEvidenceHandler(logger, suite.DB, suite.Config)
+	suite.evidenceHandler = handler.NewEvidenceHandler(logger, evidenceSvc)
 
 	// Initialize server
 	metrics := api.NewMetricsHandler(context.Background(), logger)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -25,6 +26,11 @@ const (
 	JobTypeWorkflowTaskDueSoon     = "workflow_task_due_soon"
 	JobTypeWorkflowTaskDigest      = "workflow_task_digest"
 	JobTypeWorkflowExecutionFailed = "workflow_execution_failed"
+)
+
+// Job types for risk processing
+const (
+	JobTypeRiskProcessEvidenceFailure = "risk_process_evidence_failure"
 )
 
 // WorkflowTaskAssignedArgs represents the arguments for a new-task-assigned notification email
@@ -60,6 +66,17 @@ type WorkflowExecutionFailedArgs struct {
 	WorkflowExecutionID string `json:"workflow_execution_id"`
 }
 
+// RiskProcessEvidenceFailureArgs represents the arguments for processing evidence failure and creating risks.
+// EvidenceEnd and Status are included alongside EvidenceID intentionally: River uses ByArgs uniqueness
+// to deduplicate jobs within the 5-minute window. Including the end time and status ensures that two
+// different evidence records for the same stream (different end times or states) each get their own
+// independent deduplication window, preventing the second record from being silently dropped.
+type RiskProcessEvidenceFailureArgs struct {
+	EvidenceID  uuid.UUID `json:"evidence_id"`
+	EvidenceEnd string    `json:"evidence_end"`
+	Status      string    `json:"status"`
+}
+
 // Kind returns the job kind for River
 func (WorkflowTaskAssignedArgs) Kind() string { return JobTypeWorkflowTaskAssigned }
 
@@ -72,6 +89,9 @@ func (WorkflowTaskDigestArgs) Kind() string { return JobTypeWorkflowTaskDigest }
 // Kind returns the job kind for River
 func (WorkflowExecutionFailedArgs) Kind() string { return JobTypeWorkflowExecutionFailed }
 
+// Kind returns the job kind for River
+func (RiskProcessEvidenceFailureArgs) Kind() string { return JobTypeRiskProcessEvidenceFailure }
+
 // Timeout returns the timeout for workflow task assigned jobs
 func (WorkflowTaskAssignedArgs) Timeout() time.Duration { return 30 * time.Second }
 
@@ -83,6 +103,9 @@ func (WorkflowTaskDigestArgs) Timeout() time.Duration { return 5 * time.Minute }
 
 // Timeout returns the timeout for workflow execution failed jobs
 func (WorkflowExecutionFailedArgs) Timeout() time.Duration { return 30 * time.Second }
+
+// Timeout returns the timeout for risk process evidence failure jobs
+func (RiskProcessEvidenceFailureArgs) Timeout() time.Duration { return 2 * time.Minute }
 
 // SendEmailArgs represents the arguments for sending an email
 type SendEmailArgs struct {
@@ -596,6 +619,18 @@ func JobInsertOptionsForWorkflowTaskAssignedNotification() *river.InsertOpts {
 	}
 }
 
+// JobInsertOptionsForRiskProcessEvidenceFailure returns insert options for risk processing jobs
+func JobInsertOptionsForRiskProcessEvidenceFailure() *river.InsertOpts {
+	return &river.InsertOpts{
+		Queue:       "risk",
+		MaxAttempts: 5,
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: 5 * time.Minute,
+		},
+	}
+}
+
 // JobInsertOptionsWithRetry returns insert options for jobs with custom retry policy
 func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts {
 	return &river.InsertOpts{
@@ -619,6 +654,12 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 	if digestService != nil {
 		sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestService, logger)
 		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
+	}
+
+	// Register risk evidence worker — requires only db, independent of email/userRepo config.
+	if db != nil {
+		riskEvidenceWorker := NewRiskEvidenceWorker(db, logger)
+		river.AddWorker(workers, river.WorkFunc(riskEvidenceWorker.Work))
 	}
 
 	// Register workflow notification workers if dependencies are available

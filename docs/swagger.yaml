@@ -102,6 +102,13 @@ definitions:
         format: int64
         type: integer
     type: object
+  evidence.StatusCount:
+    properties:
+      count:
+        type: integer
+      status:
+        type: string
+    type: object
   gorm.DeletedAt:
     properties:
       time:
@@ -109,13 +116,6 @@ definitions:
       valid:
         description: Valid is true if Time is not NULL
         type: boolean
-    type: object
-  handler.ComplianceByControl.StatusCount:
-    properties:
-      count:
-        type: integer
-      status:
-        type: string
     type: object
   handler.EvidenceActivity:
     properties:
@@ -406,12 +406,12 @@ definitions:
           type: array
         type: array
     type: object
-  handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount:
+  handler.GenericDataListResponse-evidence_StatusCount:
     properties:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.ComplianceByControl.StatusCount'
+          $ref: '#/definitions/evidence.StatusCount'
         type: array
     type: object
   handler.GenericDataListResponse-handler_FilterWithAssociations:
@@ -716,6 +716,14 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/relational.Evidence'
+        type: array
+    type: object
+  handler.GenericDataListResponse-relational_SystemComponentSuggestion:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/relational.SystemComponentSuggestion'
         type: array
     type: object
   handler.GenericDataListResponse-relational_User:
@@ -1325,20 +1333,13 @@ definitions:
       total:
         type: integer
     type: object
-  handler.StatusCount:
-    properties:
-      count:
-        type: integer
-      status:
-        type: string
-    type: object
   handler.StatusInterval:
     properties:
       interval:
         type: string
       statuses:
         items:
-          $ref: '#/definitions/handler.StatusCount'
+          $ref: '#/definitions/evidence.StatusCount'
         type: array
     type: object
   handler.SubscriptionsResponse:
@@ -1801,6 +1802,41 @@ definitions:
     - RuleOperatorContains
     - RuleOperatorRegex
     - RuleOperatorIn
+  oscal.SystemComponentRequest:
+    properties:
+      definedComponentId:
+        type: string
+      description:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      protocols:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Protocol'
+        type: array
+      purpose:
+        type: string
+      remarks:
+        type: string
+      responsible-roles:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleRole'
+        type: array
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.SystemComponentStatus'
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
   oscal.rule:
     properties:
       name:
@@ -6391,6 +6427,8 @@ definitions:
     type: object
   relational.SystemComponent:
     properties:
+      definedComponentId:
+        type: string
       description:
         type: string
       evidence:
@@ -6428,6 +6466,21 @@ definitions:
       systemImplementationId:
         type: string
       title:
+        type: string
+      type:
+        type: string
+    type: object
+  relational.SystemComponentSuggestion:
+    properties:
+      componentDefinitionId:
+        type: string
+      definedComponentId:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      purpose:
         type: string
       type:
         type: string
@@ -6690,11 +6743,41 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.ListResponse-templates_evidenceTemplateResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-templates_riskTemplateResponse:
     properties:
       data:
         items:
           $ref: '#/definitions/templates.riskTemplateResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-templates_subjectTemplateResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateResponse'
         type: array
       limit:
         type: integer
@@ -6719,6 +6802,82 @@ definitions:
         type: integer
       totalPages:
         type: integer
+    type: object
+  templates.evidenceTemplateDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.evidenceTemplateResponse'
+    type: object
+  templates.evidenceTemplateLabelSchemaFieldRequest:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+      required:
+        type: boolean
+    type: object
+  templates.evidenceTemplateLabelSchemaFieldResponse:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+      required:
+        type: boolean
+    type: object
+  templates.evidenceTemplateResponse:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse'
+        type: array
+      methods:
+        items:
+          type: string
+        type: array
+      pluginId:
+        type: string
+      policyPackage:
+        type: string
+      riskTemplateIds:
+        items:
+          type: string
+        type: array
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateSelectorLabelResponse'
+        type: array
+      subjectTemplateIds:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  templates.evidenceTemplateSelectorLabelRequest:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  templates.evidenceTemplateSelectorLabelResponse:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
     type: object
   templates.remediationTaskRequest:
     properties:
@@ -6800,6 +6959,82 @@ definitions:
           type: string
         type: array
     type: object
+  templates.subjectTemplateDataResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.subjectTemplateResponse'
+    type: object
+  templates.subjectTemplateLabelSchemaFieldRequest:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+    type: object
+  templates.subjectTemplateLabelSchemaFieldResponse:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+    type: object
+  templates.subjectTemplateResponse:
+    properties:
+      createdAt:
+        type: string
+      descriptionTemplate:
+        type: string
+      id:
+        type: string
+      identityLabelKeys:
+        items:
+          type: string
+        type: array
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateLabelSchemaFieldResponse'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      purposeTemplate:
+        type: string
+      remarksTemplate:
+        type: string
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateSelectorLabelResponse'
+        type: array
+      sourceMode:
+        type: string
+      titleTemplate:
+        type: string
+      type:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  templates.subjectTemplateSelectorLabelRequest:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  templates.subjectTemplateSelectorLabelResponse:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
   templates.threatIDRequest:
     properties:
       id:
@@ -6820,6 +7055,39 @@ definitions:
       title:
         type: string
       url:
+        type: string
+    type: object
+  templates.upsertEvidenceTemplateRequest:
+    properties:
+      description:
+        type: string
+      isActive:
+        type: boolean
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest'
+        type: array
+      methods:
+        items:
+          type: string
+        type: array
+      pluginId:
+        type: string
+      policyPackage:
+        type: string
+      riskTemplateIds:
+        items:
+          type: string
+        type: array
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.evidenceTemplateSelectorLabelRequest'
+        type: array
+      subjectTemplateIds:
+        items:
+          type: string
+        type: array
+      title:
         type: string
     type: object
   templates.upsertRiskTemplateRequest:
@@ -6850,6 +7118,50 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  templates.upsertSubjectTemplateRequest:
+    properties:
+      descriptionTemplate:
+        type: string
+      identityLabelKeys:
+        items:
+          type: string
+        type: array
+      labelSchema:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateLabelSchemaFieldRequest'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      purposeTemplate:
+        type: string
+      remarksTemplate:
+        type: string
+      selectorLabels:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateSelectorLabelRequest'
+        type: array
+      sourceMode:
+        type: string
+      titleTemplate:
+        type: string
+      type:
+        type: string
+    required:
+    - identityLabelKeys
+    - labelSchema
+    - name
+    - selectorLabels
+    - sourceMode
+    - type
     type: object
   time.Duration:
     enum:
@@ -8229,6 +8541,187 @@ paths:
       summary: Create new Evidence
       tags:
       - Evidence
+  /evidence-templates:
+    get:
+      description: List evidence templates with optional filters and pagination.
+      parameters:
+      - description: Plugin ID
+        in: query
+        name: pluginId
+        type: string
+      - description: Policy package
+        in: query
+        name: policyPackage
+        type: string
+      - description: Active flag
+        in: query
+        name: isActive
+        type: boolean
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_evidenceTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List evidence templates
+      tags:
+      - Evidence Templates
+    post:
+      consumes:
+      - application/json
+      description: Create an evidence template with selector labels, label schema,
+        and linked risk/subject template IDs.
+      parameters:
+      - description: Evidence template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create evidence template
+      tags:
+      - Evidence Templates
+  /evidence-templates/{id}:
+    delete:
+      description: Delete an evidence template and its associated selector labels,
+        label schema, and join rows.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete evidence template
+      tags:
+      - Evidence Templates
+    get:
+      description: Get an evidence template by ID.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get evidence template
+      tags:
+      - Evidence Templates
+    put:
+      consumes:
+      - application/json
+      description: Update an evidence template and atomically replace selector labels,
+        label schema, and linked IDs.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update evidence template
+      tags:
+      - Evidence Templates
   /evidence/{id}:
     get:
       description: Retrieves a single Evidence record by its unique ID, including
@@ -8277,7 +8770,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
+            $ref: '#/definitions/handler.GenericDataListResponse-evidence_StatusCount'
         "500":
           description: Internal Server Error
           schema:
@@ -8300,7 +8793,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_ComplianceByControl_StatusCount'
+            $ref: '#/definitions/handler.GenericDataListResponse-evidence_StatusCount'
         "400":
           description: Invalid UUID
           schema:
@@ -16470,6 +16963,37 @@ paths:
       summary: Update a back-matter resource for a SSP
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/bulk-apply-component-suggestions:
+    post:
+      description: For each ImplementedRequirement, creates SystemComponents from
+        matching DefinedComponents and links them via ByComponent.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Bulk apply component suggestions for all implemented requirements in
+        an SSP
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation:
     get:
       description: Retrieves the Control Implementation for a given System Security
@@ -16689,6 +17213,41 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update an implemented requirement for a SSP
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion:
+    post:
+      description: Creates SystemComponents from DefinedComponents that implement
+        the same control and links them via ByComponent.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Apply component suggestions for an implemented requirement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}:
@@ -16987,6 +17546,45 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a by-component within a statement (within an implemented requirement)
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components:
+    post:
+      description: Returns DefinedComponents that implement the same control and are
+        not yet present in the SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SystemComponentSuggestion'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Suggest system components for an implemented requirement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/import-profile:
@@ -17933,19 +18531,20 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new system component for a given SSP.
+      description: Creates a new system component for a given SSP. Accepts an optional
+        definedComponentId field to link to a DefinedComponent.
       parameters:
       - description: SSP ID
         in: path
         name: id
         required: true
         type: string
-      - description: System Component data
+      - description: System Component data with optional definedComponentId field
         in: body
         name: component
         required: true
         schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+          $ref: '#/definitions/oscal.SystemComponentRequest'
       produces:
       - application/json
       responses:
@@ -18045,7 +18644,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Updates an existing system component for a given SSP.
+      description: Updates an existing system component for a given SSP. Accepts an
+        optional definedComponentId field to link to a DefinedComponent.
       parameters:
       - description: SSP ID
         in: path
@@ -18057,12 +18657,12 @@ paths:
         name: componentId
         required: true
         type: string
-      - description: System Component data
+      - description: System Component data with optional definedComponentId field
         in: body
         name: component
         required: true
         schema:
-          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+          $ref: '#/definitions/oscal.SystemComponentRequest'
       produces:
       - application/json
       responses:
@@ -19288,6 +19888,151 @@ paths:
       summary: Link subject to risk
       tags:
       - Risks
+  /subject-templates:
+    get:
+      description: List subject templates with optional filters and pagination.
+      parameters:
+      - description: Subject type
+        in: query
+        name: type
+        type: string
+      - description: Source mode
+        in: query
+        name: sourceMode
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_subjectTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List subject templates
+      tags:
+      - Subject Templates
+    post:
+      consumes:
+      - application/json
+      description: Create a subject template with selector labels and label schema.
+      parameters:
+      - description: Subject template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create subject template
+      tags:
+      - Subject Templates
+  /subject-templates/{id}:
+    get:
+      description: Get a subject template by ID.
+      parameters:
+      - description: Subject Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get subject template
+      tags:
+      - Subject Templates
+    put:
+      consumes:
+      - application/json
+      description: Update a subject template and atomically replace selector labels
+        and label schema.
+      parameters:
+      - description: Subject Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Subject template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update subject template
+      tags:
+      - Subject Templates
   /users/{id}/change-password:
     post:
       consumes:

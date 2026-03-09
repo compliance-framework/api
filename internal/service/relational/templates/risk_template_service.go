@@ -100,7 +100,7 @@ func (s *RiskTemplateService) List(params RiskTemplateListParams) ([]RiskTemplat
 		}
 	}
 	if params.Filters.PolicyPackage != nil {
-		policyPackage := strings.TrimSpace(*params.Filters.PolicyPackage)
+		policyPackage := strings.ToLower(strings.TrimSpace(*params.Filters.PolicyPackage))
 		if policyPackage != "" {
 			query = query.Where("policy_package = ?", policyPackage)
 		}
@@ -303,6 +303,11 @@ func (s *RiskTemplateService) Delete(id uuid.UUID) error {
 		return err
 	}
 
+	if err := tx.Delete(&EvidenceTemplateRiskTemplate{}, "risk_template_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -441,7 +446,7 @@ func rollbackTxOnPanic(tx *gorm.DB) {
 
 func normalizeRiskTemplatePayload(payload *RiskTemplatePayload) {
 	payload.PluginID = strings.TrimSpace(payload.PluginID)
-	payload.PolicyPackage = strings.TrimSpace(payload.PolicyPackage)
+	payload.PolicyPackage = strings.ToLower(strings.TrimSpace(payload.PolicyPackage))
 	payload.Name = strings.TrimSpace(payload.Name)
 	payload.Title = strings.TrimSpace(payload.Title)
 	payload.Statement = strings.TrimSpace(payload.Statement)
