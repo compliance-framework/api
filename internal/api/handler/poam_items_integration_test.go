@@ -78,7 +78,7 @@ func (suite *PoamItemsApiIntegrationSuite) seedMilestone(poamID uuid.UUID, title
 func (suite *PoamItemsApiIntegrationSuite) TestCreate_MinimalPayload() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
-	body := createPoamRequest{
+	body := createPoamItemRequest{
 		SspID:       sspID.String(),
 		Title:       "Remediate secret scanning",
 		Description: "Enable secret scanning across all repos",
@@ -102,7 +102,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	due := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
-	body := createPoamRequest{
+	body := createPoamItemRequest{
 		SspID:       sspID.String(),
 		Title:       "Patch OS vulnerabilities",
 		Description: "Apply all critical OS patches",
@@ -131,7 +131,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithRiskLinks() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	riskID := uuid.New()
-	body := createPoamRequest{
+	body := createPoamItemRequest{
 		SspID:       sspID.String(),
 		Title:       "Linked to risk",
 		Description: "POAM item linked to a risk",
@@ -159,7 +159,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 	evidenceID := uuid.New()
 	findingID := uuid.New()
 	catalogID := uuid.New()
-	body := createPoamRequest{
+	body := createPoamItemRequest{
 		SspID:       sspID.String(),
 		Title:       "Full link test",
 		Description: "POAM item with all link types",
@@ -167,7 +167,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithAllLinkTypes() {
 		RiskIDs:     []string{riskID.String()},
 		EvidenceIDs: []string{evidenceID.String()},
 		FindingIDs:  []string{findingID.String()},
-		ControlRefs: []poamControlRef{{CatalogID: catalogID.String(), ControlID: "AC-1"}},
+		ControlRefs: []poamControlRefRequest{{CatalogID: catalogID.String(), ControlID: "AC-1"}},
 	}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
@@ -435,7 +435,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_ScalarFields() {
 	item := suite.seedItem(sspID, "Original title", "open")
 	newTitle := "Updated title"
 	newDesc := "Updated description"
-	body := updatePoamRequest{Title: &newTitle, Description: &newDesc}
+	body := updatePoamItemRequest{Title: &newTitle, Description: &newDesc}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), bytes.NewReader(raw))
@@ -453,7 +453,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusToCompleted_SetsComp
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Will complete", "open")
 	newStatus := "completed"
-	body := updatePoamRequest{Status: &newStatus}
+	body := updatePoamItemRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), bytes.NewReader(raw))
@@ -473,7 +473,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusChange_SetsLastStatu
 	originalChangeAt := item.LastStatusChangeAt
 	time.Sleep(10 * time.Millisecond)
 	newStatus := "in-progress"
-	body := updatePoamRequest{Status: &newStatus}
+	body := updatePoamItemRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", item.ID), bytes.NewReader(raw))
@@ -488,7 +488,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdate_StatusChange_SetsLastStatu
 func (suite *PoamItemsApiIntegrationSuite) TestUpdate_NotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	newTitle := "Ghost"
-	body := updatePoamRequest{Title: &newTitle}
+	body := updatePoamItemRequest{Title: &newTitle}
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", uuid.New()), bytes.NewReader(raw))
@@ -548,7 +548,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestListMilestones_OrderedByIndex() {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataListResponse[poamMilestoneResponse]
+	var resp GenericDataListResponse[milestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Len(suite.T(), resp.Data, 3)
 	assert.Equal(suite.T(), "First", resp.Data[0].Title)
@@ -586,7 +586,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
-	var resp GenericDataResponse[poamMilestoneResponse]
+	var resp GenericDataResponse[milestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "Deploy to staging", resp.Data.Title)
 	assert.Equal(suite.T(), "planned", resp.Data.Status)
@@ -648,7 +648,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateTitle() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[poamMilestoneResponse]
+	var resp GenericDataResponse[milestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "New title", resp.Data.Title)
 }
@@ -670,7 +670,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateOrderIndex(
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
-	var resp GenericDataResponse[poamMilestoneResponse]
+	var resp GenericDataResponse[milestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), 5, resp.Data.OrderIndex)
 }
