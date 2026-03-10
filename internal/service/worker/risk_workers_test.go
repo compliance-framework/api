@@ -61,10 +61,10 @@ func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 		&riskrel.Risk{},
 		&riskrel.RiskOwnerAssignment{},
 		&riskrel.RiskEvidenceLink{},
-			&riskrel.RiskSubjectLink{},
-			&riskrel.RiskEvent{},
-			&riskrel.RiskReview{},
-		))
+		&riskrel.RiskSubjectLink{},
+		&riskrel.RiskEvent{},
+		&riskrel.RiskReview{},
+	))
 	return db
 }
 

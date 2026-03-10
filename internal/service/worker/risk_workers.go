@@ -132,13 +132,13 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 			}
 
 			params := make([]river.InsertManyParams, 0, len(risks))
+			overdueWindow := now.Format("2006-01-02")
 			for i := range risks {
 				risk := &risks[i]
 				if risk.ID == nil {
 					continue
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
-				overdueWindow := now.Format("2006-01-02")
 				for _, ownerID := range ownerIDs {
 					params = append(params, river.InsertManyParams{
 						Args: RiskReviewOverdueEscalationArgs{
@@ -546,7 +546,7 @@ func resolveRiskOwnerUserIDsBatch(ctx context.Context, db *gorm.DB, risks []risk
 	riskIDs := make([]uuid.UUID, 0, len(risks))
 	for i := range risks {
 		risk := &risks[i]
-		if risk == nil || risk.ID == nil {
+		if risk.ID == nil {
 			continue
 		}
 		riskID := *risk.ID
