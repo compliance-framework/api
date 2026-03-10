@@ -64,7 +64,7 @@ test: swag  ## Run tests
 	$(OK) Tests passed
 
 .PHONY:   test-integration
-test-integration: swag  ## Run tests
+test-integration: swag  ## Run integration tests (default: 3 runs for flakiness detection)
 	@for run in $$(seq 1 $(INTEGRATION_RUNS)); do \
 		$(INFO) "Integration run $$run/$(INTEGRATION_RUNS)"; \
 		coverprofile_flag=""; \

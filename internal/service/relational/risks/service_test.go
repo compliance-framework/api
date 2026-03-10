@@ -565,6 +565,16 @@ func TestRiskServiceAcceptRiskValidationAndSuccess(t *testing.T) {
 	require.NotNil(t, accepted.AcceptanceJustification)
 	require.Equal(t, "accepted until controls are in place", *accepted.AcceptanceJustification)
 
+	_, err = svc.AcceptRisk(AcceptRiskParams{
+		RiskID:         riskID,
+		ActorUserID:    &actorID,
+		Justification:  "cannot accept twice",
+		ReviewDeadline: time.Now().Add(24 * time.Hour),
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "only risks in status investigating can be accepted")
+
 	var reviewCount int64
 	require.NoError(t, db.Model(&RiskReview{}).Where("risk_id = ?", riskID).Count(&reviewCount).Error)
 	require.Equal(t, int64(0), reviewCount)
