@@ -584,6 +584,12 @@ func TestRiskServiceAcceptRiskValidationAndSuccess(t *testing.T) {
 		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeAccepted)).
 		Count(&acceptedEventCount).Error)
 	require.Equal(t, int64(1), acceptedEventCount)
+
+	var statusChangeEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).
+		Count(&statusChangeEventCount).Error)
+	require.Equal(t, int64(1), statusChangeEventCount)
 }
 
 func TestRiskServiceReviewRiskDecisions(t *testing.T) {
@@ -666,6 +672,12 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeReviewed)).
 		Count(&reviewedEventCount).Error)
 	require.Equal(t, int64(2), reviewedEventCount)
+
+	var statusChangeEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).
+		Count(&statusChangeEventCount).Error)
+	require.Equal(t, int64(1), statusChangeEventCount)
 }
 
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {

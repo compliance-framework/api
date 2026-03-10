@@ -309,6 +309,17 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	if !decision.IsValid() {
 		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen))
 	}
+	nextReviewDeadline := params.NextReviewDeadline
+	if decision == RiskReviewDecisionExtend {
+		if nextReviewDeadline == nil {
+			return nil, newValidationError("nextReviewDeadline is required when decision is extend")
+		}
+		nextUTC := nextReviewDeadline.UTC()
+		if !nextUTC.After(time.Now().UTC()) {
+			return nil, newValidationError("nextReviewDeadline must be in the future when decision is extend")
+		}
+		nextReviewDeadline = &nextUTC
+	}
 
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -330,20 +341,8 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	if params.ReviewedAt != nil {
 		reviewedAt = params.ReviewedAt.UTC()
 	}
-
-	nextReviewDeadline := params.NextReviewDeadline
 	if decision == RiskReviewDecisionExtend {
-		if nextReviewDeadline == nil {
-			tx.Rollback()
-			return nil, newValidationError("nextReviewDeadline is required when decision is extend")
-		}
-		nextUTC := nextReviewDeadline.UTC()
-		if !nextUTC.After(time.Now().UTC()) {
-			tx.Rollback()
-			return nil, newValidationError("nextReviewDeadline must be in the future when decision is extend")
-		}
-		nextReviewDeadline = &nextUTC
-		risk.ReviewDeadline = &nextUTC
+		risk.ReviewDeadline = nextReviewDeadline
 	}
 
 	if decision == RiskReviewDecisionReopen {
