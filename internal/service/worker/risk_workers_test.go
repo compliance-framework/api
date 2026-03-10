@@ -477,3 +477,101 @@ func TestRiskReviewDueReminderWorker_UserLookupError_ReturnsError(t *testing.T) 
 	require.ErrorContains(t, err, "load owner user failed")
 	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
 }
+
+func TestRiskReviewOverdueEscalationWorker_SendsWhenSubscribed(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(-2 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+	createTestUser(t, db, ownerID, true)
+
+	mockEmail := &MockEmailService{}
+	mockEmail.On("UseTemplate", "risk-review-overdue-escalation", mock.Anything).Return("<html>ok</html>", "ok", nil)
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
+	mockEmail.On("Send", mock.Anything, mock.MatchedBy(func(msg *types.Message) bool {
+		return len(msg.To) == 1 &&
+			msg.To[0] == ownerID.String()+"@example.com" &&
+			msg.Subject == "Risk review overdue: Test Risk"
+	})).Return(&types.SendResult{Success: true, MessageID: "risk-overdue-msg"}, nil)
+
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskReviewOverdueEscalationWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewOverdueEscalationArgs]{
+		Args: RiskReviewOverdueEscalationArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.NoError(t, err)
+	mockEmail.AssertExpectations(t)
+}
+
+func TestRiskReviewOverdueEscalationWorker_RespectsRiskSubscription(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(-2 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+	createTestUser(t, db, ownerID, false)
+
+	mockEmail := &MockEmailService{}
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskReviewOverdueEscalationWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewOverdueEscalationArgs]{
+		Args: RiskReviewOverdueEscalationArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.NoError(t, err)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+}
+
+func TestRiskStaleOpenReminderWorker_SendsWhenSubscribed(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusOpen, nil, now.Add(-35*24*time.Hour))
+	createTestUser(t, db, ownerID, true)
+
+	mockEmail := &MockEmailService{}
+	mockEmail.On("UseTemplate", "risk-stale-open-reminder", mock.Anything).Return("<html>ok</html>", "ok", nil)
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
+	mockEmail.On("Send", mock.Anything, mock.MatchedBy(func(msg *types.Message) bool {
+		return len(msg.To) == 1 &&
+			msg.To[0] == ownerID.String()+"@example.com" &&
+			msg.Subject == "Stale risk reminder: Test Risk"
+	})).Return(&types.SendResult{Success: true, MessageID: "risk-stale-msg"}, nil)
+
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskStaleOpenReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskStaleOpenReminderArgs]{
+		Args: RiskStaleOpenReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.NoError(t, err)
+	mockEmail.AssertExpectations(t)
+}
+
+func TestRiskStaleOpenReminderWorker_RespectsRiskSubscription(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusOpen, nil, now.Add(-35*24*time.Hour))
+	createTestUser(t, db, ownerID, false)
+
+	mockEmail := &MockEmailService{}
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskStaleOpenReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskStaleOpenReminderArgs]{
+		Args: RiskStaleOpenReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.NoError(t, err)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+}
