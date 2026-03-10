@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <p>Hello {{.OwnerName}},</p>
+  <p>A risk appears stale and should be reviewed.</p>
+  <ul>
+    <li><strong>Risk:</strong> {{.RiskTitle}}</li>
+    <li><strong>SSP:</strong> {{.SSPName}}</li>
+    <li><strong>Status:</strong> {{.RiskStatus}}</li>
+    <li><strong>Last seen:</strong> {{.LastSeenAt}}</li>
+  </ul>
+  <p><a href="{{.RiskURL}}">Open risk</a></p>
+</body>
+</html>

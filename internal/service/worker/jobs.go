@@ -173,6 +173,7 @@ type NotificationUser struct {
 	LastName                     string
 	TaskAvailableEmailSubscribed bool
 	TaskDailyDigestSubscribed    bool
+	RiskNotificationsSubscribed  bool
 }
 
 func (u NotificationUser) FullName() string {
@@ -660,6 +661,12 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 	if db != nil {
 		riskEvidenceWorker := NewRiskEvidenceWorker(db, logger)
 		river.AddWorker(workers, river.WorkFunc(riskEvidenceWorker.Work))
+
+		riskReconcileDuplicatesWorker := NewRiskReconcileDuplicatesWorker(db, logger)
+		river.AddWorker(workers, river.WorkFunc(riskReconcileDuplicatesWorker.Work))
+
+		riskReviewOverdueReopenWorker := NewRiskReviewOverdueReopenWorker(db, logger)
+		river.AddWorker(workers, river.WorkFunc(riskReviewOverdueReopenWorker.Work))
 	}
 
 	// Register workflow notification workers if dependencies are available
@@ -676,6 +683,15 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
+
+			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorker(db, emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(riskReviewDueReminderWorker.Work))
+
+			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorker(db, emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(riskReviewOverdueEscalationWorker.Work))
+
+			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorker(db, emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(riskStaleOpenReminderWorker.Work))
 		}
 	}
 

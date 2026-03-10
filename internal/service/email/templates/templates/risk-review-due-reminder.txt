@@ -1,0 +1,10 @@
+Hello {{.OwnerName}},
+
+A risk review deadline is approaching.
+
+Risk: {{.RiskTitle}}
+SSP: {{.SSPName}}
+Status: {{.RiskStatus}}
+Review deadline: {{.ReviewDeadline}}
+
+Open risk: {{.RiskURL}}

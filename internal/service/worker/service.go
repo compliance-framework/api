@@ -224,6 +224,30 @@ func NewServiceWithDigest(
 	digestCheckerWorker := NewWorkflowTaskDigestCheckerWorker(db, clientProxy, logger)
 	river.AddWorker(workers, river.WorkFunc(digestCheckerWorker.Work))
 
+	// Add risk scanner workers
+	riskCfg := config.DefaultRiskConfig()
+	if digestCfg != nil && digestCfg.Risk != nil {
+		riskCfg = digestCfg.Risk
+	}
+
+	riskReminderScannerWorker := NewRiskReviewDeadlineReminderScannerWorker(db, clientProxy, logger)
+	river.AddWorker(workers, river.WorkFunc(riskReminderScannerWorker.Work))
+
+	riskOverdueScannerWorker := NewRiskReviewOverdueEscalationScannerWorker(
+		db,
+		clientProxy,
+		logger,
+		riskCfg.AutoReopenEnabled,
+		riskCfg.AutoReopenThresholdDays,
+	)
+	river.AddWorker(workers, river.WorkFunc(riskOverdueScannerWorker.Work))
+
+	riskStaleScannerWorker := NewRiskStaleRiskScannerWorker(db, clientProxy, logger)
+	river.AddWorker(workers, river.WorkFunc(riskStaleScannerWorker.Work))
+
+	riskReconciliationScannerWorker := NewRiskEvidenceReconciliationScannerWorker(db, clientProxy, logger)
+	river.AddWorker(workers, river.WorkFunc(riskReconciliationScannerWorker.Work))
+
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
 
@@ -443,6 +467,90 @@ func NewWorkflowTaskDigestPeriodicJob(schedule string, logger *zap.SugaredLogger
 	)
 }
 
+func NewRiskReviewDeadlineReminderPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 0 8 * * *", "risk review deadline reminder scanner", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &RiskReviewDeadlineReminderScannerArgs{}, &river.InsertOpts{
+				Queue:       "risk",
+				MaxAttempts: 3,
+				UniqueOpts: river.UniqueOpts{
+					ByArgs:   true,
+					ByPeriod: 24 * time.Hour,
+				},
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
+func NewRiskReviewOverdueEscalationPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 0 9 * * *", "risk review overdue escalation scanner", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &RiskReviewOverdueEscalationScannerArgs{}, &river.InsertOpts{
+				Queue:       "risk",
+				MaxAttempts: 3,
+				UniqueOpts: river.UniqueOpts{
+					ByArgs:   true,
+					ByPeriod: 24 * time.Hour,
+				},
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
+func NewRiskStaleScannerPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 0 10 * * 1", "risk stale scanner", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &RiskStaleRiskScannerArgs{}, &river.InsertOpts{
+				Queue:       "risk",
+				MaxAttempts: 3,
+				UniqueOpts: river.UniqueOpts{
+					ByArgs:   true,
+					ByPeriod: 7 * 24 * time.Hour,
+				},
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
+func NewRiskEvidenceReconciliationPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	sched := parseCronScheduleWithFallback(schedule, "0 30 10 * * *", "risk evidence reconciliation scanner", logger)
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &RiskEvidenceReconciliationScannerArgs{}, &river.InsertOpts{
+				Queue:       "risk",
+				MaxAttempts: 3,
+				UniqueOpts: river.UniqueOpts{
+					ByArgs:   true,
+					ByPeriod: 24 * time.Hour,
+				},
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
 func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*river.PeriodicJob {
 	var periodicJobs []*river.PeriodicJob
 	if cfg == nil {
@@ -459,6 +567,18 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	}
 	if cfg.Workflow != nil && cfg.Workflow.TaskDigestEnabled {
 		periodicJobs = append(periodicJobs, NewWorkflowTaskDigestPeriodicJob(cfg.Workflow.TaskDigestSchedule, logger))
+	}
+	if cfg.Risk != nil && cfg.Risk.ReviewDeadlineReminderEnabled {
+		periodicJobs = append(periodicJobs, NewRiskReviewDeadlineReminderPeriodicJob(cfg.Risk.ReviewDeadlineReminderSchedule, logger))
+	}
+	if cfg.Risk != nil && cfg.Risk.ReviewOverdueEscalationEnabled {
+		periodicJobs = append(periodicJobs, NewRiskReviewOverdueEscalationPeriodicJob(cfg.Risk.ReviewOverdueEscalationSchedule, logger))
+	}
+	if cfg.Risk != nil && cfg.Risk.StaleRiskScannerEnabled {
+		periodicJobs = append(periodicJobs, NewRiskStaleScannerPeriodicJob(cfg.Risk.StaleRiskScannerSchedule, logger))
+	}
+	if cfg.Risk != nil && cfg.Risk.EvidenceReconciliationEnabled {
+		periodicJobs = append(periodicJobs, NewRiskEvidenceReconciliationPeriodicJob(cfg.Risk.EvidenceReconciliationSchedule, logger))
 	}
 	return periodicJobs
 }
