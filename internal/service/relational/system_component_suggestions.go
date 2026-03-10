@@ -106,17 +106,27 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 		evidenceIDs[i] = *e.ID
 	}
 
-	// 5. Find DefinedComponents whose ComponentDefinition has labels that overlap with
-	//    the evidence labels. The component_definition_labels table is populated by
-	//    SubjectTemplateService when ComponentDefinitions are auto-created from evidence.
-	subQ := s.db.Table("component_definition_labels cdl").
-		Select("cdl.component_definition_id").
+	// 5. Find candidate DefinedComponents whose identity labels overlap with evidence labels.
+	//    component_definition_labels must be scoped to defined_component_id.
+	//    Legacy rows without defined_component_id are intentionally unsupported.
+	matchedDefinedComponentIDs := make([]uuid.UUID, 0)
+	if err := s.db.Table("component_definition_labels cdl").
+		Distinct().
+		Select("cdl.defined_component_id").
 		Joins("JOIN evidence_labels el ON LOWER(el.labels_name) = LOWER(cdl.key) AND LOWER(el.labels_value) = LOWER(cdl.value)").
-		Where("el.evidence_id IN ?", evidenceIDs)
+		Where("el.evidence_id IN ?", evidenceIDs).
+		Where("cdl.defined_component_id IS NOT NULL").
+		Pluck("cdl.defined_component_id", &matchedDefinedComponentIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to query defined component label matches: %w", err)
+	}
+
+	if len(matchedDefinedComponentIDs) == 0 {
+		return []SystemComponentSuggestion{}, nil
+	}
 
 	var candidates []DefinedComponent
 	if err := s.db.
-		Where("component_definition_id IN (?)", subQ).
+		Where("id IN ?", matchedDefinedComponentIDs).
 		Find(&candidates).Error; err != nil {
 		return nil, fmt.Errorf("failed to query defined components: %w", err)
 	}
@@ -169,11 +179,46 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 	return suggestions, nil
 }
 
+// SuggestForStatement returns the same candidate components as the parent ImplementedRequirement,
+// after validating that the statement belongs to the given requirement and SSP.
+func (s *SystemComponentSuggestionService) SuggestForStatement(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	stmtID uuid.UUID,
+) ([]SystemComponentSuggestion, error) {
+	if err := s.validateStatementForImplementedRequirement(sspID, implReqID, stmtID); err != nil {
+		return nil, err
+	}
+	return s.SuggestForImplementedRequirement(sspID, implReqID)
+}
+
 // ApplyForImplementedRequirement creates missing SystemComponents for all suggestions related to the given
 // ImplementedRequirement and links each one via a ByComponent entry. Idempotent: re-running is safe.
 func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 	sspID uuid.UUID,
 	implReqID uuid.UUID,
+) error {
+	return s.applyForParent(sspID, implReqID, implReqID, "implemented_requirements")
+}
+
+// ApplyForStatement creates missing SystemComponents for all suggestions related to the
+// parent ImplementedRequirement and links each one to the statement via ByComponent.
+func (s *SystemComponentSuggestionService) ApplyForStatement(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	stmtID uuid.UUID,
+) error {
+	if err := s.validateStatementForImplementedRequirement(sspID, implReqID, stmtID); err != nil {
+		return err
+	}
+	return s.applyForParent(sspID, implReqID, stmtID, "statements")
+}
+
+func (s *SystemComponentSuggestionService) applyForParent(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	parentID uuid.UUID,
+	parentType string,
 ) error {
 	// 1. Get the SystemImplementation for this SSP
 	var systemImpl SystemImplementation
@@ -221,8 +266,6 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 			}
 
 			// Create a ByComponent linking the SystemComponent to the ImplementedRequirement
-			parentID := implReqID
-			parentType := "implemented_requirements"
 			implStatus := ImplementationStatus{State: "implemented"}
 			// Generate deterministic UUID from the unique key (component_uuid, parent_id, parent_type)
 			// This ensures concurrent requests generate the same UUID, making the operation idempotent
@@ -249,6 +292,34 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 		}
 		return nil
 	})
+}
+
+func (s *SystemComponentSuggestionService) validateStatementForImplementedRequirement(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	stmtID uuid.UUID,
+) error {
+	var statement Statement
+	if err := s.db.
+		Table("statements").
+		Joins("JOIN implemented_requirements ON implemented_requirements.id = statements.implemented_requirement_id").
+		Joins("JOIN control_implementations ON control_implementations.id = implemented_requirements.control_implementation_id").
+		Where(
+			"statements.id = ? AND implemented_requirements.id = ? AND control_implementations.system_security_plan_id = ?",
+			stmtID,
+			implReqID,
+			sspID,
+		).
+		First(&statement).Error; err != nil {
+		return fmt.Errorf(
+			"statement %s not found for implemented requirement %s in SSP %s: %w",
+			stmtID,
+			implReqID,
+			sspID,
+			err,
+		)
+	}
+	return nil
 }
 
 // ApplyForSSP iterates all ImplementedRequirements for the SSP and applies component suggestions for each.

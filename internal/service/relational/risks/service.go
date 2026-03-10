@@ -2,7 +2,9 @@ package risks
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -45,6 +47,22 @@ type UpdateRiskParams struct {
 	RecordReview            bool
 	ReviewedAt              *time.Time
 	ReviewJustification     *string
+}
+
+type AcceptRiskParams struct {
+	RiskID         uuid.UUID
+	ActorUserID    *uuid.UUID
+	Justification  string
+	ReviewDeadline time.Time
+}
+
+type ReviewRiskParams struct {
+	RiskID             uuid.UUID
+	ActorUserID        *uuid.UUID
+	ReviewedAt         *time.Time
+	Decision           RiskReviewDecision
+	Notes              *string
+	NextReviewDeadline *time.Time
 }
 
 type Associations struct {
@@ -211,6 +229,180 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 	return s.GetByID(*params.Risk.ID)
 }
 
+func (s *RiskService) AcceptRisk(params AcceptRiskParams) (*Risk, error) {
+	justification := strings.TrimSpace(params.Justification)
+	if justification == "" {
+		return nil, newValidationError("justification is required")
+	}
+	if params.ReviewDeadline.IsZero() {
+		return nil, newValidationError("reviewDeadline is required")
+	}
+	reviewDeadline := params.ReviewDeadline.UTC()
+	if !reviewDeadline.After(time.Now().UTC()) {
+		return nil, newValidationError("reviewDeadline must be in the future")
+	}
+
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	var risk Risk
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("OwnerAssignments").First(&risk, "id = ?", params.RiskID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if risk.Status != string(RiskStatusInvestigating) {
+		tx.Rollback()
+		return nil, newValidationError("only risks in status investigating can be accepted")
+	}
+
+	now := time.Now().UTC()
+	oldStatus := risk.Status
+	risk.Status = string(RiskStatusRiskAccepted)
+	risk.AcceptanceJustification = &justification
+	risk.ReviewDeadline = &reviewDeadline
+	risk.LastReviewedAt = &now
+
+	if err := tx.Save(&risk).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	riskSnapshot, err := s.getRiskSnapshot(tx, *risk.ID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
+		"from": oldStatus,
+		"to":   risk.Status,
+	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeAccepted, params.ActorUserID, datatypes.JSONMap{
+		"status":        risk.Status,
+		"justification": justification,
+	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// TODO(BCH-1182): enqueue a risk-accepted notification worker job once its type/worker is available in this branch.
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return s.GetByID(*risk.ID)
+}
+
+func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
+	decision := params.Decision
+	if decision == "" {
+		return nil, newValidationError("decision is required")
+	}
+	if !decision.IsValid() {
+		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen))
+	}
+	nextReviewDeadline := params.NextReviewDeadline
+	if decision == RiskReviewDecisionExtend {
+		if nextReviewDeadline == nil {
+			return nil, newValidationError("nextReviewDeadline is required when decision is extend")
+		}
+		nextUTC := nextReviewDeadline.UTC()
+		if !nextUTC.After(time.Now().UTC()) {
+			return nil, newValidationError("nextReviewDeadline must be in the future when decision is extend")
+		}
+		nextReviewDeadline = &nextUTC
+	}
+	if decision == RiskReviewDecisionReopen && nextReviewDeadline != nil {
+		return nil, newValidationError("nextReviewDeadline must not be provided when decision is reopen")
+	}
+
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	var risk Risk
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("OwnerAssignments").First(&risk, "id = ?", params.RiskID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if risk.Status != string(RiskStatusRiskAccepted) {
+		tx.Rollback()
+		return nil, newValidationError("only risks in status risk-accepted can be reviewed")
+	}
+
+	reviewedAt := time.Now().UTC()
+	if params.ReviewedAt != nil {
+		reviewedAt = params.ReviewedAt.UTC()
+	}
+	if decision == RiskReviewDecisionExtend {
+		risk.ReviewDeadline = nextReviewDeadline
+	}
+
+	if decision == RiskReviewDecisionReopen {
+		risk.Status = string(RiskStatusInvestigating)
+		risk.ReviewDeadline = nil
+		risk.AcceptanceJustification = nil
+	}
+
+	risk.LastReviewedAt = &reviewedAt
+	if err := tx.Save(&risk).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	riskSnapshot, err := s.getRiskSnapshot(tx, *risk.ID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if decision == RiskReviewDecisionReopen {
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
+			"from": string(RiskStatusRiskAccepted),
+			"to":   risk.Status,
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	review := RiskReview{
+		RiskID:              *risk.ID,
+		ReviewedByUserID:    params.ActorUserID,
+		ReviewedAt:          reviewedAt,
+		Decision:            string(decision),
+		NextReviewDeadline:  nextReviewDeadline,
+		ReviewJustification: params.Notes,
+		RiskSnapshot:        riskSnapshot,
+	}
+	if err := tx.Create(&review).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
+		"decision": string(decision),
+	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return s.GetByID(*risk.ID)
+}
+
 func (s *RiskService) Delete(riskID uuid.UUID) error {
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -261,6 +453,11 @@ func (s *RiskService) EnsureRiskExists(riskID uuid.UUID) error {
 	return s.db.Select("id").First(&risk, "id = ?", riskID).Error
 }
 
+func (s *RiskService) EnsureRiskInSSP(riskID, sspID uuid.UUID) error {
+	var risk Risk
+	return s.db.Select("id").First(&risk, "id = ? AND ssp_id = ?", riskID, sspID).Error
+}
+
 func (s *RiskService) EnsureSSPExists(sspID uuid.UUID) error {
 	var ssp relational.SystemSecurityPlan
 	return s.db.Select("id").First(&ssp, "id = ?", sspID).Error
@@ -300,13 +497,13 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 		return nil, err
 	}
 
-	var evidence relational.Evidence
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&evidence, "id = ?", evidenceID).Error; err != nil {
+	evidenceStreamID, err := s.resolveEvidenceStreamID(tx, evidenceID)
+	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
-	link := RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID, CreatedByID: actorUserID}
+	link := RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceStreamID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
 	if createResult.Error != nil {
 		tx.Rollback()
@@ -314,12 +511,12 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 	}
 
 	if createResult.RowsAffected > 0 {
-		if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceLink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceID.String()}); err != nil {
+		if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceLink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceStreamID.String()}); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
 	} else {
-		if err := tx.Where("risk_id = ? AND evidence_id = ?", riskID, evidenceID).First(&link).Error; err != nil {
+		if err := tx.Where("risk_id = ? AND evidence_id = ?", riskID, evidenceStreamID).First(&link).Error; err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -339,16 +536,46 @@ func (s *RiskService) DeleteEvidenceLink(riskID, evidenceID uuid.UUID, actorUser
 	}
 	defer rollbackTxOnPanic(tx)
 
-	result := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID)
+	evidenceStreamID := evidenceID
+	resolvedStreamID, resolveErr := s.resolveEvidenceStreamID(tx, evidenceID)
+	if resolveErr == nil {
+		evidenceStreamID = resolvedStreamID
+	} else if !errors.Is(resolveErr, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return false, resolveErr
+	}
+
+	deletedEvidenceID := evidenceStreamID
+	result := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceStreamID)
 	if result.Error != nil {
 		tx.Rollback()
 		return false, result.Error
 	}
+
+	if result.RowsAffected > 0 && evidenceStreamID != evidenceID {
+		// Best-effort cleanup for legacy rows that may still store evidences.id.
+		if err := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID).Error; err != nil {
+			tx.Rollback()
+			return false, err
+		}
+	}
+
+	if result.RowsAffected == 0 && evidenceStreamID != evidenceID {
+		legacyDelete := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID)
+		if legacyDelete.Error != nil {
+			tx.Rollback()
+			return false, legacyDelete.Error
+		}
+		result = legacyDelete
+		deletedEvidenceID = evidenceID
+	}
+
 	if result.RowsAffected == 0 {
 		tx.Rollback()
 		return false, nil
 	}
-	if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceUnlink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceID.String()}); err != nil {
+
+	if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceUnlink, actorUserID, datatypes.JSONMap{"evidenceId": deletedEvidenceID.String()}); err != nil {
 		tx.Rollback()
 		return false, err
 	}
@@ -356,6 +583,34 @@ func (s *RiskService) DeleteEvidenceLink(riskID, evidenceID uuid.UUID, actorUser
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *RiskService) resolveEvidenceStreamID(tx *gorm.DB, evidenceRef uuid.UUID) (uuid.UUID, error) {
+	var evidence relational.Evidence
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "uuid").
+		Where("id = ?", evidenceRef).
+		First(&evidence).Error; err == nil {
+		if evidence.UUID == uuid.Nil {
+			return uuid.Nil, fmt.Errorf("evidence %s is missing stream uuid", evidence.ID)
+		}
+		return evidence.UUID, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return uuid.Nil, err
+	}
+
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "uuid").
+		Where("uuid = ?", evidenceRef).
+		Order(`"evidences"."end" DESC`).
+		First(&evidence).Error; err != nil {
+		return uuid.Nil, err
+	}
+	if evidence.UUID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("evidence %s is missing stream uuid", evidence.ID)
+	}
+
+	return evidence.UUID, nil
 }
 
 func (s *RiskService) ListControlLinks(riskID uuid.UUID, limit, offset int) ([]RiskControlLink, int64, error) {

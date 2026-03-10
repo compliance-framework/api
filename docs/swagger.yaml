@@ -1366,6 +1366,13 @@ definitions:
     type: object
   handler.UserHandler:
     type: object
+  handler.acceptRiskRequest:
+    properties:
+      justification:
+        type: string
+      reviewDeadline:
+        type: string
+    type: object
   handler.addComponentLinkRequest:
     properties:
       componentId:
@@ -1433,6 +1440,17 @@ definitions:
       status:
         type: string
       title:
+        type: string
+    type: object
+  handler.reviewRiskRequest:
+    properties:
+      decision:
+        type: string
+      nextReviewDeadline:
+        type: string
+      notes:
+        type: string
+      reviewedAt:
         type: string
     type: object
   handler.riskControlLinkResponse:
@@ -6677,6 +6695,8 @@ definitions:
       createdById:
         type: string
       evidenceId:
+        description: EvidenceID stores the evidence stream UUID (evidences.uuid),
+          not a single evidence row ID.
         type: string
       riskId:
         type: string
@@ -17404,6 +17424,46 @@ paths:
       summary: Update a statement within an implemented requirement
       tags:
       - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestion:
+    post:
+      description: Creates SystemComponents from DefinedComponents that implement
+        the statement's parent control and links them via ByComponent to the statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Apply component suggestions for a statement
+      tags:
+      - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components:
     post:
       consumes:
@@ -17555,6 +17615,50 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Update a by-component within a statement (within an implemented requirement)
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/suggest-components:
+    post:
+      description: Returns DefinedComponents that implement the statement's parent
+        control and are not yet present in the SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-relational_SystemComponentSuggestion'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Suggest system components for a statement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/suggest-components:
@@ -19539,6 +19643,48 @@ paths:
       summary: Update risk
       tags:
       - Risks
+  /risks/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a risk with required justification and a future review
+        deadline.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Accept payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.acceptRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Accept risk
+      tags:
+      - Risks
   /risks/{id}/components:
     get:
       description: Lists components linked to a risk.
@@ -19816,6 +19962,48 @@ paths:
       summary: Delete risk evidence link
       tags:
       - Risks
+  /risks/{id}/review:
+    post:
+      consumes:
+      - application/json
+      description: Records a structured review for an accepted risk. nextReviewDeadline
+        is required for decision=extend and must be omitted for decision=reopen.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.reviewRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Review risk
+      tags:
+      - Risks
   /risks/{id}/subjects:
     get:
       description: Lists subjects linked to a risk.
@@ -19895,6 +20083,336 @@ paths:
       security:
       - OAuth2Password: []
       summary: Link subject to risk
+      tags:
+      - Risks
+  /ssp/{sspId}/risks:
+    get:
+      description: Lists risk register entries scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk status
+        in: query
+        name: status
+        type: string
+      - description: Risk likelihood
+        in: query
+        name: likelihood
+        type: string
+      - description: Risk impact
+        in: query
+        name: impact
+        type: string
+      - description: Control ID
+        in: query
+        name: controlId
+        type: string
+      - description: Evidence ID
+        in: query
+        name: evidenceId
+        type: string
+      - description: Owner kind
+        in: query
+        name: ownerKind
+        type: string
+      - description: Owner reference
+        in: query
+        name: ownerRef
+        type: string
+      - description: Review deadline upper bound (RFC3339)
+        in: query
+        name: reviewDeadlineBefore
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Sort field
+        in: query
+        name: sort
+        type: string
+      - description: Sort order (asc|desc)
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risks for SSP
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Creates a risk register entry scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk payload
+        in: body
+        name: risk
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create risk for SSP
+      tags:
+      - Risks
+  /ssp/{sspId}/risks/{id}:
+    delete:
+      description: Deletes a risk register entry by ID scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk for SSP
+      tags:
+      - Risks
+    get:
+      description: Retrieves a risk register entry by ID scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk for SSP
+      tags:
+      - Risks
+    put:
+      consumes:
+      - application/json
+      description: Updates a risk register entry by ID scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk payload
+        in: body
+        name: risk
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update risk for SSP
+      tags:
+      - Risks
+  /ssp/{sspId}/risks/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a risk by ID scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Accept payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.acceptRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Accept risk for SSP
+      tags:
+      - Risks
+  /ssp/{sspId}/risks/{id}/review:
+    post:
+      consumes:
+      - application/json
+      description: Records a risk review by ID scoped to an SSP. nextReviewDeadline
+        is required for decision=extend and must be omitted for decision=reopen.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.reviewRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Review risk for SSP
       tags:
       - Risks
   /subject-templates:

@@ -22,6 +22,8 @@ IMG ?= controller:latest
 ENVTEST_K8S_VERSION = 1.26.1
 # Default Test Path for a single integration test. Defaults to root
 TEST_PATH ?= ./...
+# Number of times to run integration tests (set >1 to hunt flakes)
+INTEGRATION_RUNS ?= 1
 
 BLUE         := $(shell printf "\033[34m")
 YELLOW       := $(shell printf "\033[33m")
@@ -63,11 +65,18 @@ test: swag  ## Run tests
 	$(OK) Tests passed
 
 .PHONY:   test-integration
-test-integration: swag  ## Run tests
-	@if ! go test ./... -coverprofile cover.out -v --tags integration; then \
-		$(WARN) "Tests failed"; \
-		exit 1; \
-	fi ; \
+test-integration: swag  ## Run integration tests (set INTEGRATION_RUNS>1 for flakiness detection)
+	@for run in $$(seq 1 $(INTEGRATION_RUNS)); do \
+		$(INFO) "Integration run $$run/$(INTEGRATION_RUNS)"; \
+		coverprofile_flag=""; \
+		if [ "$$run" -eq "$(INTEGRATION_RUNS)" ]; then \
+			coverprofile_flag="-coverprofile cover.out"; \
+		fi; \
+		if ! go test ./... -count=1 $$coverprofile_flag -v --tags integration; then \
+			$(WARN) "Tests failed on run $$run"; \
+			exit 1; \
+		fi ; \
+	done ; \
 	$(OK) Tests passed
 
 

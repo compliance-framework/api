@@ -7,7 +7,8 @@ import (
 )
 
 type RiskEvidenceLink struct {
-	RiskID      uuid.UUID  `json:"riskId" gorm:"type:uuid;primaryKey"`
+	RiskID uuid.UUID `json:"riskId" gorm:"type:uuid;primaryKey"`
+	// EvidenceID stores the evidence stream UUID (evidences.uuid), not a single evidence row ID.
 	EvidenceID  uuid.UUID  `json:"evidenceId" gorm:"type:uuid;primaryKey;index"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	CreatedByID *uuid.UUID `json:"createdById" gorm:"type:uuid;index"`

@@ -187,15 +187,9 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(
 		evidence.ID, labelKey, labelValue,
 	).Error)
 
-	// 4. Create a ComponentDefinition with matching component_definition_labels
+	// 4. Create a ComponentDefinition and a matching DefinedComponent
 	compDef := relational.ComponentDefinition{}
 	suite.Require().NoError(suite.DB.Create(&compDef).Error)
-	suite.Require().NoError(suite.DB.Exec(
-		`INSERT INTO component_definition_labels (component_definition_id, key, value) VALUES (?, ?, ?)`,
-		compDef.ID, labelKey, labelValue,
-	).Error)
-
-	// 5. Create a DefinedComponent linked to that ComponentDefinition
 	dc := relational.DefinedComponent{
 		Type:                  "software",
 		Title:                 "Suggested Component",
@@ -204,7 +198,25 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(
 	}
 	suite.Require().NoError(suite.DB.Create(&dc).Error)
 
+	// 5. Store label match scoped to the DefinedComponent.
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		dc.ID, compDef.ID, labelKey, labelValue,
+	).Error)
+
 	return dc.ID.String()
+}
+
+func (suite *SystemComponentSuggestionsIntegrationSuite) addStatement(implReqID string) string {
+	stmtUUID := uuid.New()
+	reqUUID := uuid.MustParse(implReqID)
+	stmt := relational.Statement{
+		UUIDModel:                relational.UUIDModel{ID: &stmtUUID},
+		StatementId:              "statement-" + stmtUUID.String(),
+		ImplementedRequirementId: reqUUID,
+	}
+	suite.Require().NoError(suite.DB.Create(&stmt).Error)
+	return stmtUUID.String()
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +410,24 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponents_A
 	suite.Empty(resp.Data, "component %s should no longer appear as suggestion after being applied", dcUUID)
 }
 
+func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponentsForStatement_ReturnsMatchingDefinedComponent() {
+	const controlID = "ac-5"
+	sspID, implReqID := suite.buildSSP(controlID)
+	stmtID := suite.addStatement(implReqID)
+	suite.buildFilterAndEvidence(controlID)
+
+	rec, req := suite.req(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/suggest-components", sspID, implReqID, stmtID),
+		nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp handler.GenericDataListResponse[relational.SystemComponentSuggestion]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+	suite.Require().Len(resp.Data, 1)
+	suite.Equal("Suggested Component", resp.Data[0].Name)
+}
+
 func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponents_InvalidSSPID() {
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/not-a-uuid/control-implementation/implemented-requirements/%s/suggest-components", uuid.New()),
@@ -495,6 +525,24 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_NoS
 		Where("system_implementation_id = ? AND defined_component_id IS NOT NULL", si.ID).
 		Count(&count)
 	suite.Equal(int64(0), count)
+}
+
+func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestionForStatement_CreatesByComponentOnStatement() {
+	const controlID = "sc-9"
+	sspID, implReqID := suite.buildSSP(controlID)
+	stmtID := suite.addStatement(implReqID)
+	suite.buildFilterAndEvidence(controlID)
+
+	rec, req := suite.req(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/apply-suggestion", sspID, implReqID, stmtID),
+		nil)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+
+	stmtUUID := uuid.MustParse(stmtID)
+	parentType := "statements"
+	var byComponent relational.ByComponent
+	suite.Require().NoError(suite.DB.Where("parent_id = ? AND parent_type = ?", stmtUUID, parentType).First(&byComponent).Error)
 }
 
 func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_InvalidSSPID() {

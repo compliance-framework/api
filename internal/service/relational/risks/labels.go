@@ -34,6 +34,7 @@ func (SystemComponentLabel) TableName() string {
 }
 
 type ComponentDefinitionLabel struct {
+	DefinedComponentID    uuid.UUID `json:"definedComponentId" gorm:"type:uuid;primaryKey;index"`
 	ComponentDefinitionID uuid.UUID `json:"componentDefinitionId" gorm:"type:uuid;primaryKey"`
 	Key                   string    `json:"key" gorm:"type:text;primaryKey;index:idx_component_definition_label_key_value,priority:1"`
 	Value                 string    `json:"value" gorm:"type:text;primaryKey;index:idx_component_definition_label_key_value,priority:2"`

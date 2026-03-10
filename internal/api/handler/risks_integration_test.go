@@ -234,6 +234,228 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	require.Equal(suite.T(), "Quarterly governance review", *reviews[len(reviews)-1].ReviewJustification)
 }
 
+func (suite *RiskApiIntegrationSuite) TestRiskAcceptAndReviewEndpoints() {
+	created := suite.createRisk(map[string]any{
+		"title":       "Lifecycle risk",
+		"description": "accept and review endpoints",
+		"sspId":       suite.newSSPID(),
+		"status":      "investigating",
+	})
+
+	missingJustificationRec, missingJustificationReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
+		"reviewDeadline": time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(missingJustificationRec, missingJustificationReq)
+	require.Equal(suite.T(), http.StatusBadRequest, missingJustificationRec.Code)
+
+	acceptDeadline := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
+	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
+		"justification":  "business accepted for a limited period",
+		"reviewDeadline": acceptDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(acceptRec, acceptReq)
+	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
+
+	var accepted GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(acceptRec.Body.Bytes(), &accepted))
+	require.Equal(suite.T(), "risk-accepted", accepted.Data.Status)
+	require.NotNil(suite.T(), accepted.Data.AcceptanceJustification)
+	require.Equal(suite.T(), "business accepted for a limited period", *accepted.Data.AcceptanceJustification)
+	require.NotNil(suite.T(), accepted.Data.ReviewDeadline)
+	require.WithinDuration(suite.T(), acceptDeadline, *accepted.Data.ReviewDeadline, time.Second)
+	require.NotNil(suite.T(), accepted.Data.LastReviewedAt)
+
+	reviewWithoutDeadlineRec, reviewWithoutDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"decision": "extend",
+	})
+	suite.server.E().ServeHTTP(reviewWithoutDeadlineRec, reviewWithoutDeadlineReq)
+	require.Equal(suite.T(), http.StatusBadRequest, reviewWithoutDeadlineRec.Code)
+
+	reviewedAt := time.Now().Add(-90 * time.Minute).UTC().Truncate(time.Second)
+	nextReviewDeadline := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
+	reviewExtendRec, reviewExtendReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"reviewedAt":         reviewedAt.Format(time.RFC3339),
+		"decision":           "extend",
+		"notes":              "controls are improving, keep accepted",
+		"nextReviewDeadline": nextReviewDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reviewExtendRec, reviewExtendReq)
+	require.Equal(suite.T(), http.StatusOK, reviewExtendRec.Code)
+
+	var extended GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(reviewExtendRec.Body.Bytes(), &extended))
+	require.Equal(suite.T(), "risk-accepted", extended.Data.Status)
+	require.NotNil(suite.T(), extended.Data.ReviewDeadline)
+	require.WithinDuration(suite.T(), nextReviewDeadline, *extended.Data.ReviewDeadline, time.Second)
+	require.NotNil(suite.T(), extended.Data.LastReviewedAt)
+	require.WithinDuration(suite.T(), reviewedAt, *extended.Data.LastReviewedAt, time.Second)
+
+	reviewReopenWithDeadlineRec, reviewReopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"decision":           "reopen",
+		"nextReviewDeadline": nextReviewDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reviewReopenWithDeadlineRec, reviewReopenWithDeadlineReq)
+	require.Equal(suite.T(), http.StatusBadRequest, reviewReopenWithDeadlineRec.Code)
+
+	reviewReopenRec, reviewReopenReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"decision": "reopen",
+		"notes":    "mitigation can proceed now",
+	})
+	suite.server.E().ServeHTTP(reviewReopenRec, reviewReopenReq)
+	require.Equal(suite.T(), http.StatusOK, reviewReopenRec.Code)
+
+	var reopened GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(reviewReopenRec.Body.Bytes(), &reopened))
+	require.Equal(suite.T(), "investigating", reopened.Data.Status)
+	require.Nil(suite.T(), reopened.Data.ReviewDeadline)
+	require.NotNil(suite.T(), reopened.Data.LastReviewedAt)
+
+	var reviews []riskrel.RiskReview
+	require.NoError(suite.T(), suite.DB.Where("risk_id = ?", created.ID).Order("created_at asc").Find(&reviews).Error)
+	require.Len(suite.T(), reviews, 2)
+	require.Equal(suite.T(), "extend", reviews[0].Decision)
+	require.Equal(suite.T(), "reopen", reviews[1].Decision)
+	require.NotNil(suite.T(), reviews[0].ReviewJustification)
+	require.Equal(suite.T(), "controls are improving, keep accepted", *reviews[0].ReviewJustification)
+
+	var acceptedEvents int64
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", created.ID, string(riskrel.RiskEventTypeAccepted)).
+		Count(&acceptedEvents).Error)
+	require.Equal(suite.T(), int64(1), acceptedEvents)
+
+	var reviewedEvents int64
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", created.ID, string(riskrel.RiskEventTypeReviewed)).
+		Count(&reviewedEvents).Error)
+	require.Equal(suite.T(), int64(2), reviewedEvents)
+}
+
+func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
+	sspID := suite.newSSPID()
+	otherSSPID := suite.newSSPID()
+
+	createReq := map[string]any{
+		"title":       "Scoped risk",
+		"description": "created from scoped endpoint",
+	}
+	createRec, createHTTPReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", sspID), createReq)
+	suite.server.E().ServeHTTP(createRec, createHTTPReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+	require.Equal(suite.T(), sspID, created.Data.SSPID.String())
+
+	otherCreateRec, otherCreateReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", otherSSPID), map[string]any{
+		"title":       "Other scoped risk",
+		"description": "should not appear in first scope list",
+	})
+	suite.server.E().ServeHTTP(otherCreateRec, otherCreateReq)
+	require.Equal(suite.T(), http.StatusCreated, otherCreateRec.Code)
+
+	listRec, listHTTPReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks?page=1&limit=20", sspID), nil)
+	suite.server.E().ServeHTTP(listRec, listHTTPReq)
+	require.Equal(suite.T(), http.StatusOK, listRec.Code)
+	var listResp struct {
+		Data []riskResponse `json:"data"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(listRec.Body.Bytes(), &listResp))
+	require.Len(suite.T(), listResp.Data, 1)
+	require.Equal(suite.T(), created.Data.ID, listResp.Data[0].ID)
+
+	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+
+	getOtherRec, getOtherReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getOtherRec, getOtherReq)
+	require.Equal(suite.T(), http.StatusNotFound, getOtherRec.Code)
+
+	updateScopedRec, updateScopedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), map[string]any{
+		"title": "Scoped risk updated",
+	})
+	suite.server.E().ServeHTTP(updateScopedRec, updateScopedReq)
+	require.Equal(suite.T(), http.StatusOK, updateScopedRec.Code)
+
+	updateOtherRec, updateOtherReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), map[string]any{
+		"title": "should fail",
+	})
+	suite.server.E().ServeHTTP(updateOtherRec, updateOtherReq)
+	require.Equal(suite.T(), http.StatusNotFound, updateOtherRec.Code)
+
+	deleteOtherRec, deleteOtherReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteOtherRec, deleteOtherReq)
+	require.Equal(suite.T(), http.StatusNotFound, deleteOtherRec.Code)
+
+	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
+}
+
+func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints() {
+	sspID := suite.newSSPID()
+	otherSSPID := suite.newSSPID()
+
+	createRec, createReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", sspID), map[string]any{
+		"title":       "Scoped lifecycle risk",
+		"description": "accept/review scoped",
+		"status":      "investigating",
+	})
+	suite.server.E().ServeHTTP(createRec, createReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+
+	notFoundAcceptRec, notFoundAcceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/accept", otherSSPID, created.Data.ID), map[string]any{
+		"justification":  "wrong scope",
+		"reviewDeadline": time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(notFoundAcceptRec, notFoundAcceptReq)
+	require.Equal(suite.T(), http.StatusNotFound, notFoundAcceptRec.Code)
+
+	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC().Truncate(time.Second)
+	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/accept", sspID, created.Data.ID), map[string]any{
+		"justification":  "accepted scoped risk",
+		"reviewDeadline": acceptDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(acceptRec, acceptReq)
+	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
+
+	var accepted GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(acceptRec.Body.Bytes(), &accepted))
+	require.Equal(suite.T(), "risk-accepted", accepted.Data.Status)
+
+	reviewDeadline := time.Now().Add(45 * 24 * time.Hour).UTC().Truncate(time.Second)
+	reviewRec, reviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
+		"decision":           "extend",
+		"notes":              "scoped extension",
+		"nextReviewDeadline": reviewDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reviewRec, reviewReq)
+	require.Equal(suite.T(), http.StatusOK, reviewRec.Code)
+
+	var reviewed GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(reviewRec.Body.Bytes(), &reviewed))
+	require.Equal(suite.T(), "risk-accepted", reviewed.Data.Status)
+	require.NotNil(suite.T(), reviewed.Data.ReviewDeadline)
+	require.WithinDuration(suite.T(), reviewDeadline, *reviewed.Data.ReviewDeadline, time.Second)
+
+	reopenWithDeadlineRec, reopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
+		"decision":           "reopen",
+		"nextReviewDeadline": reviewDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reopenWithDeadlineRec, reopenWithDeadlineReq)
+	require.Equal(suite.T(), http.StatusBadRequest, reopenWithDeadlineRec.Code)
+
+	notFoundReviewRec, notFoundReviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", otherSSPID, created.Data.ID), map[string]any{
+		"decision": "reopen",
+	})
+	suite.server.E().ServeHTTP(notFoundReviewRec, notFoundReviewReq)
+	require.Equal(suite.T(), http.StatusNotFound, notFoundReviewRec.Code)
+}
+
 func (suite *RiskApiIntegrationSuite) TestEvidenceLinksAreIdempotent() {
 	evidence := relational.Evidence{
 		UUID:        uuid.New(),
@@ -398,7 +620,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskControlComponentSubjectEndpointsAn
 	require.NoError(suite.T(), json.Unmarshal(filterByControlRec.Body.Bytes(), &controlFiltered))
 	require.NotEmpty(suite.T(), controlFiltered.Data)
 
-	filterByEvidenceRec, filterByEvidenceReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks?evidenceId=%s&page=1&limit=10", evidence.ID), nil)
+	filterByEvidenceRec, filterByEvidenceReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks?evidenceId=%s&page=1&limit=10", evidence.UUID), nil)
 	suite.server.E().ServeHTTP(filterByEvidenceRec, filterByEvidenceReq)
 	require.Equal(suite.T(), http.StatusOK, filterByEvidenceRec.Code)
 

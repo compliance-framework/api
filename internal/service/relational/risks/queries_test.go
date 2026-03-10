@@ -119,7 +119,7 @@ func TestFromOSCALDescriptionFallbackAndProps(t *testing.T) {
 func TestApplyRiskFilters(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&Risk{}, &RiskOwnerAssignment{}, &RiskControlLink{}, &RiskEvidenceLink{}))
+	require.NoError(t, db.AutoMigrate(&Risk{}, &RiskOwnerAssignment{}, &RiskControlLink{}, &RiskEvidenceLink{}, &testEvidenceQueryRow{}))
 	require.NoError(t, EnsureIndexes(db))
 
 	sspA := uuid.New()
@@ -300,3 +300,11 @@ func TestOwnerAssignmentUniqueness(t *testing.T) {
 }
 
 func ptrTime(v time.Time) *time.Time { return &v }
+
+type testEvidenceQueryRow struct {
+	ID   uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UUID uuid.UUID `gorm:"type:uuid;index"`
+	End  time.Time
+}
+
+func (testEvidenceQueryRow) TableName() string { return "evidences" }
