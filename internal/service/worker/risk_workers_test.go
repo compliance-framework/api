@@ -2,13 +2,13 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
-	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -164,60 +163,11 @@ func TestRiskStaleRiskScannerWorker_EnqueuesWeeklyReminder(t *testing.T) {
 	assert.Equal(t, 7*24*time.Hour, client.params[0].InsertOpts.UniqueOpts.ByPeriod)
 }
 
-func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T) {
+func TestRiskEvidenceReconciliationScannerWorker_EnqueuesDuplicateRepairJobs(t *testing.T) {
 	db := newRiskWorkersTestDB(t)
 	client := &stubRiverClient{}
 	logger := zap.NewNop().Sugar()
 	now := time.Now().UTC()
-
-	// Evidence failure without linked risk
-	evidenceID := uuid.New()
-	require.NoError(t, db.Create(&relational.Evidence{
-		UUIDModel: relational.UUIDModel{ID: &evidenceID},
-		UUID:      uuid.New(),
-		Title:     "failing evidence",
-		Start:     now.Add(-time.Hour),
-		End:       now,
-		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied}),
-	}).Error)
-
-	// Evidence-linked risk with missing risk_subject_links
-	path2SSP := uuid.New()
-	require.NoError(t, db.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &path2SSP}}).Error)
-	path2RiskID := uuid.New()
-	require.NoError(t, db.Create(&riskrel.Risk{
-		UUIDModel:   relational.UUIDModel{ID: &path2RiskID},
-		Title:       "auto risk missing subjects",
-		Description: "auto risk missing subjects",
-		Status:      string(riskrel.RiskStatusInvestigating),
-		SSPID:       path2SSP,
-		SourceType:  string(riskrel.RiskSourceTypeEvidenceAuto),
-		FirstSeenAt: now.Add(-2 * time.Hour),
-		LastSeenAt:  now,
-	}).Error)
-
-	path2EvidenceID := uuid.New()
-	path2Evidence := relational.Evidence{
-		UUIDModel: relational.UUIDModel{ID: &path2EvidenceID},
-		UUID:      uuid.New(),
-		Title:     "linked failing evidence",
-		Start:     now.Add(-2 * time.Hour),
-		End:       now.Add(-30 * time.Minute),
-		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied}),
-	}
-	require.NoError(t, db.Create(&path2Evidence).Error)
-	require.NoError(t, db.Create(&riskrel.RiskEvidenceLink{
-		RiskID:     path2RiskID,
-		EvidenceID: path2EvidenceID,
-	}).Error)
-
-	subjectID := uuid.New()
-	subject := relational.AssessmentSubject{
-		UUIDModel: relational.UUIDModel{ID: &subjectID},
-		Type:      "component",
-	}
-	require.NoError(t, db.Create(&subject).Error)
-	require.NoError(t, db.Model(&path2Evidence).Association("Subjects").Append(&subject))
 
 	// Duplicate active risks by dedupe key
 	dupSSP := uuid.New()
@@ -251,31 +201,15 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 	err := w.Work(context.Background(), &river.Job[RiskEvidenceReconciliationScannerArgs]{})
 	require.NoError(t, err)
 
-	var sawEvidenceRepair, sawMissingSubjectRepair, sawEvidenceRepairWithRetries, sawDuplicateRepair bool
+	var sawDuplicateRepair bool
 	for _, p := range client.params {
 		switch args := p.Args.(type) {
-		case RiskProcessEvidenceFailureArgs:
-			if args.EvidenceID == evidenceID {
-				sawEvidenceRepair = true
-				if p.InsertOpts != nil && p.InsertOpts.MaxAttempts == 5 {
-					sawEvidenceRepairWithRetries = true
-				}
-			}
-			if args.EvidenceID == path2EvidenceID {
-				sawMissingSubjectRepair = true
-				if p.InsertOpts != nil && p.InsertOpts.MaxAttempts == 5 {
-					sawEvidenceRepairWithRetries = true
-				}
-			}
 		case RiskReconcileDuplicatesArgs:
 			if args.DedupeKey == "dup-key" {
 				sawDuplicateRepair = true
 			}
 		}
 	}
-	assert.True(t, sawEvidenceRepair)
-	assert.True(t, sawMissingSubjectRepair)
-	assert.True(t, sawEvidenceRepairWithRetries)
 	assert.True(t, sawDuplicateRepair)
 }
 
@@ -396,4 +330,55 @@ func TestRiskReviewDueReminderWorker_SendsWhenSubscribed(t *testing.T) {
 	})
 	require.NoError(t, err)
 	mockEmail.AssertExpectations(t)
+}
+
+func TestRiskReviewDueReminderWorker_TemplateError_ReturnsError(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(7 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+	createTestUser(t, db, ownerID, true)
+
+	mockEmail := &MockEmailService{}
+	mockEmail.On("UseTemplate", "risk-review-due-reminder", mock.Anything).Return("", "", errors.New("template boom"))
+
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
+		Args: RiskReviewDueReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "render template")
+	require.ErrorContains(t, err, "template boom")
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+}
+
+func TestRiskReviewDueReminderWorker_SendUnsuccessful_ReturnsError(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(7 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+	createTestUser(t, db, ownerID, true)
+
+	mockEmail := &MockEmailService{}
+	mockEmail.On("UseTemplate", "risk-review-due-reminder", mock.Anything).Return("<html>ok</html>", "ok", nil)
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
+	mockEmail.On("Send", mock.Anything, mock.Anything).
+		Return(&types.SendResult{Success: false, Error: "provider refused"}, nil)
+
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
+		Args: RiskReviewDueReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "email send failed: provider refused")
 }

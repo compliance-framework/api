@@ -18,8 +18,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const riskEvidenceReconciliationOrphanLimit = 500
-
 type RiskReviewDeadlineReminderScannerWorker struct {
 	db     *gorm.DB
 	client workflow.RiverClient
@@ -253,123 +251,7 @@ func NewRiskEvidenceReconciliationScannerWorker(db *gorm.DB, client workflow.Riv
 func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *river.Job[RiskEvidenceReconciliationScannerArgs]) error {
 	var params []river.InsertManyParams
 
-	// 1) Evidence failures without linked risks.
-	var orphanEvidence []relational.Evidence
-	orphanQuery := w.db.WithContext(ctx).Model(&relational.Evidence{})
-	switch w.db.Name() {
-	case "postgres":
-		orphanQuery = orphanQuery.Where("status->>'state' = ?", relational.EvidenceStatusNotSatisfied)
-	case "sqlite":
-		orphanQuery = orphanQuery.Where("json_extract(status, '$.state') = ?", relational.EvidenceStatusNotSatisfied)
-	default:
-		orphanQuery = orphanQuery.Where("status->>'state' = ?", relational.EvidenceStatusNotSatisfied)
-	}
-	if err := orphanQuery.
-		Where("NOT EXISTS (SELECT 1 FROM risk_evidence_links rel WHERE rel.evidence_id = evidences.id)").
-		Order("evidences.end DESC").
-		Order("evidences.id DESC").
-		Limit(riskEvidenceReconciliationOrphanLimit).
-		Find(&orphanEvidence).Error; err != nil {
-		return fmt.Errorf("risk reconciliation scanner: query orphan evidence failed: %w", err)
-	}
-
-	for i := range orphanEvidence {
-		e := &orphanEvidence[i]
-		state := e.Status.Data().State
-		if state == "" {
-			state = relational.EvidenceStatusNotSatisfied
-		}
-		params = append(params, river.InsertManyParams{
-			Args: RiskProcessEvidenceFailureArgs{
-				EvidenceID:  *e.ID,
-				EvidenceEnd: e.End.UTC().Format(time.RFC3339),
-				Status:      state,
-			},
-			InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
-		})
-	}
-
-	// 2) Evidence-linked risks with missing subject links.
-	var riskIDs []uuid.UUID
-	if err := w.db.WithContext(ctx).
-		Model(&riskrel.Risk{}).
-		Select("risk_register_risks.id").
-		Where("risk_register_risks.source_type = ? AND risk_register_risks.status <> ?",
-			string(riskrel.RiskSourceTypeEvidenceAuto), string(riskrel.RiskStatusClosed)).
-		Where("EXISTS (SELECT 1 FROM risk_evidence_links rel WHERE rel.risk_id = risk_register_risks.id)").
-		Where("NOT EXISTS (SELECT 1 FROM risk_subject_links rsl WHERE rsl.risk_id = risk_register_risks.id)").
-		Pluck("risk_register_risks.id", &riskIDs).Error; err != nil {
-		return fmt.Errorf("risk reconciliation scanner: query missing subject links failed: %w", err)
-	}
-
-	if len(riskIDs) > 0 {
-		type latestRiskEvidence struct {
-			RiskID     uuid.UUID `gorm:"column:risk_id"`
-			EvidenceID uuid.UUID `gorm:"column:evidence_id"`
-		}
-		var latestEvidence []latestRiskEvidence
-		if err := w.db.WithContext(ctx).
-			Table("risk_evidence_links rel").
-			Select("rel.risk_id, rel.evidence_id").
-			Joins("JOIN evidences e ON e.id = rel.evidence_id").
-			Where("rel.risk_id IN ?", riskIDs).
-			Where("EXISTS (SELECT 1 FROM evidence_subjects es WHERE es.evidence_id = rel.evidence_id)").
-			Where(`NOT EXISTS (
-				SELECT 1
-				FROM risk_evidence_links rel2
-				JOIN evidences e2 ON e2.id = rel2.evidence_id
-				WHERE rel2.risk_id = rel.risk_id
-				  AND (e2.end > e.end OR (e2.end = e.end AND rel2.evidence_id > rel.evidence_id))
-			)`).
-			Scan(&latestEvidence).Error; err != nil {
-			return fmt.Errorf("risk reconciliation scanner: query latest evidence for missing subject links failed: %w", err)
-		}
-
-		evidenceIDs := make([]uuid.UUID, 0, len(latestEvidence))
-		seenEvidenceIDs := make(map[uuid.UUID]struct{}, len(latestEvidence))
-		for _, item := range latestEvidence {
-			if _, seen := seenEvidenceIDs[item.EvidenceID]; seen {
-				continue
-			}
-			seenEvidenceIDs[item.EvidenceID] = struct{}{}
-			evidenceIDs = append(evidenceIDs, item.EvidenceID)
-		}
-
-		evidenceByID := make(map[uuid.UUID]relational.Evidence, len(evidenceIDs))
-		if len(evidenceIDs) > 0 {
-			var evidences []relational.Evidence
-			if err := w.db.WithContext(ctx).Where("id IN ?", evidenceIDs).Find(&evidences).Error; err != nil {
-				return fmt.Errorf("risk reconciliation scanner: load latest evidence records failed: %w", err)
-			}
-			for i := range evidences {
-				if evidences[i].ID == nil {
-					continue
-				}
-				evidenceByID[*evidences[i].ID] = evidences[i]
-			}
-		}
-
-		for _, item := range latestEvidence {
-			evidence, found := evidenceByID[item.EvidenceID]
-			if !found {
-				continue
-			}
-			state := evidence.Status.Data().State
-			if state == "" {
-				state = relational.EvidenceStatusNotSatisfied
-			}
-			params = append(params, river.InsertManyParams{
-				Args: RiskProcessEvidenceFailureArgs{
-					EvidenceID:  item.EvidenceID,
-					EvidenceEnd: evidence.End.UTC().Format(time.RFC3339),
-					Status:      state,
-				},
-				InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
-			})
-		}
-	}
-
-	// 3) Duplicate active risks with same dedupe key.
+	// Duplicate active risks with same dedupe key.
 	var duplicateKeys []string
 	if err := w.db.WithContext(ctx).
 		Model(&riskrel.Risk{}).
@@ -597,35 +479,26 @@ func NewRiskReviewOverdueReopenWorker(db *gorm.DB, logger *zap.SugaredLogger) *R
 }
 
 func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job[RiskReviewOverdueReopenArgs]) error {
-	riskSvc := riskrel.NewRiskService(w.db)
-	risk, err := riskSvc.GetByID(job.Args.RiskID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			w.logger.Warnw("RiskReviewOverdueReopenWorker: risk not found, skipping", "risk_id", job.Args.RiskID)
-			return nil
-		}
-		return fmt.Errorf("risk overdue reopen: load risk failed: %w", err)
-	}
-	if risk.Status != string(riskrel.RiskStatusRiskAccepted) || risk.ReviewDeadline == nil {
-		return nil
-	}
-
 	now := time.Now().UTC()
 	threshold := time.Duration(job.Args.ThresholdDays) * 24 * time.Hour
-	if now.Sub(risk.ReviewDeadline.UTC()) < threshold {
-		return nil
+	cutoff := now.Add(-threshold)
+	updateResult := w.db.WithContext(ctx).
+		Model(&riskrel.Risk{}).
+		Where("id = ? AND status = ? AND review_deadline IS NOT NULL AND review_deadline <= ?",
+			job.Args.RiskID,
+			string(riskrel.RiskStatusRiskAccepted),
+			cutoff,
+		).
+		Updates(map[string]interface{}{
+			"status":                   string(riskrel.RiskStatusInvestigating),
+			"review_deadline":          nil,
+			"acceptance_justification": nil,
+		})
+	if updateResult.Error != nil {
+		return fmt.Errorf("risk overdue reopen: update risk failed: %w", updateResult.Error)
 	}
-
-	oldStatus := risk.Status
-	risk.Status = string(riskrel.RiskStatusInvestigating)
-	risk.ReviewDeadline = nil
-	risk.AcceptanceJustification = nil
-	if _, err := riskSvc.Update(riskrel.UpdateRiskParams{
-		Risk:          risk,
-		OldStatus:     oldStatus,
-		StatusChanged: true,
-	}); err != nil {
-		return fmt.Errorf("risk overdue reopen: update risk failed: %w", err)
+	if updateResult.RowsAffected == 0 {
+		return nil
 	}
 
 	w.logger.Infow("RiskReviewOverdueReopenWorker: reopened overdue accepted risk",
