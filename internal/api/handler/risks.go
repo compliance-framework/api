@@ -59,6 +59,14 @@ func (h *RiskHandler) Register(api *echo.Group) {
 	api.POST("/:id/subjects", h.AddSubjectLink)
 }
 
+func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
+	api.GET("", h.ListForSSP)
+	api.POST("", h.CreateForSSP)
+	api.GET("/:id", h.GetForSSP)
+	api.PUT("/:id", h.UpdateForSSP)
+	api.DELETE("/:id", h.DeleteForSSP)
+}
+
 type riskOwnerAssignmentRequest struct {
 	OwnerKind string `json:"ownerKind"`
 	OwnerRef  string `json:"ownerRef"`
@@ -236,6 +244,10 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	return h.createFromRequest(ctx, req)
+}
+
+func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest) error {
 	if req.Title == "" || req.Description == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("title and description are required")))
 	}
@@ -322,6 +334,179 @@ func (h *RiskHandler) Create(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusCreated, GenericDataResponse[riskResponse]{Data: mapped})
 	})
+}
+
+// ListForSSP godoc
+//
+//	@Summary		List risks for SSP
+//	@Description	Lists risk register entries scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId					path		string	true	"SSP ID"
+//	@Param			status					query		string	false	"Risk status"
+//	@Param			likelihood				query		string	false	"Risk likelihood"
+//	@Param			impact					query		string	false	"Risk impact"
+//	@Param			controlId				query		string	false	"Control ID"
+//	@Param			evidenceId				query		string	false	"Evidence ID"
+//	@Param			ownerKind				query		string	false	"Owner kind"
+//	@Param			ownerRef				query		string	false	"Owner reference"
+//	@Param			reviewDeadlineBefore	query		string	false	"Review deadline upper bound (RFC3339)"
+//	@Param			page					query		int		false	"Page number"
+//	@Param			limit					query		int		false	"Page size"
+//	@Param			sort					query		string	false	"Sort field"
+//	@Param			order					query		string	false	"Sort order (asc|desc)"
+//	@Success		200						{object}	svc.ListResponse[riskResponse]
+//	@Failure		400						{object}	api.Error
+//	@Failure		404						{object}	api.Error
+//	@Failure		500						{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/ssp/{sspId}/risks [get]
+func (h *RiskHandler) ListForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.riskService.EnsureSSPExists(sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("ssp not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate ssp", err)
+	}
+
+	q := ctx.QueryParams()
+	q.Set("sspId", sspID.String())
+	ctx.Request().URL.RawQuery = q.Encode()
+	return h.List(ctx)
+}
+
+// CreateForSSP godoc
+//
+//	@Summary		Create risk for SSP
+//	@Description	Creates a risk register entry scoped to an SSP.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			sspId	path		string				true	"SSP ID"
+//	@Param			risk	body		createRiskRequest	true	"Risk payload"
+//	@Success		201		{object}	GenericDataResponse[riskResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/ssp/{sspId}/risks [post]
+func (h *RiskHandler) CreateForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var req createRiskRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	req.SSPID = sspID
+	return h.createFromRequest(ctx, req)
+}
+
+// GetForSSP godoc
+//
+//	@Summary		Get risk for SSP
+//	@Description	Retrieves a risk register entry by ID scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Success		200		{object}	GenericDataResponse[riskResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/ssp/{sspId}/risks/{id} [get]
+func (h *RiskHandler) GetForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.Get(ctx)
+}
+
+// UpdateForSSP godoc
+//
+//	@Summary		Update risk for SSP
+//	@Description	Updates a risk register entry by ID scoped to an SSP.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			sspId	path		string				true	"SSP ID"
+//	@Param			id		path		string				true	"Risk ID"
+//	@Param			risk	body		updateRiskRequest	true	"Risk payload"
+//	@Success		200		{object}	GenericDataResponse[riskResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/ssp/{sspId}/risks/{id} [put]
+func (h *RiskHandler) UpdateForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.Update(ctx)
+}
+
+// DeleteForSSP godoc
+//
+//	@Summary		Delete risk for SSP
+//	@Description	Deletes a risk register entry by ID scoped to an SSP.
+//	@Tags			Risks
+//	@Param			sspId	path	string	true	"SSP ID"
+//	@Param			id		path	string	true	"Risk ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/ssp/{sspId}/risks/{id} [delete]
+func (h *RiskHandler) DeleteForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.Delete(ctx)
+}
+
+func (h *RiskHandler) ensureRiskBelongsToSSP(riskID, sspID uuid.UUID) error {
+	return h.riskService.EnsureRiskInSSP(riskID, sspID)
 }
 
 // Get godoc

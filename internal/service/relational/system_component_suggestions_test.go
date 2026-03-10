@@ -51,6 +51,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&DefinedComponent{},
 		&ControlImplementation{},
 		&ImplementedRequirement{},
+		&Statement{},
 		&SystemImplementation{},
 		&SystemSecurityPlan{},
 		&SystemComponent{},
@@ -109,10 +110,11 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	)`).Error)
 
 	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS component_definition_labels (
-		component_definition_id TEXT,
-		key TEXT,
-		value TEXT
-	)`).Error)
+			defined_component_id TEXT,
+			component_definition_id TEXT,
+			key TEXT,
+			value TEXT
+		)`).Error)
 
 	return db
 }
@@ -173,18 +175,14 @@ func seedEvidenceWithLabel(t *testing.T, db *gorm.DB, labelKey, labelValue strin
 	return evidenceID
 }
 
-// seedDefinedComponentWithLabels inserts a ComponentDefinition, component_definition_labels row,
-// and a DefinedComponent linked to that ComponentDefinition. Returns the DefinedComponent.
+// seedDefinedComponentWithLabels inserts a ComponentDefinition, a DefinedComponent linked
+// to that ComponentDefinition, and a component_definition_labels row for that DefinedComponent.
+// Returns the DefinedComponent.
 func seedDefinedComponentWithLabels(t *testing.T, db *gorm.DB, labelKey, labelValue string) DefinedComponent {
 	t.Helper()
 
 	compDef := ComponentDefinition{}
 	require.NoError(t, db.Create(&compDef).Error)
-
-	require.NoError(t, db.Exec(
-		`INSERT INTO component_definition_labels (component_definition_id, key, value) VALUES (?, ?, ?)`,
-		compDef.ID, labelKey, labelValue,
-	).Error)
 
 	dc := DefinedComponent{
 		Type:                  "software",
@@ -194,6 +192,11 @@ func seedDefinedComponentWithLabels(t *testing.T, db *gorm.DB, labelKey, labelVa
 		ComponentDefinitionID: compDef.ID,
 	}
 	require.NoError(t, db.Create(&dc).Error)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		dc.ID, compDef.ID, labelKey, labelValue,
+	).Error)
 
 	return dc
 }
@@ -222,6 +225,16 @@ func seedSSPWithImplReq(t *testing.T, db *gorm.DB, controlID string) (sspID, imp
 	require.NoError(t, db.Create(&ir).Error)
 
 	return *ssp.ID, *ir.ID
+}
+
+func seedStatementForImplReq(t *testing.T, db *gorm.DB, implReqID uuid.UUID, statementID string) uuid.UUID {
+	t.Helper()
+	stmt := Statement{
+		StatementId:              statementID,
+		ImplementedRequirementId: implReqID,
+	}
+	require.NoError(t, db.Create(&stmt).Error)
+	return *stmt.ID
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +269,53 @@ func TestSuggestForImplementedRequirement_ReturnsMatchingComponent(t *testing.T)
 	assert.Equal(t, dc.Title, suggestions[0].Name)
 	assert.Equal(t, dc.Type, suggestions[0].Type)
 	assert.Equal(t, dc.Description, suggestions[0].Description)
+}
+
+func TestSuggestForImplementedRequirement_DoesNotReturnNonMatchingSiblingDefinedComponent(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey = "plugin"
+	const matchingValue = "sshd"
+	const nonMatchingValue = "nginx"
+
+	compDef := ComponentDefinition{}
+	require.NoError(t, db.Create(&compDef).Error)
+
+	matching := DefinedComponent{
+		Type:                  "software",
+		Title:                 "Matching",
+		Description:           "matches label",
+		Purpose:               "testing",
+		ComponentDefinitionID: compDef.ID,
+	}
+	require.NoError(t, db.Create(&matching).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		matching.ID, compDef.ID, labelKey, matchingValue,
+	).Error)
+
+	nonMatching := DefinedComponent{
+		Type:                  "software",
+		Title:                 "Non-Matching",
+		Description:           "does not match label",
+		Purpose:               "testing",
+		ComponentDefinitionID: compDef.ID,
+	}
+	require.NoError(t, db.Create(&nonMatching).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		nonMatching.ID, compDef.ID, labelKey, nonMatchingValue,
+	).Error)
+
+	seedFilterForControl(t, db, "ac-1", labelKey, matchingValue)
+	seedEvidenceWithLabel(t, db, labelKey, matchingValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1)
+	assert.Equal(t, *matching.ID, suggestions[0].DefinedComponentID)
 }
 
 func TestSuggestForImplementedRequirement_DifferentControlFiltered(t *testing.T) {
@@ -371,6 +431,32 @@ func TestSuggestForImplementedRequirement_ImplReqNotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSuggestForStatement_ReturnsMatchingComponent(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey, labelValue = "plugin", "sshd"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "ac-1", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	stmtID := seedStatementForImplReq(t, db, implReqID, "ac-1_smt.a")
+
+	suggestions, err := svc.SuggestForStatement(sspID, implReqID, stmtID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1)
+	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
+}
+
+func TestSuggestForStatement_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+	_, err := svc.SuggestForStatement(sspID, implReqID, uuid.New())
+	assert.Error(t, err)
+}
+
 // ---------------------------------------------------------------------------
 // ApplyForImplementedRequirement tests
 // ---------------------------------------------------------------------------
@@ -446,6 +532,34 @@ func TestApplyForImplementedRequirement_NoSuggestions(t *testing.T) {
 	var count int64
 	db.Model(&SystemComponent{}).Where("system_implementation_id = ?", systemImpl.ID).Count(&count)
 	assert.Equal(t, int64(0), count)
+}
+
+func TestApplyForStatement_CreatesByComponentLinkedToStatement(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	const labelKey, labelValue = "plugin", "firewall"
+	dc := seedDefinedComponentWithLabels(t, db, labelKey, labelValue)
+	seedFilterForControl(t, db, "sc-7", labelKey, labelValue)
+	seedEvidenceWithLabel(t, db, labelKey, labelValue)
+	sspID, implReqID := seedSSPWithImplReq(t, db, "sc-7")
+	stmtID := seedStatementForImplReq(t, db, implReqID, "sc-7_smt.a")
+
+	err := svc.ApplyForStatement(sspID, implReqID, stmtID)
+	require.NoError(t, err)
+
+	var systemImpl SystemImplementation
+	require.NoError(t, db.Where("system_security_plan_id = ?", sspID).First(&systemImpl).Error)
+
+	var comp SystemComponent
+	require.NoError(t, db.Where("system_implementation_id = ? AND defined_component_id = ?", systemImpl.ID, dc.ID).First(&comp).Error)
+
+	var bc ByComponent
+	require.NoError(t, db.Where("component_uuid = ?", comp.ID).First(&bc).Error)
+	require.NotNil(t, bc.ParentID)
+	require.NotNil(t, bc.ParentType)
+	assert.Equal(t, stmtID, *bc.ParentID)
+	assert.Equal(t, "statements", *bc.ParentType)
 }
 
 // ---------------------------------------------------------------------------

@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -72,8 +71,6 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 			{Name: "environment", Value: "production"},
 			{Name: "category", Value: "security"},
 			{Name: "_policy", Value: "test-policy"},
-		},
-		Props: datatypes.JSONSlice[relational.Prop]{
 			{Name: "violation_id", Value: "VIOL-001"},
 		},
 	}
@@ -192,7 +189,7 @@ func TestRiskEvidenceWorker_Work_Success(t *testing.T) {
 	// Verify the evidence link was created
 	var link risks.RiskEvidenceLink
 	require.NoError(t, worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidence.ID).
+		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidence.UUID).
 		First(&link).Error)
 
 	// Verify a created event was emitted
@@ -349,8 +346,7 @@ func TestRiskEvidenceWorker_loadEvidenceWithRelations(t *testing.T) {
 	assert.NotNil(t, loaded)
 	assert.Equal(t, evidence.ID, loaded.ID)
 	assert.Equal(t, evidence.UUID, loaded.UUID)
-	assert.Len(t, loaded.Labels, 3) // environment, category, _policy
-	assert.Len(t, loaded.Props, 1)
+	assert.Len(t, loaded.Labels, 4) // environment, category, _policy, violation_id
 }
 
 func TestRiskEvidenceWorker_loadEvidenceWithRelations_NotFound(t *testing.T) {
@@ -692,7 +688,6 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
-	ctx := context.Background()
 
 	// Create risk templates
 	template1 := &templates.RiskTemplate{
@@ -715,13 +710,13 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 
 	riskTemplates := []templates.RiskTemplate{*template1, *template2, *template3}
 
-	// Create evidence props with violation ID
-	evidenceProps := []relational.Prop{
+	// Create evidence labels with violation ID
+	evidenceLabels := []relational.Labels{
 		{Name: "violation_id", Value: "VIOL-001"},
 	}
 
 	// Filter templates
-	filtered, err := worker.filterRiskTemplatesByViolations(ctx, riskTemplates, evidenceProps)
+	filtered, err := worker.filterRiskTemplatesByViolations(riskTemplates, evidenceLabels)
 
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 2) // template1 and template3 should match
@@ -732,17 +727,20 @@ func TestRiskEvidenceWorker_extractViolationIDs(t *testing.T) {
 
 	worker := createTestRiskEvidenceWorker(t)
 
-	props := []relational.Prop{
+	labels := []relational.Labels{
 		{Name: "violation_id", Value: "VIOL-001"},
-		{Name: "other_prop", Value: "value"},
-		{Name: "violation_id", Value: "VIOL-002"},
+		{Name: " Violation_ID ", Value: "VIOL-002"},
+		{Name: " _VIOLATION_ID ", Value: "VIOL-003"},
+		{Name: "other_label", Value: "value"},
+		{Name: "violation_id", Value: "   "},
 	}
 
-	violationIDs := worker.extractViolationIDs(props)
+	violationIDs := worker.extractViolationIDs(labels)
 
-	assert.Len(t, violationIDs, 2)
+	assert.Len(t, violationIDs, 3)
 	assert.Contains(t, violationIDs, "VIOL-001")
 	assert.Contains(t, violationIDs, "VIOL-002")
+	assert.Contains(t, violationIDs, "VIOL-003")
 }
 
 func TestRiskEvidenceWorker_violationMatches(t *testing.T) {
@@ -910,7 +908,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	// Verify evidence link
 	var evidenceLink risks.RiskEvidenceLink
 	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", riskID, *evidence.ID).
+		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
 		First(&evidenceLink).Error
 	assert.NoError(t, err)
 
@@ -947,7 +945,7 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	// Verify only evidence link was created
 	var evidenceLink risks.RiskEvidenceLink
 	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND evidence_id = ?", riskID, *evidence.ID).
+		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
 		First(&evidenceLink).Error
 	assert.NoError(t, err)
 
@@ -959,6 +957,35 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 		Count(&subjectLinkCount).Error
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), subjectLinkCount)
+}
+
+func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      uuid.Nil,
+		Title:     "invalid evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	riskID := uuid.New()
+	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing stream uuid")
+
+	var evidenceLinkCount int64
+	require.NoError(t, worker.db.WithContext(ctx).
+		Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", riskID).
+		Count(&evidenceLinkCount).Error)
+	assert.Zero(t, evidenceLinkCount)
 }
 
 func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {

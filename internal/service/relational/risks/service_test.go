@@ -134,10 +134,11 @@ func TestRiskServiceLinksAndAssociations(t *testing.T) {
 	}).Error)
 
 	evidenceID := uuid.New()
+	evidenceStreamID := uuid.New()
 	catalogID := uuid.New()
 	componentID := uuid.New()
 	subjectID := uuid.New()
-	require.NoError(t, db.Create(&testEvidenceRow{ID: evidenceID}).Error)
+	require.NoError(t, db.Create(&testEvidenceRow{ID: evidenceID, UUID: evidenceStreamID, End: time.Now().UTC()}).Error)
 	require.NoError(t, db.Create(&testControlRow{CatalogID: catalogID, ID: "AC-2"}).Error)
 	require.NoError(t, db.Create(&testSystemComponentRow{ID: componentID}).Error)
 	require.NoError(t, db.Create(&testAssessmentSubjectRow{ID: subjectID}).Error)
@@ -155,7 +156,7 @@ func TestRiskServiceLinksAndAssociations(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), evidenceTotal)
 	require.Len(t, evidenceIDs, 1)
-	require.Equal(t, evidenceID, evidenceIDs[0])
+	require.Equal(t, evidenceStreamID, evidenceIDs[0])
 
 	deleted, err := svc.DeleteEvidenceLink(riskID, evidenceID, &actorID)
 	require.NoError(t, err)
@@ -210,7 +211,7 @@ func TestRiskServiceLinksAndAssociations(t *testing.T) {
 
 	associations, err := svc.GetAssociations(riskID)
 	require.NoError(t, err)
-	require.Contains(t, associations.EvidenceIDs, evidenceID)
+	require.Contains(t, associations.EvidenceIDs, evidenceStreamID)
 	require.Contains(t, associations.ComponentIDs, componentID)
 	require.Contains(t, associations.SubjectIDs, subjectID)
 	require.Len(t, associations.ControlLinks, 1)
@@ -455,6 +456,64 @@ func TestRiskServiceRejectsInvalidOwnerAssignments(t *testing.T) {
 	require.ErrorContains(t, err, "ownerRef must be a valid UUID")
 }
 
+func TestRiskServiceDeleteEvidenceLinkDeletesLegacyRowIDs(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "legacy-evidence-link",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	evidenceID := uuid.New()
+	evidenceStreamID := uuid.New()
+	require.NoError(t, db.Create(&testEvidenceRow{ID: evidenceID, UUID: evidenceStreamID, End: time.Now().UTC()}).Error)
+
+	// Simulate migration overlap where both legacy and stream IDs may be linked.
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID}).Error)
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceStreamID}).Error)
+
+	actorID := uuid.New()
+	deleted, err := svc.DeleteEvidenceLink(riskID, evidenceID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	var remaining int64
+	require.NoError(t, db.Model(&RiskEvidenceLink{}).Where("risk_id = ?", riskID).Count(&remaining).Error)
+	require.Zero(t, remaining)
+}
+
+func TestRiskServiceAddEvidenceLinkRejectsEvidenceWithoutStreamUUID(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "missing-stream-uuid",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	evidenceID := uuid.New()
+	require.NoError(t, db.Create(&testEvidenceRow{ID: evidenceID, UUID: uuid.Nil, End: time.Now().UTC()}).Error)
+
+	_, err := svc.AddEvidenceLink(riskID, evidenceID, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing stream uuid")
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -489,7 +548,9 @@ type testUserRow struct {
 func (testUserRow) TableName() string { return "ccf_users" }
 
 type testEvidenceRow struct {
-	ID uuid.UUID `gorm:"type:uuid;primaryKey"`
+	ID   uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UUID uuid.UUID `gorm:"type:uuid;index"`
+	End  time.Time
 }
 
 func (testEvidenceRow) TableName() string { return "evidences" }

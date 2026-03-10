@@ -219,6 +219,8 @@ func (h *SystemSecurityPlanHandler) Register(api *echo.Group) {
 	api.DELETE("/:id/control-implementation/implemented-requirements/:reqId", h.DeleteImplementedRequirement)
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/suggest-components", h.SuggestComponents)
 	api.POST("/:id/control-implementation/implemented-requirements/:reqId/apply-suggestion", h.ApplySuggestion)
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/suggest-components", h.SuggestComponentsForStatement)
+	api.POST("/:id/control-implementation/implemented-requirements/:reqId/statements/:stmtId/apply-suggestion", h.ApplySuggestionForStatement)
 	api.POST("/:id/bulk-apply-component-suggestions", h.BulkApplyComponentSuggestions)
 	api.GET("/:id/back-matter", h.GetBackMatter)
 	api.PUT("/:id/back-matter", h.UpdateBackMatter)
@@ -4067,6 +4069,40 @@ func (h *SystemSecurityPlanHandler) SuggestComponents(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[relational.SystemComponentSuggestion]{Data: suggestions})
 }
 
+// SuggestComponentsForStatement godoc
+//
+//	@Summary		Suggest system components for a statement
+//	@Description	Returns DefinedComponents that implement the statement's parent control and are not yet present in the SSP.
+//	@Tags			System Security Plans
+//	@Produce		json
+//	@Param			id		path		string	true	"SSP ID"
+//	@Param			reqId	path		string	true	"Implemented Requirement ID"
+//	@Param			stmtId	path		string	true	"Statement ID"
+//	@Success		200		{object}	handler.GenericDataListResponse[relational.SystemComponentSuggestion]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/suggest-components [post]
+func (h *SystemSecurityPlanHandler) SuggestComponentsForStatement(ctx echo.Context) error {
+	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid statement suggestion path params", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	suggestions, err := h.suggestionService.SuggestForStatement(sspID, reqID, stmtID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("failed to get statement component suggestions", "sspID", sspID, "reqID", reqID, "stmtID", stmtID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[relational.SystemComponentSuggestion]{Data: suggestions})
+}
+
 // ApplySuggestion godoc
 //
 //	@Summary		Apply component suggestions for an implemented requirement
@@ -4106,6 +4142,38 @@ func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
+// ApplySuggestionForStatement godoc
+//
+//	@Summary		Apply component suggestions for a statement
+//	@Description	Creates SystemComponents from DefinedComponents that implement the statement's parent control and links them via ByComponent to the statement.
+//	@Tags			System Security Plans
+//	@Param			id		path	string	true	"SSP ID"
+//	@Param			reqId	path	string	true	"Implemented Requirement ID"
+//	@Param			stmtId	path	string	true	"Statement ID"
+//	@Success		204		"No Content"
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestion [post]
+func (h *SystemSecurityPlanHandler) ApplySuggestionForStatement(ctx echo.Context) error {
+	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid statement apply path params", "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	if err := h.suggestionService.ApplyForStatement(sspID, reqID, stmtID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("failed to apply statement component suggestions", "sspID", sspID, "reqID", reqID, "stmtID", stmtID, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
+}
+
 // BulkApplyComponentSuggestions godoc
 //
 //	@Summary		Bulk apply component suggestions for all implemented requirements in an SSP
@@ -4135,4 +4203,20 @@ func (h *SystemSecurityPlanHandler) BulkApplyComponentSuggestions(ctx echo.Conte
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+func parseSSPReqStmtIDs(ctx echo.Context) (uuid.UUID, uuid.UUID, uuid.UUID, error) {
+	sspID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, err
+	}
+	reqID, err := uuid.Parse(ctx.Param("reqId"))
+	if err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, err
+	}
+	stmtID, err := uuid.Parse(ctx.Param("stmtId"))
+	if err != nil {
+		return uuid.Nil, uuid.Nil, uuid.Nil, err
+	}
+	return sspID, reqID, stmtID, nil
 }

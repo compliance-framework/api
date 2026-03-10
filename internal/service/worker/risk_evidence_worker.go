@@ -65,7 +65,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 3. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
-	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(ctx, riskTemplates, []relational.Prop(evidence.Props))
+	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(riskTemplates, evidence.Labels)
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
@@ -166,10 +166,10 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	return riskTemplates, nil
 }
 
-// filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence props
-func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(ctx context.Context, riskTemplates []templates.RiskTemplate, evidenceProps []relational.Prop) ([]templates.RiskTemplate, error) {
-	// Extract violation IDs from evidence props
-	violationIDs := w.extractViolationIDs(evidenceProps)
+// filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence labels
+func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(riskTemplates []templates.RiskTemplate, evidenceLabels []relational.Labels) ([]templates.RiskTemplate, error) {
+	// Extract violation IDs from evidence labels
+	violationIDs := w.extractViolationIDs(evidenceLabels)
 
 	var filteredTemplates []templates.RiskTemplate
 
@@ -189,14 +189,16 @@ func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(ctx context.Context
 	return filteredTemplates, nil
 }
 
-// extractViolationIDs extracts violation IDs from evidence props
-func (w *RiskEvidenceWorker) extractViolationIDs(props []relational.Prop) []string {
+// extractViolationIDs extracts violation IDs from evidence labels
+func (w *RiskEvidenceWorker) extractViolationIDs(labels []relational.Labels) []string {
 	var violationIDs []string
 
-	for _, prop := range props {
-		// Look for props with name exactly "violation_id"
-		if prop.Name == "violation_id" && prop.Value != "" {
-			violationIDs = append(violationIDs, prop.Value)
+	for _, label := range labels {
+		labelName := strings.ToLower(strings.TrimSpace(label.Name))
+		labelValue := strings.TrimSpace(label.Value)
+		// Accept both current and legacy violation label names.
+		if (labelName == "_violation_id" || labelName == "violation_id") && labelValue != "" {
+			violationIDs = append(violationIDs, labelValue)
 		}
 	}
 
@@ -230,7 +232,6 @@ func (w *RiskEvidenceWorker) violationMatches(templateViolationIDs, evidenceViol
 
 // createOrUpdateRisksForSSPs creates or updates risks for each SSP associated with the evidence
 func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence) error {
-	// TODO: we are using Evidence.Components as a proxy for now, but in reality this should use SubjectTemplates to find the appropriate SystemComponents -> SSPIds
 
 	// Get unique SSP IDs from evidence components
 	sspIDs, err := w.extractSSPIDsFromComponents(ctx, evidence.Components)
@@ -266,7 +267,7 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 		if err != nil {
 			w.logger.Errorw("Failed to create or update risk for SSP",
 				"error", err,
-				"evidence_id", evidence.ID,
+				"evidence_id", evidence.UUID,
 				"risk_template_id", riskTemplate.ID,
 				"ssp_id", sspID)
 			errs = append(errs, err)
@@ -370,7 +371,7 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 
 		// Emit a risk_event(last_seen) using the typed constant.
 		if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeLastSeen), map[string]interface{}{
-			"evidence_id":        evidence.ID,
+			"evidence_id":        evidence.UUID,
 			"previous_last_seen": previousLastSeen,
 			"new_last_seen":      now,
 		}); err != nil {
@@ -385,7 +386,7 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 
 	w.logger.Infow("Updated existing risk",
 		"risk_id", existingRisk.ID,
-		"evidence_id", evidence.ID,
+		"evidence_id", evidence.UUID,
 		"dedupe_key", existingRisk.DedupeKey,
 	)
 
@@ -427,7 +428,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		}
 		// Emit a risk_event(created) using the typed constant
 		if err := w.emitRiskEvent(ctx, tx, *newRisk.ID, string(risks.RiskEventTypeCreated), map[string]interface{}{
-			"evidence_id": evidence.ID,
+			"evidence_id": evidence.UUID,
 			"template_id": riskTemplate.ID,
 			"dedupe_key":  dedupeKey,
 			"ssp_id":      sspID,
@@ -442,7 +443,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 
 	w.logger.Infow("Created new risk",
 		"risk_id", newRisk.ID,
-		"evidence_id", evidence.ID,
+		"evidence_id", evidence.UUID,
 		"risk_template_id", riskTemplate.ID,
 		"ssp_id", sspID,
 		"dedupe_key", dedupeKey,
@@ -456,11 +457,18 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 // Uses OnConflict{DoNothing} throughout so retries are idempotent.
 func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, evidence *relational.Evidence) error {
 	now := time.Now().UTC()
+	if evidence.UUID == uuid.Nil {
+		evidenceID := uuid.Nil
+		if evidence.ID != nil {
+			evidenceID = *evidence.ID
+		}
+		return fmt.Errorf("evidence %s is missing stream uuid", evidenceID)
+	}
 
 	// Link evidence
 	evidenceLink := &risks.RiskEvidenceLink{
 		RiskID:     riskID,
-		EvidenceID: *evidence.ID,
+		EvidenceID: evidence.UUID,
 		CreatedAt:  now,
 	}
 	if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(evidenceLink).Error; err != nil {

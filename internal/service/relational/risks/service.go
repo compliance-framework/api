@@ -2,6 +2,7 @@ package risks
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -261,6 +262,11 @@ func (s *RiskService) EnsureRiskExists(riskID uuid.UUID) error {
 	return s.db.Select("id").First(&risk, "id = ?", riskID).Error
 }
 
+func (s *RiskService) EnsureRiskInSSP(riskID, sspID uuid.UUID) error {
+	var risk Risk
+	return s.db.Select("id").First(&risk, "id = ? AND ssp_id = ?", riskID, sspID).Error
+}
+
 func (s *RiskService) EnsureSSPExists(sspID uuid.UUID) error {
 	var ssp relational.SystemSecurityPlan
 	return s.db.Select("id").First(&ssp, "id = ?", sspID).Error
@@ -300,13 +306,13 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 		return nil, err
 	}
 
-	var evidence relational.Evidence
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&evidence, "id = ?", evidenceID).Error; err != nil {
+	evidenceStreamID, err := s.resolveEvidenceStreamID(tx, evidenceID)
+	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
-	link := RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID, CreatedByID: actorUserID}
+	link := RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceStreamID, CreatedByID: actorUserID}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link)
 	if createResult.Error != nil {
 		tx.Rollback()
@@ -314,12 +320,12 @@ func (s *RiskService) AddEvidenceLink(riskID, evidenceID uuid.UUID, actorUserID 
 	}
 
 	if createResult.RowsAffected > 0 {
-		if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceLink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceID.String()}); err != nil {
+		if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceLink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceStreamID.String()}); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
 	} else {
-		if err := tx.Where("risk_id = ? AND evidence_id = ?", riskID, evidenceID).First(&link).Error; err != nil {
+		if err := tx.Where("risk_id = ? AND evidence_id = ?", riskID, evidenceStreamID).First(&link).Error; err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -339,16 +345,46 @@ func (s *RiskService) DeleteEvidenceLink(riskID, evidenceID uuid.UUID, actorUser
 	}
 	defer rollbackTxOnPanic(tx)
 
-	result := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID)
+	evidenceStreamID := evidenceID
+	resolvedStreamID, resolveErr := s.resolveEvidenceStreamID(tx, evidenceID)
+	if resolveErr == nil {
+		evidenceStreamID = resolvedStreamID
+	} else if !errors.Is(resolveErr, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return false, resolveErr
+	}
+
+	deletedEvidenceID := evidenceStreamID
+	result := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceStreamID)
 	if result.Error != nil {
 		tx.Rollback()
 		return false, result.Error
 	}
+
+	if result.RowsAffected > 0 && evidenceStreamID != evidenceID {
+		// Best-effort cleanup for legacy rows that may still store evidences.id.
+		if err := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID).Error; err != nil {
+			tx.Rollback()
+			return false, err
+		}
+	}
+
+	if result.RowsAffected == 0 && evidenceStreamID != evidenceID {
+		legacyDelete := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID)
+		if legacyDelete.Error != nil {
+			tx.Rollback()
+			return false, legacyDelete.Error
+		}
+		result = legacyDelete
+		deletedEvidenceID = evidenceID
+	}
+
 	if result.RowsAffected == 0 {
 		tx.Rollback()
 		return false, nil
 	}
-	if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceUnlink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceID.String()}); err != nil {
+
+	if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceUnlink, actorUserID, datatypes.JSONMap{"evidenceId": deletedEvidenceID.String()}); err != nil {
 		tx.Rollback()
 		return false, err
 	}
@@ -356,6 +392,34 @@ func (s *RiskService) DeleteEvidenceLink(riskID, evidenceID uuid.UUID, actorUser
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *RiskService) resolveEvidenceStreamID(tx *gorm.DB, evidenceRef uuid.UUID) (uuid.UUID, error) {
+	var evidence relational.Evidence
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "uuid").
+		Where("id = ?", evidenceRef).
+		First(&evidence).Error; err == nil {
+		if evidence.UUID == uuid.Nil {
+			return uuid.Nil, fmt.Errorf("evidence %s is missing stream uuid", evidence.ID)
+		}
+		return evidence.UUID, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return uuid.Nil, err
+	}
+
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "uuid").
+		Where("uuid = ?", evidenceRef).
+		Order(`"evidences"."end" DESC`).
+		First(&evidence).Error; err != nil {
+		return uuid.Nil, err
+	}
+	if evidence.UUID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("evidence %s is missing stream uuid", evidence.ID)
+	}
+
+	return evidence.UUID, nil
 }
 
 func (s *RiskService) ListControlLinks(riskID uuid.UUID, limit, offset int) ([]RiskControlLink, int64, error) {

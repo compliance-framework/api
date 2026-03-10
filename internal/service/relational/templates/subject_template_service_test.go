@@ -6,6 +6,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	"github.com/defenseunicorns/go-oscal/src/pkg/versioning"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/datatypes"
@@ -557,6 +558,7 @@ func newSubjectTemplateTestDB(t *testing.T) *gorm.DB {
 		&subjectResolverAssessmentSubjectRow{},
 		&subjectResolverSystemComponentRow{},
 		&subjectResolverSystemImplementationRow{},
+		&relational.Metadata{},
 		&relational.ComponentDefinition{},
 		&relational.DefinedComponent{},
 		&riskrel.AssessmentSubjectLabel{},
@@ -669,6 +671,13 @@ func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionHappyPath(t *t
 	var labelCount int64
 	require.NoError(t, db.Model(&riskrel.ComponentDefinitionLabel{}).Count(&labelCount).Error)
 	require.Equal(t, int64(2), labelCount)
+
+	var cd relational.ComponentDefinition
+	require.NoError(t, db.Preload("Metadata").First(&cd).Error)
+	require.Equal(t, "github components", cd.Metadata.Title)
+	require.Equal(t, "1.0.0", cd.Metadata.Version)
+	require.Equal(t, versioning.GetLatestSupportedVersion(), cd.Metadata.OscalVersion)
+	require.NotNil(t, cd.Metadata.LastModified)
 }
 
 func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionIdempotent(t *testing.T) {
@@ -713,6 +722,12 @@ func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionIdempotent(t *
 	var dcCount int64
 	require.NoError(t, db.Table("defined_components").Count(&dcCount).Error)
 	require.Equal(t, int64(1), dcCount)
+
+	var componentDefinition relational.ComponentDefinition
+	require.NoError(t, db.First(&componentDefinition).Error)
+	var metadataCount int64
+	require.NoError(t, db.Model(&relational.Metadata{}).Where("parent_id = ?", componentDefinition.ID.String()).Count(&metadataCount).Error)
+	require.Equal(t, int64(1), metadataCount)
 }
 
 func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionPluginPrefilter(t *testing.T) {
@@ -768,6 +783,59 @@ func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionPluginPrefilte
 	var cdCount int64
 	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
 	require.Equal(t, int64(1), cdCount)
+}
+
+func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionGroupsByPlugin(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	_, err := svc.Create(SubjectTemplatePayload{
+		Name:              "GitHub Component",
+		Type:              "component",
+		IdentityLabelKeys: []string{"asset_id", "cluster"},
+		SourceMode:        "runtime-derived",
+		SelectorLabels: []SubjectTemplateSelectorLabelInput{
+			{Key: "_plugin", Value: "github"},
+		},
+		LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+			{Key: "_plugin"},
+			{Key: "asset_id"},
+			{Key: "cluster"},
+		},
+	})
+	require.NoError(t, err)
+
+	first, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-123"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, first.DefinedComponentIDs, 1)
+
+	second, err := svc.ResolveOrUpsertComponentDefinition(ResolveOrUpsertComponentDefinitionInput{
+		EvidenceLabels: []relational.Labels{
+			{Name: "_plugin", Value: "github"},
+			{Name: "asset_id", Value: "srv-456"},
+			{Name: "cluster", Value: "prod-us"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, second.DefinedComponentIDs, 1)
+
+	var cdCount int64
+	require.NoError(t, db.Table("component_definitions").Count(&cdCount).Error)
+	require.Equal(t, int64(1), cdCount)
+
+	var dcCount int64
+	require.NoError(t, db.Table("defined_components").Count(&dcCount).Error)
+	require.Equal(t, int64(2), dcCount)
+
+	var cd relational.ComponentDefinition
+	require.NoError(t, db.Preload("Metadata").First(&cd).Error)
+	require.Equal(t, "github components", cd.Metadata.Title)
 }
 
 func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionNoPlugin(t *testing.T) {
