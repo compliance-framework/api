@@ -897,6 +897,15 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	// Upsert metadata separately so repeated calls do not create duplicate polymorphic metadata rows.
 	parentID := cdID.String()
 	parentType := "component_definitions"
+
+	// Serialize metadata upsert per ComponentDefinition to avoid duplicate metadata rows
+	// when concurrent requests resolve the same plugin-scoped ComponentDefinition.
+	var lockedCD relational.ComponentDefinition
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&lockedCD, "id = ?", cdID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	var existingMetadata relational.Metadata
 	metadataQuery := tx.Model(&relational.Metadata{}).Where("parent_id = ? AND parent_type = ?", parentID, parentType)
 	if err := metadataQuery.First(&existingMetadata).Error; err != nil {

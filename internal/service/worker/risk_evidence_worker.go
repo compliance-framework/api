@@ -65,7 +65,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 3. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
-	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(ctx, riskTemplates, evidence.Labels)
+	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(riskTemplates, evidence.Labels)
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
@@ -167,7 +167,7 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 }
 
 // filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence labels
-func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(ctx context.Context, riskTemplates []templates.RiskTemplate, evidenceLabels []relational.Labels) ([]templates.RiskTemplate, error) {
+func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(riskTemplates []templates.RiskTemplate, evidenceLabels []relational.Labels) ([]templates.RiskTemplate, error) {
 	// Extract violation IDs from evidence labels
 	violationIDs := w.extractViolationIDs(evidenceLabels)
 

@@ -688,7 +688,6 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
-	ctx := context.Background()
 
 	// Create risk templates
 	template1 := &templates.RiskTemplate{
@@ -717,7 +716,7 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 	}
 
 	// Filter templates
-	filtered, err := worker.filterRiskTemplatesByViolations(ctx, riskTemplates, evidenceLabels)
+	filtered, err := worker.filterRiskTemplatesByViolations(riskTemplates, evidenceLabels)
 
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 2) // template1 and template3 should match
