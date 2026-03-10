@@ -2,6 +2,7 @@ package risks
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -9,6 +10,26 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
+
+type RiskReviewDecision string
+
+const (
+	RiskReviewDecisionExtend RiskReviewDecision = "extend"
+	RiskReviewDecisionReopen RiskReviewDecision = "reopen"
+)
+
+func (d RiskReviewDecision) IsValid() bool {
+	switch d {
+	case RiskReviewDecisionExtend, RiskReviewDecisionReopen:
+		return true
+	default:
+		return false
+	}
+}
+
+func NormalizeRiskReviewDecision(raw string) RiskReviewDecision {
+	return RiskReviewDecision(strings.ToLower(strings.TrimSpace(raw)))
+}
 
 type RiskReview struct {
 	relational.UUIDModel

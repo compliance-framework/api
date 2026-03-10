@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -46,6 +47,22 @@ type UpdateRiskParams struct {
 	RecordReview            bool
 	ReviewedAt              *time.Time
 	ReviewJustification     *string
+}
+
+type AcceptRiskParams struct {
+	RiskID         uuid.UUID
+	ActorUserID    *uuid.UUID
+	Justification  string
+	ReviewDeadline time.Time
+}
+
+type ReviewRiskParams struct {
+	RiskID             uuid.UUID
+	ActorUserID        *uuid.UUID
+	ReviewedAt         *time.Time
+	Decision           RiskReviewDecision
+	Notes              *string
+	NextReviewDeadline *time.Time
 }
 
 type Associations struct {
@@ -210,6 +227,182 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 	}
 
 	return s.GetByID(*params.Risk.ID)
+}
+
+func (s *RiskService) AcceptRisk(params AcceptRiskParams) (*Risk, error) {
+	justification := strings.TrimSpace(params.Justification)
+	if justification == "" {
+		return nil, newValidationError("justification is required")
+	}
+	if params.ReviewDeadline.IsZero() {
+		return nil, newValidationError("reviewDeadline is required")
+	}
+	reviewDeadline := params.ReviewDeadline.UTC()
+	if !reviewDeadline.After(time.Now().UTC()) {
+		return nil, newValidationError("reviewDeadline must be in the future")
+	}
+
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	var risk Risk
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("OwnerAssignments").First(&risk, "id = ?", params.RiskID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if risk.Status == string(RiskStatusClosed) {
+		tx.Rollback()
+		return nil, newValidationError("risk in status closed cannot be accepted")
+	}
+	if risk.Status != string(RiskStatusInvestigating) {
+		tx.Rollback()
+		return nil, newValidationError(fmt.Sprintf("invalid status transition: %s -> %s", risk.Status, RiskStatusRiskAccepted))
+	}
+
+	now := time.Now().UTC()
+	oldStatus := risk.Status
+	risk.Status = string(RiskStatusRiskAccepted)
+	risk.AcceptanceJustification = &justification
+	risk.ReviewDeadline = &reviewDeadline
+	risk.LastReviewedAt = &now
+
+	if err := tx.Save(&risk).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	riskSnapshot, err := s.getRiskSnapshot(tx, *risk.ID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
+		"from": oldStatus,
+		"to":   risk.Status,
+	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeAccepted, params.ActorUserID, datatypes.JSONMap{
+		"status":        risk.Status,
+		"justification": justification,
+	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// TODO(BCH-1182): enqueue risk_created_notify after acceptance once the worker job lands in this branch.
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return s.GetByID(*risk.ID)
+}
+
+func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
+	decision := params.Decision
+	if decision == "" {
+		return nil, newValidationError("decision is required")
+	}
+	if !decision.IsValid() {
+		return nil, newValidationError("decision must be one of: extend, reopen")
+	}
+
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	var risk Risk
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("OwnerAssignments").First(&risk, "id = ?", params.RiskID).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if risk.Status != string(RiskStatusRiskAccepted) {
+		tx.Rollback()
+		return nil, newValidationError("only risks in status risk-accepted can be reviewed")
+	}
+
+	reviewedAt := time.Now().UTC()
+	if params.ReviewedAt != nil {
+		reviewedAt = params.ReviewedAt.UTC()
+	}
+
+	nextReviewDeadline := params.NextReviewDeadline
+	if decision == RiskReviewDecisionExtend {
+		if nextReviewDeadline == nil {
+			tx.Rollback()
+			return nil, newValidationError("nextReviewDeadline is required when decision is extend")
+		}
+		nextUTC := nextReviewDeadline.UTC()
+		if !nextUTC.After(time.Now().UTC()) {
+			tx.Rollback()
+			return nil, newValidationError("nextReviewDeadline must be in the future when decision is extend")
+		}
+		nextReviewDeadline = &nextUTC
+		risk.ReviewDeadline = &nextUTC
+	}
+
+	if decision == RiskReviewDecisionReopen {
+		nextReviewDeadline = nil
+		risk.Status = string(RiskStatusInvestigating)
+		risk.ReviewDeadline = nil
+	}
+
+	risk.LastReviewedAt = &reviewedAt
+	if err := tx.Save(&risk).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	riskSnapshot, err := s.getRiskSnapshot(tx, *risk.ID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if decision == RiskReviewDecisionReopen {
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
+			"from": string(RiskStatusRiskAccepted),
+			"to":   risk.Status,
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	review := RiskReview{
+		RiskID:              *risk.ID,
+		ReviewedByUserID:    params.ActorUserID,
+		ReviewedAt:          reviewedAt,
+		Decision:            string(decision),
+		NextReviewDeadline:  nextReviewDeadline,
+		ReviewJustification: params.Notes,
+		RiskSnapshot:        riskSnapshot,
+	}
+	if err := tx.Create(&review).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
+		"decision": string(decision),
+	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return s.GetByID(*risk.ID)
 }
 
 func (s *RiskService) Delete(riskID uuid.UUID) error {

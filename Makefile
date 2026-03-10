@@ -22,6 +22,7 @@ IMG ?= controller:latest
 ENVTEST_K8S_VERSION = 1.26.1
 # Default Test Path for a single integration test. Defaults to root
 TEST_PATH ?= ./...
+INTEGRATION_RUNS ?= 3
 
 BLUE         := $(shell printf "\033[34m")
 YELLOW       := $(shell printf "\033[33m")
@@ -64,10 +65,13 @@ test: swag  ## Run tests
 
 .PHONY:   test-integration
 test-integration: swag  ## Run tests
-	@if ! go test ./... -coverprofile cover.out -v --tags integration; then \
-		$(WARN) "Tests failed"; \
-		exit 1; \
-	fi ; \
+	@for run in $$(seq 1 $(INTEGRATION_RUNS)); do \
+		$(INFO) "Integration run $$run/$(INTEGRATION_RUNS)"; \
+		if ! go test ./... -count=1 -coverprofile cover.out -v --tags integration; then \
+			$(WARN) "Tests failed on run $$run"; \
+			exit 1; \
+		fi ; \
+	done ; \
 	$(OK) Tests passed
 
 
