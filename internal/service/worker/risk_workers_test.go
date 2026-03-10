@@ -168,6 +168,7 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 	db := newRiskWorkersTestDB(t)
 	client := &stubRiverClient{}
 	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
 
 	// Evidence failure without linked risk
 	evidenceID := uuid.New()
@@ -175,10 +176,48 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 		UUIDModel: relational.UUIDModel{ID: &evidenceID},
 		UUID:      uuid.New(),
 		Title:     "failing evidence",
-		Start:     time.Now().UTC().Add(-time.Hour),
-		End:       time.Now().UTC(),
+		Start:     now.Add(-time.Hour),
+		End:       now,
 		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied}),
 	}).Error)
+
+	// Evidence-linked risk with missing risk_subject_links
+	path2SSP := uuid.New()
+	require.NoError(t, db.Create(&relational.SystemSecurityPlan{UUIDModel: relational.UUIDModel{ID: &path2SSP}}).Error)
+	path2RiskID := uuid.New()
+	require.NoError(t, db.Create(&riskrel.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &path2RiskID},
+		Title:       "auto risk missing subjects",
+		Description: "auto risk missing subjects",
+		Status:      string(riskrel.RiskStatusInvestigating),
+		SSPID:       path2SSP,
+		SourceType:  string(riskrel.RiskSourceTypeEvidenceAuto),
+		FirstSeenAt: now.Add(-2 * time.Hour),
+		LastSeenAt:  now,
+	}).Error)
+
+	path2EvidenceID := uuid.New()
+	path2Evidence := relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &path2EvidenceID},
+		UUID:      uuid.New(),
+		Title:     "linked failing evidence",
+		Start:     now.Add(-2 * time.Hour),
+		End:       now.Add(-30 * time.Minute),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied}),
+	}
+	require.NoError(t, db.Create(&path2Evidence).Error)
+	require.NoError(t, db.Create(&riskrel.RiskEvidenceLink{
+		RiskID:     path2RiskID,
+		EvidenceID: path2EvidenceID,
+	}).Error)
+
+	subjectID := uuid.New()
+	subject := relational.AssessmentSubject{
+		UUIDModel: relational.UUIDModel{ID: &subjectID},
+		Type:      "component",
+	}
+	require.NoError(t, db.Create(&subject).Error)
+	require.NoError(t, db.Model(&path2Evidence).Association("Subjects").Append(&subject))
 
 	// Duplicate active risks by dedupe key
 	dupSSP := uuid.New()
@@ -193,8 +232,8 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 		SSPID:       dupSSP,
 		SourceType:  string(riskrel.RiskSourceTypeManual),
 		DedupeKey:   "dup-key",
-		FirstSeenAt: time.Now().UTC(),
-		LastSeenAt:  time.Now().UTC(),
+		FirstSeenAt: now,
+		LastSeenAt:  now,
 	}).Error)
 	require.NoError(t, db.Create(&riskrel.Risk{
 		UUIDModel:   relational.UUIDModel{ID: &r2ID},
@@ -204,20 +243,26 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 		SSPID:       dupSSP,
 		SourceType:  string(riskrel.RiskSourceTypeManual),
 		DedupeKey:   "dup-key",
-		FirstSeenAt: time.Now().UTC(),
-		LastSeenAt:  time.Now().UTC(),
+		FirstSeenAt: now,
+		LastSeenAt:  now,
 	}).Error)
 
 	w := NewRiskEvidenceReconciliationScannerWorker(db, client, logger)
 	err := w.Work(context.Background(), &river.Job[RiskEvidenceReconciliationScannerArgs]{})
 	require.NoError(t, err)
 
-	var sawEvidenceRepair, sawEvidenceRepairWithRetries, sawDuplicateRepair bool
+	var sawEvidenceRepair, sawMissingSubjectRepair, sawEvidenceRepairWithRetries, sawDuplicateRepair bool
 	for _, p := range client.params {
 		switch args := p.Args.(type) {
 		case RiskProcessEvidenceFailureArgs:
 			if args.EvidenceID == evidenceID {
 				sawEvidenceRepair = true
+				if p.InsertOpts != nil && p.InsertOpts.MaxAttempts == 5 {
+					sawEvidenceRepairWithRetries = true
+				}
+			}
+			if args.EvidenceID == path2EvidenceID {
+				sawMissingSubjectRepair = true
 				if p.InsertOpts != nil && p.InsertOpts.MaxAttempts == 5 {
 					sawEvidenceRepairWithRetries = true
 				}
@@ -229,6 +274,7 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 		}
 	}
 	assert.True(t, sawEvidenceRepair)
+	assert.True(t, sawMissingSubjectRepair)
 	assert.True(t, sawEvidenceRepairWithRetries)
 	assert.True(t, sawDuplicateRepair)
 }

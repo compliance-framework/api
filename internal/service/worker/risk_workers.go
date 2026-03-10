@@ -18,6 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const riskEvidenceReconciliationOrphanLimit = 500
+
 type RiskReviewDeadlineReminderScannerWorker struct {
 	db     *gorm.DB
 	client workflow.RiverClient
@@ -264,6 +266,9 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 	}
 	if err := orphanQuery.
 		Where("NOT EXISTS (SELECT 1 FROM risk_evidence_links rel WHERE rel.evidence_id = evidences.id)").
+		Order("evidences.end DESC").
+		Order("evidences.id DESC").
+		Limit(riskEvidenceReconciliationOrphanLimit).
 		Find(&orphanEvidence).Error; err != nil {
 		return fmt.Errorf("risk reconciliation scanner: query orphan evidence failed: %w", err)
 	}
