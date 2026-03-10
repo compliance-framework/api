@@ -348,7 +348,9 @@ func (h *RiskHandler) ListForSSP(ctx echo.Context) error {
 		return h.internalServerError(ctx, "failed to validate ssp", err)
 	}
 
-	ctx.QueryParams().Set("sspId", sspID.String())
+	q := ctx.QueryParams()
+	q.Set("sspId", sspID.String())
+	ctx.Request().URL.RawQuery = q.Encode()
 	return h.List(ctx)
 }
 

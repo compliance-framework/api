@@ -349,16 +349,37 @@ func (s *RiskService) DeleteEvidenceLink(riskID, evidenceID uuid.UUID, actorUser
 		return false, resolveErr
 	}
 
+	deletedEvidenceID := evidenceStreamID
 	result := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceStreamID)
 	if result.Error != nil {
 		tx.Rollback()
 		return false, result.Error
 	}
+
+	if result.RowsAffected > 0 && evidenceStreamID != evidenceID {
+		// Best-effort cleanup for legacy rows that may still store evidences.id.
+		if err := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID).Error; err != nil {
+			tx.Rollback()
+			return false, err
+		}
+	}
+
+	if result.RowsAffected == 0 && evidenceStreamID != evidenceID {
+		legacyDelete := tx.Delete(&RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", riskID, evidenceID)
+		if legacyDelete.Error != nil {
+			tx.Rollback()
+			return false, legacyDelete.Error
+		}
+		result = legacyDelete
+		deletedEvidenceID = evidenceID
+	}
+
 	if result.RowsAffected == 0 {
 		tx.Rollback()
 		return false, nil
 	}
-	if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceUnlink, actorUserID, datatypes.JSONMap{"evidenceId": evidenceStreamID.String()}); err != nil {
+
+	if err := s.logRiskEvent(tx, riskID, RiskEventTypeEvidenceUnlink, actorUserID, datatypes.JSONMap{"evidenceId": deletedEvidenceID.String()}); err != nil {
 		tx.Rollback()
 		return false, err
 	}

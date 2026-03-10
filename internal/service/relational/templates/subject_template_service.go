@@ -888,16 +888,45 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	// Upsert ComponentDefinition.
 	cd := relational.ComponentDefinition{
 		UUIDModel: relational.UUIDModel{ID: &cdID},
-		Metadata: relational.Metadata{
-			Title:        componentDefinitionTitle,
-			Version:      "1.0.0",
-			OscalVersion: versioning.GetLatestSupportedVersion(),
-			LastModified: &now,
-		},
 	}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&cd).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Omit(clause.Associations).Create(&cd).Error; err != nil {
 		tx.Rollback()
 		return nil, err
+	}
+
+	// Upsert metadata separately so repeated calls do not create duplicate polymorphic metadata rows.
+	parentID := cdID.String()
+	parentType := "component_definitions"
+	var existingMetadata relational.Metadata
+	metadataQuery := tx.Model(&relational.Metadata{}).Where("parent_id = ? AND parent_type = ?", parentID, parentType)
+	if err := metadataQuery.First(&existingMetadata).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			md := relational.Metadata{
+				Title:        componentDefinitionTitle,
+				Version:      "1.0.0",
+				OscalVersion: versioning.GetLatestSupportedVersion(),
+				LastModified: &now,
+				ParentID:     &parentID,
+				ParentType:   &parentType,
+			}
+			if err := tx.Omit(clause.Associations).Create(&md).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+		} else {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := tx.Model(&relational.Metadata{}).Where("parent_id = ? AND parent_type = ?", parentID, parentType).Updates(map[string]interface{}{
+			"title":         componentDefinitionTitle,
+			"version":       "1.0.0",
+			"oscal_version": versioning.GetLatestSupportedVersion(),
+			"last_modified": &now,
+		}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	// Upsert DefinedComponent with rendered template values.

@@ -456,6 +456,40 @@ func TestRiskServiceRejectsInvalidOwnerAssignments(t *testing.T) {
 	require.ErrorContains(t, err, "ownerRef must be a valid UUID")
 }
 
+func TestRiskServiceDeleteEvidenceLinkDeletesLegacyRowIDs(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "legacy-evidence-link",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	evidenceID := uuid.New()
+	evidenceStreamID := uuid.New()
+	require.NoError(t, db.Create(&testEvidenceRow{ID: evidenceID, UUID: evidenceStreamID, End: time.Now().UTC()}).Error)
+
+	// Simulate migration overlap where both legacy and stream IDs may be linked.
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceID}).Error)
+	require.NoError(t, db.Create(&RiskEvidenceLink{RiskID: riskID, EvidenceID: evidenceStreamID}).Error)
+
+	actorID := uuid.New()
+	deleted, err := svc.DeleteEvidenceLink(riskID, evidenceID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	var remaining int64
+	require.NoError(t, db.Model(&RiskEvidenceLink{}).Where("risk_id = ?", riskID).Count(&remaining).Error)
+	require.Zero(t, remaining)
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

@@ -250,6 +250,13 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
 	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
 	require.Equal(suite.T(), sspID, created.Data.SSPID.String())
 
+	otherCreateRec, otherCreateReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", otherSSPID), map[string]any{
+		"title":       "Other scoped risk",
+		"description": "should not appear in first scope list",
+	})
+	suite.server.E().ServeHTTP(otherCreateRec, otherCreateReq)
+	require.Equal(suite.T(), http.StatusCreated, otherCreateRec.Code)
+
 	listRec, listHTTPReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks?page=1&limit=20", sspID), nil)
 	suite.server.E().ServeHTTP(listRec, listHTTPReq)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)

@@ -722,6 +722,12 @@ func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionIdempotent(t *
 	var dcCount int64
 	require.NoError(t, db.Table("defined_components").Count(&dcCount).Error)
 	require.Equal(t, int64(1), dcCount)
+
+	var componentDefinition relational.ComponentDefinition
+	require.NoError(t, db.First(&componentDefinition).Error)
+	var metadataCount int64
+	require.NoError(t, db.Model(&relational.Metadata{}).Where("parent_id = ?", componentDefinition.ID.String()).Count(&metadataCount).Error)
+	require.Equal(t, int64(1), metadataCount)
 }
 
 func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionPluginPrefilter(t *testing.T) {
