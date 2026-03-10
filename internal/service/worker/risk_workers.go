@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
@@ -684,27 +683,7 @@ func resolveRiskOwnerUserIDsBatch(ctx context.Context, db *gorm.DB, risks []risk
 	return ownersByRiskID, nil
 }
 
-var systemCharacteristicsTableExistsCache sync.Map
-
-func hasSystemCharacteristicsTable(ctx context.Context, db *gorm.DB) bool {
-	sqlDB, err := db.DB()
-	if err != nil {
-		return false
-	}
-	if cached, ok := systemCharacteristicsTableExistsCache.Load(sqlDB); ok {
-		return cached.(bool)
-	}
-
-	exists := db.WithContext(ctx).Migrator().HasTable(&relational.SystemCharacteristics{})
-	systemCharacteristicsTableExistsCache.Store(sqlDB, exists)
-	return exists
-}
-
 func resolveSSPDisplayName(ctx context.Context, db *gorm.DB, sspID uuid.UUID) string {
-	if !hasSystemCharacteristicsTable(ctx, db) {
-		return sspID.String()
-	}
-
 	var sc relational.SystemCharacteristics
 	if err := db.WithContext(ctx).
 		Select("system_name_short", "system_name").
