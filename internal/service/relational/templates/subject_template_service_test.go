@@ -832,6 +832,10 @@ func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionGroupsByPlugin
 	var dcCount int64
 	require.NoError(t, db.Table("defined_components").Count(&dcCount).Error)
 	require.Equal(t, int64(2), dcCount)
+
+	var cd relational.ComponentDefinition
+	require.NoError(t, db.Preload("Metadata").First(&cd).Error)
+	require.Equal(t, "github components", cd.Metadata.Title)
 }
 
 func TestSubjectTemplateService_ResolveOrUpsertComponentDefinitionNoPlugin(t *testing.T) {

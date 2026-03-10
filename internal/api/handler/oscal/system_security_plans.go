@@ -4083,6 +4083,7 @@ func (h *SystemSecurityPlanHandler) SuggestComponents(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/suggest-components [post]
 func (h *SystemSecurityPlanHandler) SuggestComponentsForStatement(ctx echo.Context) error {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {
@@ -4154,6 +4155,7 @@ func (h *SystemSecurityPlanHandler) ApplySuggestion(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestion [post]
 func (h *SystemSecurityPlanHandler) ApplySuggestionForStatement(ctx echo.Context) error {
 	sspID, reqID, stmtID, err := parseSSPReqStmtIDs(ctx)
 	if err != nil {

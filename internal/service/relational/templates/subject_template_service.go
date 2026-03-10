@@ -876,7 +876,7 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	now := time.Now().UTC()
 	componentDefinitionTitle := template.Name
 	if normalizedPlugin != "" {
-		componentDefinitionTitle = fmt.Sprintf("%s components", pluginValue)
+		componentDefinitionTitle = fmt.Sprintf("%s components", normalizedPlugin)
 	}
 
 	tx := s.db.Begin()
@@ -948,6 +948,7 @@ func (s *SubjectTemplateService) resolveOrCreateComponentDefinition(template Sub
 	labels := make([]riskrel.ComponentDefinitionLabel, 0, len(identityPairs))
 	for _, pair := range identityPairs {
 		labels = append(labels, riskrel.ComponentDefinitionLabel{
+			DefinedComponentID:    dcID,
 			ComponentDefinitionID: cdID,
 			Key:                   pair.Key,
 			Value:                 pair.Value,

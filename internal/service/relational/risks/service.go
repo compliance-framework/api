@@ -262,6 +262,11 @@ func (s *RiskService) EnsureRiskExists(riskID uuid.UUID) error {
 	return s.db.Select("id").First(&risk, "id = ?", riskID).Error
 }
 
+func (s *RiskService) EnsureRiskInSSP(riskID, sspID uuid.UUID) error {
+	var risk Risk
+	return s.db.Select("id").First(&risk, "id = ? AND ssp_id = ?", riskID, sspID).Error
+}
+
 func (s *RiskService) EnsureSSPExists(sspID uuid.UUID) error {
 	var ssp relational.SystemSecurityPlan
 	return s.db.Select("id").First(&ssp, "id = ?", sspID).Error
@@ -395,6 +400,9 @@ func (s *RiskService) resolveEvidenceStreamID(tx *gorm.DB, evidenceRef uuid.UUID
 		Select("id", "uuid").
 		Where("id = ?", evidenceRef).
 		First(&evidence).Error; err == nil {
+		if evidence.UUID == uuid.Nil {
+			return uuid.Nil, fmt.Errorf("evidence %s is missing stream uuid", evidence.ID)
+		}
 		return evidence.UUID, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return uuid.Nil, err
@@ -406,6 +414,9 @@ func (s *RiskService) resolveEvidenceStreamID(tx *gorm.DB, evidenceRef uuid.UUID
 		Order(`"evidences"."end" DESC`).
 		First(&evidence).Error; err != nil {
 		return uuid.Nil, err
+	}
+	if evidence.UUID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("evidence %s is missing stream uuid", evidence.ID)
 	}
 
 	return evidence.UUID, nil

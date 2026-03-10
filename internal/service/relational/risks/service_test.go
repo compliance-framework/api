@@ -490,6 +490,30 @@ func TestRiskServiceDeleteEvidenceLinkDeletesLegacyRowIDs(t *testing.T) {
 	require.Zero(t, remaining)
 }
 
+func TestRiskServiceAddEvidenceLinkRejectsEvidenceWithoutStreamUUID(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "missing-stream-uuid",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	evidenceID := uuid.New()
+	require.NoError(t, db.Create(&testEvidenceRow{ID: evidenceID, UUID: uuid.Nil, End: time.Now().UTC()}).Error)
+
+	_, err := svc.AddEvidenceLink(riskID, evidenceID, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing stream uuid")
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

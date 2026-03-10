@@ -187,15 +187,9 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(
 		evidence.ID, labelKey, labelValue,
 	).Error)
 
-	// 4. Create a ComponentDefinition with matching component_definition_labels
+	// 4. Create a ComponentDefinition and a matching DefinedComponent
 	compDef := relational.ComponentDefinition{}
 	suite.Require().NoError(suite.DB.Create(&compDef).Error)
-	suite.Require().NoError(suite.DB.Exec(
-		`INSERT INTO component_definition_labels (component_definition_id, key, value) VALUES (?, ?, ?)`,
-		compDef.ID, labelKey, labelValue,
-	).Error)
-
-	// 5. Create a DefinedComponent linked to that ComponentDefinition
 	dc := relational.DefinedComponent{
 		Type:                  "software",
 		Title:                 "Suggested Component",
@@ -203,6 +197,12 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(
 		ComponentDefinitionID: compDef.ID,
 	}
 	suite.Require().NoError(suite.DB.Create(&dc).Error)
+
+	// 5. Store label match scoped to the DefinedComponent.
+	suite.Require().NoError(suite.DB.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		dc.ID, compDef.ID, labelKey, labelValue,
+	).Error)
 
 	return dc.ID.String()
 }

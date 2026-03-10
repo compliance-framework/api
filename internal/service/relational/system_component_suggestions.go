@@ -106,17 +106,27 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 		evidenceIDs[i] = *e.ID
 	}
 
-	// 5. Find DefinedComponents whose ComponentDefinition has labels that overlap with
-	//    the evidence labels. The component_definition_labels table is populated by
-	//    SubjectTemplateService when ComponentDefinitions are auto-created from evidence.
-	subQ := s.db.Table("component_definition_labels cdl").
-		Select("cdl.component_definition_id").
+	// 5. Find candidate DefinedComponents whose identity labels overlap with evidence labels.
+	//    component_definition_labels must be scoped to defined_component_id.
+	//    Legacy rows without defined_component_id are intentionally unsupported.
+	matchedDefinedComponentIDs := make([]uuid.UUID, 0)
+	if err := s.db.Table("component_definition_labels cdl").
+		Distinct().
+		Select("cdl.defined_component_id").
 		Joins("JOIN evidence_labels el ON LOWER(el.labels_name) = LOWER(cdl.key) AND LOWER(el.labels_value) = LOWER(cdl.value)").
-		Where("el.evidence_id IN ?", evidenceIDs)
+		Where("el.evidence_id IN ?", evidenceIDs).
+		Where("cdl.defined_component_id IS NOT NULL").
+		Pluck("cdl.defined_component_id", &matchedDefinedComponentIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to query defined component label matches: %w", err)
+	}
+
+	if len(matchedDefinedComponentIDs) == 0 {
+		return []SystemComponentSuggestion{}, nil
+	}
 
 	var candidates []DefinedComponent
 	if err := s.db.
-		Where("component_definition_id IN (?)", subQ).
+		Where("id IN ?", matchedDefinedComponentIDs).
 		Find(&candidates).Error; err != nil {
 		return nil, fmt.Errorf("failed to query defined components: %w", err)
 	}
