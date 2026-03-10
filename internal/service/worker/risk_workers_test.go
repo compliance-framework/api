@@ -207,12 +207,15 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 	err := w.Work(context.Background(), &river.Job[RiskEvidenceReconciliationScannerArgs]{})
 	require.NoError(t, err)
 
-	var sawEvidenceRepair, sawDuplicateRepair bool
+	var sawEvidenceRepair, sawEvidenceRepairWithRetries, sawDuplicateRepair bool
 	for _, p := range client.params {
 		switch args := p.Args.(type) {
 		case RiskProcessEvidenceFailureArgs:
 			if args.EvidenceID == evidenceID {
 				sawEvidenceRepair = true
+				if p.InsertOpts != nil && p.InsertOpts.MaxAttempts == 5 {
+					sawEvidenceRepairWithRetries = true
+				}
 			}
 		case RiskReconcileDuplicatesArgs:
 			if args.DedupeKey == "dup-key" {
@@ -221,6 +224,7 @@ func TestRiskEvidenceReconciliationScannerWorker_EnqueuesRepairJobs(t *testing.T
 		}
 	}
 	assert.True(t, sawEvidenceRepair)
+	assert.True(t, sawEvidenceRepairWithRetries)
 	assert.True(t, sawDuplicateRepair)
 }
 

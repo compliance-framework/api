@@ -156,7 +156,7 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 	for _, args := range reopenByRiskID {
 		params = append(params, river.InsertManyParams{
 			Args:       args,
-			InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
+			InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
 		})
 	}
 
@@ -281,7 +281,7 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 				EvidenceEnd: e.End.UTC().Format(time.RFC3339),
 				Status:      state,
 			},
-			InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
+			InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
 		})
 	}
 
@@ -334,7 +334,7 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 				EvidenceEnd: evidence.End.UTC().Format(time.RFC3339),
 				Status:      state,
 			},
-			InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
+			InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
 		})
 	}
 
