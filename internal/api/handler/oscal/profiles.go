@@ -1475,15 +1475,26 @@ func rollUpToRootGroup(db *gorm.DB, group relational.Group) (relational.Group, e
 	return group, nil
 }
 
+type controlMergeKey struct {
+	CatalogID uuid.UUID
+	ID        string
+}
+
+type groupMergeKey struct {
+	CatalogID uuid.UUID
+	ID        string
+}
+
 func mergeControls(controls ...relational.Control) []relational.Control {
-	mapped := map[string]relational.Control{}
+	mapped := map[controlMergeKey]relational.Control{}
 	for _, control := range controls {
-		if sub, ok := mapped[control.ID]; ok {
+		key := controlMergeKey{CatalogID: control.CatalogID, ID: control.ID}
+		if sub, ok := mapped[key]; ok {
 			control.Controls = append(control.Controls, sub.Controls...)
 		}
 
 		control.Controls = mergeControls(control.Controls...)
-		mapped[control.ID] = control
+		mapped[key] = control
 	}
 
 	flattened := []relational.Control{}
@@ -1494,16 +1505,17 @@ func mergeControls(controls ...relational.Control) []relational.Control {
 }
 
 func mergeGroups(groups ...relational.Group) []relational.Group {
-	mapped := map[string]relational.Group{}
+	mapped := map[groupMergeKey]relational.Group{}
 	for _, group := range groups {
-		if sub, ok := mapped[group.ID]; ok {
+		key := groupMergeKey{CatalogID: group.CatalogID, ID: group.ID}
+		if sub, ok := mapped[key]; ok {
 			group.Groups = append(group.Groups, sub.Groups...)
 			group.Controls = append(group.Controls, sub.Controls...)
 		}
 
 		group.Controls = mergeControls(group.Controls...)
 		group.Groups = mergeGroups(group.Groups...)
-		mapped[group.ID] = group
+		mapped[key] = group
 	}
 	flattened := []relational.Group{}
 	for _, group := range mapped {
