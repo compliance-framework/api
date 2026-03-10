@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
@@ -40,13 +41,18 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 		return fmt.Errorf("risk deadline reminder scanner: query failed: %w", err)
 	}
 
+	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
+	if err != nil {
+		return fmt.Errorf("risk deadline reminder scanner: resolve owners failed: %w", err)
+	}
+
 	params := make([]river.InsertManyParams, 0, len(risks))
 	for i := range risks {
 		risk := &risks[i]
-		ownerIDs, err := resolveRiskOwnerUserIDs(ctx, w.db, risk)
-		if err != nil {
-			return fmt.Errorf("risk deadline reminder scanner: resolve owners for risk %s: %w", risk.ID.String(), err)
+		if risk.ID == nil {
+			continue
 		}
+		ownerIDs := ownersByRiskID[*risk.ID]
 		for _, ownerID := range ownerIDs {
 			params = append(params, river.InsertManyParams{
 				Args: RiskReviewDueReminderArgs{
@@ -108,15 +114,19 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 		return fmt.Errorf("risk overdue escalation scanner: query failed: %w", err)
 	}
 
+	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
+	if err != nil {
+		return fmt.Errorf("risk overdue escalation scanner: resolve owners failed: %w", err)
+	}
+
 	params := make([]river.InsertManyParams, 0, len(risks))
 	reopenByRiskID := make(map[uuid.UUID]RiskReviewOverdueReopenArgs, len(risks))
 	for i := range risks {
 		risk := &risks[i]
-
-		ownerIDs, err := resolveRiskOwnerUserIDs(ctx, w.db, risk)
-		if err != nil {
-			return fmt.Errorf("risk overdue escalation scanner: resolve owners for risk %s: %w", risk.ID.String(), err)
+		if risk.ID == nil {
+			continue
 		}
+		ownerIDs := ownersByRiskID[*risk.ID]
 		overdueWindow := now.Format("2006-01-02")
 		for _, ownerID := range ownerIDs {
 			params = append(params, river.InsertManyParams{
@@ -191,13 +201,18 @@ func (w *RiskStaleRiskScannerWorker) Work(ctx context.Context, _ *river.Job[Risk
 		return fmt.Errorf("risk stale scanner: query failed: %w", err)
 	}
 
+	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
+	if err != nil {
+		return fmt.Errorf("risk stale scanner: resolve owners failed: %w", err)
+	}
+
 	params := make([]river.InsertManyParams, 0, len(risks))
 	for i := range risks {
 		risk := &risks[i]
-		ownerIDs, err := resolveRiskOwnerUserIDs(ctx, w.db, risk)
-		if err != nil {
-			return fmt.Errorf("risk stale scanner: resolve owners for risk %s: %w", risk.ID.String(), err)
+		if risk.ID == nil {
+			continue
 		}
+		ownerIDs := ownersByRiskID[*risk.ID]
 		for _, ownerID := range ownerIDs {
 			params = append(params, river.InsertManyParams{
 				Args: RiskStaleOpenReminderArgs{
@@ -239,10 +254,16 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 
 	// 1) Evidence failures without linked risks.
 	var orphanEvidence []relational.Evidence
-	if err := w.db.WithContext(ctx).
-		Model(&relational.Evidence{}).
-		Where("(status->>'state' = ? OR json_extract(status, '$.state') = ? OR CAST(status as TEXT) LIKE ?)",
-			relational.EvidenceStatusNotSatisfied, relational.EvidenceStatusNotSatisfied, "%\"state\":\"not-satisfied\"%").
+	orphanQuery := w.db.WithContext(ctx).Model(&relational.Evidence{})
+	switch w.db.Name() {
+	case "postgres":
+		orphanQuery = orphanQuery.Where("status->>'state' = ?", relational.EvidenceStatusNotSatisfied)
+	case "sqlite":
+		orphanQuery = orphanQuery.Where("json_extract(status, '$.state') = ?", relational.EvidenceStatusNotSatisfied)
+	default:
+		orphanQuery = orphanQuery.Where("status->>'state' = ?", relational.EvidenceStatusNotSatisfied)
+	}
+	if err := orphanQuery.
 		Where("NOT EXISTS (SELECT 1 FROM risk_evidence_links rel WHERE rel.evidence_id = evidences.id)").
 		Find(&orphanEvidence).Error; err != nil {
 		return fmt.Errorf("risk reconciliation scanner: query orphan evidence failed: %w", err)
@@ -582,40 +603,78 @@ func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job
 	return nil
 }
 
-func resolveRiskOwnerUserIDs(ctx context.Context, db *gorm.DB, risk *riskrel.Risk) ([]uuid.UUID, error) {
-	if risk == nil {
-		return nil, nil
+func resolveRiskOwnerUserIDsBatch(ctx context.Context, db *gorm.DB, risks []riskrel.Risk) (map[uuid.UUID][]uuid.UUID, error) {
+	ownerSetByRiskID := make(map[uuid.UUID]map[uuid.UUID]struct{}, len(risks))
+	riskIDs := make([]uuid.UUID, 0, len(risks))
+	for i := range risks {
+		risk := &risks[i]
+		if risk == nil || risk.ID == nil {
+			continue
+		}
+		riskID := *risk.ID
+		riskIDs = append(riskIDs, riskID)
+		if _, ok := ownerSetByRiskID[riskID]; !ok {
+			ownerSetByRiskID[riskID] = make(map[uuid.UUID]struct{}, 4)
+		}
+		if risk.PrimaryOwnerUserID != nil {
+			ownerSetByRiskID[riskID][*risk.PrimaryOwnerUserID] = struct{}{}
+		}
 	}
-
-	ownerSet := make(map[uuid.UUID]struct{}, 4)
-	if risk.PrimaryOwnerUserID != nil {
-		ownerSet[*risk.PrimaryOwnerUserID] = struct{}{}
+	if len(riskIDs) == 0 {
+		return map[uuid.UUID][]uuid.UUID{}, nil
 	}
 
 	var assignments []riskrel.RiskOwnerAssignment
 	if err := db.WithContext(ctx).
-		Where("risk_id = ? AND owner_kind = ?", *risk.ID, "user").
+		Where("risk_id IN ? AND owner_kind = ?", riskIDs, "user").
 		Find(&assignments).Error; err != nil {
 		return nil, err
 	}
+
 	for _, assignment := range assignments {
 		parsed, err := uuid.Parse(assignment.OwnerRef)
 		if err != nil {
 			continue
 		}
-		ownerSet[parsed] = struct{}{}
+		set, ok := ownerSetByRiskID[assignment.RiskID]
+		if !ok {
+			set = make(map[uuid.UUID]struct{}, 1)
+			ownerSetByRiskID[assignment.RiskID] = set
+		}
+		set[parsed] = struct{}{}
 	}
 
-	owners := make([]uuid.UUID, 0, len(ownerSet))
-	for ownerID := range ownerSet {
-		owners = append(owners, ownerID)
+	ownersByRiskID := make(map[uuid.UUID][]uuid.UUID, len(ownerSetByRiskID))
+	for riskID, ownerSet := range ownerSetByRiskID {
+		owners := make([]uuid.UUID, 0, len(ownerSet))
+		for ownerID := range ownerSet {
+			owners = append(owners, ownerID)
+		}
+		sort.Slice(owners, func(i, j int) bool { return owners[i].String() < owners[j].String() })
+		ownersByRiskID[riskID] = owners
 	}
-	sort.Slice(owners, func(i, j int) bool { return owners[i].String() < owners[j].String() })
-	return owners, nil
+
+	return ownersByRiskID, nil
+}
+
+var systemCharacteristicsTableExistsCache sync.Map
+
+func hasSystemCharacteristicsTable(ctx context.Context, db *gorm.DB) bool {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return false
+	}
+	if cached, ok := systemCharacteristicsTableExistsCache.Load(sqlDB); ok {
+		return cached.(bool)
+	}
+
+	exists := db.WithContext(ctx).Migrator().HasTable(&relational.SystemCharacteristics{})
+	systemCharacteristicsTableExistsCache.Store(sqlDB, exists)
+	return exists
 }
 
 func resolveSSPDisplayName(ctx context.Context, db *gorm.DB, sspID uuid.UUID) string {
-	if !db.WithContext(ctx).Migrator().HasTable(&relational.SystemCharacteristics{}) {
+	if !hasSystemCharacteristicsTable(ctx, db) {
 		return sspID.String()
 	}
 

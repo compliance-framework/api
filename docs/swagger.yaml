@@ -6629,8 +6629,9 @@ definitions:
       lastName:
         type: string
       riskNotificationsSubscribed:
-        description: RiskNotificationsSubscribed indicates if the user wants to receive
-          risk lifecycle notifications
+        description: |-
+          RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.
+          The DB default is intentionally true so existing users are opted in when the column is introduced.
         type: boolean
       taskAvailableEmailSubscribed:
         description: TaskAvailableEmailSubscribed indicates if the user wants an email

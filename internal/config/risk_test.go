@@ -92,6 +92,16 @@ auto_reopen_threshold_days: 60
 	assert.Equal(t, 60, cfg.AutoReopenThresholdDays)
 }
 
+func TestLoadRiskConfigMissingFileUsesDefaults(t *testing.T) {
+	cfg, err := LoadRiskConfig(filepath.Join(t.TempDir(), "does-not-exist.yaml"))
+	require.NoError(t, err)
+
+	def := DefaultRiskConfig()
+	assert.Equal(t, def.ReviewDeadlineReminderEnabled, cfg.ReviewDeadlineReminderEnabled)
+	assert.Equal(t, def.ReviewDeadlineReminderSchedule, cfg.ReviewDeadlineReminderSchedule)
+	assert.Equal(t, def.AutoReopenThresholdDays, cfg.AutoReopenThresholdDays)
+}
+
 func TestRiskConfigValidate(t *testing.T) {
 	tests := []struct {
 		name    string

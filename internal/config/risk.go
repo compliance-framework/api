@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/robfig/cron/v3"
@@ -66,7 +67,7 @@ func LoadRiskConfig(path string) (*RiskConfig, error) {
 		v.SetConfigType("yaml")
 		if err := v.ReadInConfig(); err != nil {
 			var notFound viper.ConfigFileNotFoundError
-			if !errors.As(err, &notFound) {
+			if !errors.As(err, &notFound) && !errors.Is(err, os.ErrNotExist) {
 				return nil, fmt.Errorf("failed to read risk config file: %w", err)
 			}
 		}

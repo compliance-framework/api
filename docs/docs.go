@@ -31539,7 +31539,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "riskNotificationsSubscribed": {
-                    "description": "RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications",
+                    "description": "RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.\nThe DB default is intentionally true so existing users are opted in when the column is introduced.",
                     "type": "boolean"
                 },
                 "taskAvailableEmailSubscribed": {
