@@ -349,7 +349,6 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	}
 
 	if decision == RiskReviewDecisionReopen {
-		nextReviewDeadline = nil
 		risk.Status = string(RiskStatusInvestigating)
 		risk.ReviewDeadline = nil
 		risk.AcceptanceJustification = nil

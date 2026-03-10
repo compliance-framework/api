@@ -670,6 +670,17 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 	require.Nil(t, reopened.AcceptanceJustification)
 	require.NotNil(t, reopened.LastReviewedAt)
 
+	reviewAfterReopenDeadline := time.Now().Add(7 * 24 * time.Hour).UTC()
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             riskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionExtend,
+		NextReviewDeadline: &reviewAfterReopenDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "only risks in status risk-accepted can be reviewed")
+
 	var reviews []RiskReview
 	require.NoError(t, db.Where("risk_id = ?", riskID).Order("created_at asc").Find(&reviews).Error)
 	require.Len(t, reviews, 2)
