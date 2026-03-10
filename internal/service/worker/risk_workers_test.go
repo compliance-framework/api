@@ -328,6 +328,10 @@ func TestRiskReviewOverdueReopenWorker_ReopensAcceptedRisk(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	reviewDeadline := time.Now().UTC().Add(-40 * 24 * time.Hour)
 	risk, _ := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, time.Now().UTC())
+	justification := "temporarily accepted due to compensating controls"
+	require.NoError(t, db.Model(&riskrel.Risk{}).
+		Where("id = ?", risk.ID).
+		Update("acceptance_justification", justification).Error)
 
 	w := NewRiskReviewOverdueReopenWorker(db, logger)
 	err := w.Work(context.Background(), &river.Job[RiskReviewOverdueReopenArgs]{
@@ -342,6 +346,7 @@ func TestRiskReviewOverdueReopenWorker_ReopensAcceptedRisk(t *testing.T) {
 	require.NoError(t, db.First(&updated, "id = ?", risk.ID).Error)
 	assert.Equal(t, string(riskrel.RiskStatusInvestigating), updated.Status)
 	assert.Nil(t, updated.ReviewDeadline)
+	assert.Nil(t, updated.AcceptanceJustification)
 }
 
 func TestRiskReviewDueReminderWorker_RespectsRiskSubscription(t *testing.T) {

@@ -619,6 +619,7 @@ func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job
 	oldStatus := risk.Status
 	risk.Status = string(riskrel.RiskStatusInvestigating)
 	risk.ReviewDeadline = nil
+	risk.AcceptanceJustification = nil
 	if _, err := riskSvc.Update(riskrel.UpdateRiskParams{
 		Risk:          risk,
 		OldStatus:     oldStatus,
