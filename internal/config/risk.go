@@ -110,6 +110,9 @@ func (c *RiskConfig) Validate() error {
 	if c.AutoReopenThresholdDays < 0 {
 		return fmt.Errorf("risk auto reopen threshold days must be non-negative")
 	}
+	if c.AutoReopenEnabled && c.AutoReopenThresholdDays <= 0 {
+		return fmt.Errorf("risk auto reopen threshold days must be greater than zero when auto reopen is enabled")
+	}
 
 	return nil
 }

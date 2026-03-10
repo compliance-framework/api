@@ -133,6 +133,14 @@ func TestRiskConfigValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "zero threshold invalid when auto reopen enabled",
+			cfg: &RiskConfig{
+				AutoReopenEnabled:       true,
+				AutoReopenThresholdDays: 0,
+			},
+			wantErr: true,
+		},
+		{
 			name: "disabled schedule may be invalid",
 			cfg: &RiskConfig{
 				ReviewDeadlineReminderEnabled:  false,
