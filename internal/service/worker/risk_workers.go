@@ -43,9 +43,6 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 	params := make([]river.InsertManyParams, 0, len(risks))
 	for i := range risks {
 		risk := &risks[i]
-		if risk.ReviewDeadline == nil {
-			continue
-		}
 		ownerIDs, err := resolveRiskOwnerUserIDs(ctx, w.db, risk)
 		if err != nil {
 			return fmt.Errorf("risk deadline reminder scanner: resolve owners for risk %s: %w", risk.ID.String(), err)
@@ -115,9 +112,6 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 	reopenByRiskID := make(map[uuid.UUID]RiskReviewOverdueReopenArgs, len(risks))
 	for i := range risks {
 		risk := &risks[i]
-		if risk.ReviewDeadline == nil {
-			continue
-		}
 
 		ownerIDs, err := resolveRiskOwnerUserIDs(ctx, w.db, risk)
 		if err != nil {
@@ -367,8 +361,7 @@ func NewRiskReviewDueReminderWorker(db *gorm.DB, emailService EmailService, user
 }
 
 func (w *RiskReviewDueReminderWorker) Work(ctx context.Context, job *river.Job[RiskReviewDueReminderArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-review-due-reminder",
-		fmt.Sprintf("Risk review due soon: %s", w.safeRiskTitle(ctx, job.Args.RiskID)))
+	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-review-due-reminder", "Risk review due soon")
 }
 
 type RiskReviewOverdueEscalationWorker struct {
@@ -384,8 +377,7 @@ func NewRiskReviewOverdueEscalationWorker(db *gorm.DB, emailService EmailService
 }
 
 func (w *RiskReviewOverdueEscalationWorker) Work(ctx context.Context, job *river.Job[RiskReviewOverdueEscalationArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-review-overdue-escalation",
-		fmt.Sprintf("Risk review overdue: %s", w.safeRiskTitle(ctx, job.Args.RiskID)))
+	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-review-overdue-escalation", "Risk review overdue")
 }
 
 type RiskStaleOpenReminderWorker struct {
@@ -401,43 +393,19 @@ func NewRiskStaleOpenReminderWorker(db *gorm.DB, emailService EmailService, user
 }
 
 func (w *RiskStaleOpenReminderWorker) Work(ctx context.Context, job *river.Job[RiskStaleOpenReminderArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-stale-open-reminder",
-		fmt.Sprintf("Stale risk reminder: %s", w.safeRiskTitle(ctx, job.Args.RiskID)))
+	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-stale-open-reminder", "Stale risk reminder")
 }
 
-func (w *RiskReviewDueReminderWorker) safeRiskTitle(ctx context.Context, riskID uuid.UUID) string {
-	return safeRiskTitle(ctx, w.db, riskID)
+func (w *RiskReviewDueReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subjectPrefix string) error {
+	return sendRiskNotification(ctx, w.db, w.emailService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subjectPrefix)
 }
 
-func (w *RiskReviewOverdueEscalationWorker) safeRiskTitle(ctx context.Context, riskID uuid.UUID) string {
-	return safeRiskTitle(ctx, w.db, riskID)
+func (w *RiskReviewOverdueEscalationWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subjectPrefix string) error {
+	return sendRiskNotification(ctx, w.db, w.emailService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subjectPrefix)
 }
 
-func (w *RiskStaleOpenReminderWorker) safeRiskTitle(ctx context.Context, riskID uuid.UUID) string {
-	return safeRiskTitle(ctx, w.db, riskID)
-}
-
-func safeRiskTitle(ctx context.Context, db *gorm.DB, riskID uuid.UUID) string {
-	var risk riskrel.Risk
-	if err := db.WithContext(ctx).Select("title").First(&risk, "id = ?", riskID).Error; err != nil {
-		return riskID.String()
-	}
-	if strings.TrimSpace(risk.Title) == "" {
-		return riskID.String()
-	}
-	return risk.Title
-}
-
-func (w *RiskReviewDueReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subject string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subject)
-}
-
-func (w *RiskReviewOverdueEscalationWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subject string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subject)
-}
-
-func (w *RiskStaleOpenReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subject string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subject)
+func (w *RiskStaleOpenReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subjectPrefix string) error {
+	return sendRiskNotification(ctx, w.db, w.emailService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subjectPrefix)
 }
 
 func sendRiskNotification(
@@ -448,7 +416,7 @@ func sendRiskNotification(
 	webBaseURL string,
 	logger *zap.SugaredLogger,
 	riskID, ownerUserID uuid.UUID,
-	templateName, subject string,
+	templateName, subjectPrefix string,
 ) error {
 	var risk riskrel.Risk
 	if err := db.WithContext(ctx).First(&risk, "id = ?", riskID).Error; err != nil {
@@ -469,6 +437,11 @@ func sendRiskNotification(
 		return nil
 	}
 
+	riskTitle := strings.TrimSpace(risk.Title)
+	if riskTitle == "" {
+		riskTitle = riskID.String()
+	}
+
 	sspName := resolveSSPDisplayName(ctx, db, risk.SSPID)
 	reviewDeadline := ""
 	if risk.ReviewDeadline != nil {
@@ -477,7 +450,7 @@ func sendRiskNotification(
 
 	templateData := map[string]interface{}{
 		"OwnerName":      user.FullName(),
-		"RiskTitle":      risk.Title,
+		"RiskTitle":      riskTitle,
 		"SSPName":        sspName,
 		"RiskStatus":     risk.Status,
 		"ReviewDeadline": reviewDeadline,
@@ -493,7 +466,7 @@ func sendRiskNotification(
 	message := &types.Message{
 		From:     emailService.GetDefaultFromAddress(),
 		To:       []string{user.Email},
-		Subject:  subject,
+		Subject:  fmt.Sprintf("%s: %s", subjectPrefix, riskTitle),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
 	}

@@ -88,17 +88,14 @@ func createTestRiskWithOwner(t *testing.T, db *gorm.DB, status riskrel.RiskStatu
 
 func createTestUser(t *testing.T, db *gorm.DB, id uuid.UUID, subscribed bool) {
 	t.Helper()
-	require.NoError(t, db.Create(&relational.User{
-		UUIDModel:                   relational.UUIDModel{ID: &id},
-		Email:                       id.String() + "@example.com",
-		FirstName:                   "Risk",
-		LastName:                    "Owner",
-		AuthMethod:                  "password",
-		RiskNotificationsSubscribed: subscribed,
+	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
+		"id":                            id,
+		"email":                         id.String() + "@example.com",
+		"first_name":                    "Risk",
+		"last_name":                     "Owner",
+		"auth_method":                   "password",
+		"risk_notifications_subscribed": subscribed,
 	}).Error)
-	require.NoError(t, db.Model(&relational.User{}).
-		Where("id = ?", id).
-		Update("risk_notifications_subscribed", subscribed).Error)
 }
 
 func TestRiskReviewDeadlineReminderScannerWorker_EnqueuesPerUserOwner(t *testing.T) {

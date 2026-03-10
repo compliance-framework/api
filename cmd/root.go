@@ -46,6 +46,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("sso_config")
 	viper.MustBindEnv("email_config")
 	viper.MustBindEnv("workflow_config")
+	viper.MustBindEnv("risk_config")
 	viper.MustBindEnv("metrics_enabled")
 	viper.MustBindEnv("metrics_port")
 	viper.MustBindEnv("use_dev_logger")

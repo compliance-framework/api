@@ -93,13 +93,6 @@ func JobInsertOptionsForRiskNotification(byPeriod time.Duration) *river.InsertOp
 	}
 }
 
-func JobInsertOptionsForRiskWorker() *river.InsertOpts {
-	return &river.InsertOpts{
-		Queue:       "risk",
-		MaxAttempts: 3,
-	}
-}
-
 func JobInsertOptionsForRiskWorkerUnique(byPeriod time.Duration) *river.InsertOpts {
 	return &river.InsertOpts{
 		Queue:       "risk",
