@@ -1,0 +1,10 @@
+Hello {{.OwnerName}},
+
+A risk appears stale and should be reviewed.
+
+Risk: {{.RiskTitle}}
+SSP: {{.SSPName}}
+Status: {{.RiskStatus}}
+Last seen: {{.LastSeenAt}}
+
+Open risk: {{.RiskURL}}

@@ -38,6 +38,7 @@ type Config struct {
 	DigestEnabled               bool   // Enable or disable the digest scheduler
 	DigestSchedule              string // Cron schedule for digest emails
 	Workflow                    *WorkflowConfig
+	Risk                        *RiskConfig
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -174,6 +175,16 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		workflowConfig = &WorkflowConfig{SchedulerEnabled: false}
 	}
 
+	riskConfigPath := viper.GetString("risk_config")
+	if riskConfigPath == "" {
+		riskConfigPath = "risk.yaml"
+	}
+	riskConfig, err := LoadRiskConfig(riskConfigPath)
+	if err != nil {
+		logger.Warnw("Failed to load risk config, risk jobs will be disabled", "error", err, "path", riskConfigPath)
+		riskConfig = DefaultRiskConfig()
+	}
+
 	// Worker configuration
 	workerConfig := DefaultWorkerConfig()
 	if viper.IsSet("worker_enabled") {
@@ -206,6 +217,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		DigestEnabled:               digestEnabled,
 		DigestSchedule:              digestSchedule,
 		Workflow:                    workflowConfig,
+		Risk:                        riskConfig,
 	}
 
 }

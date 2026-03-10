@@ -42,5 +42,6 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 		LastName:                     user.LastName,
 		TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
 		TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+		RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
 	}, nil
 }

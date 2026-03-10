@@ -250,6 +250,35 @@ func TestTemplateService_WorkflowTaskDigest_EmptyTasks(t *testing.T) {
 	require.Contains(t, html, "Bob")
 }
 
+func TestTemplateService_RiskTemplates(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"OwnerName":      "Alice Smith",
+		"RiskTitle":      "Weak MFA Controls",
+		"SSPName":        "GoodRead SSP",
+		"RiskStatus":     "risk-accepted",
+		"ReviewDeadline": "01/mar/2026",
+		"LastSeenAt":     "15/feb/2026",
+		"RiskURL":        "https://app.example.com/risks/123",
+	}
+
+	for _, name := range []string{
+		"risk-review-due-reminder",
+		"risk-review-overdue-escalation",
+		"risk-stale-open-reminder",
+	} {
+		html, text, err := service.Use(name, data)
+		require.NoError(t, err)
+		require.NotEmpty(t, html)
+		require.NotEmpty(t, text)
+		require.Contains(t, html, "Alice Smith")
+		require.Contains(t, text, "Weak MFA Controls")
+		require.Contains(t, text, "https://app.example.com/risks/123")
+	}
+}
+
 func TestTemplateService_ListTemplates(t *testing.T) {
 	service, err := NewTemplateService()
 	require.NoError(t, err, "Failed to create template service")

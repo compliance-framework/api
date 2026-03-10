@@ -35,6 +35,9 @@ type User struct {
 	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed" gorm:"default:false"`
 	// TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email
 	TaskDailyDigestSubscribed bool `json:"taskDailyDigestSubscribed" gorm:"default:false"`
+
+	// RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications
+	RiskNotificationsSubscribed bool `json:"riskNotificationsSubscribed" gorm:"default:true"`
 }
 
 func (User) TableName() string {

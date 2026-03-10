@@ -1,0 +1,14 @@
+review_deadline_reminder_enabled: false
+review_deadline_reminder_schedule: "0 0 8 * * *"
+
+review_overdue_escalation_enabled: false
+review_overdue_escalation_schedule: "0 0 9 * * *"
+
+stale_risk_scanner_enabled: false
+stale_risk_scanner_schedule: "0 0 10 * * 1"
+
+evidence_reconciliation_enabled: false
+evidence_reconciliation_schedule: "0 30 10 * * *"
+
+auto_reopen_enabled: false
+auto_reopen_threshold_days: 30

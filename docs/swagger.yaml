@@ -1344,6 +1344,8 @@ definitions:
     type: object
   handler.SubscriptionsResponse:
     properties:
+      riskNotificationsSubscribed:
+        type: boolean
       subscribed:
         type: boolean
       taskAvailableEmailSubscribed:
@@ -1353,6 +1355,8 @@ definitions:
     type: object
   handler.UpdateSubscriptionsRequest:
     properties:
+      riskNotificationsSubscribed:
+        type: boolean
       subscribed:
         type: boolean
       taskAvailableEmailSubscribed:
@@ -6624,6 +6628,10 @@ definitions:
         type: string
       lastName:
         type: string
+      riskNotificationsSubscribed:
+        description: RiskNotificationsSubscribed indicates if the user wants to receive
+          risk lifecycle notifications
+        type: boolean
       taskAvailableEmailSubscribed:
         description: TaskAvailableEmailSubscribed indicates if the user wants an email
           when tasks become available
