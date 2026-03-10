@@ -482,23 +482,31 @@ func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job
 	now := time.Now().UTC()
 	threshold := time.Duration(job.Args.ThresholdDays) * 24 * time.Hour
 	cutoff := now.Add(-threshold)
-	updateResult := w.db.WithContext(ctx).
-		Model(&riskrel.Risk{}).
-		Where("id = ? AND status = ? AND review_deadline IS NOT NULL AND review_deadline <= ?",
-			job.Args.RiskID,
-			string(riskrel.RiskStatusRiskAccepted),
-			cutoff,
-		).
-		Updates(map[string]interface{}{
-			"status":                   string(riskrel.RiskStatusInvestigating),
-			"review_deadline":          nil,
-			"acceptance_justification": nil,
-		})
-	if updateResult.Error != nil {
-		return fmt.Errorf("risk overdue reopen: update risk failed: %w", updateResult.Error)
+
+	riskSvc := riskrel.NewRiskService(w.db.WithContext(ctx))
+	risk, err := riskSvc.GetByID(job.Args.RiskID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return fmt.Errorf("risk overdue reopen: load risk failed: %w", err)
 	}
-	if updateResult.RowsAffected == 0 {
+
+	if risk.Status != string(riskrel.RiskStatusRiskAccepted) || risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
 		return nil
+	}
+
+	oldStatus := risk.Status
+	risk.Status = string(riskrel.RiskStatusInvestigating)
+	risk.ReviewDeadline = nil
+	risk.AcceptanceJustification = nil
+
+	if _, err := riskSvc.Update(riskrel.UpdateRiskParams{
+		Risk:          risk,
+		OldStatus:     oldStatus,
+		StatusChanged: oldStatus != risk.Status,
+	}); err != nil {
+		return fmt.Errorf("risk overdue reopen: update risk failed: %w", err)
 	}
 
 	w.logger.Infow("RiskReviewOverdueReopenWorker: reopened overdue accepted risk",

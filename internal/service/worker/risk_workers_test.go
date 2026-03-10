@@ -281,6 +281,12 @@ func TestRiskReviewOverdueReopenWorker_ReopensAcceptedRisk(t *testing.T) {
 	assert.Equal(t, string(riskrel.RiskStatusInvestigating), updated.Status)
 	assert.Nil(t, updated.ReviewDeadline)
 	assert.Nil(t, updated.AcceptanceJustification)
+
+	var statusChangeEvents int64
+	require.NoError(t, db.Model(&riskrel.RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", risk.ID, string(riskrel.RiskEventTypeStatusChange)).
+		Count(&statusChangeEvents).Error)
+	assert.Equal(t, int64(1), statusChangeEvents)
 }
 
 func TestRiskReviewDueReminderWorker_RespectsRiskSubscription(t *testing.T) {
