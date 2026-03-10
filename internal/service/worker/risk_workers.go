@@ -156,7 +156,7 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 	for _, args := range reopenByRiskID {
 		params = append(params, river.InsertManyParams{
 			Args:       args,
-			InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
+			InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
 		})
 	}
 
@@ -298,44 +298,71 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 		return fmt.Errorf("risk reconciliation scanner: query missing subject links failed: %w", err)
 	}
 
-	for _, riskID := range riskIDs {
-		var evidence relational.Evidence
-		err := w.db.WithContext(ctx).
-			Model(&relational.Evidence{}).
-			Joins("JOIN risk_evidence_links rel ON rel.evidence_id = evidences.id").
-			Where("rel.risk_id = ?", riskID).
-			Order("evidences.end DESC").
-			First(&evidence).Error
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+	if len(riskIDs) > 0 {
+		type latestRiskEvidence struct {
+			RiskID     uuid.UUID `gorm:"column:risk_id"`
+			EvidenceID uuid.UUID `gorm:"column:evidence_id"`
+		}
+		var latestEvidence []latestRiskEvidence
+		if err := w.db.WithContext(ctx).
+			Table("risk_evidence_links rel").
+			Select("rel.risk_id, rel.evidence_id").
+			Joins("JOIN evidences e ON e.id = rel.evidence_id").
+			Where("rel.risk_id IN ?", riskIDs).
+			Where("EXISTS (SELECT 1 FROM evidence_subjects es WHERE es.evidence_id = rel.evidence_id)").
+			Where(`NOT EXISTS (
+				SELECT 1
+				FROM risk_evidence_links rel2
+				JOIN evidences e2 ON e2.id = rel2.evidence_id
+				WHERE rel2.risk_id = rel.risk_id
+				  AND (e2.end > e.end OR (e2.end = e.end AND rel2.evidence_id > rel.evidence_id))
+			)`).
+			Scan(&latestEvidence).Error; err != nil {
+			return fmt.Errorf("risk reconciliation scanner: query latest evidence for missing subject links failed: %w", err)
+		}
+
+		evidenceIDs := make([]uuid.UUID, 0, len(latestEvidence))
+		seenEvidenceIDs := make(map[uuid.UUID]struct{}, len(latestEvidence))
+		for _, item := range latestEvidence {
+			if _, seen := seenEvidenceIDs[item.EvidenceID]; seen {
 				continue
 			}
-			return fmt.Errorf("risk reconciliation scanner: load evidence for risk %s failed: %w", riskID.String(), err)
+			seenEvidenceIDs[item.EvidenceID] = struct{}{}
+			evidenceIDs = append(evidenceIDs, item.EvidenceID)
 		}
 
-		var subjectCount int64
-		if err := w.db.WithContext(ctx).
-			Table("evidence_subjects").
-			Where("evidence_id = ?", *evidence.ID).
-			Count(&subjectCount).Error; err != nil {
-			return fmt.Errorf("risk reconciliation scanner: count evidence subjects failed: %w", err)
-		}
-		if subjectCount == 0 {
-			continue
+		evidenceByID := make(map[uuid.UUID]relational.Evidence, len(evidenceIDs))
+		if len(evidenceIDs) > 0 {
+			var evidences []relational.Evidence
+			if err := w.db.WithContext(ctx).Where("id IN ?", evidenceIDs).Find(&evidences).Error; err != nil {
+				return fmt.Errorf("risk reconciliation scanner: load latest evidence records failed: %w", err)
+			}
+			for i := range evidences {
+				if evidences[i].ID == nil {
+					continue
+				}
+				evidenceByID[*evidences[i].ID] = evidences[i]
+			}
 		}
 
-		state := evidence.Status.Data().State
-		if state == "" {
-			state = relational.EvidenceStatusNotSatisfied
+		for _, item := range latestEvidence {
+			evidence, found := evidenceByID[item.EvidenceID]
+			if !found {
+				continue
+			}
+			state := evidence.Status.Data().State
+			if state == "" {
+				state = relational.EvidenceStatusNotSatisfied
+			}
+			params = append(params, river.InsertManyParams{
+				Args: RiskProcessEvidenceFailureArgs{
+					EvidenceID:  item.EvidenceID,
+					EvidenceEnd: evidence.End.UTC().Format(time.RFC3339),
+					Status:      state,
+				},
+				InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
+			})
 		}
-		params = append(params, river.InsertManyParams{
-			Args: RiskProcessEvidenceFailureArgs{
-				EvidenceID:  *evidence.ID,
-				EvidenceEnd: evidence.End.UTC().Format(time.RFC3339),
-				Status:      state,
-			},
-			InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure(),
-		})
 	}
 
 	// 3) Duplicate active risks with same dedupe key.

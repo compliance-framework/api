@@ -130,16 +130,21 @@ func TestRiskReviewOverdueEscalationScannerWorker_EnqueuesEscalationAndReopen(t 
 	require.NoError(t, err)
 
 	var escalationCount, reopenCount int
+	var reopenInsertOpts *river.InsertOpts
 	for _, p := range client.params {
 		switch p.Args.(type) {
 		case RiskReviewOverdueEscalationArgs:
 			escalationCount++
 		case RiskReviewOverdueReopenArgs:
 			reopenCount++
+			reopenInsertOpts = p.InsertOpts
 		}
 	}
 	assert.Equal(t, 1, escalationCount)
 	assert.Equal(t, 1, reopenCount)
+	require.NotNil(t, reopenInsertOpts)
+	assert.Equal(t, 24*time.Hour, reopenInsertOpts.UniqueOpts.ByPeriod)
+	assert.Equal(t, 3, reopenInsertOpts.MaxAttempts)
 }
 
 func TestRiskStaleRiskScannerWorker_EnqueuesWeeklyReminder(t *testing.T) {
