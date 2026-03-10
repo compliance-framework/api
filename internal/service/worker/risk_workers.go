@@ -18,6 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const riskScannerBatchSize = 1000
+
 type RiskReviewDeadlineReminderScannerWorker struct {
 	db     *gorm.DB
 	client workflow.RiverClient
@@ -32,49 +34,58 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 	now := time.Now().UTC()
 	windowEnd := now.Add(30 * 24 * time.Hour)
 
-	var risks []riskrel.Risk
+	var (
+		risks         []riskrel.Risk
+		totalEnqueued int
+	)
 	if err := w.db.WithContext(ctx).
 		Where("status = ? AND review_deadline IS NOT NULL AND review_deadline > ? AND review_deadline <= ?",
 			string(riskrel.RiskStatusRiskAccepted), now, windowEnd).
-		Find(&risks).Error; err != nil {
+		FindInBatches(&risks, riskScannerBatchSize, func(_ *gorm.DB, _ int) error {
+			ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
+			if err != nil {
+				return fmt.Errorf("risk deadline reminder scanner: resolve owners failed: %w", err)
+			}
+
+			params := make([]river.InsertManyParams, 0, len(risks))
+			for i := range risks {
+				risk := &risks[i]
+				if risk.ID == nil {
+					continue
+				}
+				ownerIDs := ownersByRiskID[*risk.ID]
+				for _, ownerID := range ownerIDs {
+					params = append(params, river.InsertManyParams{
+						Args: RiskReviewDueReminderArgs{
+							RiskID:         *risk.ID,
+							OwnerUserID:    ownerID,
+							ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+							ReminderWindow: "30d",
+						},
+						InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
+					})
+				}
+			}
+
+			if len(params) == 0 {
+				return nil
+			}
+
+			if _, err := w.client.InsertMany(ctx, params); err != nil {
+				return fmt.Errorf("risk deadline reminder scanner: enqueue failed: %w", err)
+			}
+			totalEnqueued += len(params)
+			return nil
+		}).Error; err != nil {
 		return fmt.Errorf("risk deadline reminder scanner: query failed: %w", err)
 	}
 
-	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
-	if err != nil {
-		return fmt.Errorf("risk deadline reminder scanner: resolve owners failed: %w", err)
-	}
-
-	params := make([]river.InsertManyParams, 0, len(risks))
-	for i := range risks {
-		risk := &risks[i]
-		if risk.ID == nil {
-			continue
-		}
-		ownerIDs := ownersByRiskID[*risk.ID]
-		for _, ownerID := range ownerIDs {
-			params = append(params, river.InsertManyParams{
-				Args: RiskReviewDueReminderArgs{
-					RiskID:         *risk.ID,
-					OwnerUserID:    ownerID,
-					ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-					ReminderWindow: "30d",
-				},
-				InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
-			})
-		}
-	}
-
-	if len(params) == 0 {
+	if totalEnqueued == 0 {
 		w.logger.Infow("RiskReviewDeadlineReminderScannerWorker: no reminders to enqueue")
 		return nil
 	}
 
-	if _, err := w.client.InsertMany(ctx, params); err != nil {
-		return fmt.Errorf("risk deadline reminder scanner: enqueue failed: %w", err)
-	}
-
-	w.logger.Infow("RiskReviewDeadlineReminderScannerWorker: enqueued reminders", "count", len(params))
+	w.logger.Infow("RiskReviewDeadlineReminderScannerWorker: enqueued reminders", "count", totalEnqueued)
 	return nil
 }
 
@@ -104,71 +115,77 @@ func NewRiskReviewOverdueEscalationScannerWorker(
 
 func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *river.Job[RiskReviewOverdueEscalationScannerArgs]) error {
 	now := time.Now().UTC()
+	threshold := time.Duration(w.autoReopenThresholdDays) * 24 * time.Hour
 
-	var risks []riskrel.Risk
+	var (
+		risks            []riskrel.Risk
+		totalEnqueued    int
+		totalReopenCount int
+	)
 	if err := w.db.WithContext(ctx).
 		Where("status = ? AND review_deadline IS NOT NULL AND review_deadline < ?",
 			string(riskrel.RiskStatusRiskAccepted), now).
-		Find(&risks).Error; err != nil {
+		FindInBatches(&risks, riskScannerBatchSize, func(_ *gorm.DB, _ int) error {
+			ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
+			if err != nil {
+				return fmt.Errorf("risk overdue escalation scanner: resolve owners failed: %w", err)
+			}
+
+			params := make([]river.InsertManyParams, 0, len(risks))
+			for i := range risks {
+				risk := &risks[i]
+				if risk.ID == nil {
+					continue
+				}
+				ownerIDs := ownersByRiskID[*risk.ID]
+				overdueWindow := now.Format("2006-01-02")
+				for _, ownerID := range ownerIDs {
+					params = append(params, river.InsertManyParams{
+						Args: RiskReviewOverdueEscalationArgs{
+							RiskID:         *risk.ID,
+							OwnerUserID:    ownerID,
+							ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+							OverdueWindow:  overdueWindow,
+						},
+						InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
+					})
+				}
+
+				if w.autoReopenEnabled && w.autoReopenThresholdDays > 0 {
+					overdueFor := now.Sub(risk.ReviewDeadline.UTC())
+					if overdueFor >= threshold {
+						params = append(params, river.InsertManyParams{
+							Args: RiskReviewOverdueReopenArgs{
+								RiskID:         *risk.ID,
+								ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+								ThresholdDays:  w.autoReopenThresholdDays,
+							},
+							InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
+						})
+						totalReopenCount++
+					}
+				}
+			}
+
+			if len(params) == 0 {
+				return nil
+			}
+
+			if _, err := w.client.InsertMany(ctx, params); err != nil {
+				return fmt.Errorf("risk overdue escalation scanner: enqueue failed: %w", err)
+			}
+			totalEnqueued += len(params)
+			return nil
+		}).Error; err != nil {
 		return fmt.Errorf("risk overdue escalation scanner: query failed: %w", err)
 	}
 
-	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
-	if err != nil {
-		return fmt.Errorf("risk overdue escalation scanner: resolve owners failed: %w", err)
-	}
-
-	params := make([]river.InsertManyParams, 0, len(risks))
-	reopenByRiskID := make(map[uuid.UUID]RiskReviewOverdueReopenArgs, len(risks))
-	for i := range risks {
-		risk := &risks[i]
-		if risk.ID == nil {
-			continue
-		}
-		ownerIDs := ownersByRiskID[*risk.ID]
-		overdueWindow := now.Format("2006-01-02")
-		for _, ownerID := range ownerIDs {
-			params = append(params, river.InsertManyParams{
-				Args: RiskReviewOverdueEscalationArgs{
-					RiskID:         *risk.ID,
-					OwnerUserID:    ownerID,
-					ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-					OverdueWindow:  overdueWindow,
-				},
-				InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
-			})
-		}
-
-		if w.autoReopenEnabled {
-			overdueFor := now.Sub(risk.ReviewDeadline.UTC())
-			threshold := time.Duration(w.autoReopenThresholdDays) * 24 * time.Hour
-			if overdueFor >= threshold {
-				reopenByRiskID[*risk.ID] = RiskReviewOverdueReopenArgs{
-					RiskID:         *risk.ID,
-					ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-					ThresholdDays:  w.autoReopenThresholdDays,
-				}
-			}
-		}
-	}
-
-	for _, args := range reopenByRiskID {
-		params = append(params, river.InsertManyParams{
-			Args:       args,
-			InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
-		})
-	}
-
-	if len(params) == 0 {
+	if totalEnqueued == 0 {
 		w.logger.Infow("RiskReviewOverdueEscalationScannerWorker: no escalations to enqueue")
 		return nil
 	}
 
-	if _, err := w.client.InsertMany(ctx, params); err != nil {
-		return fmt.Errorf("risk overdue escalation scanner: enqueue failed: %w", err)
-	}
-
-	w.logger.Infow("RiskReviewOverdueEscalationScannerWorker: enqueued jobs", "count", len(params), "reopen_count", len(reopenByRiskID))
+	w.logger.Infow("RiskReviewOverdueEscalationScannerWorker: enqueued jobs", "count", totalEnqueued, "reopen_count", totalReopenCount)
 	return nil
 }
 
@@ -187,54 +204,64 @@ func (w *RiskStaleRiskScannerWorker) Work(ctx context.Context, _ *river.Job[Risk
 	cutoff := now.Add(-30 * 24 * time.Hour)
 	staleBucketDate := startOfISOWeekUTC(now).Format("2006-01-02")
 
-	var risks []riskrel.Risk
+	var (
+		risks         []riskrel.Risk
+		totalEnqueued int
+	)
 	if err := w.db.WithContext(ctx).
 		Where("status IN ? AND last_seen_at <= ?",
 			[]string{
 				string(riskrel.RiskStatusOpen),
 				string(riskrel.RiskStatusInvestigating),
 				string(riskrel.RiskStatusMitigatingPlanned),
+				string(riskrel.RiskStatusMitigatingImplemented),
 			},
 			cutoff).
-		Find(&risks).Error; err != nil {
+		FindInBatches(&risks, riskScannerBatchSize, func(_ *gorm.DB, _ int) error {
+			ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
+			if err != nil {
+				return fmt.Errorf("risk stale scanner: resolve owners failed: %w", err)
+			}
+
+			params := make([]river.InsertManyParams, 0, len(risks))
+			for i := range risks {
+				risk := &risks[i]
+				if risk.ID == nil {
+					continue
+				}
+				ownerIDs := ownersByRiskID[*risk.ID]
+				for _, ownerID := range ownerIDs {
+					params = append(params, river.InsertManyParams{
+						Args: RiskStaleOpenReminderArgs{
+							RiskID:          *risk.ID,
+							OwnerUserID:     ownerID,
+							LastSeenAt:      risk.LastSeenAt.UTC().Format(time.RFC3339),
+							StaleBucketDate: staleBucketDate,
+						},
+						InsertOpts: JobInsertOptionsForRiskNotification(7 * 24 * time.Hour),
+					})
+				}
+			}
+
+			if len(params) == 0 {
+				return nil
+			}
+
+			if _, err := w.client.InsertMany(ctx, params); err != nil {
+				return fmt.Errorf("risk stale scanner: enqueue failed: %w", err)
+			}
+			totalEnqueued += len(params)
+			return nil
+		}).Error; err != nil {
 		return fmt.Errorf("risk stale scanner: query failed: %w", err)
 	}
 
-	ownersByRiskID, err := resolveRiskOwnerUserIDsBatch(ctx, w.db, risks)
-	if err != nil {
-		return fmt.Errorf("risk stale scanner: resolve owners failed: %w", err)
-	}
-
-	params := make([]river.InsertManyParams, 0, len(risks))
-	for i := range risks {
-		risk := &risks[i]
-		if risk.ID == nil {
-			continue
-		}
-		ownerIDs := ownersByRiskID[*risk.ID]
-		for _, ownerID := range ownerIDs {
-			params = append(params, river.InsertManyParams{
-				Args: RiskStaleOpenReminderArgs{
-					RiskID:          *risk.ID,
-					OwnerUserID:     ownerID,
-					LastSeenAt:      risk.LastSeenAt.UTC().Format(time.RFC3339),
-					StaleBucketDate: staleBucketDate,
-				},
-				InsertOpts: JobInsertOptionsForRiskNotification(7 * 24 * time.Hour),
-			})
-		}
-	}
-
-	if len(params) == 0 {
+	if totalEnqueued == 0 {
 		w.logger.Infow("RiskStaleRiskScannerWorker: no stale reminders to enqueue")
 		return nil
 	}
 
-	if _, err := w.client.InsertMany(ctx, params); err != nil {
-		return fmt.Errorf("risk stale scanner: enqueue failed: %w", err)
-	}
-
-	w.logger.Infow("RiskStaleRiskScannerWorker: enqueued stale reminders", "count", len(params))
+	w.logger.Infow("RiskStaleRiskScannerWorker: enqueued stale reminders", "count", totalEnqueued)
 	return nil
 }
 
@@ -363,8 +390,11 @@ func sendRiskNotification(
 
 	user, err := userRepo.FindUserByID(ctx, ownerUserID.String())
 	if err != nil {
-		logger.Warnw("Risk notification worker: owner user not found, skipping", "risk_id", riskID, "owner_user_id", ownerUserID, "error", err)
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.Warnw("Risk notification worker: owner user not found, skipping", "risk_id", riskID, "owner_user_id", ownerUserID, "error", err)
+			return nil
+		}
+		return fmt.Errorf("risk notification worker: load owner user failed: %w", err)
 	}
 	if !user.RiskNotificationsSubscribed {
 		logger.Debugw("Risk notification worker: owner unsubscribed, skipping", "risk_id", riskID, "owner_user_id", ownerUserID)
@@ -479,6 +509,14 @@ func NewRiskReviewOverdueReopenWorker(db *gorm.DB, logger *zap.SugaredLogger) *R
 }
 
 func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job[RiskReviewOverdueReopenArgs]) error {
+	if job.Args.ThresholdDays <= 0 {
+		w.logger.Infow("RiskReviewOverdueReopenWorker: skipping reopen due to non-positive threshold_days",
+			"risk_id", job.Args.RiskID,
+			"threshold_days", job.Args.ThresholdDays,
+		)
+		return nil
+	}
+
 	now := time.Now().UTC()
 	threshold := time.Duration(job.Args.ThresholdDays) * 24 * time.Hour
 	cutoff := now.Add(-threshold)

@@ -33,6 +33,18 @@ func (s *stubRiverClient) InsertMany(_ context.Context, params []river.InsertMan
 	return []*rivertype.JobInsertResult{}, nil
 }
 
+type stubUserRepository struct {
+	user NotificationUser
+	err  error
+}
+
+func (s *stubUserRepository) FindUserByID(_ context.Context, _ string) (NotificationUser, error) {
+	if s.err != nil {
+		return NotificationUser{}, s.err
+	}
+	return s.user, nil
+}
+
 func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -163,6 +175,22 @@ func TestRiskStaleRiskScannerWorker_EnqueuesWeeklyReminder(t *testing.T) {
 	assert.Equal(t, 7*24*time.Hour, client.params[0].InsertOpts.UniqueOpts.ByPeriod)
 }
 
+func TestRiskStaleRiskScannerWorker_EnqueuesMitigatingImplemented(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	client := &stubRiverClient{}
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	_, _ = createTestRiskWithOwner(t, db, riskrel.RiskStatusMitigatingImplemented, nil, now.Add(-31*24*time.Hour))
+
+	w := NewRiskStaleRiskScannerWorker(db, client, logger)
+	err := w.Work(context.Background(), &river.Job[RiskStaleRiskScannerArgs]{})
+	require.NoError(t, err)
+	require.Len(t, client.params, 1)
+
+	_, ok := client.params[0].Args.(RiskStaleOpenReminderArgs)
+	require.True(t, ok)
+}
+
 func TestRiskEvidenceReconciliationScannerWorker_EnqueuesDuplicateRepairJobs(t *testing.T) {
 	db := newRiskWorkersTestDB(t)
 	client := &stubRiverClient{}
@@ -289,6 +317,26 @@ func TestRiskReviewOverdueReopenWorker_ReopensAcceptedRisk(t *testing.T) {
 	assert.Equal(t, int64(1), statusChangeEvents)
 }
 
+func TestRiskReviewOverdueReopenWorker_SkipsNonPositiveThreshold(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	reviewDeadline := time.Now().UTC().Add(-40 * 24 * time.Hour)
+	risk, _ := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, time.Now().UTC())
+
+	w := NewRiskReviewOverdueReopenWorker(db, logger)
+	err := w.Work(context.Background(), &river.Job[RiskReviewOverdueReopenArgs]{
+		Args: RiskReviewOverdueReopenArgs{
+			RiskID:        *risk.ID,
+			ThresholdDays: 0,
+		},
+	})
+	require.NoError(t, err)
+
+	var unchanged riskrel.Risk
+	require.NoError(t, db.First(&unchanged, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(riskrel.RiskStatusRiskAccepted), unchanged.Status)
+}
+
 func TestRiskReviewDueReminderWorker_RespectsRiskSubscription(t *testing.T) {
 	db := newRiskWorkersTestDB(t)
 	logger := zap.NewNop().Sugar()
@@ -387,4 +435,45 @@ func TestRiskReviewDueReminderWorker_SendUnsuccessful_ReturnsError(t *testing.T)
 	})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "email send failed: provider refused")
+}
+
+func TestRiskReviewDueReminderWorker_UserNotFound_Skips(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(7 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+
+	mockEmail := &MockEmailService{}
+	userRepo := &stubUserRepository{err: gorm.ErrRecordNotFound}
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
+		Args: RiskReviewDueReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.NoError(t, err)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+}
+
+func TestRiskReviewDueReminderWorker_UserLookupError_ReturnsError(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(7 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+
+	mockEmail := &MockEmailService{}
+	userRepo := &stubUserRepository{err: errors.New("database unavailable")}
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
+		Args: RiskReviewDueReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "load owner user failed")
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
 }
