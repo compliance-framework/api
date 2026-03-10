@@ -254,13 +254,9 @@ func (s *RiskService) AcceptRisk(params AcceptRiskParams) (*Risk, error) {
 		return nil, err
 	}
 
-	if risk.Status == string(RiskStatusClosed) {
-		tx.Rollback()
-		return nil, newValidationError("risk in status closed cannot be accepted")
-	}
 	if risk.Status != string(RiskStatusInvestigating) {
 		tx.Rollback()
-		return nil, newValidationError(fmt.Sprintf("invalid status transition: %s -> %s", risk.Status, RiskStatusRiskAccepted))
+		return nil, newValidationError("only risks in status investigating can be accepted")
 	}
 
 	now := time.Now().UTC()
@@ -296,7 +292,7 @@ func (s *RiskService) AcceptRisk(params AcceptRiskParams) (*Risk, error) {
 		return nil, err
 	}
 
-	// TODO(BCH-1182): enqueue risk_created_notify after acceptance once the worker job lands in this branch.
+	// TODO(BCH-1182): enqueue a risk-accepted notification worker job once its type/worker is available in this branch.
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
@@ -311,7 +307,7 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		return nil, newValidationError("decision is required")
 	}
 	if !decision.IsValid() {
-		return nil, newValidationError("decision must be one of: extend, reopen")
+		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen))
 	}
 
 	tx, err := beginTx(s.db)
@@ -354,6 +350,7 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		nextReviewDeadline = nil
 		risk.Status = string(RiskStatusInvestigating)
 		risk.ReviewDeadline = nil
+		risk.AcceptanceJustification = nil
 	}
 
 	risk.LastReviewedAt = &reviewedAt

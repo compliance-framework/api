@@ -640,6 +640,7 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, string(RiskStatusInvestigating), reopened.Status)
 	require.Nil(t, reopened.ReviewDeadline)
+	require.Nil(t, reopened.AcceptanceJustification)
 	require.NotNil(t, reopened.LastReviewedAt)
 
 	var reviews []RiskReview

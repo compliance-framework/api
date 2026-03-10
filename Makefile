@@ -67,7 +67,11 @@ test: swag  ## Run tests
 test-integration: swag  ## Run tests
 	@for run in $$(seq 1 $(INTEGRATION_RUNS)); do \
 		$(INFO) "Integration run $$run/$(INTEGRATION_RUNS)"; \
-		if ! go test ./... -count=1 -coverprofile cover.out -v --tags integration; then \
+		coverprofile_flag=""; \
+		if [ "$$run" -eq "$(INTEGRATION_RUNS)" ]; then \
+			coverprofile_flag="-coverprofile cover.out"; \
+		fi; \
+		if ! go test ./... -count=1 $$coverprofile_flag -v --tags integration; then \
 			$(WARN) "Tests failed on run $$run"; \
 			exit 1; \
 		fi ; \
