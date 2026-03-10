@@ -18145,7 +18145,7 @@ const docTemplate = `{
         },
         "/risks/{id}/review": {
             "post": {
-                "description": "Records a structured review for an accepted risk.",
+                "description": "Records a structured review for an accepted risk. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18771,7 +18771,7 @@ const docTemplate = `{
         },
         "/ssp/{sspId}/risks/{id}/review": {
             "post": {
-                "description": "Records a risk review by ID scoped to an SSP.",
+                "description": "Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.",
                 "consumes": [
                     "application/json"
                 ],

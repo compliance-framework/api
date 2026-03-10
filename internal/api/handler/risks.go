@@ -558,7 +558,7 @@ func (h *RiskHandler) AcceptForSSP(ctx echo.Context) error {
 // ReviewForSSP godoc
 //
 //	@Summary		Review risk for SSP
-//	@Description	Records a risk review by ID scoped to an SSP.
+//	@Description	Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json
@@ -829,7 +829,7 @@ func (h *RiskHandler) Accept(ctx echo.Context) error {
 // Review godoc
 //
 //	@Summary		Review risk
-//	@Description	Records a structured review for an accepted risk.
+//	@Description	Records a structured review for an accepted risk. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json

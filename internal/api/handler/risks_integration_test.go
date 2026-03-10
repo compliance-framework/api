@@ -290,6 +290,13 @@ func (suite *RiskApiIntegrationSuite) TestRiskAcceptAndReviewEndpoints() {
 	require.NotNil(suite.T(), extended.Data.LastReviewedAt)
 	require.WithinDuration(suite.T(), reviewedAt, *extended.Data.LastReviewedAt, time.Second)
 
+	reviewReopenWithDeadlineRec, reviewReopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"decision":           "reopen",
+		"nextReviewDeadline": nextReviewDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reviewReopenWithDeadlineRec, reviewReopenWithDeadlineReq)
+	require.Equal(suite.T(), http.StatusBadRequest, reviewReopenWithDeadlineRec.Code)
+
 	reviewReopenRec, reviewReopenReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
 		"decision": "reopen",
 		"notes":    "mitigation can proceed now",
@@ -434,6 +441,13 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints(
 	require.Equal(suite.T(), "risk-accepted", reviewed.Data.Status)
 	require.NotNil(suite.T(), reviewed.Data.ReviewDeadline)
 	require.WithinDuration(suite.T(), reviewDeadline, *reviewed.Data.ReviewDeadline, time.Second)
+
+	reopenWithDeadlineRec, reopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
+		"decision":           "reopen",
+		"nextReviewDeadline": reviewDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reopenWithDeadlineRec, reopenWithDeadlineReq)
+	require.Equal(suite.T(), http.StatusBadRequest, reopenWithDeadlineRec.Code)
 
 	notFoundReviewRec, notFoundReviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", otherSSPID, created.Data.ID), map[string]any{
 		"decision": "reopen",

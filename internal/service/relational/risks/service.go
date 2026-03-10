@@ -320,6 +320,9 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		}
 		nextReviewDeadline = &nextUTC
 	}
+	if decision == RiskReviewDecisionReopen && nextReviewDeadline != nil {
+		return nil, newValidationError("nextReviewDeadline must not be provided when decision is reopen")
+	}
 
 	tx, err := beginTx(s.db)
 	if err != nil {

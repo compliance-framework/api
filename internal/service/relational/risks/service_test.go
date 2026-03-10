@@ -630,6 +630,17 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, IsValidationError(err))
 
+	extraneousDeadline := time.Now().Add(24 * time.Hour).UTC()
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             riskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionReopen,
+		NextReviewDeadline: &extraneousDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "nextReviewDeadline must not be provided when decision is reopen")
+
 	reviewedAt := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
 	nextDeadline := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
 	notes := "extended after review"
