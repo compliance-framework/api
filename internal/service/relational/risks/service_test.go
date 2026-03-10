@@ -514,6 +514,194 @@ func TestRiskServiceAddEvidenceLinkRejectsEvidenceWithoutStreamUUID(t *testing.T
 	require.ErrorContains(t, err, "missing stream uuid")
 }
 
+func TestRiskServiceAcceptRiskValidationAndSuccess(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "accept-risk",
+		Description: "desc",
+		Status:      string(RiskStatusInvestigating),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+
+	_, err := svc.AcceptRisk(AcceptRiskParams{
+		RiskID:         riskID,
+		ActorUserID:    &actorID,
+		Justification:  "   ",
+		ReviewDeadline: time.Now().Add(24 * time.Hour),
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	_, err = svc.AcceptRisk(AcceptRiskParams{
+		RiskID:         riskID,
+		ActorUserID:    &actorID,
+		Justification:  "accepted",
+		ReviewDeadline: time.Now().Add(-24 * time.Hour),
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	deadline := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
+	accepted, err := svc.AcceptRisk(AcceptRiskParams{
+		RiskID:         riskID,
+		ActorUserID:    &actorID,
+		Justification:  "accepted until controls are in place",
+		ReviewDeadline: deadline,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusRiskAccepted), accepted.Status)
+	require.NotNil(t, accepted.ReviewDeadline)
+	require.WithinDuration(t, deadline, *accepted.ReviewDeadline, time.Second)
+	require.NotNil(t, accepted.LastReviewedAt)
+	require.NotNil(t, accepted.AcceptanceJustification)
+	require.Equal(t, "accepted until controls are in place", *accepted.AcceptanceJustification)
+
+	_, err = svc.AcceptRisk(AcceptRiskParams{
+		RiskID:         riskID,
+		ActorUserID:    &actorID,
+		Justification:  "cannot accept twice",
+		ReviewDeadline: time.Now().Add(24 * time.Hour),
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "only risks in status investigating can be accepted")
+
+	var reviewCount int64
+	require.NoError(t, db.Model(&RiskReview{}).Where("risk_id = ?", riskID).Count(&reviewCount).Error)
+	require.Equal(t, int64(0), reviewCount)
+
+	var acceptedEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeAccepted)).
+		Count(&acceptedEventCount).Error)
+	require.Equal(t, int64(1), acceptedEventCount)
+
+	var statusChangeEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).
+		Count(&statusChangeEventCount).Error)
+	require.Equal(t, int64(1), statusChangeEventCount)
+}
+
+func TestRiskServiceReviewRiskDecisions(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	reviewDeadline := time.Now().Add(7 * 24 * time.Hour).UTC()
+	acceptanceJustification := "accepted for now"
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:               relational.UUIDModel{ID: &riskID},
+		Title:                   "review-risk",
+		Description:             "desc",
+		Status:                  string(RiskStatusRiskAccepted),
+		SSPID:                   uuid.New(),
+		SourceType:              string(RiskSourceTypeManual),
+		ReviewDeadline:          &reviewDeadline,
+		AcceptanceJustification: &acceptanceJustification,
+		FirstSeenAt:             time.Now().UTC(),
+		LastSeenAt:              time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+
+	_, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      riskID,
+		ActorUserID: &actorID,
+		Decision:    NormalizeRiskReviewDecision("invalid"),
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      riskID,
+		ActorUserID: &actorID,
+		Decision:    RiskReviewDecisionExtend,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	extraneousDeadline := time.Now().Add(24 * time.Hour).UTC()
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             riskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionReopen,
+		NextReviewDeadline: &extraneousDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "nextReviewDeadline must not be provided when decision is reopen")
+
+	reviewedAt := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	nextDeadline := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
+	notes := "extended after review"
+	extended, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             riskID,
+		ActorUserID:        &actorID,
+		ReviewedAt:         &reviewedAt,
+		Decision:           RiskReviewDecisionExtend,
+		Notes:              &notes,
+		NextReviewDeadline: &nextDeadline,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusRiskAccepted), extended.Status)
+	require.NotNil(t, extended.ReviewDeadline)
+	require.WithinDuration(t, nextDeadline, *extended.ReviewDeadline, time.Second)
+	require.NotNil(t, extended.LastReviewedAt)
+	require.WithinDuration(t, reviewedAt, *extended.LastReviewedAt, time.Second)
+
+	reopened, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      riskID,
+		ActorUserID: &actorID,
+		Decision:    RiskReviewDecisionReopen,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusInvestigating), reopened.Status)
+	require.Nil(t, reopened.ReviewDeadline)
+	require.Nil(t, reopened.AcceptanceJustification)
+	require.NotNil(t, reopened.LastReviewedAt)
+
+	reviewAfterReopenDeadline := time.Now().Add(7 * 24 * time.Hour).UTC()
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             riskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionExtend,
+		NextReviewDeadline: &reviewAfterReopenDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "only risks in status risk-accepted can be reviewed")
+
+	var reviews []RiskReview
+	require.NoError(t, db.Where("risk_id = ?", riskID).Order("created_at asc").Find(&reviews).Error)
+	require.Len(t, reviews, 2)
+	require.Equal(t, "extend", reviews[0].Decision)
+	require.Equal(t, "reopen", reviews[1].Decision)
+	require.NotNil(t, reviews[0].ReviewJustification)
+	require.Equal(t, notes, *reviews[0].ReviewJustification)
+
+	var reviewedEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeReviewed)).
+		Count(&reviewedEventCount).Error)
+	require.Equal(t, int64(2), reviewedEventCount)
+
+	var statusChangeEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).
+		Count(&statusChangeEventCount).Error)
+	require.Equal(t, int64(1), statusChangeEventCount)
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

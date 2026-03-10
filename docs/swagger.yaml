@@ -1362,6 +1362,13 @@ definitions:
     type: object
   handler.UserHandler:
     type: object
+  handler.acceptRiskRequest:
+    properties:
+      justification:
+        type: string
+      reviewDeadline:
+        type: string
+    type: object
   handler.addComponentLinkRequest:
     properties:
       componentId:
@@ -1429,6 +1436,17 @@ definitions:
       status:
         type: string
       title:
+        type: string
+    type: object
+  handler.reviewRiskRequest:
+    properties:
+      decision:
+        type: string
+      nextReviewDeadline:
+        type: string
+      notes:
+        type: string
+      reviewedAt:
         type: string
     type: object
   handler.riskControlLinkResponse:
@@ -19616,6 +19634,48 @@ paths:
       summary: Update risk
       tags:
       - Risks
+  /risks/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a risk with required justification and a future review
+        deadline.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Accept payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.acceptRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Accept risk
+      tags:
+      - Risks
   /risks/{id}/components:
     get:
       description: Lists components linked to a risk.
@@ -19891,6 +19951,48 @@ paths:
       security:
       - OAuth2Password: []
       summary: Delete risk evidence link
+      tags:
+      - Risks
+  /risks/{id}/review:
+    post:
+      consumes:
+      - application/json
+      description: Records a structured review for an accepted risk. nextReviewDeadline
+        is required for decision=extend and must be omitted for decision=reopen.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.reviewRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Review risk
       tags:
       - Risks
   /risks/{id}/subjects:
@@ -20209,6 +20311,99 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update risk for SSP
+      tags:
+      - Risks
+  /ssp/{sspId}/risks/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a risk by ID scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Accept payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.acceptRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Accept risk for SSP
+      tags:
+      - Risks
+  /ssp/{sspId}/risks/{id}/review:
+    post:
+      consumes:
+      - application/json
+      description: Records a risk review by ID scoped to an SSP. nextReviewDeadline
+        is required for decision=extend and must be omitted for decision=reopen.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.reviewRiskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_riskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Review risk for SSP
       tags:
       - Risks
   /subject-templates:
