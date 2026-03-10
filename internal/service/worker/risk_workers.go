@@ -522,29 +522,16 @@ func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job
 	cutoff := now.Add(-threshold)
 
 	riskSvc := riskrel.NewRiskService(w.db.WithContext(ctx))
-	risk, err := riskSvc.GetByID(job.Args.RiskID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, err := riskSvc.ReviewRisk(riskrel.ReviewRiskParams{
+		RiskID:                             job.Args.RiskID,
+		Decision:                           riskrel.RiskReviewDecisionReopen,
+		ReviewedAt:                         &now,
+		RequireCurrentReviewDeadlineBefore: &cutoff,
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || riskrel.IsValidationError(err) {
 			return nil
 		}
-		return fmt.Errorf("risk overdue reopen: load risk failed: %w", err)
-	}
-
-	if risk.Status != string(riskrel.RiskStatusRiskAccepted) || risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
-		return nil
-	}
-
-	oldStatus := risk.Status
-	risk.Status = string(riskrel.RiskStatusInvestigating)
-	risk.ReviewDeadline = nil
-	risk.AcceptanceJustification = nil
-
-	if _, err := riskSvc.Update(riskrel.UpdateRiskParams{
-		Risk:          risk,
-		OldStatus:     oldStatus,
-		StatusChanged: oldStatus != risk.Status,
-	}); err != nil {
-		return fmt.Errorf("risk overdue reopen: update risk failed: %w", err)
+		return fmt.Errorf("risk overdue reopen: reopen review failed: %w", err)
 	}
 
 	w.logger.Infow("RiskReviewOverdueReopenWorker: reopened overdue accepted risk",

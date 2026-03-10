@@ -63,6 +63,9 @@ type ReviewRiskParams struct {
 	Decision           RiskReviewDecision
 	Notes              *string
 	NextReviewDeadline *time.Time
+	// RequireCurrentReviewDeadlineBefore enforces, under lock, that the current review deadline
+	// is set and no later than this timestamp before applying the decision.
+	RequireCurrentReviewDeadlineBefore *time.Time
 }
 
 type Associations struct {
@@ -338,6 +341,13 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	if risk.Status != string(RiskStatusRiskAccepted) {
 		tx.Rollback()
 		return nil, newValidationError("only risks in status risk-accepted can be reviewed")
+	}
+	if params.RequireCurrentReviewDeadlineBefore != nil {
+		cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
+		if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
+			tx.Rollback()
+			return nil, newValidationError("risk review deadline no longer eligible for requested decision")
+		}
 	}
 
 	reviewedAt := time.Now().UTC()

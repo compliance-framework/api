@@ -61,9 +61,10 @@ func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 		&riskrel.Risk{},
 		&riskrel.RiskOwnerAssignment{},
 		&riskrel.RiskEvidenceLink{},
-		&riskrel.RiskSubjectLink{},
-		&riskrel.RiskEvent{},
-	))
+			&riskrel.RiskSubjectLink{},
+			&riskrel.RiskEvent{},
+			&riskrel.RiskReview{},
+		))
 	return db
 }
 
@@ -335,6 +336,27 @@ func TestRiskReviewOverdueReopenWorker_SkipsNonPositiveThreshold(t *testing.T) {
 	var unchanged riskrel.Risk
 	require.NoError(t, db.First(&unchanged, "id = ?", risk.ID).Error)
 	assert.Equal(t, string(riskrel.RiskStatusRiskAccepted), unchanged.Status)
+}
+
+func TestRiskReviewOverdueReopenWorker_SkipsWhenNotYetOverdueForThreshold(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	reviewDeadline := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	risk, _ := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, time.Now().UTC())
+
+	w := NewRiskReviewOverdueReopenWorker(db, logger)
+	err := w.Work(context.Background(), &river.Job[RiskReviewOverdueReopenArgs]{
+		Args: RiskReviewOverdueReopenArgs{
+			RiskID:        *risk.ID,
+			ThresholdDays: 30,
+		},
+	})
+	require.NoError(t, err)
+
+	var unchanged riskrel.Risk
+	require.NoError(t, db.First(&unchanged, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(riskrel.RiskStatusRiskAccepted), unchanged.Status)
+	assert.NotNil(t, unchanged.ReviewDeadline)
 }
 
 func TestRiskReviewDueReminderWorker_RespectsRiskSubscription(t *testing.T) {
