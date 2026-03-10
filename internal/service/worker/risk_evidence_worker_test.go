@@ -730,15 +730,18 @@ func TestRiskEvidenceWorker_extractViolationIDs(t *testing.T) {
 
 	labels := []relational.Labels{
 		{Name: "violation_id", Value: "VIOL-001"},
+		{Name: " Violation_ID ", Value: "VIOL-002"},
+		{Name: " _VIOLATION_ID ", Value: "VIOL-003"},
 		{Name: "other_label", Value: "value"},
-		{Name: "violation_id", Value: "VIOL-002"},
+		{Name: "violation_id", Value: "   "},
 	}
 
 	violationIDs := worker.extractViolationIDs(labels)
 
-	assert.Len(t, violationIDs, 2)
+	assert.Len(t, violationIDs, 3)
 	assert.Contains(t, violationIDs, "VIOL-001")
 	assert.Contains(t, violationIDs, "VIOL-002")
+	assert.Contains(t, violationIDs, "VIOL-003")
 }
 
 func TestRiskEvidenceWorker_violationMatches(t *testing.T) {
@@ -955,6 +958,35 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 		Count(&subjectLinkCount).Error
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), subjectLinkCount)
+}
+
+func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      uuid.Nil,
+		Title:     "invalid evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	riskID := uuid.New()
+	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "missing stream uuid")
+
+	var evidenceLinkCount int64
+	require.NoError(t, worker.db.WithContext(ctx).
+		Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", riskID).
+		Count(&evidenceLinkCount).Error)
+	assert.Zero(t, evidenceLinkCount)
 }
 
 func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {

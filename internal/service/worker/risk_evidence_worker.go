@@ -194,9 +194,11 @@ func (w *RiskEvidenceWorker) extractViolationIDs(labels []relational.Labels) []s
 	var violationIDs []string
 
 	for _, label := range labels {
+		labelName := strings.ToLower(strings.TrimSpace(label.Name))
+		labelValue := strings.TrimSpace(label.Value)
 		// Accept both current and legacy violation label names.
-		if (label.Name == "_violation_id" || label.Name == "violation_id") && label.Value != "" {
-			violationIDs = append(violationIDs, label.Value)
+		if (labelName == "_violation_id" || labelName == "violation_id") && labelValue != "" {
+			violationIDs = append(violationIDs, labelValue)
 		}
 	}
 
@@ -455,6 +457,13 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 // Uses OnConflict{DoNothing} throughout so retries are idempotent.
 func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, evidence *relational.Evidence) error {
 	now := time.Now().UTC()
+	if evidence.UUID == uuid.Nil {
+		evidenceID := uuid.Nil
+		if evidence.ID != nil {
+			evidenceID = *evidence.ID
+		}
+		return fmt.Errorf("evidence %s is missing stream uuid", evidenceID)
+	}
 
 	// Link evidence
 	evidenceLink := &risks.RiskEvidenceLink{
