@@ -446,7 +446,7 @@ func (w *RiskReconcileDuplicatesWorker) Work(ctx context.Context, job *river.Job
 		return nil
 	}
 
-	riskSvc := riskrel.NewRiskService(w.db)
+	riskSvc := riskrel.NewRiskService(w.db.WithContext(ctx))
 	keeper := duplicates[0]
 	for i := 1; i < len(duplicates); i++ {
 		risk := duplicates[i]
