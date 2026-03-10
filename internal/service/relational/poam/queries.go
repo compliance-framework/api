@@ -39,7 +39,9 @@ func ApplyFilters(query *gorm.DB, filters ListFilters) *gorm.DB {
 	if filters.OverdueOnly {
 		now := time.Now().UTC()
 		q = q.Where(
-			"ccf_poam_items.status IN ('open','in-progress') AND ccf_poam_items.planned_completion_date IS NOT NULL AND ccf_poam_items.planned_completion_date < ?",
+			// Include 'overdue' in the filter so that items already persisted with
+			// that status (a valid PoamItemStatus) are not silently excluded.
+			"ccf_poam_items.status IN ('open','in-progress','overdue') AND ccf_poam_items.planned_completion_date IS NOT NULL AND ccf_poam_items.planned_completion_date < ?",
 			now,
 		)
 	}

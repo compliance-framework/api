@@ -25776,6 +25776,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "orderIndex": {
+                    "description": "OrderIndex is a pointer so that clients can explicitly set 0 without it\nbeing indistinguishable from an omitted field.",
                     "type": "integer"
                 },
                 "scheduledCompletionDate": {

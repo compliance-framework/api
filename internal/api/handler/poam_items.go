@@ -30,6 +30,17 @@ func NewPoamItemsHandler(svc *poamsvc.PoamService, sugar *zap.SugaredLogger) *Po
 // Register mounts all POAM routes onto the given Echo group. JWT middleware
 // is applied at the group level in api.go.
 func (h *PoamItemsHandler) Register(g *echo.Group) {
+	h.registerRoutes(g)
+}
+
+// RegisterSSPScoped mounts all POAM routes under an SSP-scoped group
+// (e.g. /system-security-plans/:sspId/poam-items). The :sspId path param is
+// extracted and injected into list/create filters automatically.
+func (h *PoamItemsHandler) RegisterSSPScoped(g *echo.Group) {
+	h.registerRoutes(g)
+}
+
+func (h *PoamItemsHandler) registerRoutes(g *echo.Group) {
 	g.GET("", h.List)
 	g.POST("", h.Create)
 	g.GET("/:id", h.Get)
@@ -102,7 +113,9 @@ type createMilestoneRequest struct {
 	Description             string     `json:"description"`
 	Status                  string     `json:"status"`
 	ScheduledCompletionDate *time.Time `json:"scheduledCompletionDate"`
-	OrderIndex              int        `json:"orderIndex"`
+	// OrderIndex is a pointer so that clients can explicitly set 0 without it
+	// being indistinguishable from an omitted field.
+	OrderIndex *int `json:"orderIndex"`
 }
 
 type updateMilestoneRequest struct {
@@ -276,6 +289,15 @@ func (h *PoamItemsHandler) List(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	// When mounted under /system-security-plans/:sspId/poam-items, the sspId
+	// path param takes precedence over the query parameter.
+	if sspIDParam := c.Param("sspId"); sspIDParam != "" {
+		parsed, err := uuid.Parse(sspIDParam)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("sspId path param must be a valid UUID")))
+		}
+		filters.SspID = &parsed
+	}
 	items, err := h.poamService.List(filters)
 	if err != nil {
 		return h.internalError(c, "failed to list poam items", err)
@@ -305,10 +327,14 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 	if err := c.Bind(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	// When mounted under /system-security-plans/:sspId/poam-items, the sspId
+	// path param overrides the body field so the client doesn't have to repeat it.
+	if sspIDParam := c.Param("sspId"); sspIDParam != "" {
+		in.SspID = sspIDParam
+	}
 	if err := c.Validate(&in); err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-
 	sspID, err := uuid.Parse(in.SspID)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("sspId must be a valid UUID")))
@@ -376,19 +402,25 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 	}
 	params.ControlRefs = controlRefs
 
-	for _, mr := range in.Milestones {
+	for i, mr := range in.Milestones {
 		if mr.Title == "" {
 			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("milestone title is required")))
 		}
 		if mr.Status != "" && !poamsvc.MilestoneStatus(mr.Status).IsValid() {
 			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", mr.Status)))
 		}
+		// When orderIndex is omitted (nil), fall back to the slice position so
+		// ordering is still deterministic without requiring the client to set it.
+		msOrderIdx := i
+		if mr.OrderIndex != nil {
+			msOrderIdx = *mr.OrderIndex
+		}
 		params.Milestones = append(params.Milestones, poamsvc.CreateMilestoneParams{
 			Title:                   mr.Title,
 			Description:             mr.Description,
 			Status:                  mr.Status,
 			ScheduledCompletionDate: mr.ScheduledCompletionDate,
-			OrderIndex:              mr.OrderIndex,
+			OrderIndex:              msOrderIdx,
 		})
 	}
 
@@ -626,12 +658,16 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 	if in.Status != "" && !poamsvc.MilestoneStatus(in.Status).IsValid() {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", in.Status)))
 	}
+	var orderIdx int
+	if in.OrderIndex != nil {
+		orderIdx = *in.OrderIndex
+	}
 	m, err := h.poamService.AddMilestone(id, poamsvc.CreateMilestoneParams{
 		Title:                   in.Title,
 		Description:             in.Description,
 		Status:                  in.Status,
 		ScheduledCompletionDate: in.ScheduledCompletionDate,
-		OrderIndex:              in.OrderIndex,
+		OrderIndex:              orderIdx,
 	})
 	if err != nil {
 		return h.internalError(c, "failed to add milestone", err)

@@ -51,9 +51,15 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	poamService := poamsvc.NewPoamService(db)
 	poamHandler := NewPoamItemsHandler(poamService, logger)
+	// Flat route: /api/poam-items (supports ?sspId= query filter)
 	poamGroup := server.API().Group("/poam-items")
 	poamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	poamHandler.Register(poamGroup)
+	// SSP-scoped route: /api/system-security-plans/:sspId/poam-items
+	// The :sspId path param is automatically injected into list/create filters.
+	sspPoamGroup := server.API().Group("/system-security-plans/:sspId/poam-items")
+	sspPoamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	poamHandler.RegisterSSPScoped(sspPoamGroup)
 
 	riskHandler := NewRiskHandler(logger, db)
 	riskGroup := server.API().Group("/risks")

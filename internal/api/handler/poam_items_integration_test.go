@@ -64,6 +64,9 @@ func (suite *PoamItemsApiIntegrationSuite) authedReq(method, path string, body [
 	return rec, req
 }
 
+// intPtr is a convenience helper that returns a pointer to an int literal.
+func intPtr(i int) *int { return &i }
+
 // ensureSSP seeds a SystemSecurityPlan row so that the Create handler's
 // EnsureSSPExists check passes. The SSP record only needs an ID.
 func (suite *PoamItemsApiIntegrationSuite) ensureSSP(id uuid.UUID) {
@@ -137,8 +140,8 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 		Status:      "open",
 		SourceType:  "risk-promotion",
 		Milestones: []createMilestoneRequest{
-			{Title: "Patch staging", Status: "planned", ScheduledCompletionDate: &due, OrderIndex: 0},
-			{Title: "Patch production", Status: "planned", OrderIndex: 1},
+			{Title: "Patch staging", Status: "planned", ScheduledCompletionDate: &due, OrderIndex: intPtr(0)},
+			{Title: "Patch production", Status: "planned", OrderIndex: intPtr(1)},
 		},
 	}
 	raw, _ := json.Marshal(body)
@@ -578,7 +581,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone() {
 		Description:             "Deploy patched version to staging",
 		Status:                  "planned",
 		ScheduledCompletionDate: &due,
-		OrderIndex:              0,
+		OrderIndex:              intPtr(0),
 	}
 	raw, _ := json.Marshal(body)
 	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), raw)

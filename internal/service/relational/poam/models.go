@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -150,6 +149,11 @@ func (m *PoamItemMilestone) BeforeCreate(_ *gorm.DB) error {
 // PoamItemRiskLink is the join table linking PoamItems to Risks.
 // Uses a composite primary key and OnDelete:CASCADE to match the Risk service
 // link table pattern (e.g., risk_evidence_links).
+//
+// Note: only the PoamItem side carries a DB-level FK constraint. The RiskID
+// column intentionally has no FK back to the risks table because Risks live in
+// a separate bounded context. Referential integrity on the Risk side is
+// enforced at the application layer (EnsureExists checks before link creation).
 type PoamItemRiskLink struct {
 	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
 	RiskID     uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"riskId"`
@@ -161,6 +165,7 @@ type PoamItemRiskLink struct {
 func (PoamItemRiskLink) TableName() string { return "ccf_poam_item_risk_links" }
 
 // PoamItemEvidenceLink is the join table linking PoamItems to Evidence records.
+// EvidenceID has no DB-level FK (same cross-context reasoning as PoamItemRiskLink).
 type PoamItemEvidenceLink struct {
 	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
 	EvidenceID uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"evidenceId"`
@@ -172,6 +177,7 @@ type PoamItemEvidenceLink struct {
 func (PoamItemEvidenceLink) TableName() string { return "ccf_poam_item_evidence_links" }
 
 // PoamItemControlLink is the join table linking PoamItems to Controls.
+// CatalogID/ControlID have no DB-level FK (same cross-context reasoning as PoamItemRiskLink).
 type PoamItemControlLink struct {
 	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"             json:"poamItemId"`
 	CatalogID  uuid.UUID `gorm:"type:uuid;primaryKey;index"       json:"catalogId"`
@@ -184,6 +190,7 @@ type PoamItemControlLink struct {
 func (PoamItemControlLink) TableName() string { return "ccf_poam_item_control_links" }
 
 // PoamItemFindingLink is the join table linking PoamItems to Findings.
+// FindingID has no DB-level FK (same cross-context reasoning as PoamItemRiskLink).
 type PoamItemFindingLink struct {
 	PoamItemID uuid.UUID `gorm:"type:uuid;primaryKey"       json:"poamItemId"`
 	FindingID  uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"findingId"`
@@ -199,6 +206,3 @@ type ControlRef struct {
 	CatalogID uuid.UUID `json:"catalogId"`
 	ControlID string    `json:"controlId"`
 }
-
-// Ensure the relational package is imported (used for SSP existence checks in the service).
-var _ = relational.SystemSecurityPlan{}
