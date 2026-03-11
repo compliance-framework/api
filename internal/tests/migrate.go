@@ -5,6 +5,7 @@ package tests
 import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
+	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"gorm.io/gorm"
@@ -165,6 +166,12 @@ func (t *TestMigrator) Up() error {
 		&relational.User{},
 
 		&service.Heartbeat{},
+		&poamrel.PoamItem{},
+		&poamrel.PoamItemMilestone{},
+		&poamrel.PoamItemRiskLink{},
+		&poamrel.PoamItemEvidenceLink{},
+		&poamrel.PoamItemControlLink{},
+		&poamrel.PoamItemFindingLink{},
 		&relational.Evidence{},
 		&relational.Labels{},
 		&relational.SelectSubjectById{},
@@ -286,6 +293,12 @@ func (t *TestMigrator) Down() error {
 		"result_risks",
 		"control_selection_assessed_controls_included",
 		"control_selection_assessed_controls_excluded",
+		&poamrel.PoamItemFindingLink{},
+		&poamrel.PoamItemControlLink{},
+		&poamrel.PoamItemEvidenceLink{},
+		&poamrel.PoamItemRiskLink{},
+		&poamrel.PoamItemMilestone{},
+		&poamrel.PoamItem{},
 		&relational.Profile{},
 		&relational.Import{},
 		&relational.Merge{},

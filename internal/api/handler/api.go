@@ -10,6 +10,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/digest"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/labstack/echo/v4"
@@ -48,15 +49,25 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService)
 	evidenceHandler.Register(server.API().Group("/evidence"))
 
+	poamService := poamsvc.NewPoamService(db)
+	poamHandler := NewPoamItemsHandler(poamService, logger)
+	// Flat route: /api/poam-items (supports ?sspId= query filter)
+	poamGroup := server.API().Group("/poam-items")
+	poamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	poamHandler.Register(poamGroup)
+	// SSP-scoped route: /api/system-security-plans/:sspId/poam-items
+	// The :sspId path param is automatically injected into list/create filters.
+	sspPoamGroup := server.API().Group("/system-security-plans/:sspId/poam-items")
+	sspPoamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	poamHandler.RegisterSSPScoped(sspPoamGroup)
+
 	riskHandler := NewRiskHandler(logger, db)
 	riskGroup := server.API().Group("/risks")
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup)
-
 	sspRiskGroup := server.API().Group("/ssp/:sspId/risks")
 	sspRiskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.RegisterSSPScoped(sspRiskGroup)
-
 	riskTemplateHandler := templatehandlers.NewRiskTemplateHandler(logger, db)
 	riskTemplateGroup := server.API().Group("/risk-templates")
 	riskTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))

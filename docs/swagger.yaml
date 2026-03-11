@@ -446,6 +446,22 @@ definitions:
           $ref: '#/definitions/handler.StatusInterval'
         type: array
     type: object
+  handler.GenericDataListResponse-handler_milestoneResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.milestoneResponse'
+        type: array
+    type: object
+  handler.GenericDataListResponse-handler_poamItemResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.poamItemResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_InventoryItemWithSource:
     properties:
       data:
@@ -710,6 +726,38 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.SystemUser'
         type: array
     type: object
+  handler.GenericDataListResponse-poam_PoamItemControlLink:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/poam.PoamItemControlLink'
+        type: array
+    type: object
+  handler.GenericDataListResponse-poam_PoamItemEvidenceLink:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/poam.PoamItemEvidenceLink'
+        type: array
+    type: object
+  handler.GenericDataListResponse-poam_PoamItemFindingLink:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/poam.PoamItemFindingLink'
+        type: array
+    type: object
+  handler.GenericDataListResponse-poam_PoamItemRiskLink:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/poam.PoamItemRiskLink'
+        type: array
+    type: object
   handler.GenericDataListResponse-relational_Evidence:
     properties:
       data:
@@ -798,6 +846,20 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.SubscriptionsResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_milestoneResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.milestoneResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_poamItemResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.poamItemResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_riskResponse:
@@ -1199,6 +1261,34 @@ definitions:
         - $ref: '#/definitions/oscalTypes_1_1_3.Task'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-poam_PoamItemControlLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/poam.PoamItemControlLink'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-poam_PoamItemEvidenceLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/poam.PoamItemEvidenceLink'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-poam_PoamItemFindingLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/poam.PoamItemFindingLink'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-poam_PoamItemRiskLink:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/poam.PoamItemRiskLink'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-relational_Evidence:
     properties:
       data:
@@ -1390,9 +1480,27 @@ definitions:
       evidenceId:
         type: string
     type: object
+  handler.addLinkRequest:
+    properties:
+      id:
+        type: string
+    required:
+    - id
+    type: object
   handler.addSubjectLinkRequest:
     properties:
       subjectId:
+        type: string
+    type: object
+  handler.controlLinkResponse:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+      createdAt:
+        type: string
+      poamItemId:
         type: string
     type: object
   handler.createFilterRequest:
@@ -1412,6 +1520,68 @@ definitions:
     required:
     - filter
     - name
+    type: object
+  handler.createMilestoneRequest:
+    properties:
+      description:
+        type: string
+      orderIndex:
+        description: |-
+          OrderIndex is a pointer so that clients can explicitly set 0 without it
+          being indistinguishable from an omitted field.
+        type: integer
+      scheduledCompletionDate:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  handler.createPoamItemRequest:
+    properties:
+      acceptanceRationale:
+        type: string
+      controlRefs:
+        items:
+          $ref: '#/definitions/handler.poamControlRefRequest'
+        type: array
+      createdFromRiskId:
+        type: string
+      description:
+        type: string
+      evidenceIds:
+        items:
+          type: string
+        type: array
+      findingIds:
+        items:
+          type: string
+        type: array
+      milestones:
+        items:
+          $ref: '#/definitions/handler.createMilestoneRequest'
+        type: array
+      plannedCompletionDate:
+        type: string
+      primaryOwnerUserId:
+        type: string
+      riskIds:
+        items:
+          type: string
+        type: array
+      sourceType:
+        type: string
+      sspId:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    required:
+    - sspId
+    - title
     type: object
   handler.createRiskRequest:
     properties:
@@ -1442,6 +1612,108 @@ definitions:
       title:
         type: string
     type: object
+  handler.evidenceLinkResponse:
+    properties:
+      createdAt:
+        type: string
+      evidenceId:
+        type: string
+      poamItemId:
+        type: string
+    type: object
+  handler.findingLinkResponse:
+    properties:
+      createdAt:
+        type: string
+      findingId:
+        type: string
+      poamItemId:
+        type: string
+    type: object
+  handler.milestoneResponse:
+    properties:
+      completionDate:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      orderIndex:
+        type: integer
+      poamItemId:
+        type: string
+      scheduledCompletionDate:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  handler.poamControlRefRequest:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+    required:
+    - catalogId
+    - controlId
+    type: object
+  handler.poamItemResponse:
+    properties:
+      acceptanceRationale:
+        type: string
+      completedAt:
+        type: string
+      controlLinks:
+        items:
+          $ref: '#/definitions/handler.controlLinkResponse'
+        type: array
+      createdAt:
+        type: string
+      createdFromRiskId:
+        type: string
+      description:
+        type: string
+      evidenceLinks:
+        items:
+          $ref: '#/definitions/handler.evidenceLinkResponse'
+        type: array
+      findingLinks:
+        items:
+          $ref: '#/definitions/handler.findingLinkResponse'
+        type: array
+      id:
+        type: string
+      lastStatusChangeAt:
+        type: string
+      milestones:
+        items:
+          $ref: '#/definitions/handler.milestoneResponse'
+        type: array
+      plannedCompletionDate:
+        type: string
+      primaryOwnerUserId:
+        type: string
+      riskLinks:
+        items:
+          $ref: '#/definitions/handler.riskLinkResponse'
+        type: array
+      sourceType:
+        type: string
+      sspId:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   handler.reviewRiskRequest:
     properties:
       decision:
@@ -1458,6 +1730,15 @@ definitions:
       catalogId:
         type: string
       controlId:
+        type: string
+    type: object
+  handler.riskLinkResponse:
+    properties:
+      createdAt:
+        type: string
+      poamItemId:
+        type: string
+      riskId:
         type: string
     type: object
   handler.riskOwnerAssignmentRequest:
@@ -1537,6 +1818,67 @@ definitions:
       updatedAt:
         type: string
     type: object
+  handler.updateMilestoneRequest:
+    properties:
+      description:
+        type: string
+      orderIndex:
+        type: integer
+      scheduledCompletionDate:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  handler.updatePoamItemRequest:
+    properties:
+      acceptanceRationale:
+        type: string
+      addControlRefs:
+        items:
+          $ref: '#/definitions/handler.poamControlRefRequest'
+        type: array
+      addEvidenceIds:
+        items:
+          type: string
+        type: array
+      addFindingIds:
+        items:
+          type: string
+        type: array
+      addRiskIds:
+        description: Link management — add/remove in the same call as scalar updates.
+        items:
+          type: string
+        type: array
+      description:
+        type: string
+      plannedCompletionDate:
+        type: string
+      primaryOwnerUserId:
+        type: string
+      removeControlRefs:
+        items:
+          $ref: '#/definitions/handler.poamControlRefRequest'
+        type: array
+      removeEvidenceIds:
+        items:
+          type: string
+        type: array
+      removeFindingIds:
+        items:
+          type: string
+        type: array
+      removeRiskIds:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      title:
+        type: string
+    type: object
   handler.updateRiskRequest:
     properties:
       acceptanceJustification:
@@ -1603,39 +1945,29 @@ definitions:
     type: object
   oscal.BuildByPropsRequest:
     properties:
-      catalog-id:
-        example: 9b0c9c43-2722-4bbb-b132-13d34fb94d45
+      catalogId:
         type: string
-      match-strategy:
-        allOf:
-        - $ref: '#/definitions/oscal.MatchStrategy'
-        example: all
+      matchStrategy:
+        description: all | any
+        type: string
       rules:
         items:
           $ref: '#/definitions/oscal.rule'
-        minItems: 1
         type: array
       title:
-        example: My Custom Profile
         type: string
       version:
-        example: 1.0.0
         type: string
-    required:
-    - catalog-id
-    - match-strategy
-    - rules
-    - title
     type: object
   oscal.BuildByPropsResponse:
     properties:
-      control-ids:
+      controlIds:
         items:
           type: string
         type: array
       profile:
         $ref: '#/definitions/oscalTypes_1_1_3.Profile'
-      profile-id:
+      profileId:
         type: string
     type: object
   oscal.CreateInventoryItemRequest:
@@ -1705,14 +2037,6 @@ definitions:
       uuid:
         type: string
     type: object
-  oscal.MatchStrategy:
-    enum:
-    - all
-    - any
-    type: string
-    x-enum-varnames:
-    - MatchStrategyAll
-    - MatchStrategyAny
   oscal.ProfileComplianceControl:
     properties:
       catalogId:
@@ -1812,18 +2136,6 @@ definitions:
     type: object
   oscal.ProfileHandler:
     type: object
-  oscal.RuleOperator:
-    enum:
-    - equals
-    - contains
-    - regex
-    - in
-    type: string
-    x-enum-varnames:
-    - RuleOperatorEquals
-    - RuleOperatorContains
-    - RuleOperatorRegex
-    - RuleOperatorIn
   oscal.SystemComponentRequest:
     properties:
       definedComponentId:
@@ -1862,21 +2174,14 @@ definitions:
   oscal.rule:
     properties:
       name:
-        example: class
         type: string
       ns:
-        example: http://csrc.nist.gov/ns/oscal
         type: string
       operator:
-        allOf:
-        - $ref: '#/definitions/oscal.RuleOperator'
-        example: equals
-      value:
-        example: technical
+        description: equals | contains | regex | in
         type: string
-    required:
-    - operator
-    - value
+      value:
+        type: string
     type: object
   oscalTypes_1_1_3.Action:
     properties:
@@ -4620,6 +4925,44 @@ definitions:
         items:
           $ref: '#/definitions/oscalTypes_1_1_3.ResponsibleParty'
         type: array
+    type: object
+  poam.PoamItemControlLink:
+    properties:
+      catalogId:
+        type: string
+      controlId:
+        type: string
+      createdAt:
+        type: string
+      poamItemId:
+        type: string
+    type: object
+  poam.PoamItemEvidenceLink:
+    properties:
+      createdAt:
+        type: string
+      evidenceId:
+        type: string
+      poamItemId:
+        type: string
+    type: object
+  poam.PoamItemFindingLink:
+    properties:
+      createdAt:
+        type: string
+      findingId:
+        type: string
+      poamItemId:
+        type: string
+    type: object
+  poam.PoamItemRiskLink:
+    properties:
+      createdAt:
+        type: string
+      poamItemId:
+        type: string
+      riskId:
+        type: string
     type: object
   relational.Action:
     properties:
@@ -19251,6 +19594,754 @@ paths:
       summary: Update a system user
       tags:
       - System Security Plans
+  /poam-items:
+    get:
+      parameters:
+      - description: Filter by status (open|in-progress|completed|overdue)
+        in: query
+        name: status
+        type: string
+      - description: Filter by SSP UUID
+        in: query
+        name: sspId
+        type: string
+      - description: Filter by linked risk UUID
+        in: query
+        name: riskId
+        type: string
+      - description: Filter by planned_completion_date before (RFC3339)
+        in: query
+        name: deadlineBefore
+        type: string
+      - description: Return only overdue items
+        in: query
+        name: overdueOnly
+        type: boolean
+      - description: Filter by primary_owner_user_id UUID
+        in: query
+        name: ownerRef
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_poamItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List POAM items
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createPoamItemRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_poamItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create a POAM item
+      tags:
+      - POAM Items
+  /poam-items/{id}:
+    delete:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a POAM item
+      tags:
+      - POAM Items
+    get:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_poamItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get a POAM item
+      tags:
+      - POAM Items
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updatePoamItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_poamItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a POAM item
+      tags:
+      - POAM Items
+  /poam-items/{id}/controls:
+    get:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-poam_PoamItemControlLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List linked controls
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control ref payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.poamControlRefRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-poam_PoamItemControlLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a control link
+      tags:
+      - POAM Items
+  /poam-items/{id}/controls/{catalogId}/{controlId}:
+    delete:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Catalog ID
+        in: path
+        name: catalogId
+        required: true
+        type: string
+      - description: Control ID
+        in: path
+        name: controlId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a control link
+      tags:
+      - POAM Items
+  /poam-items/{id}/evidence:
+    get:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-poam_PoamItemEvidenceLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List linked evidence
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence ID payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-poam_PoamItemEvidenceLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add an evidence link
+      tags:
+      - POAM Items
+  /poam-items/{id}/evidence/{evidenceId}:
+    delete:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence ID
+        in: path
+        name: evidenceId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete an evidence link
+      tags:
+      - POAM Items
+  /poam-items/{id}/findings:
+    get:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-poam_PoamItemFindingLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List linked findings
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Finding ID payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-poam_PoamItemFindingLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a finding link
+      tags:
+      - POAM Items
+  /poam-items/{id}/findings/{findingId}:
+    delete:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Finding ID
+        in: path
+        name: findingId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a finding link
+      tags:
+      - POAM Items
+  /poam-items/{id}/milestones:
+    get:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_milestoneResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List milestones for a POAM item
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Milestone payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.createMilestoneRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_milestoneResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a milestone to a POAM item
+      tags:
+      - POAM Items
+  /poam-items/{id}/milestones/{milestoneId}:
+    delete:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Milestone ID
+        in: path
+        name: milestoneId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a milestone
+      tags:
+      - POAM Items
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Milestone ID
+        in: path
+        name: milestoneId
+        required: true
+        type: string
+      - description: Milestone update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateMilestoneRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_milestoneResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update a milestone
+      tags:
+      - POAM Items
+  /poam-items/{id}/risks:
+    get:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-poam_PoamItemRiskLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List linked risks
+      tags:
+      - POAM Items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk ID payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-poam_PoamItemRiskLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add a risk link
+      tags:
+      - POAM Items
+  /poam-items/{id}/risks/{riskId}:
+    delete:
+      parameters:
+      - description: POAM item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: riskId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete a risk link
+      tags:
+      - POAM Items
   /risk-templates:
     get:
       description: List risk templates with optional filters and pagination.

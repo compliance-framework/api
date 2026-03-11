@@ -17033,6 +17033,1184 @@
                 }
             }
         },
+        "/poam-items": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List POAM items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by status (open|in-progress|completed|overdue)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by SSP UUID",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by linked risk UUID",
+                        "name": "riskId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by planned_completion_date before (RFC3339)",
+                        "name": "deadlineBefore",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Return only overdue items",
+                        "name": "overdueOnly",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by primary_owner_user_id UUID",
+                        "name": "ownerRef",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_poamItemResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Create a POAM item",
+                "parameters": [
+                    {
+                        "description": "POAM item payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createPoamItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_poamItemResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Get a POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_poamItemResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Update a POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updatePoamItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_poamItemResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete a POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/controls": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List linked controls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-poam_PoamItemControlLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Add a control link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Control ref payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.poamControlRefRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-poam_PoamItemControlLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/controls/{catalogId}/{controlId}": {
+            "delete": {
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete a control link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "catalogId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/evidence": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List linked evidence",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-poam_PoamItemEvidenceLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Add an evidence link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evidence ID payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.addLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-poam_PoamItemEvidenceLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/evidence/{evidenceId}": {
+            "delete": {
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete an evidence link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "evidenceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/findings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List linked findings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-poam_PoamItemFindingLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Add a finding link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Finding ID payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.addLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-poam_PoamItemFindingLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/findings/{findingId}": {
+            "delete": {
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete a finding link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Finding ID",
+                        "name": "findingId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/milestones": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List milestones for a POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_milestoneResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Add a milestone to a POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Milestone payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createMilestoneRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_milestoneResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/milestones/{milestoneId}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Update a milestone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Milestone ID",
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Milestone update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateMilestoneRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_milestoneResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete a milestone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Milestone ID",
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/risks": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "List linked risks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-poam_PoamItemRiskLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Add a risk link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk ID payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.addLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-poam_PoamItemRiskLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/poam-items/{id}/risks/{riskId}": {
+            "delete": {
+                "tags": [
+                    "POAM Items"
+                ],
+                "summary": "Delete a risk link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "POAM item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "riskId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/risk-templates": {
             "get": {
                 "description": "List risk templates with optional filters and pagination.",
@@ -22787,6 +23965,30 @@
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_milestoneResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.milestoneResponse"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-handler_poamItemResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.poamItemResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan": {
             "type": "object",
             "properties": {
@@ -23183,6 +24385,54 @@
                 }
             }
         },
+        "handler.GenericDataListResponse-poam_PoamItemControlLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/poam.PoamItemControlLink"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-poam_PoamItemEvidenceLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/poam.PoamItemEvidenceLink"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-poam_PoamItemFindingLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/poam.PoamItemFindingLink"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-poam_PoamItemRiskLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/poam.PoamItemRiskLink"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-relational_Evidence": {
             "type": "object",
             "properties": {
@@ -23328,6 +24578,32 @@
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.SubscriptionsResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_milestoneResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.milestoneResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_poamItemResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.poamItemResponse"
                         }
                     ]
                 }
@@ -24074,6 +25350,58 @@
                 }
             }
         },
+        "handler.GenericDataResponse-poam_PoamItemControlLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/poam.PoamItemControlLink"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-poam_PoamItemEvidenceLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/poam.PoamItemEvidenceLink"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-poam_PoamItemFindingLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/poam.PoamItemFindingLink"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-poam_PoamItemRiskLink": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/poam.PoamItemRiskLink"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-relational_Evidence": {
             "type": "object",
             "properties": {
@@ -24375,10 +25703,38 @@
                 }
             }
         },
+        "handler.addLinkRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.addSubjectLinkRequest": {
             "type": "object",
             "properties": {
                 "subjectId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.controlLinkResponse": {
+            "type": "object",
+            "properties": {
+                "catalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "poamItemId": {
                     "type": "string"
                 }
             }
@@ -24406,6 +25762,96 @@
                     "$ref": "#/definitions/labelfilter.Filter"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createMilestoneRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "description": "OrderIndex is a pointer so that clients can explicitly set 0 without it\nbeing indistinguishable from an omitted field.",
+                    "type": "integer"
+                },
+                "scheduledCompletionDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.createPoamItemRequest": {
+            "type": "object",
+            "required": [
+                "sspId",
+                "title"
+            ],
+            "properties": {
+                "acceptanceRationale": {
+                    "type": "string"
+                },
+                "controlRefs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.poamControlRefRequest"
+                    }
+                },
+                "createdFromRiskId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidenceIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "findingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "milestones": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.createMilestoneRequest"
+                    }
+                },
+                "plannedCompletionDate": {
+                    "type": "string"
+                },
+                "primaryOwnerUserId": {
+                    "type": "string"
+                },
+                "riskIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sourceType": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -24454,6 +25900,161 @@
                 }
             }
         },
+        "handler.evidenceLinkResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "evidenceId": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.findingLinkResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "findingId": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.milestoneResponse": {
+            "type": "object",
+            "properties": {
+                "completionDate": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "poamItemId": {
+                    "type": "string"
+                },
+                "scheduledCompletionDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.poamControlRefRequest": {
+            "type": "object",
+            "required": [
+                "catalogId",
+                "controlId"
+            ],
+            "properties": {
+                "catalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.poamItemResponse": {
+            "type": "object",
+            "properties": {
+                "acceptanceRationale": {
+                    "type": "string"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "controlLinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.controlLinkResponse"
+                    }
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdFromRiskId": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidenceLinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.evidenceLinkResponse"
+                    }
+                },
+                "findingLinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.findingLinkResponse"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lastStatusChangeAt": {
+                    "type": "string"
+                },
+                "milestones": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.milestoneResponse"
+                    }
+                },
+                "plannedCompletionDate": {
+                    "type": "string"
+                },
+                "primaryOwnerUserId": {
+                    "type": "string"
+                },
+                "riskLinks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.riskLinkResponse"
+                    }
+                },
+                "sourceType": {
+                    "type": "string"
+                },
+                "sspId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.reviewRiskRequest": {
             "type": "object",
             "properties": {
@@ -24478,6 +26079,20 @@
                     "type": "string"
                 },
                 "controlId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.riskLinkResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                },
+                "riskId": {
                     "type": "string"
                 }
             }
@@ -24599,6 +26214,98 @@
                 }
             }
         },
+        "handler.updateMilestoneRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "scheduledCompletionDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.updatePoamItemRequest": {
+            "type": "object",
+            "properties": {
+                "acceptanceRationale": {
+                    "type": "string"
+                },
+                "addControlRefs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.poamControlRefRequest"
+                    }
+                },
+                "addEvidenceIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "addFindingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "addRiskIds": {
+                    "description": "Link management — add/remove in the same call as scalar updates.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "plannedCompletionDate": {
+                    "type": "string"
+                },
+                "primaryOwnerUserId": {
+                    "type": "string"
+                },
+                "removeControlRefs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.poamControlRefRequest"
+                    }
+                },
+                "removeEvidenceIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "removeFindingIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "removeRiskIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.updateRiskRequest": {
             "type": "object",
             "properties": {
@@ -24697,46 +26404,32 @@
         },
         "oscal.BuildByPropsRequest": {
             "type": "object",
-            "required": [
-                "catalog-id",
-                "match-strategy",
-                "rules",
-                "title"
-            ],
             "properties": {
-                "catalog-id": {
-                    "type": "string",
-                    "example": "9b0c9c43-2722-4bbb-b132-13d34fb94d45"
+                "catalogId": {
+                    "type": "string"
                 },
-                "match-strategy": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/oscal.MatchStrategy"
-                        }
-                    ],
-                    "example": "all"
+                "matchStrategy": {
+                    "description": "all | any",
+                    "type": "string"
                 },
                 "rules": {
                     "type": "array",
-                    "minItems": 1,
                     "items": {
                         "$ref": "#/definitions/oscal.rule"
                     }
                 },
                 "title": {
-                    "type": "string",
-                    "example": "My Custom Profile"
+                    "type": "string"
                 },
                 "version": {
-                    "type": "string",
-                    "example": "1.0.0"
+                    "type": "string"
                 }
             }
         },
         "oscal.BuildByPropsResponse": {
             "type": "object",
             "properties": {
-                "control-ids": {
+                "controlIds": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -24745,7 +26438,7 @@
                 "profile": {
                     "$ref": "#/definitions/oscalTypes_1_1_3.Profile"
                 },
-                "profile-id": {
+                "profileId": {
                     "type": "string"
                 }
             }
@@ -24851,17 +26544,6 @@
                     "type": "string"
                 }
             }
-        },
-        "oscal.MatchStrategy": {
-            "type": "string",
-            "enum": [
-                "all",
-                "any"
-            ],
-            "x-enum-varnames": [
-                "MatchStrategyAll",
-                "MatchStrategyAny"
-            ]
         },
         "oscal.ProfileComplianceControl": {
             "type": "object",
@@ -25015,21 +26697,6 @@
         "oscal.ProfileHandler": {
             "type": "object"
         },
-        "oscal.RuleOperator": {
-            "type": "string",
-            "enum": [
-                "equals",
-                "contains",
-                "regex",
-                "in"
-            ],
-            "x-enum-varnames": [
-                "RuleOperatorEquals",
-                "RuleOperatorContains",
-                "RuleOperatorRegex",
-                "RuleOperatorIn"
-            ]
-        },
         "oscal.SystemComponentRequest": {
             "type": "object",
             "properties": {
@@ -25085,30 +26752,19 @@
         },
         "oscal.rule": {
             "type": "object",
-            "required": [
-                "operator",
-                "value"
-            ],
             "properties": {
                 "name": {
-                    "type": "string",
-                    "example": "class"
+                    "type": "string"
                 },
                 "ns": {
-                    "type": "string",
-                    "example": "http://csrc.nist.gov/ns/oscal"
+                    "type": "string"
                 },
                 "operator": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/oscal.RuleOperator"
-                        }
-                    ],
-                    "example": "equals"
+                    "description": "equals | contains | regex | in",
+                    "type": "string"
                 },
                 "value": {
-                    "type": "string",
-                    "example": "technical"
+                    "type": "string"
                 }
             }
         },
@@ -29295,6 +30951,65 @@
                     "items": {
                         "$ref": "#/definitions/oscalTypes_1_1_3.ResponsibleParty"
                     }
+                }
+            }
+        },
+        "poam.PoamItemControlLink": {
+            "type": "object",
+            "properties": {
+                "catalogId": {
+                    "type": "string"
+                },
+                "controlId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                }
+            }
+        },
+        "poam.PoamItemEvidenceLink": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "evidenceId": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                }
+            }
+        },
+        "poam.PoamItemFindingLink": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "findingId": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                }
+            }
+        },
+        "poam.PoamItemRiskLink": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "poamItemId": {
+                    "type": "string"
+                },
+                "riskId": {
+                    "type": "string"
                 }
             }
         },

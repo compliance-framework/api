@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/compliance-framework/api/internal/service/relational"
+	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -135,6 +136,12 @@ func MigrateUp(db *gorm.DB) error {
 
 		// Compliance-Framework - not related to OSCAL
 		&relational.SSOUserLink{},
+		&poamrel.PoamItem{},
+		&poamrel.PoamItemMilestone{},
+		&poamrel.PoamItemRiskLink{},
+		&poamrel.PoamItemEvidenceLink{},
+		&poamrel.PoamItemControlLink{},
+		&poamrel.PoamItemFindingLink{},
 		&relational.User{},
 		&Heartbeat{},
 		&relational.Evidence{},
@@ -341,6 +348,13 @@ func MigrateDown(db *gorm.DB) error {
 		"poam_observations",
 		"poam_findings",
 		"poam_risks",
+
+		&poamrel.PoamItemFindingLink{},
+		&poamrel.PoamItemControlLink{},
+		&poamrel.PoamItemEvidenceLink{},
+		&poamrel.PoamItemRiskLink{},
+		&poamrel.PoamItemMilestone{},
+		&poamrel.PoamItem{},
 
 		&relational.User{},
 
