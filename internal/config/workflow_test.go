@@ -108,6 +108,16 @@ overdue_check_enabled: false
 	assert.False(t, config.OverdueCheckEnabled)
 }
 
+func TestLoadWorkflowConfig_MissingFileUsesDefaults(t *testing.T) {
+	config, err := LoadWorkflowConfig(filepath.Join(t.TempDir(), "does-not-exist.yaml"))
+	require.NoError(t, err)
+
+	def := DefaultWorkflowConfig()
+	assert.Equal(t, def.SchedulerEnabled, config.SchedulerEnabled)
+	assert.Equal(t, def.Schedule, config.Schedule)
+	assert.Equal(t, def.GracePeriodDays, config.GracePeriodDays)
+}
+
 func TestWorkflowConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -25637,6 +25637,9 @@ const docTemplate = `{
         "handler.SubscriptionsResponse": {
             "type": "object",
             "properties": {
+                "riskNotificationsSubscribed": {
+                    "type": "boolean"
+                },
                 "subscribed": {
                     "type": "boolean"
                 },
@@ -25651,6 +25654,9 @@ const docTemplate = `{
         "handler.UpdateSubscriptionsRequest": {
             "type": "object",
             "properties": {
+                "riskNotificationsSubscribed": {
+                    "type": "boolean"
+                },
                 "subscribed": {
                     "type": "boolean"
                 },
@@ -34035,6 +34041,10 @@ const docTemplate = `{
                 },
                 "lastName": {
                     "type": "string"
+                },
+                "riskNotificationsSubscribed": {
+                    "description": "RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.\nThe DB default is intentionally true so existing users are opted in when the column is introduced.",
+                    "type": "boolean"
                 },
                 "taskAvailableEmailSubscribed": {
                     "description": "TaskAvailableEmailSubscribed indicates if the user wants an email when tasks become available",

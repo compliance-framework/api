@@ -369,6 +369,25 @@ func TestPeriodicJobsFromConfig_WorkflowSchedulerEnabledGuard(t *testing.T) {
 	assert.Len(t, jobs, 3)
 }
 
+func TestPeriodicJobsFromConfig_RiskJobsFromDedicatedConfig(t *testing.T) {
+	logger := zap.NewNop().Sugar()
+
+	jobs := periodicJobsFromConfig(&config.Config{
+		Risk: &config.RiskConfig{
+			ReviewDeadlineReminderEnabled:   true,
+			ReviewDeadlineReminderSchedule:  "0 0 8 * * *",
+			ReviewOverdueEscalationEnabled:  true,
+			ReviewOverdueEscalationSchedule: "0 0 9 * * *",
+			StaleRiskScannerEnabled:         true,
+			StaleRiskScannerSchedule:        "0 0 10 * * 1",
+			EvidenceReconciliationEnabled:   true,
+			EvidenceReconciliationSchedule:  "0 30 10 * * *",
+		},
+	}, logger)
+
+	assert.Len(t, jobs, 4)
+}
+
 func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
 	args, opts := workflowSchedulerPeriodicJobConstructor()
 	assert.NotNil(t, args)

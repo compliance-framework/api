@@ -27,12 +27,14 @@ type SubscriptionsResponse struct {
 	Subscribed                   bool `json:"subscribed"`
 	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
 	TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
+	RiskNotificationsSubscribed  bool `json:"riskNotificationsSubscribed"`
 }
 
 type UpdateSubscriptionsRequest struct {
 	Subscribed                   *bool `json:"subscribed"`
 	TaskAvailableEmailSubscribed *bool `json:"taskAvailableEmailSubscribed"`
 	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
+	RiskNotificationsSubscribed  *bool `json:"riskNotificationsSubscribed"`
 }
 
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
@@ -437,6 +439,7 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 			Subscribed:                   user.DigestSubscribed,
 			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
 			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+			RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
 		},
 	})
 }
@@ -484,6 +487,9 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 	if req.TaskDailyDigestSubscribed != nil {
 		user.TaskDailyDigestSubscribed = *req.TaskDailyDigestSubscribed
 	}
+	if req.RiskNotificationsSubscribed != nil {
+		user.RiskNotificationsSubscribed = *req.RiskNotificationsSubscribed
+	}
 
 	if err := h.db.Save(&user).Error; err != nil {
 		h.sugar.Errorw("Failed to update user subscriptions", "error", err)
@@ -496,6 +502,7 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		"subscribed", user.DigestSubscribed,
 		"taskAvailableEmailSubscribed", user.TaskAvailableEmailSubscribed,
 		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
+		"riskNotificationsSubscribed", user.RiskNotificationsSubscribed,
 	)
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
@@ -503,6 +510,7 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 			Subscribed:                   user.DigestSubscribed,
 			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
 			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+			RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
 		},
 	})
 }

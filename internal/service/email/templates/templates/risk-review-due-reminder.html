@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <p>Hello {{.OwnerName}},</p>
+  <p>A risk review deadline is approaching.</p>
+  <ul>
+    <li><strong>Risk:</strong> {{.RiskTitle}}</li>
+    <li><strong>SSP:</strong> {{.SSPName}}</li>
+    <li><strong>Status:</strong> {{.RiskStatus}}</li>
+    <li><strong>Review deadline:</strong> {{.ReviewDeadline}}</li>
+  </ul>
+  <p><a href="{{.RiskURL}}">Open risk</a></p>
+</body>
+</html>

@@ -30,7 +30,7 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 	var user relational.User
 	if err := r.db.WithContext(ctx).First(&user, parsed).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return NotificationUser{}, fmt.Errorf("user %s not found", userID)
+			return NotificationUser{}, fmt.Errorf("user %s not found: %w", userID, gorm.ErrRecordNotFound)
 		}
 		return NotificationUser{}, fmt.Errorf("failed to fetch user %s: %w", userID, err)
 	}
@@ -42,5 +42,6 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 		LastName:                     user.LastName,
 		TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
 		TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
+		RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
 	}, nil
 }

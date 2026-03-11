@@ -1,0 +1,10 @@
+Hello {{.OwnerName}},
+
+A risk review is overdue and requires attention.
+
+Risk: {{.RiskTitle}}
+SSP: {{.SSPName}}
+Status: {{.RiskStatus}}
+Review deadline: {{.ReviewDeadline}}
+
+Open risk: {{.RiskURL}}
