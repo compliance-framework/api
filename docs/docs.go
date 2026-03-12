@@ -14638,11 +14638,14 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion": {
             "post": {
-                "description": "Creates SystemComponents from DefinedComponents that implement the same control and links them via ByComponent.",
+                "description": "Creates or reuses a SystemComponent from the provided DefinedComponent and links it via ByComponent.",
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "System Security Plans"
                 ],
-                "summary": "Apply component suggestions for an implemented requirement",
+                "summary": "Apply a specific component suggestion for an implemented requirement",
                 "parameters": [
                     {
                         "type": "string",
@@ -14657,6 +14660,15 @@ const docTemplate = `{
                         "name": "reqId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Suggestion to apply",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.ApplySuggestionRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -14903,11 +14915,83 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestion": {
             "post": {
-                "description": "Creates SystemComponents from DefinedComponents that implement the statement's parent control and links them via ByComponent to the statement.",
+                "description": "Creates or reuses a SystemComponent from the provided DefinedComponent and links it via ByComponent to the statement.",
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "System Security Plans"
                 ],
-                "summary": "Apply component suggestions for a statement",
+                "summary": "Apply a specific component suggestion for a statement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Implemented Requirement ID",
+                        "name": "reqId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Statement ID",
+                        "name": "stmtId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Suggestion to apply",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/oscal.ApplySuggestionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestions": {
+            "post": {
+                "description": "Creates SystemComponents from all matching DefinedComponents and links them via ByComponent to the statement.",
+                "tags": [
+                    "System Security Plans"
+                ],
+                "summary": "Apply all component suggestions for a statement",
                 "parameters": [
                     {
                         "type": "string",
@@ -27254,6 +27338,23 @@ const docTemplate = `{
                 },
                 "query": {
                     "$ref": "#/definitions/labelfilter.Query"
+                }
+            }
+        },
+        "oscal.ApplySuggestionRequest": {
+            "type": "object",
+            "required": [
+                "componentDefinitionId",
+                "definedComponentId"
+            ],
+            "properties": {
+                "componentDefinitionId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "definedComponentId": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

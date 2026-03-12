@@ -242,7 +242,7 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 	// If no SSPIDs are valid, no risks are needed
 	var errs []error
 	for _, sspID := range sspIDs {
-		// Compute dedupe key: ssp_id + risk_template_id + sorted subject identity keys
+		// Compute dedupe key: ssp_id + risk_template_id
 		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, evidence, sspID)
 
 		// Look for existing active risk with this dedupe key
@@ -323,28 +323,9 @@ func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, co
 }
 
 // computeDedupeKeyForSSP computes the dedupe key for a risk.
-// The key uses sorted, stable subject identity keys so that two separate agents reporting the
-// same violation for the same subjects map to the same risk, enabling correct deduplication.
-// We prefer SubjectUUID from IncludeSubjects (the stable entity reference) and fall back to
-// the AssessmentSubject row ID only when IncludeSubjects is empty.
-// Format: ssp_id:risk_template_id:sorted_subject_identity_keys
+// Format: ssp_id:risk_template_id
 func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID) string {
-	subjectKeys := make([]string, 0, len(evidence.Subjects))
-	for _, subject := range evidence.Subjects {
-		hasStableKey := false
-		for _, inc := range subject.IncludeSubjects {
-			if inc.SubjectUUID != uuid.Nil {
-				subjectKeys = append(subjectKeys, inc.SubjectUUID.String())
-				hasStableKey = true
-			}
-		}
-		// Fall back to the row ID when no IncludeSubjects are populated.
-		if !hasStableKey && subject.ID != nil {
-			subjectKeys = append(subjectKeys, subject.ID.String())
-		}
-	}
-	sort.Strings(subjectKeys)
-	return fmt.Sprintf("%s:%s:%s", sspID.String(), riskTemplate.ID.String(), strings.Join(subjectKeys, ","))
+	return fmt.Sprintf("%s:%s", sspID.String(), riskTemplate.ID.String())
 }
 
 // updateExistingRisk updates an existing risk with new evidence.
@@ -365,7 +346,7 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 		// Re-create all risk links (evidence, subjects, components) for this new piece of evidence.
 		// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
 		// and also keeps subject/component associations up to date as new evidence arrives.
-		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, evidence); err != nil {
+		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, existingRisk.SSPID, evidence); err != nil {
 			return fmt.Errorf("failed to create risk links: %w", err)
 		}
 
@@ -423,7 +404,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		if err := tx.Create(&newRisk).Error; err != nil {
 			return fmt.Errorf("failed to create new risk: %w", err)
 		}
-		if err := w.createRiskLinks(ctx, tx, *newRisk.ID, evidence); err != nil {
+		if err := w.createRiskLinks(ctx, tx, *newRisk.ID, sspID, evidence); err != nil {
 			return err
 		}
 		// Emit a risk_event(created) using the typed constant
@@ -455,7 +436,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 // createRiskLinks creates all necessary links for a risk (evidence, subject, component, control).
 // Accepts a *gorm.DB so the caller can pass a transaction.
 // Uses OnConflict{DoNothing} throughout so retries are idempotent.
-func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, evidence *relational.Evidence) error {
+func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, riskSSPID uuid.UUID, evidence *relational.Evidence) error {
 	now := time.Now().UTC()
 	if evidence.UUID == uuid.Nil {
 		evidenceID := uuid.Nil
@@ -487,8 +468,59 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 		}
 	}
 
+	// Prefetch SystemImplementations for all evidence components to avoid an N+1 query pattern.
+	systemImplIDs := make([]uuid.UUID, 0, len(evidence.Components))
+	seenSystemImplIDs := make(map[uuid.UUID]struct{}, len(evidence.Components))
+	for _, component := range evidence.Components {
+		systemImplID := component.SystemImplementationId
+		if systemImplID == uuid.Nil {
+			continue
+		}
+		if _, seen := seenSystemImplIDs[systemImplID]; seen {
+			continue
+		}
+		seenSystemImplIDs[systemImplID] = struct{}{}
+		systemImplIDs = append(systemImplIDs, systemImplID)
+	}
+
+	systemImplToSSPID := make(map[uuid.UUID]uuid.UUID, len(systemImplIDs))
+	if len(systemImplIDs) > 0 {
+		var systemImpls []relational.SystemImplementation
+		if err := db.WithContext(ctx).
+			Select("id", "system_security_plan_id").
+			Where("id IN ?", systemImplIDs).
+			Find(&systemImpls).Error; err != nil {
+			return fmt.Errorf("failed to prefetch components' system implementations: %w", err)
+		}
+		for _, systemImpl := range systemImpls {
+			if systemImpl.ID == nil {
+				continue
+			}
+			systemImplToSSPID[*systemImpl.ID] = systemImpl.SystemSecurityPlanId
+		}
+	}
+
 	// Link components
 	for _, component := range evidence.Components {
+		componentSSPID, ok := systemImplToSSPID[component.SystemImplementationId]
+		if !ok {
+			w.logger.Warnw("Component's SystemImplementation not found, skipping component link",
+				"component_id", component.ID,
+				"system_implementation_id", component.SystemImplementationId,
+				"risk_id", riskID)
+			continue
+		}
+
+		// Skip if component belongs to a different SSP
+		if componentSSPID != riskSSPID {
+			w.logger.Warnw("Component belongs to different SSP than risk, skipping component link",
+				"component_id", component.ID,
+				"component_ssp_id", componentSSPID,
+				"risk_ssp_id", riskSSPID,
+				"risk_id", riskID)
+			continue
+		}
+
 		componentLink := &risks.RiskComponentLink{
 			RiskID:      riskID,
 			ComponentID: *component.ID,

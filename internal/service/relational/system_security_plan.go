@@ -1274,10 +1274,10 @@ type ByComponent struct {
 	UUIDModel
 
 	// As ByComponent can be found in Implemented Requirements & Statements, using GORM polymorphism to tell us where to attach
-	ParentID   *uuid.UUID
+	ParentID   *uuid.UUID `gorm:"type:uuid"`
 	ParentType *string
 
-	ComponentUUID        uuid.UUID                                      `json:"component-uuid"`
+	ComponentUUID        uuid.UUID                                      `gorm:"type:uuid" json:"component-uuid"`
 	Description          string                                         `json:"description"`
 	Props                datatypes.JSONSlice[Prop]                      `json:"props"`
 	Links                datatypes.JSONSlice[Link]                      `json:"links"`

@@ -1951,6 +1951,18 @@ definitions:
       query:
         $ref: '#/definitions/labelfilter.Query'
     type: object
+  oscal.ApplySuggestionRequest:
+    properties:
+      componentDefinitionId:
+        format: uuid
+        type: string
+      definedComponentId:
+        format: uuid
+        type: string
+    required:
+    - componentDefinitionId
+    - definedComponentId
+    type: object
   oscal.BuildByPropsRequest:
     properties:
       catalogId:
@@ -18004,8 +18016,10 @@ paths:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/apply-suggestion:
     post:
-      description: Creates SystemComponents from DefinedComponents that implement
-        the same control and links them via ByComponent.
+      consumes:
+      - application/json
+      description: Creates or reuses a SystemComponent from the provided DefinedComponent
+        and links it via ByComponent.
       parameters:
       - description: SSP ID
         in: path
@@ -18017,6 +18031,12 @@ paths:
         name: reqId
         required: true
         type: string
+      - description: Suggestion to apply
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.ApplySuggestionRequest'
       responses:
         "204":
           description: No Content
@@ -18034,7 +18054,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Apply component suggestions for an implemented requirement
+      summary: Apply a specific component suggestion for an implemented requirement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/by-components/{byComponentId}:
@@ -18184,8 +18204,56 @@ paths:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestion:
     post:
-      description: Creates SystemComponents from DefinedComponents that implement
-        the statement's parent control and links them via ByComponent to the statement.
+      consumes:
+      - application/json
+      description: Creates or reuses a SystemComponent from the provided DefinedComponent
+        and links it via ByComponent to the statement.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Implemented Requirement ID
+        in: path
+        name: reqId
+        required: true
+        type: string
+      - description: Statement ID
+        in: path
+        name: stmtId
+        required: true
+        type: string
+      - description: Suggestion to apply
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/oscal.ApplySuggestionRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Apply a specific component suggestion for a statement
+      tags:
+      - System Security Plans
+  /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/apply-suggestions:
+    post:
+      description: Creates SystemComponents from all matching DefinedComponents and
+        links them via ByComponent to the statement.
       parameters:
       - description: SSP ID
         in: path
@@ -18219,7 +18287,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - OAuth2Password: []
-      summary: Apply component suggestions for a statement
+      summary: Apply all component suggestions for a statement
       tags:
       - System Security Plans
   /oscal/system-security-plans/{id}/control-implementation/implemented-requirements/{reqId}/statements/{stmtId}/by-components:
