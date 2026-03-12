@@ -914,7 +914,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	evidence, err := worker.loadEvidenceWithRelations(ctx, *evidence.ID)
 	require.NoError(t, err)
 
-	// Create a risk record first (createRiskLinks needs to query for SSP ID)
+	// Create a risk record so FK-backed links can be inserted.
 	riskID := uuid.New()
 	risk := &risks.Risk{
 		UUIDModel:   relational.UUIDModel{ID: &riskID},
@@ -929,7 +929,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	require.NoError(t, worker.db.Create(risk).Error)
 
 	// Create risk links
-	err = worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	err = worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence)
 
 	assert.NoError(t, err)
 
@@ -964,7 +964,7 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	// Create test evidence without subjects or components
 	evidence := createTestEvidence(t, worker.db)
 
-	// Create a risk record first (createRiskLinks needs to query for SSP ID)
+	// Create a risk record so FK-backed links can be inserted.
 	sspID := uuid.New()
 	riskID := uuid.New()
 	risk := &risks.Risk{
@@ -980,7 +980,7 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	require.NoError(t, worker.db.Create(risk).Error)
 
 	// Create risk links
-	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	err := worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence)
 
 	assert.NoError(t, err)
 
@@ -1018,7 +1018,7 @@ func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing
 	require.NoError(t, worker.db.Create(evidence).Error)
 
 	riskID := uuid.New()
-	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	err := worker.createRiskLinks(ctx, worker.db, riskID, uuid.New(), evidence)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "missing stream uuid")
 

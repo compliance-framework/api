@@ -1954,9 +1954,14 @@ definitions:
   oscal.ApplySuggestionRequest:
     properties:
       componentDefinitionId:
+        format: uuid
         type: string
       definedComponentId:
+        format: uuid
         type: string
+    required:
+    - componentDefinitionId
+    - definedComponentId
     type: object
   oscal.BuildByPropsRequest:
     properties:

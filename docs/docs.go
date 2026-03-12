@@ -27343,12 +27343,18 @@ const docTemplate = `{
         },
         "oscal.ApplySuggestionRequest": {
             "type": "object",
+            "required": [
+                "componentDefinitionId",
+                "definedComponentId"
+            ],
             "properties": {
                 "componentDefinitionId": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "definedComponentId": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

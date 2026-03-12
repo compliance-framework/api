@@ -35,8 +35,8 @@ type SystemComponentRequest struct {
 }
 
 type ApplySuggestionRequest struct {
-	ComponentDefinitionID *uuid.UUID `json:"componentDefinitionId"`
-	DefinedComponentID    *uuid.UUID `json:"definedComponentId"`
+	ComponentDefinitionID *uuid.UUID `json:"componentDefinitionId" binding:"required" format:"uuid"`
+	DefinedComponentID    *uuid.UUID `json:"definedComponentId" binding:"required" format:"uuid"`
 }
 
 func (r *ApplySuggestionRequest) Validate() error {
