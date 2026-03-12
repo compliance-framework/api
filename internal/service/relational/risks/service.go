@@ -686,6 +686,39 @@ func (s *RiskService) AddControlLink(riskID, catalogID uuid.UUID, controlID stri
 	return &link, nil
 }
 
+func (s *RiskService) DeleteControlLink(riskID, catalogID uuid.UUID, controlID string, actorUserID *uuid.UUID) (bool, error) {
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return false, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	result := tx.Delete(&RiskControlLink{}, "risk_id = ? AND catalog_id = ? AND control_id = ?", riskID, catalogID, controlID)
+	if result.Error != nil {
+		tx.Rollback()
+		return false, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return false, nil
+	}
+
+	if err := s.logRiskEvent(tx, riskID, RiskEventTypeControlUnlink, actorUserID, datatypes.JSONMap{
+		"catalogId": catalogID.String(),
+		"controlId": controlID,
+	}); err != nil {
+		tx.Rollback()
+		return false, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (s *RiskService) ListComponentLinks(riskID uuid.UUID, limit, offset int) ([]RiskComponentLink, int64, error) {
 	q := s.db.Model(&RiskComponentLink{}).Where("risk_id = ?", riskID)
 
@@ -742,6 +775,38 @@ func (s *RiskService) AddComponentLink(riskID, componentID uuid.UUID, actorUserI
 	}
 
 	return &link, nil
+}
+
+func (s *RiskService) DeleteComponentLink(riskID, componentID uuid.UUID, actorUserID *uuid.UUID) (bool, error) {
+	tx, err := beginTx(s.db)
+	if err != nil {
+		return false, err
+	}
+	defer rollbackTxOnPanic(tx)
+
+	result := tx.Delete(&RiskComponentLink{}, "risk_id = ? AND component_id = ?", riskID, componentID)
+	if result.Error != nil {
+		tx.Rollback()
+		return false, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return false, nil
+	}
+
+	if err := s.logRiskEvent(tx, riskID, RiskEventTypeComponentUnlink, actorUserID, datatypes.JSONMap{
+		"componentId": componentID.String(),
+	}); err != nil {
+		tx.Rollback()
+		return false, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (s *RiskService) ListSubjectLinks(riskID uuid.UUID, limit, offset int) ([]RiskSubjectLink, int64, error) {

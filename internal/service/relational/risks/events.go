@@ -13,16 +13,18 @@ import (
 type RiskEventType string
 
 const (
-	RiskEventTypeCreated        RiskEventType = "created"
-	RiskEventTypeLastSeen       RiskEventType = "last_seen"
-	RiskEventTypeStatusChange   RiskEventType = "status_changed"
-	RiskEventTypeAccepted       RiskEventType = "accepted"
-	RiskEventTypeReviewed       RiskEventType = "reviewed"
-	RiskEventTypeEvidenceLink   RiskEventType = "evidence_linked"
-	RiskEventTypeEvidenceUnlink RiskEventType = "evidence_unlinked"
-	RiskEventTypeControlLink    RiskEventType = "control_linked"
-	RiskEventTypeComponentLink  RiskEventType = "component_linked"
-	RiskEventTypeSubjectLink    RiskEventType = "subject_linked"
+	RiskEventTypeCreated         RiskEventType = "created"
+	RiskEventTypeLastSeen        RiskEventType = "last_seen"
+	RiskEventTypeStatusChange    RiskEventType = "status_changed"
+	RiskEventTypeAccepted        RiskEventType = "accepted"
+	RiskEventTypeReviewed        RiskEventType = "reviewed"
+	RiskEventTypeEvidenceLink    RiskEventType = "evidence_linked"
+	RiskEventTypeEvidenceUnlink  RiskEventType = "evidence_unlinked"
+	RiskEventTypeControlLink     RiskEventType = "control_linked"
+	RiskEventTypeControlUnlink   RiskEventType = "control_unlinked"
+	RiskEventTypeComponentLink   RiskEventType = "component_linked"
+	RiskEventTypeComponentUnlink RiskEventType = "component_unlinked"
+	RiskEventTypeSubjectLink     RiskEventType = "subject_linked"
 )
 
 type RiskEvent struct {

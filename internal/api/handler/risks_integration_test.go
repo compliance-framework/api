@@ -90,7 +90,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskCRUDAndFilter() {
 	createReq := map[string]any{
 		"title":       "Undetected secrets committed to repository",
 		"description": "Secrets may leak from source control",
-		"sspId":       sspID,
+		"ssp-id":      sspID,
 		"status":      "open",
 		"likelihood":  "medium",
 		"impact":      "high",
@@ -99,10 +99,10 @@ func (suite *RiskApiIntegrationSuite) TestRiskCRUDAndFilter() {
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", createReq)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusCreated, rec.Code)
-	require.Contains(suite.T(), rec.Body.String(), "\"evidenceIds\":[]")
-	require.Contains(suite.T(), rec.Body.String(), "\"controlLinks\":[]")
-	require.Contains(suite.T(), rec.Body.String(), "\"componentIds\":[]")
-	require.Contains(suite.T(), rec.Body.String(), "\"subjectIds\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"evidence-ids\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"control-links\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"component-ids\":[]")
+	require.Contains(suite.T(), rec.Body.String(), "\"subject-ids\":[]")
 
 	var created GenericDataResponse[riskResponse]
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
@@ -112,14 +112,14 @@ func (suite *RiskApiIntegrationSuite) TestRiskCRUDAndFilter() {
 	secondReq := map[string]any{
 		"title":       "Second risk",
 		"description": "Secondary entry",
-		"sspId":       sspID,
+		"ssp-id":      sspID,
 		"status":      "open",
 	}
 	secondRec, secondCall := suite.authedRequest(http.MethodPost, "/api/risks", secondReq)
 	suite.server.E().ServeHTTP(secondRec, secondCall)
 	require.Equal(suite.T(), http.StatusCreated, secondRec.Code)
 
-	listRec, listReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks?status=open&sspId=%s&page=1&limit=1&sort=createdAt&order=asc", created.Data.SSPID.String()), nil)
+	listRec, listReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks?status=open&ssp-id=%s&page=1&limit=1&sort=created-at&order=asc", created.Data.SSPID.String()), nil)
 	suite.server.E().ServeHTTP(listRec, listReq)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)
 
@@ -150,7 +150,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	createReq := map[string]any{
 		"title":       "Transition risk",
 		"description": "Transition testing",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 		"status":      "open",
 	}
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", createReq)
@@ -191,9 +191,9 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	require.Equal(suite.T(), http.StatusBadRequest, reopenRec.Code)
 
 	acceptedAfterClosedRec, acceptedAfterClosedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{
-		"status":                  "risk-accepted",
-		"reviewDeadline":          time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339),
-		"acceptanceJustification": "invalid after closed",
+		"status":                   "risk-accepted",
+		"review-deadline":          time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339),
+		"acceptance-justification": "invalid after closed",
 	})
 	suite.server.E().ServeHTTP(acceptedAfterClosedRec, acceptedAfterClosedReq)
 	require.Equal(suite.T(), http.StatusBadRequest, acceptedAfterClosedRec.Code)
@@ -201,16 +201,16 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	acceptedPath := suite.createRisk(map[string]any{
 		"title":       "Accepted path",
 		"description": "acceptance transition",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 		"status":      "investigating",
 	})
 
 	deadline := time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	acceptReq := map[string]any{
-		"status":                  "risk-accepted",
-		"reviewDeadline":          deadline,
-		"reviewJustification":     "Quarterly governance review",
-		"acceptanceJustification": "Business accepted",
+		"status":                   "risk-accepted",
+		"review-deadline":          deadline,
+		"review-justification":     "Quarterly governance review",
+		"acceptance-justification": "Business accepted",
 	}
 	acceptRec, acceptCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", acceptedPath.ID), acceptReq)
 	suite.server.E().ServeHTTP(acceptRec, acceptCall)
@@ -238,20 +238,20 @@ func (suite *RiskApiIntegrationSuite) TestRiskAcceptAndReviewEndpoints() {
 	created := suite.createRisk(map[string]any{
 		"title":       "Lifecycle risk",
 		"description": "accept and review endpoints",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 		"status":      "investigating",
 	})
 
 	missingJustificationRec, missingJustificationReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"reviewDeadline": time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
+		"review-deadline": time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(missingJustificationRec, missingJustificationReq)
 	require.Equal(suite.T(), http.StatusBadRequest, missingJustificationRec.Code)
 
 	acceptDeadline := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
 	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":  "business accepted for a limited period",
-		"reviewDeadline": acceptDeadline.Format(time.RFC3339),
+		"justification":   "business accepted for a limited period",
+		"review-deadline": acceptDeadline.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(acceptRec, acceptReq)
 	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
@@ -274,10 +274,10 @@ func (suite *RiskApiIntegrationSuite) TestRiskAcceptAndReviewEndpoints() {
 	reviewedAt := time.Now().Add(-90 * time.Minute).UTC().Truncate(time.Second)
 	nextReviewDeadline := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
 	reviewExtendRec, reviewExtendReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
-		"reviewedAt":         reviewedAt.Format(time.RFC3339),
-		"decision":           "extend",
-		"notes":              "controls are improving, keep accepted",
-		"nextReviewDeadline": nextReviewDeadline.Format(time.RFC3339),
+		"reviewed-at":          reviewedAt.Format(time.RFC3339),
+		"decision":             "extend",
+		"notes":                "controls are improving, keep accepted",
+		"next-review-deadline": nextReviewDeadline.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(reviewExtendRec, reviewExtendReq)
 	require.Equal(suite.T(), http.StatusOK, reviewExtendRec.Code)
@@ -291,8 +291,8 @@ func (suite *RiskApiIntegrationSuite) TestRiskAcceptAndReviewEndpoints() {
 	require.WithinDuration(suite.T(), reviewedAt, *extended.Data.LastReviewedAt, time.Second)
 
 	reviewReopenWithDeadlineRec, reviewReopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
-		"decision":           "reopen",
-		"nextReviewDeadline": nextReviewDeadline.Format(time.RFC3339),
+		"decision":             "reopen",
+		"next-review-deadline": nextReviewDeadline.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(reviewReopenWithDeadlineRec, reviewReopenWithDeadlineReq)
 	require.Equal(suite.T(), http.StatusBadRequest, reviewReopenWithDeadlineRec.Code)
@@ -339,7 +339,7 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
 		"title":       "Scoped risk",
 		"description": "created from scoped endpoint",
 	}
-	createRec, createHTTPReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", sspID), createReq)
+	createRec, createHTTPReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks", sspID), createReq)
 	suite.server.E().ServeHTTP(createRec, createHTTPReq)
 	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
 
@@ -347,14 +347,14 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
 	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
 	require.Equal(suite.T(), sspID, created.Data.SSPID.String())
 
-	otherCreateRec, otherCreateReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", otherSSPID), map[string]any{
+	otherCreateRec, otherCreateReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks", otherSSPID), map[string]any{
 		"title":       "Other scoped risk",
 		"description": "should not appear in first scope list",
 	})
 	suite.server.E().ServeHTTP(otherCreateRec, otherCreateReq)
 	require.Equal(suite.T(), http.StatusCreated, otherCreateRec.Code)
 
-	listRec, listHTTPReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks?page=1&limit=20", sspID), nil)
+	listRec, listHTTPReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks?page=1&limit=20", sspID), nil)
 	suite.server.E().ServeHTTP(listRec, listHTTPReq)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)
 	var listResp struct {
@@ -364,31 +364,31 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
 	require.Len(suite.T(), listResp.Data, 1)
 	require.Equal(suite.T(), created.Data.ID, listResp.Data[0].ID)
 
-	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), nil)
+	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s", sspID, created.Data.ID), nil)
 	suite.server.E().ServeHTTP(getRec, getReq)
 	require.Equal(suite.T(), http.StatusOK, getRec.Code)
 
-	getOtherRec, getOtherReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), nil)
+	getOtherRec, getOtherReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s", otherSSPID, created.Data.ID), nil)
 	suite.server.E().ServeHTTP(getOtherRec, getOtherReq)
 	require.Equal(suite.T(), http.StatusNotFound, getOtherRec.Code)
 
-	updateScopedRec, updateScopedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), map[string]any{
+	updateScopedRec, updateScopedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s", sspID, created.Data.ID), map[string]any{
 		"title": "Scoped risk updated",
 	})
 	suite.server.E().ServeHTTP(updateScopedRec, updateScopedReq)
 	require.Equal(suite.T(), http.StatusOK, updateScopedRec.Code)
 
-	updateOtherRec, updateOtherReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), map[string]any{
+	updateOtherRec, updateOtherReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s", otherSSPID, created.Data.ID), map[string]any{
 		"title": "should fail",
 	})
 	suite.server.E().ServeHTTP(updateOtherRec, updateOtherReq)
 	require.Equal(suite.T(), http.StatusNotFound, updateOtherRec.Code)
 
-	deleteOtherRec, deleteOtherReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/ssp/%s/risks/%s", otherSSPID, created.Data.ID), nil)
+	deleteOtherRec, deleteOtherReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s", otherSSPID, created.Data.ID), nil)
 	suite.server.E().ServeHTTP(deleteOtherRec, deleteOtherReq)
 	require.Equal(suite.T(), http.StatusNotFound, deleteOtherRec.Code)
 
-	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/ssp/%s/risks/%s", sspID, created.Data.ID), nil)
+	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s", sspID, created.Data.ID), nil)
 	suite.server.E().ServeHTTP(deleteRec, deleteReq)
 	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
 }
@@ -397,7 +397,7 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints(
 	sspID := suite.newSSPID()
 	otherSSPID := suite.newSSPID()
 
-	createRec, createReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks", sspID), map[string]any{
+	createRec, createReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks", sspID), map[string]any{
 		"title":       "Scoped lifecycle risk",
 		"description": "accept/review scoped",
 		"status":      "investigating",
@@ -408,17 +408,17 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints(
 	var created GenericDataResponse[riskResponse]
 	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
 
-	notFoundAcceptRec, notFoundAcceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/accept", otherSSPID, created.Data.ID), map[string]any{
-		"justification":  "wrong scope",
-		"reviewDeadline": time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
+	notFoundAcceptRec, notFoundAcceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/accept", otherSSPID, created.Data.ID), map[string]any{
+		"justification":   "wrong scope",
+		"review-deadline": time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(notFoundAcceptRec, notFoundAcceptReq)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundAcceptRec.Code)
 
 	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC().Truncate(time.Second)
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/accept", sspID, created.Data.ID), map[string]any{
-		"justification":  "accepted scoped risk",
-		"reviewDeadline": acceptDeadline.Format(time.RFC3339),
+	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/accept", sspID, created.Data.ID), map[string]any{
+		"justification":   "accepted scoped risk",
+		"review-deadline": acceptDeadline.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(acceptRec, acceptReq)
 	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
@@ -428,10 +428,10 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints(
 	require.Equal(suite.T(), "risk-accepted", accepted.Data.Status)
 
 	reviewDeadline := time.Now().Add(45 * 24 * time.Hour).UTC().Truncate(time.Second)
-	reviewRec, reviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
-		"decision":           "extend",
-		"notes":              "scoped extension",
-		"nextReviewDeadline": reviewDeadline.Format(time.RFC3339),
+	reviewRec, reviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
+		"decision":             "extend",
+		"notes":                "scoped extension",
+		"next-review-deadline": reviewDeadline.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(reviewRec, reviewReq)
 	require.Equal(suite.T(), http.StatusOK, reviewRec.Code)
@@ -442,14 +442,14 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints(
 	require.NotNil(suite.T(), reviewed.Data.ReviewDeadline)
 	require.WithinDuration(suite.T(), reviewDeadline, *reviewed.Data.ReviewDeadline, time.Second)
 
-	reopenWithDeadlineRec, reopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
-		"decision":           "reopen",
-		"nextReviewDeadline": reviewDeadline.Format(time.RFC3339),
+	reopenWithDeadlineRec, reopenWithDeadlineReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
+		"decision":             "reopen",
+		"next-review-deadline": reviewDeadline.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(reopenWithDeadlineRec, reopenWithDeadlineReq)
 	require.Equal(suite.T(), http.StatusBadRequest, reopenWithDeadlineRec.Code)
 
-	notFoundReviewRec, notFoundReviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/ssp/%s/risks/%s/review", otherSSPID, created.Data.ID), map[string]any{
+	notFoundReviewRec, notFoundReviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/review", otherSSPID, created.Data.ID), map[string]any{
 		"decision": "reopen",
 	})
 	suite.server.E().ServeHTTP(notFoundReviewRec, notFoundReviewReq)
@@ -469,7 +469,7 @@ func (suite *RiskApiIntegrationSuite) TestEvidenceLinksAreIdempotent() {
 	createReq := map[string]any{
 		"title":       "Evidence linked risk",
 		"description": "test",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	}
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", createReq)
 	suite.server.E().ServeHTTP(rec, req)
@@ -478,7 +478,7 @@ func (suite *RiskApiIntegrationSuite) TestEvidenceLinksAreIdempotent() {
 	var created GenericDataResponse[riskResponse]
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
 
-	linkReq := map[string]any{"evidenceId": evidence.ID.String()}
+	linkReq := map[string]any{"evidence-id": evidence.ID.String()}
 	linkRec1, linkReq1 := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.Data.ID), linkReq)
 	suite.server.E().ServeHTTP(linkRec1, linkReq1)
 	require.Equal(suite.T(), http.StatusCreated, linkRec1.Code)
@@ -543,33 +543,33 @@ func (suite *RiskApiIntegrationSuite) TestRiskControlComponentSubjectEndpointsAn
 
 	reviewDeadline := time.Now().Add(5 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	createReq := map[string]any{
-		"title":          "Risk with link coverage",
-		"description":    "cover controls/components/subjects",
-		"sspId":          suite.newSSPID(),
-		"reviewDeadline": reviewDeadline,
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
+		"title":           "Risk with link coverage",
+		"description":     "cover controls/components/subjects",
+		"ssp-id":          suite.newSSPID(),
+		"review-deadline": reviewDeadline,
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "secops", "is-primary": true},
 		},
 	}
 
 	created := suite.createRisk(createReq)
 
-	evidenceLinkReq := map[string]any{"evidenceId": evidence.ID.String()}
+	evidenceLinkReq := map[string]any{"evidence-id": evidence.ID.String()}
 	evidenceLinkRec, evidenceLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), evidenceLinkReq)
 	suite.server.E().ServeHTTP(evidenceLinkRec, evidenceLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, evidenceLinkRec.Code)
 
-	controlLinkReq := map[string]any{"catalogId": catalogID.String(), "controlId": "AC-1"}
+	controlLinkReq := map[string]any{"catalog-id": catalogID.String(), "control-id": "AC-1"}
 	controlLinkRec, controlLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/controls", created.ID), controlLinkReq)
 	suite.server.E().ServeHTTP(controlLinkRec, controlLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, controlLinkRec.Code)
 
-	componentLinkReq := map[string]any{"componentId": componentID.String()}
+	componentLinkReq := map[string]any{"component-id": componentID.String()}
 	componentLinkRec, componentLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/components", created.ID), componentLinkReq)
 	suite.server.E().ServeHTTP(componentLinkRec, componentLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, componentLinkRec.Code)
 
-	subjectLinkReq := map[string]any{"subjectId": subjectID.String()}
+	subjectLinkReq := map[string]any{"subject-id": subjectID.String()}
 	subjectLinkRec, subjectLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/subjects", created.ID), subjectLinkReq)
 	suite.server.E().ServeHTTP(subjectLinkRec, subjectLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, subjectLinkRec.Code)
@@ -637,15 +637,15 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	base := map[string]any{
 		"title":       "Validation risk",
 		"description": "validation",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	}
 
 	invalidOwnerKind := map[string]any{
 		"title":       base["title"],
 		"description": base["description"],
-		"sspId":       base["sspId"],
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "invalid", "ownerRef": "x", "isPrimary": true},
+		"ssp-id":      base["ssp-id"],
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "invalid", "owner-ref": "x", "is-primary": true},
 		},
 	}
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", invalidOwnerKind)
@@ -655,10 +655,10 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	duplicateOwner := map[string]any{
 		"title":       base["title"],
 		"description": base["description"],
-		"sspId":       base["sspId"],
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "dup", "isPrimary": false},
-			{"ownerKind": "group", "ownerRef": "dup", "isPrimary": false},
+		"ssp-id":      base["ssp-id"],
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "dup", "is-primary": false},
+			{"owner-kind": "group", "owner-ref": "dup", "is-primary": false},
 		},
 	}
 	rec, req = suite.authedRequest(http.MethodPost, "/api/risks", duplicateOwner)
@@ -668,10 +668,10 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	twoPrimaryOwners := map[string]any{
 		"title":       base["title"],
 		"description": base["description"],
-		"sspId":       base["sspId"],
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "a", "isPrimary": true},
-			{"ownerKind": "role", "ownerRef": "b", "isPrimary": true},
+		"ssp-id":      base["ssp-id"],
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "a", "is-primary": true},
+			{"owner-kind": "role", "owner-ref": "b", "is-primary": true},
 		},
 	}
 	rec, req = suite.authedRequest(http.MethodPost, "/api/risks", twoPrimaryOwners)
@@ -681,9 +681,9 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	invalidUserRef := map[string]any{
 		"title":       base["title"],
 		"description": base["description"],
-		"sspId":       base["sspId"],
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "user", "ownerRef": "not-a-uuid", "isPrimary": true},
+		"ssp-id":      base["ssp-id"],
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "user", "owner-ref": "not-a-uuid", "is-primary": true},
 		},
 	}
 	rec, req = suite.authedRequest(http.MethodPost, "/api/risks", invalidUserRef)
@@ -691,35 +691,35 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 
 	acceptedWithoutDeadline := map[string]any{
-		"title":                   "Accepted missing deadline",
-		"description":             "validation",
-		"sspId":                   suite.newSSPID(),
-		"status":                  "risk-accepted",
-		"acceptanceJustification": "ok",
+		"title":                    "Accepted missing deadline",
+		"description":              "validation",
+		"ssp-id":                   suite.newSSPID(),
+		"status":                   "risk-accepted",
+		"acceptance-justification": "ok",
 	}
 	rec, req = suite.authedRequest(http.MethodPost, "/api/risks", acceptedWithoutDeadline)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 
 	acceptedWithoutJustification := map[string]any{
-		"title":                   "Accepted missing justification",
-		"description":             "validation",
-		"sspId":                   suite.newSSPID(),
-		"status":                  "risk-accepted",
-		"reviewDeadline":          time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339),
-		"acceptanceJustification": "",
+		"title":                    "Accepted missing justification",
+		"description":              "validation",
+		"ssp-id":                   suite.newSSPID(),
+		"status":                   "risk-accepted",
+		"review-deadline":          time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339),
+		"acceptance-justification": "",
 	}
 	rec, req = suite.authedRequest(http.MethodPost, "/api/risks", acceptedWithoutJustification)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 
 	acceptedWithPastDeadline := map[string]any{
-		"title":                   "Accepted past deadline",
-		"description":             "validation",
-		"sspId":                   suite.newSSPID(),
-		"status":                  "risk-accepted",
-		"reviewDeadline":          time.Now().Add(-48 * time.Hour).UTC().Format(time.RFC3339),
-		"acceptanceJustification": "ok",
+		"title":                    "Accepted past deadline",
+		"description":              "validation",
+		"ssp-id":                   suite.newSSPID(),
+		"status":                   "risk-accepted",
+		"review-deadline":          time.Now().Add(-48 * time.Hour).UTC().Format(time.RFC3339),
+		"acceptance-justification": "ok",
 	}
 	rec, req = suite.authedRequest(http.MethodPost, "/api/risks", acceptedWithPastDeadline)
 	suite.server.E().ServeHTTP(rec, req)
@@ -728,14 +728,14 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 	created := suite.createRisk(map[string]any{
 		"title":       "Validation target risk",
 		"description": "validation target",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	})
 
 	badEvidenceReq, badEvidenceCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), map[string]any{})
 	suite.server.E().ServeHTTP(badEvidenceReq, badEvidenceCall)
 	require.Equal(suite.T(), http.StatusBadRequest, badEvidenceReq.Code)
 
-	badControlReq, badControlCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/controls", created.ID), map[string]any{"catalogId": uuid.New().String()})
+	badControlReq, badControlCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/controls", created.ID), map[string]any{"catalog-id": uuid.New().String()})
 	suite.server.E().ServeHTTP(badControlReq, badControlCall)
 	require.Equal(suite.T(), http.StatusBadRequest, badControlReq.Code)
 
@@ -751,12 +751,12 @@ func (suite *RiskApiIntegrationSuite) TestRiskValidationAndBadRequestBranches() 
 func (suite *RiskApiIntegrationSuite) TestRiskCreatePrimaryOwnerUserIDNormalizesPrimaryAssignments() {
 	primaryOwnerID := uuid.New()
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", map[string]any{
-		"title":              "Create owner normalization",
-		"description":        "primary owner should be canonical",
-		"sspId":              suite.newSSPID(),
-		"primaryOwnerUserId": primaryOwnerID.String(),
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
+		"title":                 "Create owner normalization",
+		"description":           "primary owner should be canonical",
+		"ssp-id":                suite.newSSPID(),
+		"primary-owner-user-id": primaryOwnerID.String(),
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "secops", "is-primary": true},
 		},
 	})
 	suite.server.E().ServeHTTP(rec, req)
@@ -793,15 +793,15 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdatePrimaryOwnerUserIDNormalizes
 	created := suite.createRisk(map[string]any{
 		"title":       "Update owner normalization",
 		"description": "existing primary owner assignment should be demoted",
-		"sspId":       suite.newSSPID(),
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
+		"ssp-id":      suite.newSSPID(),
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "secops", "is-primary": true},
 		},
 	})
 
 	primaryOwnerID := uuid.New()
 	updateRec, updateReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
-		"primaryOwnerUserId": primaryOwnerID.String(),
+		"primary-owner-user-id": primaryOwnerID.String(),
 	})
 	suite.server.E().ServeHTTP(updateRec, updateReq)
 	require.Equal(suite.T(), http.StatusOK, updateRec.Code)
@@ -836,19 +836,19 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdatePrimaryOwnerUserIDNormalizes
 func (suite *RiskApiIntegrationSuite) TestRiskUpdateReplacingOwnerAssignmentsPreservesExistingPrimaryOwnerUser() {
 	primaryOwnerID := uuid.New()
 	created := suite.createRisk(map[string]any{
-		"title":              "Update owner replacement preserves canonical primary owner",
-		"description":        "ownerAssignments replacement should keep existing primaryOwnerUserId",
-		"sspId":              suite.newSSPID(),
-		"primaryOwnerUserId": primaryOwnerID.String(),
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "legacy", "isPrimary": true},
+		"title":                 "Update owner replacement preserves canonical primary owner",
+		"description":           "ownerAssignments replacement should keep existing primaryOwnerUserId",
+		"ssp-id":                suite.newSSPID(),
+		"primary-owner-user-id": primaryOwnerID.String(),
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "legacy", "is-primary": true},
 		},
 	})
 
 	updateRec, updateReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "new-group", "isPrimary": true},
-			{"ownerKind": "role", "ownerRef": "security-reviewers", "isPrimary": false},
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "new-group", "is-primary": true},
+			{"owner-kind": "role", "owner-ref": "security-reviewers", "is-primary": false},
 		},
 	})
 	suite.server.E().ServeHTTP(updateRec, updateReq)
@@ -924,29 +924,29 @@ func (suite *RiskApiIntegrationSuite) TestRiskDeleteCleansLinkedSubResources() {
 	created := suite.createRisk(map[string]any{
 		"title":       "Delete link cleanup target",
 		"description": "verify deletion of risk-owned sub resources",
-		"sspId":       suite.newSSPID(),
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "secops", "isPrimary": true},
-			{"ownerKind": "role", "ownerRef": "security-reviewers", "isPrimary": false},
+		"ssp-id":      suite.newSSPID(),
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "secops", "is-primary": true},
+			{"owner-kind": "role", "owner-ref": "security-reviewers", "is-primary": false},
 		},
 	})
 
-	evidenceLinkRec, evidenceLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), map[string]any{"evidenceId": evidence.ID.String()})
+	evidenceLinkRec, evidenceLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), map[string]any{"evidence-id": evidence.ID.String()})
 	suite.server.E().ServeHTTP(evidenceLinkRec, evidenceLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, evidenceLinkRec.Code)
 
 	controlLinkRec, controlLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/controls", created.ID), map[string]any{
-		"catalogId": catalogID.String(),
-		"controlId": "AC-2",
+		"catalog-id": catalogID.String(),
+		"control-id": "AC-2",
 	})
 	suite.server.E().ServeHTTP(controlLinkRec, controlLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, controlLinkRec.Code)
 
-	componentLinkRec, componentLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/components", created.ID), map[string]any{"componentId": componentID.String()})
+	componentLinkRec, componentLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/components", created.ID), map[string]any{"component-id": componentID.String()})
 	suite.server.E().ServeHTTP(componentLinkRec, componentLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, componentLinkRec.Code)
 
-	subjectLinkRec, subjectLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/subjects", created.ID), map[string]any{"subjectId": subjectID.String()})
+	subjectLinkRec, subjectLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/subjects", created.ID), map[string]any{"subject-id": subjectID.String()})
 	suite.server.E().ServeHTTP(subjectLinkRec, subjectLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, subjectLinkRec.Code)
 
@@ -986,30 +986,30 @@ func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches()
 	created := suite.createRisk(map[string]any{
 		"title":       "NotFound target risk",
 		"description": "target",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	})
 
 	notFoundControlReq, notFoundControlCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/controls", created.ID), map[string]any{
-		"catalogId": uuid.New().String(),
-		"controlId": "AC-404",
+		"catalog-id": uuid.New().String(),
+		"control-id": "AC-404",
 	})
 	suite.server.E().ServeHTTP(notFoundControlReq, notFoundControlCall)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundControlReq.Code)
 
 	notFoundComponentReq, notFoundComponentCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/components", created.ID), map[string]any{
-		"componentId": uuid.New().String(),
+		"component-id": uuid.New().String(),
 	})
 	suite.server.E().ServeHTTP(notFoundComponentReq, notFoundComponentCall)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundComponentReq.Code)
 
 	notFoundSubjectReq, notFoundSubjectCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/subjects", created.ID), map[string]any{
-		"subjectId": uuid.New().String(),
+		"subject-id": uuid.New().String(),
 	})
 	suite.server.E().ServeHTTP(notFoundSubjectReq, notFoundSubjectCall)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundSubjectReq.Code)
 
 	notFoundEvidenceReq, notFoundEvidenceCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), map[string]any{
-		"evidenceId": uuid.New().String(),
+		"evidence-id": uuid.New().String(),
 	})
 	suite.server.E().ServeHTTP(notFoundEvidenceReq, notFoundEvidenceCall)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundEvidenceReq.Code)
@@ -1035,7 +1035,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches()
 		End:         time.Now().Add(-time.Hour),
 	}
 	require.NoError(suite.T(), suite.DB.Create(&evidence).Error)
-	createdLinkReq := map[string]any{"evidenceId": evidence.ID.String()}
+	createdLinkReq := map[string]any{"evidence-id": evidence.ID.String()}
 	linkRec, linkReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/evidence", created.ID), createdLinkReq)
 	suite.server.E().ServeHTTP(linkRec, linkReq)
 	require.Equal(suite.T(), http.StatusCreated, linkRec.Code)
@@ -1075,7 +1075,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskListContextInternalErrorIs500() {
 	created := suite.createRisk(map[string]any{
 		"title":       "List context failure target",
 		"description": "forces ensureRiskExists internal failure",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	})
 
 	require.NoError(suite.T(), suite.DB.Exec("DROP TABLE risk_register_risks").Error)
@@ -1112,7 +1112,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskGetAndDeleteMeaningfulErrorBranche
 	created := suite.createRisk(map[string]any{
 		"title":       "Delete then verify",
 		"description": "error branches",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	})
 
 	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s", created.ID), nil)
@@ -1132,14 +1132,14 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateWithOptionalFieldsAndDefault
 	lastReviewedAt := time.Now().Add(-2 * time.Hour).In(localTZ).Truncate(time.Second)
 
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", map[string]any{
-		"title":          "Optional field create",
-		"description":    "exercise optional paths",
-		"sspId":          suite.newSSPID(),
-		"dedupeKey":      "scanner:ssp/control:ac-1",
-		"firstSeenAt":    firstSeenAt.Format(time.RFC3339),
-		"lastSeenAt":     lastSeenAt.Format(time.RFC3339),
-		"reviewDeadline": reviewDeadline.Format(time.RFC3339),
-		"lastReviewedAt": lastReviewedAt.Format(time.RFC3339),
+		"title":            "Optional field create",
+		"description":      "exercise optional paths",
+		"ssp-id":           suite.newSSPID(),
+		"dedupe-key":       "scanner:ssp/control:ac-1",
+		"first-seen-at":    firstSeenAt.Format(time.RFC3339),
+		"last-seen-at":     lastSeenAt.Format(time.RFC3339),
+		"review-deadline":  reviewDeadline.Format(time.RFC3339),
+		"last-reviewed-at": lastReviewedAt.Format(time.RFC3339),
 	})
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusCreated, rec.Code)
@@ -1161,9 +1161,9 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdateWithoutStatusTransitionRecor
 	created := suite.createRisk(map[string]any{
 		"title":       "Update target",
 		"description": "baseline",
-		"sspId":       suite.newSSPID(),
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "legacy", "isPrimary": true},
+		"ssp-id":      suite.newSSPID(),
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "legacy", "is-primary": true},
 		},
 	})
 
@@ -1171,20 +1171,20 @@ func (suite *RiskApiIntegrationSuite) TestRiskUpdateWithoutStatusTransitionRecor
 	reviewDeadline := time.Now().Add(30 * 24 * time.Hour).UTC().Truncate(time.Second)
 
 	updateReq := map[string]any{
-		"status":              "open",
-		"title":               "Updated title",
-		"description":         "Updated description",
-		"likelihood":          "high",
-		"impact":              "low",
-		"reviewDeadline":      reviewDeadline.Format(time.RFC3339),
-		"lastReviewedAt":      reviewedAt.Format(time.RFC3339),
-		"reviewJustification": "Reviewed after compensating controls",
-		"dedupeKey":           "updated:dedupe:key",
-		"firstSeenAt":         time.Now().Add(-96 * time.Hour).UTC().Format(time.RFC3339),
-		"lastSeenAt":          time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339),
-		"ownerAssignments": []map[string]any{
-			{"ownerKind": "group", "ownerRef": "new-primary", "isPrimary": true},
-			{"ownerKind": "role", "ownerRef": "security-reviewers", "isPrimary": false},
+		"status":               "open",
+		"title":                "Updated title",
+		"description":          "Updated description",
+		"likelihood":           "high",
+		"impact":               "low",
+		"review-deadline":      reviewDeadline.Format(time.RFC3339),
+		"last-reviewed-at":     reviewedAt.Format(time.RFC3339),
+		"review-justification": "Reviewed after compensating controls",
+		"dedupe-key":           "updated:dedupe:key",
+		"first-seen-at":        time.Now().Add(-96 * time.Hour).UTC().Format(time.RFC3339),
+		"last-seen-at":         time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339),
+		"owner-assignments": []map[string]any{
+			{"owner-kind": "group", "owner-ref": "new-primary", "is-primary": true},
+			{"owner-kind": "role", "owner-ref": "security-reviewers", "is-primary": false},
 		},
 	}
 
@@ -1228,7 +1228,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskActorNotFoundReturnsNotFound() {
 	createRec, createReq := suite.authedRequestForEmail(http.MethodPost, "/api/risks", map[string]any{
 		"title":       "Unknown actor create",
 		"description": "should fail actor resolution",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	}, "unknown-actor@example.com")
 	suite.server.E().ServeHTTP(createRec, createReq)
 	require.Equal(suite.T(), http.StatusNotFound, createRec.Code)
@@ -1236,7 +1236,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskActorNotFoundReturnsNotFound() {
 	created := suite.createRisk(map[string]any{
 		"title":       "Known actor create",
 		"description": "used for update",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	})
 
 	updateRec, updateReq := suite.authedRequestForEmail(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
@@ -1250,7 +1250,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateMissingSSPAndSanitizedIntern
 	missingSSPRec, missingSSPReq := suite.authedRequest(http.MethodPost, "/api/risks", map[string]any{
 		"title":       "Missing SSP",
 		"description": "should fail",
-		"sspId":       uuid.New().String(),
+		"ssp-id":      uuid.New().String(),
 	})
 	suite.server.E().ServeHTTP(missingSSPRec, missingSSPReq)
 	require.Equal(suite.T(), http.StatusNotFound, missingSSPRec.Code)
@@ -1258,7 +1258,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateMissingSSPAndSanitizedIntern
 	created := suite.createRisk(map[string]any{
 		"title":       "Break associations query",
 		"description": "force an internal error path",
-		"sspId":       suite.newSSPID(),
+		"ssp-id":      suite.newSSPID(),
 	})
 
 	require.NoError(suite.T(), suite.DB.Exec("DROP TABLE risk_evidence_links").Error)
@@ -1273,7 +1273,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateMissingSSPAndSanitizedIntern
 }
 
 func (suite *RiskApiIntegrationSuite) createRisk(reqBody map[string]any) riskResponse {
-	if rawSSPID, ok := reqBody["sspId"].(string); ok && rawSSPID != "" {
+	if rawSSPID, ok := reqBody["ssp-id"].(string); ok && rawSSPID != "" {
 		suite.ensureSSPExists(rawSSPID)
 	}
 	rec, req := suite.authedRequest(http.MethodPost, "/api/risks", reqBody)

@@ -100,6 +100,790 @@ const docTemplate = `{
                 ]
             }
         },
+        "/admin/evidence-templates": {
+            "get": {
+                "description": "List evidence templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "List evidence templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "plugin-id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy package",
+                        "name": "policy-package",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Active flag",
+                        "name": "is-active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_evidenceTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create an evidence template with selector labels, label schema, and linked risk/subject template IDs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Create evidence template",
+                "parameters": [
+                    {
+                        "description": "Evidence template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/evidence-templates/{id}": {
+            "get": {
+                "description": "Get an evidence template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Get evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update an evidence template and atomically replace selector labels, label schema, and linked IDs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Update evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evidence template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete an evidence template and its associated selector labels, label schema, and join rows.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence Templates"
+                ],
+                "summary": "Delete evidence template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/risk-templates": {
+            "get": {
+                "description": "List risk templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "List risk templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Plugin ID",
+                        "name": "plugin-id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy package",
+                        "name": "policy-package",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Active flag",
+                        "name": "is-active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_riskTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a risk template with threat references and remediation template/tasks.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Create risk template",
+                "parameters": [
+                    {
+                        "description": "Risk template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertRiskTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/risk-templates/{id}": {
+            "get": {
+                "description": "Get a risk template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Get risk template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update a risk template and atomically replace threat refs and remediation tasks.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Update risk template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertRiskTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Delete a risk template and its associated threat references and remediation data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Delete risk template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/subject-templates": {
+            "get": {
+                "description": "List subject templates with optional filters and pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "List subject templates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Source mode",
+                        "name": "source-mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-templates_subjectTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Create a subject template with selector labels and label schema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Create subject template",
+                "parameters": [
+                    {
+                        "description": "Subject template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertSubjectTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/admin/subject-templates/{id}": {
+            "get": {
+                "description": "Get a subject template by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Get subject template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Update a subject template and atomically replace selector labels and label schema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Update subject template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subject Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Subject template payload",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.upsertSubjectTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/admin/users": {
             "get": {
                 "description": "Lists all users in the system",
@@ -736,285 +1520,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/evidence-templates": {
-            "get": {
-                "description": "List evidence templates with optional filters and pagination.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "List evidence templates",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plugin ID",
-                        "name": "pluginId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Policy package",
-                        "name": "policyPackage",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Active flag",
-                        "name": "isActive",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/service.ListResponse-templates_evidenceTemplateResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Create an evidence template with selector labels, label schema, and linked risk/subject template IDs.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Create evidence template",
-                "parameters": [
-                    {
-                        "description": "Evidence template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/evidence-templates/{id}": {
-            "get": {
-                "description": "Get an evidence template by ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Get evidence template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Evidence Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "put": {
-                "description": "Update an evidence template and atomically replace selector labels, label schema, and linked IDs.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Update evidence template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Evidence Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Evidence template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "delete": {
-                "description": "Delete an evidence template and its associated selector labels, label schema, and join rows.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Delete evidence template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Evidence Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
         "/evidence/compliance-by-control/{id}": {
             "get": {
                 "description": "Retrieves the count of evidence statuses for filters associated with a specific Control ID.",
@@ -1157,7 +1662,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Evidence ID",
+                        "description": "Evidence UUID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1168,6 +1673,53 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataListResponse-handler_OscalLikeEvidence"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/evidence/latest/{id}": {
+            "get": {
+                "description": "Retrieves the most recent Evidence record for a given UUID stream, including associated activities, inventory items, components, subjects, and labels.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get latest Evidence by UUID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence"
                         }
                     },
                     "400": {
@@ -12970,6 +13522,64 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/profiles/{id}/resolved-with-catalogs": {
+            "get": {
+                "description": "Returns a simplified flat list of controls from a resolved profile with control-id, catalog-id, title, and class.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Get Resolved Profile with Catalog IDs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/roles": {
             "get": {
                 "description": "Retrieves all roles.",
@@ -17039,6 +17649,1126 @@ const docTemplate = `{
                 }
             }
         },
+        "/oscal/system-security-plans/{sspId}/risks": {
+            "get": {
+                "description": "Lists risk register entries scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risks for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk likelihood",
+                        "name": "likelihood",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk impact",
+                        "name": "impact",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Component ID",
+                        "name": "componentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "evidenceId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Owner kind",
+                        "name": "ownerKind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Owner reference",
+                        "name": "ownerRef",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Review deadline upper bound (RFC3339)",
+                        "name": "reviewDeadlineBefore",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order (asc|desc)",
+                        "name": "order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Creates a risk register entry scoped to an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Create risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk payload",
+                        "name": "risk",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.createRiskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}": {
+            "get": {
+                "description": "Retrieves a risk register entry by ID scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Get risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Updates a risk register entry by ID scoped to an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Update risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Risk payload",
+                        "name": "risk",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateRiskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "delete": {
+                "description": "Deletes a risk register entry by ID scoped to an SSP.",
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Delete risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/accept": {
+            "post": {
+                "description": "Accepts a risk by ID scoped to an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Accept risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Accept payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.acceptRiskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/components": {
+            "get": {
+                "description": "Lists components linked to a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk component links for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-risks_RiskComponentLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Idempotently links a component to a risk scoped to an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Link component to risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Component link payload",
+                        "name": "link",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.addComponentLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-risks_RiskComponentLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/components/{componentId}": {
+            "delete": {
+                "description": "Deletes the link between a risk and component scoped to an SSP.",
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Delete risk component link for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Component ID",
+                        "name": "componentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/controls": {
+            "get": {
+                "description": "Lists controls linked to a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk control links for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-risks_RiskControlLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Idempotently links a control to a risk scoped to an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Link control to risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Control link payload",
+                        "name": "link",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.addControlLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-risks_RiskControlLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/controls/{catalogId}/{controlId}": {
+            "delete": {
+                "description": "Deletes the link between a risk and control scoped to an SSP.",
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Delete risk control link for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "catalogId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/evidence": {
+            "get": {
+                "description": "Lists evidence IDs linked to a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk evidence links for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-uuid_UUID"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Idempotently links an evidence item to a risk scoped to an SSP.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Link evidence to risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evidence link payload",
+                        "name": "link",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.addEvidenceLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-risks_RiskEvidenceLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/evidence/{evidenceId}": {
+            "delete": {
+                "description": "Deletes the link between a risk and evidence item scoped to an SSP.",
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Delete risk evidence link for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "evidenceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/review": {
+            "post": {
+                "description": "Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Review risk for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Review payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.reviewRiskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/poam-items": {
             "get": {
                 "produces": [
@@ -18217,285 +19947,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/risk-templates": {
-            "get": {
-                "description": "List risk templates with optional filters and pagination.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risk Templates"
-                ],
-                "summary": "List risk templates",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plugin ID",
-                        "name": "pluginId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Policy package",
-                        "name": "policyPackage",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Active flag",
-                        "name": "isActive",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/service.ListResponse-templates_riskTemplateResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Create a risk template with threat references and remediation template/tasks.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risk Templates"
-                ],
-                "summary": "Create risk template",
-                "parameters": [
-                    {
-                        "description": "Risk template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertRiskTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/risk-templates/{id}": {
-            "get": {
-                "description": "Get a risk template by ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risk Templates"
-                ],
-                "summary": "Get risk template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Risk Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "put": {
-                "description": "Update a risk template and atomically replace threat refs and remediation tasks.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risk Templates"
-                ],
-                "summary": "Update risk template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Risk Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Risk template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertRiskTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.riskTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "delete": {
-                "description": "Delete a risk template and its associated threat references and remediation data.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risk Templates"
-                ],
-                "summary": "Delete risk template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Risk Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
         "/risks": {
             "get": {
                 "description": "Lists risk register entries with filtering, sorting, and pagination.",
@@ -18535,6 +19986,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Control ID",
                         "name": "controlId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Component ID",
+                        "name": "componentId",
                         "in": "query"
                     },
                     {
@@ -19016,6 +20473,59 @@ const docTemplate = `{
                 ]
             }
         },
+        "/risks/{id}/components/{componentId}": {
+            "delete": {
+                "description": "Deletes the link between a risk and component.",
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Delete risk component link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Component ID",
+                        "name": "componentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/risks/{id}/controls": {
             "get": {
                 "description": "Lists controls linked to a risk.",
@@ -19115,6 +20625,66 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-risks_RiskControlLink"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/risks/{id}/controls/{catalogId}/{controlId}": {
+            "delete": {
+                "description": "Deletes the link between a risk and control.",
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Delete risk control link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Catalog ID",
+                        "name": "catalogId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Control ID",
+                        "name": "controlId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -19483,739 +21053,6 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-risks_RiskSubjectLink"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/ssp/{sspId}/risks": {
-            "get": {
-                "description": "Lists risk register entries scoped to an SSP.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "List risks for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk status",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk likelihood",
-                        "name": "likelihood",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk impact",
-                        "name": "impact",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Control ID",
-                        "name": "controlId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Evidence ID",
-                        "name": "evidenceId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Owner kind",
-                        "name": "ownerKind",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Owner reference",
-                        "name": "ownerRef",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Review deadline upper bound (RFC3339)",
-                        "name": "reviewDeadlineBefore",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort field",
-                        "name": "sort",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort order (asc|desc)",
-                        "name": "order",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/service.ListResponse-handler_riskResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Creates a risk register entry scoped to an SSP.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "Create risk for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Risk payload",
-                        "name": "risk",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.createRiskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/ssp/{sspId}/risks/{id}": {
-            "get": {
-                "description": "Retrieves a risk register entry by ID scoped to an SSP.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "Get risk for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "put": {
-                "description": "Updates a risk register entry by ID scoped to an SSP.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "Update risk for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Risk payload",
-                        "name": "risk",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.updateRiskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "delete": {
-                "description": "Deletes a risk register entry by ID scoped to an SSP.",
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "Delete risk for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/ssp/{sspId}/risks/{id}/accept": {
-            "post": {
-                "description": "Accepts a risk by ID scoped to an SSP.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "Accept risk for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Accept payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.acceptRiskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/ssp/{sspId}/risks/{id}/review": {
-            "post": {
-                "description": "Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Risks"
-                ],
-                "summary": "Review risk for SSP",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "SSP ID",
-                        "name": "sspId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Risk ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Review payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handler.reviewRiskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/subject-templates": {
-            "get": {
-                "description": "List subject templates with optional filters and pagination.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Subject Templates"
-                ],
-                "summary": "List subject templates",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Subject type",
-                        "name": "type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Source mode",
-                        "name": "sourceMode",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/service.ListResponse-templates_subjectTemplateResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Create a subject template with selector labels and label schema.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Subject Templates"
-                ],
-                "summary": "Create subject template",
-                "parameters": [
-                    {
-                        "description": "Subject template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertSubjectTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/subject-templates/{id}": {
-            "get": {
-                "description": "Get a subject template by ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Subject Templates"
-                ],
-                "summary": "Get subject template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Subject Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "put": {
-                "description": "Update a subject template and atomically replace selector labels and label schema.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Subject Templates"
-                ],
-                "summary": "Update subject template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Subject Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Subject template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertSubjectTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.subjectTemplateDataResponse"
                         }
                     },
                     "400": {
@@ -24391,6 +25228,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-oscal_resolvedWithCatalogsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscal.resolvedWithCatalogsResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-poam_PoamItemControlLink": {
             "type": "object",
             "properties": {
@@ -25677,7 +26526,7 @@ const docTemplate = `{
                 "justification": {
                     "type": "string"
                 },
-                "reviewDeadline": {
+                "review-deadline": {
                     "type": "string"
                 }
             }
@@ -25685,7 +26534,7 @@ const docTemplate = `{
         "handler.addComponentLinkRequest": {
             "type": "object",
             "properties": {
-                "componentId": {
+                "component-id": {
                     "type": "string"
                 }
             }
@@ -25693,10 +26542,10 @@ const docTemplate = `{
         "handler.addControlLinkRequest": {
             "type": "object",
             "properties": {
-                "catalogId": {
+                "catalog-id": {
                     "type": "string"
                 },
-                "controlId": {
+                "control-id": {
                     "type": "string"
                 }
             }
@@ -25704,7 +26553,7 @@ const docTemplate = `{
         "handler.addEvidenceLinkRequest": {
             "type": "object",
             "properties": {
-                "evidenceId": {
+                "evidence-id": {
                     "type": "string"
                 }
             }
@@ -25723,7 +26572,7 @@ const docTemplate = `{
         "handler.addSubjectLinkRequest": {
             "type": "object",
             "properties": {
-                "subjectId": {
+                "subject-id": {
                     "type": "string"
                 }
             }
@@ -25865,7 +26714,7 @@ const docTemplate = `{
         "handler.createRiskRequest": {
             "type": "object",
             "properties": {
-                "acceptanceJustification": {
+                "acceptance-justification": {
                     "type": "string"
                 },
                 "description": {
@@ -25874,28 +26723,28 @@ const docTemplate = `{
                 "impact": {
                     "type": "string"
                 },
-                "lastReviewedAt": {
+                "last-reviewed-at": {
                     "type": "string"
                 },
                 "likelihood": {
                     "type": "string"
                 },
-                "ownerAssignments": {
+                "owner-assignments": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.riskOwnerAssignmentRequest"
                     }
                 },
-                "primaryOwnerUserId": {
+                "primary-owner-user-id": {
                     "type": "string"
                 },
-                "reviewDeadline": {
+                "review-deadline": {
                     "type": "string"
                 },
-                "riskTemplateId": {
+                "risk-template-id": {
                     "type": "string"
                 },
-                "sspId": {
+                "ssp-id": {
                     "type": "string"
                 },
                 "status": {
@@ -26067,13 +26916,13 @@ const docTemplate = `{
                 "decision": {
                     "type": "string"
                 },
-                "nextReviewDeadline": {
+                "next-review-deadline": {
                     "type": "string"
                 },
                 "notes": {
                     "type": "string"
                 },
-                "reviewedAt": {
+                "reviewed-at": {
                     "type": "string"
                 }
             }
@@ -26081,10 +26930,10 @@ const docTemplate = `{
         "handler.riskControlLinkResponse": {
             "type": "object",
             "properties": {
-                "catalogId": {
+                "catalog-id": {
                     "type": "string"
                 },
-                "controlId": {
+                "control-id": {
                     "type": "string"
                 }
             }
@@ -26106,13 +26955,13 @@ const docTemplate = `{
         "handler.riskOwnerAssignmentRequest": {
             "type": "object",
             "properties": {
-                "isPrimary": {
+                "is-primary": {
                     "type": "boolean"
                 },
-                "ownerKind": {
+                "owner-kind": {
                     "type": "string"
                 },
-                "ownerRef": {
+                "owner-ref": {
                     "type": "string"
                 }
             }
@@ -26120,13 +26969,13 @@ const docTemplate = `{
         "handler.riskOwnerAssignmentResponse": {
             "type": "object",
             "properties": {
-                "isPrimary": {
+                "is-primary": {
                     "type": "boolean"
                 },
-                "ownerKind": {
+                "owner-kind": {
                     "type": "string"
                 },
-                "ownerRef": {
+                "owner-ref": {
                     "type": "string"
                 }
             }
@@ -26134,37 +26983,37 @@ const docTemplate = `{
         "handler.riskResponse": {
             "type": "object",
             "properties": {
-                "acceptanceJustification": {
+                "acceptance-justification": {
                     "type": "string"
                 },
-                "componentIds": {
+                "component-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "controlLinks": {
+                "control-links": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.riskControlLinkResponse"
                     }
                 },
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
-                "dedupeKey": {
+                "dedupe-key": {
                     "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
-                "evidenceIds": {
+                "evidence-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "firstSeenAt": {
+                "first-seen-at": {
                     "type": "string"
                 },
                 "id": {
@@ -26173,40 +27022,40 @@ const docTemplate = `{
                 "impact": {
                     "type": "string"
                 },
-                "lastReviewedAt": {
+                "last-reviewed-at": {
                     "type": "string"
                 },
-                "lastSeenAt": {
+                "last-seen-at": {
                     "type": "string"
                 },
                 "likelihood": {
                     "type": "string"
                 },
-                "ownerAssignments": {
+                "owner-assignments": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.riskOwnerAssignmentResponse"
                     }
                 },
-                "primaryOwnerUserId": {
+                "primary-owner-user-id": {
                     "type": "string"
                 },
-                "reviewDeadline": {
+                "review-deadline": {
                     "type": "string"
                 },
-                "riskTemplateId": {
+                "risk-template-id": {
                     "type": "string"
                 },
-                "sourceType": {
+                "source-type": {
                     "type": "string"
                 },
-                "sspId": {
+                "ssp-id": {
                     "type": "string"
                 },
                 "status": {
                     "type": "string"
                 },
-                "subjectIds": {
+                "subject-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -26215,7 +27064,7 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "updatedAt": {
+                "updated-at": {
                     "type": "string"
                 }
             }
@@ -26315,7 +27164,7 @@ const docTemplate = `{
         "handler.updateRiskRequest": {
             "type": "object",
             "properties": {
-                "acceptanceJustification": {
+                "acceptance-justification": {
                     "type": "string"
                 },
                 "description": {
@@ -26324,28 +27173,28 @@ const docTemplate = `{
                 "impact": {
                     "type": "string"
                 },
-                "lastReviewedAt": {
+                "last-reviewed-at": {
                     "type": "string"
                 },
                 "likelihood": {
                     "type": "string"
                 },
-                "ownerAssignments": {
+                "owner-assignments": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.riskOwnerAssignmentRequest"
                     }
                 },
-                "primaryOwnerUserId": {
+                "primary-owner-user-id": {
                     "type": "string"
                 },
-                "reviewDeadline": {
+                "review-deadline": {
                     "type": "string"
                 },
-                "reviewJustification": {
+                "review-justification": {
                     "type": "string"
                 },
-                "riskTemplateId": {
+                "risk-template-id": {
                     "type": "string"
                 },
                 "status": {
@@ -26752,6 +27601,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "oscal.resolvedWithCatalogsResponse": {
+            "type": "object",
+            "properties": {
+                "catalog-id": {
+                    "type": "string"
+                },
+                "class": {
+                    "type": "string"
+                },
+                "control-id": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -34357,7 +35223,7 @@ const docTemplate = `{
         "templates.evidenceTemplateResponse": {
             "type": "object",
             "properties": {
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
                 "description": {
@@ -34366,10 +35232,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "isActive": {
+                "is-active": {
                     "type": "boolean"
                 },
-                "labelSchema": {
+                "label-schema": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse"
@@ -34381,25 +35247,25 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "pluginId": {
+                "plugin-id": {
                     "type": "string"
                 },
-                "policyPackage": {
+                "policy-package": {
                     "type": "string"
                 },
-                "riskTemplateIds": {
+                "risk-template-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "selectorLabels": {
+                "selector-labels": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelResponse"
                     }
                 },
-                "subjectTemplateIds": {
+                "subject-template-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -34408,7 +35274,7 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "updatedAt": {
+                "updated-at": {
                     "type": "string"
                 }
             }
@@ -34438,7 +35304,7 @@ const docTemplate = `{
         "templates.remediationTaskRequest": {
             "type": "object",
             "properties": {
-                "orderIndex": {
+                "order-index": {
                     "type": "integer"
                 },
                 "title": {
@@ -34452,7 +35318,7 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "orderIndex": {
+                "order-index": {
                     "type": "integer"
                 },
                 "title": {
@@ -34508,37 +35374,37 @@ const docTemplate = `{
         "templates.riskTemplateResponse": {
             "type": "object",
             "properties": {
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "impactHint": {
+                "impact-hint": {
                     "type": "string"
                 },
-                "isActive": {
+                "is-active": {
                     "type": "boolean"
                 },
-                "likelihoodHint": {
+                "likelihood-hint": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
-                "pluginId": {
+                "plugin-id": {
                     "type": "string"
                 },
-                "policyPackage": {
+                "policy-package": {
                     "type": "string"
                 },
-                "remediationTemplate": {
+                "remediation-template": {
                     "$ref": "#/definitions/templates.remediationTemplateResponse"
                 },
                 "statement": {
                     "type": "string"
                 },
-                "threatIds": {
+                "threat-ids": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.threatIDResponse"
@@ -34547,10 +35413,10 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "updatedAt": {
+                "updated-at": {
                     "type": "string"
                 },
-                "violationIds": {
+                "violation-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -34594,19 +35460,19 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
-                "descriptionTemplate": {
+                "description-template": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "identityLabelKeys": {
+                "identity-label-keys": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "labelSchema": {
+                "label-schema": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.subjectTemplateLabelSchemaFieldResponse"
@@ -34627,22 +35493,22 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Prop"
                     }
                 },
-                "purposeTemplate": {
+                "purpose-template": {
                     "type": "string"
                 },
-                "remarksTemplate": {
+                "remarks-template": {
                     "type": "string"
                 },
-                "selectorLabels": {
+                "selector-labels": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.subjectTemplateSelectorLabelResponse"
                     }
                 },
-                "sourceMode": {
+                "source-mode": {
                     "type": "string"
                 },
-                "titleTemplate": {
+                "title-template": {
                     "type": "string"
                 },
                 "type": {
@@ -34715,10 +35581,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "isActive": {
+                "is-active": {
                     "type": "boolean"
                 },
-                "labelSchema": {
+                "label-schema": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest"
@@ -34730,25 +35596,25 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "pluginId": {
+                "plugin-id": {
                     "type": "string"
                 },
-                "policyPackage": {
+                "policy-package": {
                     "type": "string"
                 },
-                "riskTemplateIds": {
+                "risk-template-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "selectorLabels": {
+                "selector-labels": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelRequest"
                     }
                 },
-                "subjectTemplateIds": {
+                "subject-template-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -34762,31 +35628,31 @@ const docTemplate = `{
         "templates.upsertRiskTemplateRequest": {
             "type": "object",
             "properties": {
-                "impactHint": {
+                "impact-hint": {
                     "type": "string"
                 },
-                "isActive": {
+                "is-active": {
                     "type": "boolean"
                 },
-                "likelihoodHint": {
+                "likelihood-hint": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
-                "pluginId": {
+                "plugin-id": {
                     "type": "string"
                 },
-                "policyPackage": {
+                "policy-package": {
                     "type": "string"
                 },
-                "remediationTemplate": {
+                "remediation-template": {
                     "$ref": "#/definitions/templates.remediationTemplateRequest"
                 },
                 "statement": {
                     "type": "string"
                 },
-                "threatIds": {
+                "threat-ids": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.threatIDRequest"
@@ -34795,7 +35661,7 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "violationIds": {
+                "violation-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -34806,24 +35672,24 @@ const docTemplate = `{
         "templates.upsertSubjectTemplateRequest": {
             "type": "object",
             "required": [
-                "identityLabelKeys",
-                "labelSchema",
+                "identity-label-keys",
+                "label-schema",
                 "name",
-                "selectorLabels",
-                "sourceMode",
+                "selector-labels",
+                "source-mode",
                 "type"
             ],
             "properties": {
-                "descriptionTemplate": {
+                "description-template": {
                     "type": "string"
                 },
-                "identityLabelKeys": {
+                "identity-label-keys": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "labelSchema": {
+                "label-schema": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.subjectTemplateLabelSchemaFieldRequest"
@@ -34844,22 +35710,22 @@ const docTemplate = `{
                         "$ref": "#/definitions/relational.Prop"
                     }
                 },
-                "purposeTemplate": {
+                "purpose-template": {
                     "type": "string"
                 },
-                "remarksTemplate": {
+                "remarks-template": {
                     "type": "string"
                 },
-                "selectorLabels": {
+                "selector-labels": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/templates.subjectTemplateSelectorLabelRequest"
                     }
                 },
-                "sourceMode": {
+                "source-mode": {
                     "type": "string"
                 },
-                "titleTemplate": {
+                "title-template": {
                     "type": "string"
                 },
                 "type": {

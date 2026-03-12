@@ -34,6 +34,7 @@ func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.POST("", h.Create)
 	api.GET("/:id", h.Get)
 	api.GET("/history/:id", h.History)
+	api.GET("/latest/:id", h.Latest)
 	api.POST("/search", h.Search)
 	api.GET("/for-control/:id", h.ForControl)
 	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID)
@@ -473,7 +474,7 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 //	@Description	Retrieves a the history for a Evidence record by its UUID, including associated activities, inventory items, components, subjects, and labels.
 //	@Tags			Evidence
 //	@Produce		json
-//	@Param			id	path		string	true	"Evidence ID"
+//	@Param			id	path		string	true	"Evidence UUID"
 //	@Success		200	{object}	GenericDataListResponse[OscalLikeEvidence]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
@@ -506,6 +507,43 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[*OscalLikeEvidence]{Data: output})
+}
+
+// Latest godoc
+//
+//	@Summary		Get latest Evidence by UUID
+//	@Description	Retrieves the most recent Evidence record for a given UUID stream, including associated activities, inventory items, components, subjects, and labels.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Evidence UUID"
+//	@Success		200	{object}	GenericDataResponse[OscalLikeEvidence]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Router			/evidence/latest/{id} [get]
+func (h *EvidenceHandler) Latest(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence uuid", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	evidence, err := h.evidenceService.GetLatestByUUID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to load latest evidence", "uuid", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	output := &OscalLikeEvidence{}
+	if err = output.FromEvidence(evidence); err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, GenericDataResponse[*OscalLikeEvidence]{Data: output})
 }
 
 // ForControl godoc

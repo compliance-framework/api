@@ -40,18 +40,18 @@ type evidenceTemplateLabelSchemaFieldAPIResponse struct {
 
 type evidenceTemplateAPIResponse struct {
 	ID                 uuid.UUID                                     `json:"id"`
-	CreatedAt          time.Time                                     `json:"createdAt"`
-	UpdatedAt          time.Time                                     `json:"updatedAt"`
-	PluginID           string                                        `json:"pluginId"`
-	PolicyPackage      string                                        `json:"policyPackage"`
+	CreatedAt          time.Time                                     `json:"created-at"`
+	UpdatedAt          time.Time                                     `json:"updated-at"`
+	PluginID           string                                        `json:"plugin-id"`
+	PolicyPackage      string                                        `json:"policy-package"`
 	Title              string                                        `json:"title"`
 	Description        string                                        `json:"description"`
 	Methods            []string                                      `json:"methods"`
-	IsActive           bool                                          `json:"isActive"`
-	SelectorLabels     []evidenceTemplateSelectorLabelAPIResponse    `json:"selectorLabels"`
-	LabelSchema        []evidenceTemplateLabelSchemaFieldAPIResponse `json:"labelSchema"`
-	RiskTemplateIDs    []uuid.UUID                                   `json:"riskTemplateIds"`
-	SubjectTemplateIDs []uuid.UUID                                   `json:"subjectTemplateIds"`
+	IsActive           bool                                          `json:"is-active"`
+	SelectorLabels     []evidenceTemplateSelectorLabelAPIResponse    `json:"selector-labels"`
+	LabelSchema        []evidenceTemplateLabelSchemaFieldAPIResponse `json:"label-schema"`
+	RiskTemplateIDs    []uuid.UUID                                   `json:"risk-template-ids"`
+	SubjectTemplateIDs []uuid.UUID                                   `json:"subject-template-ids"`
 }
 
 type evidenceTemplateDataEnvelope struct {
@@ -106,21 +106,21 @@ func (suite *EvidenceTemplateApiIntegrationSuite) unauthenticatedRequest(method,
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateCRUD() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Secret scanning status evidence",
-		"description":   "Captures secret scanning enablement status.",
-		"methods":       []string{"TEST"},
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Secret scanning status evidence",
+		"description":    "Captures secret scanning enablement status.",
+		"methods":        []string{"TEST"},
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 			{"key": "plugin.id", "value": "github-repositories"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org", "description": "GitHub organization login", "required": true},
 			{"key": "github.repo", "description": "GitHub repository full name", "required": true},
 		},
-		"isActive": true,
+		"is-active": true,
 	})
 	suite.server.E().ServeHTTP(createRec, createCall)
 	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
@@ -141,7 +141,7 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateCRUD() {
 	require.Empty(suite.T(), created.Data.RiskTemplateIDs)
 	require.Empty(suite.T(), created.Data.SubjectTemplateIDs)
 
-	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/evidence-templates?pluginId=github-repositories&isActive=true&page=1&limit=10", nil)
+	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/admin/evidence-templates?plugin-id=github-repositories&is-active=true&page=1&limit=10", nil)
 	suite.server.E().ServeHTTP(listRec, listCall)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)
 
@@ -151,23 +151,23 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateCRUD() {
 	require.NoError(suite.T(), json.Unmarshal(listRec.Body.Bytes(), &listed))
 	require.NotEmpty(suite.T(), listed.Data)
 
-	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/evidence-templates/%s", created.Data.ID), nil)
+	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/admin/evidence-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(getRec, getCall)
 	require.Equal(suite.T(), http.StatusOK, getRec.Code)
 
-	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/evidence-templates/%s", created.Data.ID), map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Secret scanning status evidence updated",
-		"description":   "Updated description.",
-		"methods":       []string{"TEST", "EXAMINE"},
-		"selectorLabels": []map[string]any{
+	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/admin/evidence-templates/%s", created.Data.ID), map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Secret scanning status evidence updated",
+		"description":    "Updated description.",
+		"methods":        []string{"TEST", "EXAMINE"},
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org", "description": "GitHub organization login", "required": true},
 		},
-		"isActive": false,
+		"is-active": false,
 	})
 	suite.server.E().ServeHTTP(updateRec, updateCall)
 	require.Equal(suite.T(), http.StatusOK, updateRec.Code)
@@ -190,12 +190,12 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateCRUD() {
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateWithLinkedTemplates() {
-	riskCreateRec, riskCreateCall := suite.authedRequest(http.MethodPost, "/api/risk-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"name":          "Secret scanning risk",
-		"title":         "Undetected secrets",
-		"statement":     "Secret scanning is disabled.",
+	riskCreateRec, riskCreateCall := suite.authedRequest(http.MethodPost, "/api/admin/risk-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"name":           "Secret scanning risk",
+		"title":          "Undetected secrets",
+		"statement":      "Secret scanning is disabled.",
 	})
 	suite.server.E().ServeHTTP(riskCreateRec, riskCreateCall)
 	require.Equal(suite.T(), http.StatusCreated, riskCreateRec.Code)
@@ -207,15 +207,15 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateWithLinked
 	}
 	require.NoError(suite.T(), json.Unmarshal(riskCreateRec.Body.Bytes(), &riskCreated))
 
-	subjectCreateRec, subjectCreateCall := suite.authedRequest(http.MethodPost, "/api/subject-templates", map[string]any{
-		"name":              "GitHub repository subject",
-		"type":              "inventory-item",
-		"identityLabelKeys": []string{"github.repo"},
-		"sourceMode":        "runtime-derived",
-		"selectorLabels": []map[string]any{
+	subjectCreateRec, subjectCreateCall := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", map[string]any{
+		"name":                "GitHub repository subject",
+		"type":                "inventory-item",
+		"identity-label-keys": []string{"github.repo"},
+		"source-mode":         "runtime-derived",
+		"selector-labels": []map[string]any{
 			{"key": "plugin.id", "value": "github-repositories"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.repo", "description": "GitHub repository full name"},
 		},
 	})
@@ -229,19 +229,19 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateWithLinked
 	}
 	require.NoError(suite.T(), json.Unmarshal(subjectCreateRec.Body.Bytes(), &subjectCreated))
 
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Secret scanning evidence with links",
-		"methods":       []string{"TEST"},
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Secret scanning evidence with links",
+		"methods":        []string{"TEST"},
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.repo"},
 		},
-		"riskTemplateIds":    []string{riskCreated.Data.ID.String()},
-		"subjectTemplateIds": []string{subjectCreated.Data.ID.String()},
+		"risk-template-ids":    []string{riskCreated.Data.ID.String()},
+		"subject-template-ids": []string{subjectCreated.Data.ID.String()},
 	})
 	suite.server.E().ServeHTTP(createRec, createCall)
 	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
@@ -257,15 +257,15 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateWithLinked
 	require.NoError(suite.T(), suite.DB.Model(&templaterel.EvidenceTemplateRiskTemplate{}).Where("evidence_template_id = ?", created.Data.ID).Count(&riskLinkCount).Error)
 	require.Equal(suite.T(), int64(1), riskLinkCount)
 
-	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/evidence-templates/%s", created.Data.ID), map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Secret scanning evidence with links updated",
-		"methods":       []string{"TEST"},
-		"selectorLabels": []map[string]any{
+	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/admin/evidence-templates/%s", created.Data.ID), map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Secret scanning evidence with links updated",
+		"methods":        []string{"TEST"},
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.repo"},
 		},
 	})
@@ -285,17 +285,17 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateWithLinked
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateLinkedIDValidation() {
 	nonExistentID := uuid.New()
 
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Template with missing risk link",
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Template with missing risk link",
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.repo"},
 		},
-		"riskTemplateIds": []string{nonExistentID.String()},
+		"risk-template-ids": []string{nonExistentID.String()},
 	})
 	suite.server.E().ServeHTTP(createRec, createCall)
 	require.Equal(suite.T(), http.StatusBadRequest, createRec.Code)
@@ -303,12 +303,12 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateLinkedIDVa
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateEmptySelectorLabelsRejected() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":       "github-repositories",
-		"policyPackage":  "compliance_framework.secret_scanning_enabled",
-		"title":          "Template without selectors",
-		"selectorLabels": []map[string]any{},
-		"labelSchema": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":       "github-repositories",
+		"policy-package":  "compliance_framework.secret_scanning_enabled",
+		"title":           "Template without selectors",
+		"selector-labels": []map[string]any{},
+		"label-schema": []map[string]any{
 			{"key": "github.org"},
 		},
 	})
@@ -318,15 +318,15 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateEmptySelec
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateDeleteCleansDependentRows() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Template for delete",
-		"methods":       []string{"TEST"},
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Template for delete",
+		"methods":        []string{"TEST"},
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org", "required": true},
 		},
 	})
@@ -336,11 +336,11 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateDeleteClea
 	var created evidenceTemplateDataEnvelope
 	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
 
-	deleteRec, deleteCall := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/evidence-templates/%s", created.Data.ID), nil)
+	deleteRec, deleteCall := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/admin/evidence-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(deleteRec, deleteCall)
 	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
 
-	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/evidence-templates/%s", created.Data.ID), nil)
+	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/admin/evidence-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(getRec, getCall)
 	require.Equal(suite.T(), http.StatusNotFound, getRec.Code)
 
@@ -354,48 +354,48 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateDeleteClea
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateValidationAndNotFound() {
-	badCreateRec, badCreateCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId": "",
+	badCreateRec, badCreateCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id": "",
 	})
 	suite.server.E().ServeHTTP(badCreateRec, badCreateCall)
 	require.Equal(suite.T(), http.StatusBadRequest, badCreateRec.Code)
 
-	invalidIDRec, invalidIDCall := suite.authedRequest(http.MethodGet, "/api/evidence-templates/not-a-uuid", nil)
+	invalidIDRec, invalidIDCall := suite.authedRequest(http.MethodGet, "/api/admin/evidence-templates/not-a-uuid", nil)
 	suite.server.E().ServeHTTP(invalidIDRec, invalidIDCall)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidIDRec.Code)
 
-	missingIDRec, missingIDCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/evidence-templates/%s", uuid.New()), nil)
+	missingIDRec, missingIDCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/admin/evidence-templates/%s", uuid.New()), nil)
 	suite.server.E().ServeHTTP(missingIDRec, missingIDCall)
 	require.Equal(suite.T(), http.StatusNotFound, missingIDRec.Code)
 
-	putMissingIDRec, putMissingIDCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/evidence-templates/%s", uuid.New()), map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Missing template",
-		"selectorLabels": []map[string]any{
+	putMissingIDRec, putMissingIDCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/admin/evidence-templates/%s", uuid.New()), map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Missing template",
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org"},
 		},
 	})
 	suite.server.E().ServeHTTP(putMissingIDRec, putMissingIDCall)
 	require.Equal(suite.T(), http.StatusNotFound, putMissingIDRec.Code)
 
-	invalidFilterRec, invalidFilterCall := suite.authedRequest(http.MethodGet, "/api/evidence-templates?isActive=definitely-not-bool", nil)
+	invalidFilterRec, invalidFilterCall := suite.authedRequest(http.MethodGet, "/api/admin/evidence-templates?is-active=definitely-not-bool", nil)
 	suite.server.E().ServeHTTP(invalidFilterRec, invalidFilterCall)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidFilterRec.Code)
 	require.Contains(suite.T(), invalidFilterRec.Body.String(), "definitely-not-bool")
 
-	invalidMethodRec, invalidMethodCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Invalid method template",
-		"methods":       []string{"INVALID"},
-		"selectorLabels": []map[string]any{
+	invalidMethodRec, invalidMethodCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Invalid method template",
+		"methods":        []string{"INVALID"},
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org"},
 		},
 	})
@@ -404,14 +404,14 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateValidation
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateDefaultIsActive() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Active by default template",
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Active by default template",
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.secret_scanning_enabled"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org"},
 		},
 	})
@@ -424,15 +424,15 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateDefaultIsA
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateSelectorLabelsOrderedAsc() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.secret_scanning_enabled",
-		"title":         "Ordered selector labels template",
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.secret_scanning_enabled",
+		"title":          "Ordered selector labels template",
+		"selector-labels": []map[string]any{
 			{"key": "z_label", "value": "z"},
 			{"key": "a_label", "value": "a"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org"},
 		},
 	})
@@ -447,27 +447,27 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateSelectorLa
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateRequiresAuthentication() {
-	rec, req := suite.unauthenticatedRequest(http.MethodGet, "/api/evidence-templates", nil)
+	rec, req := suite.unauthenticatedRequest(http.MethodGet, "/api/admin/evidence-templates", nil)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }
 
 func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateFilterByPolicyPackage() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/evidence-templates", map[string]any{
-		"pluginId":      "github-repositories",
-		"policyPackage": "compliance_framework.unique_policy",
-		"title":         "Unique policy template",
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/evidence-templates", map[string]any{
+		"plugin-id":      "github-repositories",
+		"policy-package": "compliance_framework.unique_policy",
+		"title":          "Unique policy template",
+		"selector-labels": []map[string]any{
 			{"key": "_policy", "value": "compliance_framework.unique_policy"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "github.org"},
 		},
 	})
 	suite.server.E().ServeHTTP(createRec, createCall)
 	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
 
-	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/evidence-templates?policyPackage=compliance_framework.unique_policy", nil)
+	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/admin/evidence-templates?policy-package=compliance_framework.unique_policy", nil)
 	suite.server.E().ServeHTTP(listRec, listCall)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)
 

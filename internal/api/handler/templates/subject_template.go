@@ -49,16 +49,16 @@ type subjectTemplateLabelSchemaFieldRequest struct {
 type upsertSubjectTemplateRequest struct {
 	Name                string                                   `json:"name" validate:"required"`
 	Type                string                                   `json:"type" validate:"required"`
-	TitleTemplate       *string                                  `json:"titleTemplate"`
-	DescriptionTemplate *string                                  `json:"descriptionTemplate"`
-	PurposeTemplate     *string                                  `json:"purposeTemplate"`
-	RemarksTemplate     *string                                  `json:"remarksTemplate"`
-	IdentityLabelKeys   []string                                 `json:"identityLabelKeys" validate:"required"`
+	TitleTemplate       *string                                  `json:"title-template"`
+	DescriptionTemplate *string                                  `json:"description-template"`
+	PurposeTemplate     *string                                  `json:"purpose-template"`
+	RemarksTemplate     *string                                  `json:"remarks-template"`
+	IdentityLabelKeys   []string                                 `json:"identity-label-keys" validate:"required"`
 	Props               []relational.Prop                        `json:"props"`
 	Links               []relational.Link                        `json:"links"`
-	SourceMode          string                                   `json:"sourceMode" validate:"required"`
-	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selectorLabels" validate:"required"`
-	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"labelSchema" validate:"required"`
+	SourceMode          string                                   `json:"source-mode" validate:"required"`
+	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selector-labels" validate:"required"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"label-schema" validate:"required"`
 }
 
 type subjectTemplateSelectorLabelResponse struct {
@@ -77,16 +77,16 @@ type subjectTemplateResponse struct {
 	UpdatedAt           time.Time                                 `json:"updatedAt"`
 	Name                string                                    `json:"name"`
 	Type                string                                    `json:"type"`
-	TitleTemplate       *string                                   `json:"titleTemplate"`
-	DescriptionTemplate *string                                   `json:"descriptionTemplate"`
-	PurposeTemplate     *string                                   `json:"purposeTemplate"`
-	RemarksTemplate     *string                                   `json:"remarksTemplate"`
-	IdentityLabelKeys   []string                                  `json:"identityLabelKeys"`
+	TitleTemplate       *string                                   `json:"title-template"`
+	DescriptionTemplate *string                                   `json:"description-template"`
+	PurposeTemplate     *string                                   `json:"purpose-template"`
+	RemarksTemplate     *string                                   `json:"remarks-template"`
+	IdentityLabelKeys   []string                                  `json:"identity-label-keys"`
 	Props               []relational.Prop                         `json:"props"`
 	Links               []relational.Link                         `json:"links"`
-	SourceMode          string                                    `json:"sourceMode"`
-	SelectorLabels      []subjectTemplateSelectorLabelResponse    `json:"selectorLabels"`
-	LabelSchema         []subjectTemplateLabelSchemaFieldResponse `json:"labelSchema"`
+	SourceMode          string                                    `json:"source-mode"`
+	SelectorLabels      []subjectTemplateSelectorLabelResponse    `json:"selector-labels"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldResponse `json:"label-schema"`
 }
 
 type subjectTemplateDataResponse struct {
@@ -100,14 +100,14 @@ type subjectTemplateDataResponse struct {
 //	@Tags			Subject Templates
 //	@Produce		json
 //	@Param			type		query		string	false	"Subject type"
-//	@Param			sourceMode	query		string	false	"Source mode"
+//	@Param			source-mode	query		string	false	"Source mode"
 //	@Param			page		query		int		false	"Page number"
 //	@Param			limit		query		int		false	"Page size"
 //	@Success		200			{object}	svc.ListResponse[subjectTemplateResponse]
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates [get]
+//	@Router			/admin/subject-templates [get]
 func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
@@ -121,7 +121,7 @@ func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 		}
 		filters.Type = &templateType
 	}
-	if sourceMode := ctx.QueryParam("sourceMode"); sourceMode != "" {
+	if sourceMode := ctx.QueryParam("source-mode"); sourceMode != "" {
 		if !templaterel.IsValidSubjectTemplateSourceMode(sourceMode) {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid sourceMode filter %q", sourceMode)))
 		}
@@ -157,7 +157,7 @@ func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates [post]
+//	@Router			/admin/subject-templates [post]
 func (h *SubjectTemplateHandler) Create(ctx echo.Context) error {
 	var req upsertSubjectTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -188,7 +188,7 @@ func (h *SubjectTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates/{id} [get]
+//	@Router			/admin/subject-templates/{id} [get]
 func (h *SubjectTemplateHandler) Get(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -217,7 +217,7 @@ func (h *SubjectTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates/{id} [put]
+//	@Router			/admin/subject-templates/{id} [put]
 func (h *SubjectTemplateHandler) Update(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

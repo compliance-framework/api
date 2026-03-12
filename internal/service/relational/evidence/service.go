@@ -227,6 +227,22 @@ func (s *EvidenceService) GetHistory(streamUUID uuid.UUID) ([]relational.Evidenc
 	return evidences, nil
 }
 
+func (s *EvidenceService) GetLatestByUUID(streamUUID uuid.UUID) (*relational.Evidence, error) {
+	var evidence relational.Evidence
+	if err := s.db.
+		Preload("Labels").
+		Preload("Activities").
+		Preload("Activities.Steps").
+		Preload("InventoryItems").
+		Preload("Components").
+		Preload("Subjects").
+		Order("evidences.end DESC").
+		First(&evidence, "uuid = ?", streamUUID).Error; err != nil {
+		return nil, err
+	}
+	return &evidence, nil
+}
+
 func (s *EvidenceService) Search(filter labelfilter.Filter) ([]relational.Evidence, error) {
 	var results []relational.Evidence
 	query, err := relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(s.db), s.db, filter)

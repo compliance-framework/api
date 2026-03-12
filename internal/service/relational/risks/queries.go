@@ -14,6 +14,7 @@ type ListFilters struct {
 	Impact               *string
 	SSPID                *uuid.UUID
 	ControlID            *string
+	ComponentID          *uuid.UUID
 	EvidenceID           *uuid.UUID
 	OwnerKind            *string
 	OwnerRef             *string
@@ -40,6 +41,9 @@ func ApplyRiskFilters(query *gorm.DB, filters ListFilters) *gorm.DB {
 	}
 	if filters.ControlID != nil && *filters.ControlID != "" {
 		q = q.Where("EXISTS (SELECT 1 FROM risk_control_links rcl WHERE rcl.risk_id = risk_register_risks.id AND rcl.control_id = ?)", *filters.ControlID)
+	}
+	if filters.ComponentID != nil {
+		q = q.Where("EXISTS (SELECT 1 FROM risk_component_links rcomp WHERE rcomp.risk_id = risk_register_risks.id AND rcomp.component_id = ?)", *filters.ComponentID)
 	}
 	if filters.EvidenceID != nil {
 		q = q.Where("EXISTS (SELECT 1 FROM risk_evidence_links rel WHERE rel.risk_id = risk_register_risks.id AND rel.evidence_id = ?)", *filters.EvidenceID)

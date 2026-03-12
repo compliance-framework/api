@@ -46,7 +46,7 @@ type threatIDRequest struct {
 
 type remediationTaskRequest struct {
 	Title      string `json:"title"`
-	OrderIndex int    `json:"orderIndex"`
+	OrderIndex int    `json:"order-index"`
 }
 
 type remediationTemplateRequest struct {
@@ -56,17 +56,17 @@ type remediationTemplateRequest struct {
 }
 
 type upsertRiskTemplateRequest struct {
-	PluginID       string                      `json:"pluginId"`
-	PolicyPackage  string                      `json:"policyPackage"`
+	PluginID       string                      `json:"plugin-id"`
+	PolicyPackage  string                      `json:"policy-package"`
 	Name           string                      `json:"name"`
 	Title          string                      `json:"title"`
 	Statement      string                      `json:"statement"`
-	LikelihoodHint *string                     `json:"likelihoodHint"`
-	ImpactHint     *string                     `json:"impactHint"`
-	ViolationIDs   []string                    `json:"violationIds"`
-	ThreatIDs      []threatIDRequest           `json:"threatIds"`
-	Remediation    *remediationTemplateRequest `json:"remediationTemplate"`
-	IsActive       *bool                       `json:"isActive"`
+	LikelihoodHint *string                     `json:"likelihood-hint"`
+	ImpactHint     *string                     `json:"impact-hint"`
+	ViolationIDs   []string                    `json:"violation-ids"`
+	ThreatIDs      []threatIDRequest           `json:"threat-ids"`
+	Remediation    *remediationTemplateRequest `json:"remediation-template"`
+	IsActive       *bool                       `json:"is-active"`
 }
 
 type threatIDResponse struct {
@@ -79,7 +79,7 @@ type threatIDResponse struct {
 type remediationTaskResponse struct {
 	ID         uuid.UUID `json:"id"`
 	Title      string    `json:"title"`
-	OrderIndex int       `json:"orderIndex"`
+	OrderIndex int       `json:"order-index"`
 }
 
 type remediationTemplateResponse struct {
@@ -91,19 +91,19 @@ type remediationTemplateResponse struct {
 
 type riskTemplateResponse struct {
 	ID             uuid.UUID                    `json:"id"`
-	CreatedAt      time.Time                    `json:"createdAt"`
-	UpdatedAt      time.Time                    `json:"updatedAt"`
-	PluginID       string                       `json:"pluginId"`
-	PolicyPackage  string                       `json:"policyPackage"`
+	CreatedAt      time.Time                    `json:"created-at"`
+	UpdatedAt      time.Time                    `json:"updated-at"`
+	PluginID       string                       `json:"plugin-id"`
+	PolicyPackage  string                       `json:"policy-package"`
 	Name           string                       `json:"name"`
 	Title          string                       `json:"title"`
 	Statement      string                       `json:"statement"`
-	LikelihoodHint *string                      `json:"likelihoodHint"`
-	ImpactHint     *string                      `json:"impactHint"`
-	ViolationIDs   []string                     `json:"violationIds"`
-	ThreatIDs      []threatIDResponse           `json:"threatIds"`
-	Remediation    *remediationTemplateResponse `json:"remediationTemplate,omitempty"`
-	IsActive       bool                         `json:"isActive"`
+	LikelihoodHint *string                      `json:"likelihood-hint"`
+	ImpactHint     *string                      `json:"impact-hint"`
+	ViolationIDs   []string                     `json:"violation-ids"`
+	ThreatIDs      []threatIDResponse           `json:"threat-ids"`
+	Remediation    *remediationTemplateResponse `json:"remediation-template,omitempty"`
+	IsActive       bool                         `json:"is-active"`
 }
 
 type riskTemplateDataResponse struct {
@@ -116,16 +116,16 @@ type riskTemplateDataResponse struct {
 //	@Description	List risk templates with optional filters and pagination.
 //	@Tags			Risk Templates
 //	@Produce		json
-//	@Param			pluginId		query		string	false	"Plugin ID"
-//	@Param			policyPackage	query		string	false	"Policy package"
-//	@Param			isActive		query		bool	false	"Active flag"
+//	@Param			plugin-id		query		string	false	"Plugin ID"
+//	@Param			policy-package	query		string	false	"Policy package"
+//	@Param			is-active		query		bool	false	"Active flag"
 //	@Param			page			query		int		false	"Page number"
 //	@Param			limit			query		int		false	"Page size"
 //	@Success		200				{object}	svc.ListResponse[riskTemplateResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates [get]
+//	@Router			/admin/risk-templates [get]
 func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
@@ -133,16 +133,16 @@ func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 	}
 
 	filters := templaterel.RiskTemplateListFilters{}
-	if pluginID := ctx.QueryParam("pluginId"); pluginID != "" {
+	if pluginID := ctx.QueryParam("plugin-id"); pluginID != "" {
 		filters.PluginID = &pluginID
 	}
-	if policyPackage := ctx.QueryParam("policyPackage"); policyPackage != "" {
+	if policyPackage := ctx.QueryParam("policy-package"); policyPackage != "" {
 		filters.PolicyPackage = &policyPackage
 	}
-	if rawIsActive := ctx.QueryParam("isActive"); rawIsActive != "" {
+	if rawIsActive := ctx.QueryParam("is-active"); rawIsActive != "" {
 		parsed, parseErr := strconv.ParseBool(rawIsActive)
 		if parseErr != nil {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid isActive filter %q: %w", rawIsActive, parseErr)))
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid is-active filter %q: %w", rawIsActive, parseErr)))
 		}
 		filters.IsActive = &parsed
 	}
@@ -176,7 +176,7 @@ func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates [post]
+//	@Router			/admin/risk-templates [post]
 func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
 	var req upsertRiskTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -205,7 +205,7 @@ func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates/{id} [get]
+//	@Router			/admin/risk-templates/{id} [get]
 func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -234,7 +234,7 @@ func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates/{id} [put]
+//	@Router			/admin/risk-templates/{id} [put]
 func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -268,7 +268,7 @@ func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates/{id} [delete]
+//	@Router			/admin/risk-templates/{id} [delete]
 func (h *RiskTemplateHandler) Delete(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
