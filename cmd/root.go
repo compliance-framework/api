@@ -53,6 +53,7 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("evidence_default_expiry_months")
 	viper.MustBindEnv("digest_enabled")
 	viper.MustBindEnv("digest_schedule")
+	viper.MustBindEnv("worker_enabled")
 }
 
 func init() {

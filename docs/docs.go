@@ -26634,7 +26634,13 @@ const docTemplate = `{
                     "description": "OrderIndex is a pointer so that clients can explicitly set 0 without it\nbeing indistinguishable from an omitted field.",
                     "type": "integer"
                 },
-                "scheduledCompletionDate": {
+                "plannedCompletionDate": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleParty": {
                     "type": "string"
                 },
                 "status": {
@@ -26801,10 +26807,16 @@ const docTemplate = `{
                 "orderIndex": {
                     "type": "integer"
                 },
+                "plannedCompletionDate": {
+                    "type": "string"
+                },
                 "poamItemId": {
                     "type": "string"
                 },
-                "scheduledCompletionDate": {
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleParty": {
                     "type": "string"
                 },
                 "status": {
@@ -27078,7 +27090,13 @@ const docTemplate = `{
                 "orderIndex": {
                     "type": "integer"
                 },
-                "scheduledCompletionDate": {
+                "plannedCompletionDate": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "responsibleParty": {
                     "type": "string"
                 },
                 "status": {

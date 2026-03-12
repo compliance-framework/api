@@ -140,8 +140,8 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_WithMilestonesAndLinks() {
 		Status:      "open",
 		SourceType:  "risk-promotion",
 		Milestones: []createMilestoneRequest{
-			{Title: "Patch staging", Status: "planned", ScheduledCompletionDate: &due, OrderIndex: intPtr(0)},
-			{Title: "Patch production", Status: "planned", OrderIndex: intPtr(1)},
+			{Title: "Patch staging", Status: "open", PlannedCompletionDate: &due, OrderIndex: intPtr(0)},
+			{Title: "Patch production", Status: "open", OrderIndex: intPtr(1)},
 		},
 	}
 	raw, _ := json.Marshal(body)
@@ -390,8 +390,8 @@ func (suite *PoamItemsApiIntegrationSuite) TestGet_Exists() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Get test item", "open")
-	suite.seedMilestone(item.ID, "Milestone A", "planned", 0)
-	suite.seedMilestone(item.ID, "Milestone B", "planned", 1)
+	suite.seedMilestone(item.ID, "Milestone A", "open", 0)
+	suite.seedMilestone(item.ID, "Milestone B", "open", 1)
 	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
@@ -512,7 +512,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDelete_CascadesAllLinks() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "To delete", "open")
-	suite.seedMilestone(item.ID, "MS1", "planned", 0)
+	suite.seedMilestone(item.ID, "MS1", "open", 0)
 	riskID := uuid.New()
 	suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID})
 	evidenceID := uuid.New()
@@ -546,9 +546,9 @@ func (suite *PoamItemsApiIntegrationSuite) TestListMilestones_OrderedByIndex() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "MS order test", "open")
-	suite.seedMilestone(item.ID, "Third", "planned", 2)
-	suite.seedMilestone(item.ID, "First", "planned", 0)
-	suite.seedMilestone(item.ID, "Second", "planned", 1)
+	suite.seedMilestone(item.ID, "Third", "open", 2)
+	suite.seedMilestone(item.ID, "First", "open", 0)
+	suite.seedMilestone(item.ID, "Second", "open", 1)
 	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), nil)
 	suite.newServer().E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
@@ -577,11 +577,11 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone() {
 	item := suite.seedItem(sspID, "Add milestone test", "open")
 	due := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
 	body := createMilestoneRequest{
-		Title:                   "Deploy to staging",
-		Description:             "Deploy patched version to staging",
-		Status:                  "planned",
-		ScheduledCompletionDate: &due,
-		OrderIndex:              intPtr(0),
+		Title:                 "Deploy to staging",
+		Description:           "Deploy patched version to staging",
+		Status:                "open",
+		PlannedCompletionDate: &due,
+		OrderIndex:            intPtr(0),
 	}
 	raw, _ := json.Marshal(body)
 	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", item.ID), raw)
@@ -590,13 +590,13 @@ func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone() {
 	var resp GenericDataResponse[milestoneResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(suite.T(), "Deploy to staging", resp.Data.Title)
-	assert.Equal(suite.T(), "planned", resp.Data.Status)
+	assert.Equal(suite.T(), "open", resp.Data.Status)
 	assert.Equal(suite.T(), item.ID, resp.Data.PoamItemID)
 }
 
 func (suite *PoamItemsApiIntegrationSuite) TestAddMilestone_ParentNotFound() {
 	suite.Require().NoError(suite.Migrator.Refresh())
-	body := createMilestoneRequest{Title: "Ghost MS", Status: "planned"}
+	body := createMilestoneRequest{Title: "Ghost MS", Status: "open"}
 	raw, _ := json.Marshal(body)
 	rec, req := suite.authedReq(http.MethodPost, fmt.Sprintf("/api/poam-items/%s/milestones", uuid.New()), raw)
 	suite.newServer().E().ServeHTTP(rec, req)
@@ -611,7 +611,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_MarkCompleted_Set
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Milestone complete test", "open")
-	ms := suite.seedMilestone(item.ID, "Enable scanning", "planned", 0)
+	ms := suite.seedMilestone(item.ID, "Enable scanning", "open", 0)
 	newStatus := "completed"
 	body := updateMilestoneRequest{Status: &newStatus}
 	raw, _ := json.Marshal(body)
@@ -632,7 +632,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateTitle() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "MS title update", "open")
-	ms := suite.seedMilestone(item.ID, "Old title", "planned", 0)
+	ms := suite.seedMilestone(item.ID, "Old title", "open", 0)
 	newTitle := "New title"
 	body := updateMilestoneRequest{Title: &newTitle}
 	raw, _ := json.Marshal(body)
@@ -652,7 +652,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestUpdateMilestone_UpdateOrderIndex(
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "MS order update", "open")
-	ms := suite.seedMilestone(item.ID, "Reorder me", "planned", 0)
+	ms := suite.seedMilestone(item.ID, "Reorder me", "open", 0)
 	newOrder := 5
 	body := updateMilestoneRequest{OrderIndex: &newOrder}
 	raw, _ := json.Marshal(body)
@@ -692,7 +692,7 @@ func (suite *PoamItemsApiIntegrationSuite) TestDeleteMilestone() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
 	item := suite.seedItem(sspID, "Delete MS test", "open")
-	ms := suite.seedMilestone(item.ID, "To delete", "planned", 0)
+	ms := suite.seedMilestone(item.ID, "To delete", "open", 0)
 	rec, req := suite.authedReq(
 		http.MethodDelete,
 		fmt.Sprintf("/api/poam-items/%s/milestones/%s", item.ID, ms.ID),

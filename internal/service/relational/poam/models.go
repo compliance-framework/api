@@ -49,14 +49,16 @@ func (s PoamItemSourceType) IsValid() bool {
 type MilestoneStatus string
 
 const (
-	MilestoneStatusPlanned   MilestoneStatus = "planned"
-	MilestoneStatusCompleted MilestoneStatus = "completed"
+	MilestoneStatusOpen       MilestoneStatus = "open"
+	MilestoneStatusInProgress MilestoneStatus = "in-progress"
+	MilestoneStatusCompleted  MilestoneStatus = "completed"
+	MilestoneStatusCancelled  MilestoneStatus = "cancelled"
 )
 
 // IsValid reports whether the milestone status is one of the defined constants.
 func (s MilestoneStatus) IsValid() bool {
 	switch s {
-	case MilestoneStatusPlanned, MilestoneStatusCompleted:
+	case MilestoneStatusOpen, MilestoneStatusInProgress, MilestoneStatusCompleted, MilestoneStatusCancelled:
 		return true
 	}
 	return false
@@ -117,16 +119,18 @@ func (p *PoamItem) BeforeCreate(_ *gorm.DB) error {
 // PoamItemMilestone is a strong-typed milestone entry for a PoamItem.
 // Field names follow the Confluence design doc (v15).
 type PoamItemMilestone struct {
-	ID                      uuid.UUID  `gorm:"type:uuid;primaryKey"     json:"id"`
-	PoamItemID              uuid.UUID  `gorm:"type:uuid;index;not null" json:"poamItemId"`
-	Title                   string     `gorm:"not null"                 json:"title"`
-	Description             string     `                                json:"description"`
-	Status                  string     `gorm:"type:text;not null"       json:"status"`
-	ScheduledCompletionDate *time.Time `                                json:"scheduledCompletionDate,omitempty"`
-	CompletionDate          *time.Time `                                json:"completionDate,omitempty"`
-	OrderIndex              int        `gorm:"not null;default:0"       json:"orderIndex"`
-	CreatedAt               time.Time  `                                json:"createdAt"`
-	UpdatedAt               time.Time  `                                json:"updatedAt"`
+	ID                    uuid.UUID  `gorm:"type:uuid;primaryKey"     json:"id"`
+	PoamItemID            uuid.UUID  `gorm:"type:uuid;index;not null" json:"poamItemId"`
+	Title                 string     `gorm:"not null"                 json:"title"`
+	Description           string     `                                json:"description"`
+	Status                string     `gorm:"type:text;not null"       json:"status"`
+	PlannedCompletionDate *time.Time `                                json:"plannedCompletionDate,omitempty"`
+	CompletionDate        *time.Time `                                json:"completionDate,omitempty"`
+	ResponsibleParty      *string    `                                json:"responsibleParty,omitempty"`
+	Remarks               *string    `                                json:"remarks,omitempty"`
+	OrderIndex            int        `gorm:"not null;default:0"       json:"orderIndex"`
+	CreatedAt             time.Time  `                                json:"createdAt"`
+	UpdatedAt             time.Time  `                                json:"updatedAt"`
 }
 
 // TableName returns the physical table name.
@@ -138,7 +142,7 @@ func (m *PoamItemMilestone) BeforeCreate(_ *gorm.DB) error {
 		m.ID = uuid.New()
 	}
 	if m.Status == "" {
-		m.Status = string(MilestoneStatusPlanned)
+		m.Status = string(MilestoneStatusOpen)
 	}
 	if !MilestoneStatus(m.Status).IsValid() {
 		return fmt.Errorf("invalid milestone status: %s", m.Status)

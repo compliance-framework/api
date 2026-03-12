@@ -109,21 +109,25 @@ type updatePoamItemRequest struct {
 }
 
 type createMilestoneRequest struct {
-	Title                   string     `json:"title"    validate:"required"`
-	Description             string     `json:"description"`
-	Status                  string     `json:"status"`
-	ScheduledCompletionDate *time.Time `json:"scheduledCompletionDate"`
+	Title                 string     `json:"title"    validate:"required"`
+	Description           string     `json:"description"`
+	Status                string     `json:"status"`
+	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
+	ResponsibleParty      *string    `json:"responsibleParty"`
+	Remarks               *string    `json:"remarks"`
 	// OrderIndex is a pointer so that clients can explicitly set 0 without it
 	// being indistinguishable from an omitted field.
 	OrderIndex *int `json:"orderIndex"`
 }
 
 type updateMilestoneRequest struct {
-	Title                   *string    `json:"title"`
-	Description             *string    `json:"description"`
-	Status                  *string    `json:"status"`
-	ScheduledCompletionDate *time.Time `json:"scheduledCompletionDate"`
-	OrderIndex              *int       `json:"orderIndex"`
+	Title                 *string    `json:"title"`
+	Description           *string    `json:"description"`
+	Status                *string    `json:"status"`
+	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
+	ResponsibleParty      *string    `json:"responsibleParty"`
+	Remarks               *string    `json:"remarks"`
+	OrderIndex            *int       `json:"orderIndex"`
 }
 
 type addLinkRequest struct {
@@ -185,16 +189,18 @@ type poamItemResponse struct {
 }
 
 type milestoneResponse struct {
-	ID                      uuid.UUID  `json:"id"`
-	PoamItemID              uuid.UUID  `json:"poamItemId"`
-	Title                   string     `json:"title"`
-	Description             string     `json:"description"`
-	Status                  string     `json:"status"`
-	ScheduledCompletionDate *time.Time `json:"scheduledCompletionDate,omitempty"`
-	CompletionDate          *time.Time `json:"completionDate,omitempty"`
-	OrderIndex              int        `json:"orderIndex"`
-	CreatedAt               time.Time  `json:"createdAt"`
-	UpdatedAt               time.Time  `json:"updatedAt"`
+	ID                    uuid.UUID  `json:"id"`
+	PoamItemID            uuid.UUID  `json:"poamItemId"`
+	Title                 string     `json:"title"`
+	Description           string     `json:"description"`
+	Status                string     `json:"status"`
+	PlannedCompletionDate *time.Time `json:"plannedCompletionDate,omitempty"`
+	CompletionDate        *time.Time `json:"completionDate,omitempty"`
+	ResponsibleParty      *string    `json:"responsibleParty,omitempty"`
+	Remarks               *string    `json:"remarks,omitempty"`
+	OrderIndex            int        `json:"orderIndex"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 func toPoamItemResponse(item *poamsvc.PoamItem) poamItemResponse {
@@ -251,16 +257,18 @@ func toPoamItemResponse(item *poamsvc.PoamItem) poamItemResponse {
 
 func toMilestoneResponse(m *poamsvc.PoamItemMilestone) milestoneResponse {
 	return milestoneResponse{
-		ID:                      m.ID,
-		PoamItemID:              m.PoamItemID,
-		Title:                   m.Title,
-		Description:             m.Description,
-		Status:                  m.Status,
-		ScheduledCompletionDate: m.ScheduledCompletionDate,
-		CompletionDate:          m.CompletionDate,
-		OrderIndex:              m.OrderIndex,
-		CreatedAt:               m.CreatedAt,
-		UpdatedAt:               m.UpdatedAt,
+		ID:                    m.ID,
+		PoamItemID:            m.PoamItemID,
+		Title:                 m.Title,
+		Description:           m.Description,
+		Status:                m.Status,
+		PlannedCompletionDate: m.PlannedCompletionDate,
+		CompletionDate:        m.CompletionDate,
+		ResponsibleParty:      m.ResponsibleParty,
+		Remarks:               m.Remarks,
+		OrderIndex:            m.OrderIndex,
+		CreatedAt:             m.CreatedAt,
+		UpdatedAt:             m.UpdatedAt,
 	}
 }
 
@@ -416,11 +424,13 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 			msOrderIdx = *mr.OrderIndex
 		}
 		params.Milestones = append(params.Milestones, poamsvc.CreateMilestoneParams{
-			Title:                   mr.Title,
-			Description:             mr.Description,
-			Status:                  mr.Status,
-			ScheduledCompletionDate: mr.ScheduledCompletionDate,
-			OrderIndex:              msOrderIdx,
+			Title:                 mr.Title,
+			Description:           mr.Description,
+			Status:                mr.Status,
+			PlannedCompletionDate: mr.PlannedCompletionDate,
+			ResponsibleParty:      mr.ResponsibleParty,
+			Remarks:               mr.Remarks,
+			OrderIndex:            msOrderIdx,
 		})
 	}
 
@@ -663,11 +673,13 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 		orderIdx = *in.OrderIndex
 	}
 	m, err := h.poamService.AddMilestone(id, poamsvc.CreateMilestoneParams{
-		Title:                   in.Title,
-		Description:             in.Description,
-		Status:                  in.Status,
-		ScheduledCompletionDate: in.ScheduledCompletionDate,
-		OrderIndex:              orderIdx,
+		Title:                 in.Title,
+		Description:           in.Description,
+		Status:                in.Status,
+		PlannedCompletionDate: in.PlannedCompletionDate,
+		ResponsibleParty:      in.ResponsibleParty,
+		Remarks:               in.Remarks,
+		OrderIndex:            orderIdx,
 	})
 	if err != nil {
 		return h.internalError(c, "failed to add milestone", err)
@@ -707,11 +719,13 @@ func (h *PoamItemsHandler) UpdateMilestone(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", *in.Status)))
 	}
 	m, err := h.poamService.UpdateMilestone(id, milestoneID, poamsvc.UpdateMilestoneParams{
-		Title:                   in.Title,
-		Description:             in.Description,
-		Status:                  in.Status,
-		ScheduledCompletionDate: in.ScheduledCompletionDate,
-		OrderIndex:              in.OrderIndex,
+		Title:                 in.Title,
+		Description:           in.Description,
+		Status:                in.Status,
+		PlannedCompletionDate: in.PlannedCompletionDate,
+		ResponsibleParty:      in.ResponsibleParty,
+		Remarks:               in.Remarks,
+		OrderIndex:            in.OrderIndex,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
