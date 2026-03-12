@@ -201,6 +201,24 @@ func (s *SystemComponentSuggestionService) ApplyForImplementedRequirement(
 	return s.applyForParent(sspID, implReqID, implReqID, "implemented_requirements")
 }
 
+// ApplySuggestionForImplementedRequirement creates or reuses a SystemComponent for the provided
+// suggestion and links it to the ImplementedRequirement via ByComponent.
+func (s *SystemComponentSuggestionService) ApplySuggestionForImplementedRequirement(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	componentDefinitionID uuid.UUID,
+	definedComponentID uuid.UUID,
+) error {
+	return s.applySuggestionForParent(
+		sspID,
+		implReqID,
+		implReqID,
+		"implemented_requirements",
+		componentDefinitionID,
+		definedComponentID,
+	)
+}
+
 // ApplyForStatement creates missing SystemComponents for all suggestions related to the
 // parent ImplementedRequirement and links each one to the statement via ByComponent.
 func (s *SystemComponentSuggestionService) ApplyForStatement(
@@ -214,18 +232,38 @@ func (s *SystemComponentSuggestionService) ApplyForStatement(
 	return s.applyForParent(sspID, implReqID, stmtID, "statements")
 }
 
+// ApplySuggestionForStatement creates or reuses a SystemComponent for the provided suggestion
+// and links it to the Statement via ByComponent.
+func (s *SystemComponentSuggestionService) ApplySuggestionForStatement(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	stmtID uuid.UUID,
+	componentDefinitionID uuid.UUID,
+	definedComponentID uuid.UUID,
+) error {
+	if err := s.validateStatementForImplementedRequirement(sspID, implReqID, stmtID); err != nil {
+		return err
+	}
+	return s.applySuggestionForParent(
+		sspID,
+		implReqID,
+		stmtID,
+		"statements",
+		componentDefinitionID,
+		definedComponentID,
+	)
+}
+
 func (s *SystemComponentSuggestionService) applyForParent(
 	sspID uuid.UUID,
 	implReqID uuid.UUID,
 	parentID uuid.UUID,
 	parentType string,
 ) error {
-	// 1. Get the SystemImplementation for this SSP
-	var systemImpl SystemImplementation
-	if err := s.db.Where("system_security_plan_id = ?", sspID).First(&systemImpl).Error; err != nil {
-		return fmt.Errorf("system implementation not found for SSP %s: %w", sspID, err)
+	systemImplID, err := s.getSystemImplementationID(sspID)
+	if err != nil {
+		return err
 	}
-	systemImplID := *systemImpl.ID
 
 	suggestions, err := s.SuggestForImplementedRequirement(sspID, implReqID)
 	if err != nil {
@@ -238,60 +276,202 @@ func (s *SystemComponentSuggestionService) applyForParent(
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		for _, suggestion := range suggestions {
-			definedComponentID := suggestion.DefinedComponentID
-
-			// Use ON CONFLICT DO NOTHING to ensure idempotency even under concurrent requests
-			status := SystemComponentStatus{State: "operational"}
-			component := SystemComponent{
-				Type:                   suggestion.Type,
-				Title:                  suggestion.Name,
-				Description:            suggestion.Description,
-				Purpose:                suggestion.Purpose,
-				Status:                 datatypes.NewJSONType(status),
-				SystemImplementationId: systemImplID,
-				DefinedComponentID:     &definedComponentID,
+			component, err := s.ensureSystemComponent(tx, systemImplID, suggestion)
+			if err != nil {
+				return err
 			}
-			// Use ON CONFLICT DO NOTHING to handle concurrent requests gracefully
-			// The partial unique index on (system_implementation_id, defined_component_id) WHERE defined_component_id IS NOT NULL ensures idempotency
-			// We don't specify Columns because partial indexes can't be targeted that way
-			if err := tx.Clauses(clause.OnConflict{
-				DoNothing: true,
-			}).Create(&component).Error; err != nil {
-				return fmt.Errorf("failed to create system component for defined component %s: %w", definedComponentID, err)
-			}
-			// Load the component to get its ID (either newly created or existing)
-			if err := tx.Where("system_implementation_id = ? AND defined_component_id = ?",
-				systemImplID, definedComponentID).First(&component).Error; err != nil {
-				return fmt.Errorf("failed to load system component for defined component %s: %w", definedComponentID, err)
-			}
-
-			// Create a ByComponent linking the SystemComponent to the ImplementedRequirement
-			implStatus := ImplementationStatus{State: "implemented"}
-			// Generate deterministic UUID from the unique key (component_uuid, parent_id, parent_type)
-			// This ensures concurrent requests generate the same UUID, making the operation idempotent
-			// via the primary key constraint, without blocking legitimate duplicate ByComponents
-			deterministicID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(
-				component.ID.String()+":"+parentID.String()+":"+parentType,
-			))
-			byComponent := ByComponent{
-				UUIDModel: UUIDModel{
-					ID: &deterministicID,
-				},
-				ComponentUUID:        *component.ID,
-				Description:          suggestion.Description,
-				ParentID:             &parentID,
-				ParentType:           &parentType,
-				ImplementationStatus: datatypes.NewJSONType(implStatus),
-			}
-			// Use ON CONFLICT DO NOTHING - the deterministic UUID ensures idempotency
-			if err := tx.Clauses(clause.OnConflict{
-				DoNothing: true,
-			}).Create(&byComponent).Error; err != nil {
-				return fmt.Errorf("failed to create by-component for system component %s: %w", *component.ID, err)
+			if err := s.ensureByComponentLink(tx, *component.ID, suggestion.Description, parentID, parentType); err != nil {
+				return err
 			}
 		}
 		return nil
 	})
+}
+
+func (s *SystemComponentSuggestionService) applySuggestionForParent(
+	sspID uuid.UUID,
+	implReqID uuid.UUID,
+	parentID uuid.UUID,
+	parentType string,
+	componentDefinitionID uuid.UUID,
+	definedComponentID uuid.UUID,
+) error {
+	var definedComponent DefinedComponent
+	if err := s.db.
+		Where("id = ? AND component_definition_id = ?", definedComponentID, componentDefinitionID).
+		First(&definedComponent).Error; err != nil {
+		return fmt.Errorf(
+			"defined component %s not found in component definition %s: %w",
+			definedComponentID,
+			componentDefinitionID,
+			err,
+		)
+	}
+
+	suggestions, err := s.SuggestForImplementedRequirement(sspID, implReqID)
+	if err != nil {
+		return err
+	}
+
+	suggestion, found := findSuggestion(suggestions, componentDefinitionID, definedComponentID)
+	if !found {
+		systemImplID, err := s.getSystemImplementationID(sspID)
+		if err != nil {
+			return err
+		}
+		alreadyLinked, err := s.hasByComponentLinkForParent(systemImplID, definedComponentID, parentID, parentType)
+		if err != nil {
+			return err
+		}
+		if alreadyLinked {
+			return nil
+		}
+		return fmt.Errorf(
+			"suggestion for defined component %s in component definition %s not found for implemented requirement %s in SSP %s: %w",
+			definedComponentID,
+			componentDefinitionID,
+			implReqID,
+			sspID,
+			gorm.ErrRecordNotFound,
+		)
+	}
+
+	systemImplID, err := s.getSystemImplementationID(sspID)
+	if err != nil {
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		component, err := s.ensureSystemComponent(tx, systemImplID, suggestion)
+		if err != nil {
+			return err
+		}
+		if err := s.ensureByComponentLink(tx, *component.ID, suggestion.Description, parentID, parentType); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (s *SystemComponentSuggestionService) getSystemImplementationID(sspID uuid.UUID) (uuid.UUID, error) {
+	var systemImpl SystemImplementation
+	if err := s.db.Where("system_security_plan_id = ?", sspID).First(&systemImpl).Error; err != nil {
+		return uuid.Nil, fmt.Errorf("system implementation not found for SSP %s: %w", sspID, err)
+	}
+	return *systemImpl.ID, nil
+}
+
+func (s *SystemComponentSuggestionService) ensureSystemComponent(
+	tx *gorm.DB,
+	systemImplID uuid.UUID,
+	suggestion SystemComponentSuggestion,
+) (*SystemComponent, error) {
+	definedComponentID := suggestion.DefinedComponentID
+
+	// Use ON CONFLICT DO NOTHING to ensure idempotency even under concurrent requests.
+	status := SystemComponentStatus{State: "operational"}
+	component := SystemComponent{
+		Type:                   suggestion.Type,
+		Title:                  suggestion.Name,
+		Description:            suggestion.Description,
+		Purpose:                suggestion.Purpose,
+		Status:                 datatypes.NewJSONType(status),
+		SystemImplementationId: systemImplID,
+		DefinedComponentID:     &definedComponentID,
+	}
+	// Use ON CONFLICT DO NOTHING to handle concurrent requests gracefully.
+	// The partial unique index on (system_implementation_id, defined_component_id)
+	// WHERE defined_component_id IS NOT NULL ensures idempotency.
+	if err := tx.Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).Create(&component).Error; err != nil {
+		return nil, fmt.Errorf("failed to create system component for defined component %s: %w", definedComponentID, err)
+	}
+
+	// Load the component to get its ID (either newly created or existing).
+	if err := tx.
+		Where("system_implementation_id = ? AND defined_component_id = ?", systemImplID, definedComponentID).
+		First(&component).Error; err != nil {
+		return nil, fmt.Errorf("failed to load system component for defined component %s: %w", definedComponentID, err)
+	}
+
+	return &component, nil
+}
+
+func (s *SystemComponentSuggestionService) ensureByComponentLink(
+	tx *gorm.DB,
+	componentID uuid.UUID,
+	description string,
+	parentID uuid.UUID,
+	parentType string,
+) error {
+	implStatus := ImplementationStatus{State: "implemented"}
+	// Generate deterministic UUID from the unique key (component_uuid, parent_id, parent_type).
+	// This ensures concurrent requests generate the same UUID, making the operation idempotent.
+	deterministicID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(
+		componentID.String()+":"+parentID.String()+":"+parentType,
+	))
+	byComponent := ByComponent{
+		UUIDModel: UUIDModel{
+			ID: &deterministicID,
+		},
+		ComponentUUID:        componentID,
+		Description:          description,
+		ParentID:             &parentID,
+		ParentType:           &parentType,
+		ImplementationStatus: datatypes.NewJSONType(implStatus),
+	}
+	// Use ON CONFLICT DO NOTHING - the deterministic UUID ensures idempotency.
+	if err := tx.Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).Create(&byComponent).Error; err != nil {
+		return fmt.Errorf("failed to create by-component for system component %s: %w", componentID, err)
+	}
+
+	return nil
+}
+
+func (s *SystemComponentSuggestionService) hasByComponentLinkForParent(
+	systemImplID uuid.UUID,
+	definedComponentID uuid.UUID,
+	parentID uuid.UUID,
+	parentType string,
+) (bool, error) {
+	var count int64
+	if err := s.db.
+		Table("by_components").
+		Joins("JOIN system_components ON system_components.id = by_components.component_uuid").
+		Where(
+			"system_components.system_implementation_id = ? AND system_components.defined_component_id = ? AND by_components.parent_id = ? AND by_components.parent_type = ?",
+			systemImplID,
+			definedComponentID,
+			parentID,
+			parentType,
+		).
+		Count(&count).Error; err != nil {
+		return false, fmt.Errorf(
+			"failed to verify existing by-component link for defined component %s and parent %s (%s): %w",
+			definedComponentID,
+			parentID,
+			parentType,
+			err,
+		)
+	}
+
+	return count > 0, nil
+}
+
+func findSuggestion(
+	suggestions []SystemComponentSuggestion,
+	componentDefinitionID uuid.UUID,
+	definedComponentID uuid.UUID,
+) (SystemComponentSuggestion, bool) {
+	for _, suggestion := range suggestions {
+		if suggestion.ComponentDefinitionID == componentDefinitionID && suggestion.DefinedComponentID == definedComponentID {
+			return suggestion, true
+		}
+	}
+	return SystemComponentSuggestion{}, false
 }
 
 func (s *SystemComponentSuggestionService) validateStatementForImplementedRequirement(

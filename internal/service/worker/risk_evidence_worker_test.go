@@ -844,8 +844,8 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
 	require.NoError(t, worker.db.Preload("Labels").Preload("Subjects").Preload("Components").First(&loaded, "id = ?", evidence.ID).Error)
 
 	// Create existing risk using the new dedupe key format:
-	// ssp_id:risk_template_id:sorted_subject_ids (evidence has no subjects → empty)
-	dedupeKey := fmt.Sprintf("%s:%s:", ssp.ID.String(), riskTemplate.ID.String())
+	// ssp_id:risk_template_id (no subject IDs appended anymore)
+	dedupeKey := fmt.Sprintf("%s:%s", ssp.ID.String(), riskTemplate.ID.String())
 	existingRisk := &risks.Risk{
 		Title:          "Existing Risk",
 		Description:    "Existing description",
@@ -878,6 +878,20 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	// Create test evidence with subjects and components
 	evidence := createTestEvidence(t, worker.db)
 
+	// Create SSP and SystemImplementation for proper component linking
+	sspID := uuid.New()
+	ssp := &relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+	}
+	require.NoError(t, worker.db.Create(ssp).Error)
+
+	systemImplID := uuid.New()
+	systemImpl := &relational.SystemImplementation{
+		UUIDModel:            relational.UUIDModel{ID: &systemImplID},
+		SystemSecurityPlanId: sspID,
+	}
+	require.NoError(t, worker.db.Create(systemImpl).Error)
+
 	// Add subjects and components to evidence
 	subject := &relational.AssessmentSubject{
 		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
@@ -885,10 +899,11 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	*subject.ID = uuid.New()
 	require.NoError(t, worker.db.Create(subject).Error)
 
+	componentID := uuid.New()
 	component := &relational.SystemComponent{
-		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
+		UUIDModel:              relational.UUIDModel{ID: &componentID},
+		SystemImplementationId: systemImplID,
 	}
-	*component.ID = uuid.New()
 	require.NoError(t, worker.db.Create(component).Error)
 
 	// Update evidence with subjects and components
@@ -899,8 +914,21 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	evidence, err := worker.loadEvidenceWithRelations(ctx, *evidence.ID)
 	require.NoError(t, err)
 
-	// Create risk links
+	// Create a risk record first (createRiskLinks needs to query for SSP ID)
 	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		SSPID:       sspID,
+		Title:       "Test Risk",
+		Description: "Test Description",
+		Status:      "open",
+		SourceType:  "manual",
+		FirstSeenAt: time.Now(),
+		LastSeenAt:  time.Now(),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+
+	// Create risk links
 	err = worker.createRiskLinks(ctx, worker.db, riskID, evidence)
 
 	assert.NoError(t, err)
@@ -936,8 +964,22 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	// Create test evidence without subjects or components
 	evidence := createTestEvidence(t, worker.db)
 
-	// Create risk links
+	// Create a risk record first (createRiskLinks needs to query for SSP ID)
+	sspID := uuid.New()
 	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		SSPID:       sspID,
+		Title:       "Test Risk",
+		Description: "Test Description",
+		Status:      "open",
+		SourceType:  "manual",
+		FirstSeenAt: time.Now(),
+		LastSeenAt:  time.Now(),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+
+	// Create risk links
 	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
 
 	assert.NoError(t, err)
