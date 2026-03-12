@@ -52,16 +52,16 @@ type evidenceTemplateLabelSchemaFieldRequest struct {
 }
 
 type upsertEvidenceTemplateRequest struct {
-	PluginID           string                                    `json:"pluginId"`
-	PolicyPackage      string                                    `json:"policyPackage"`
+	PluginID           string                                    `json:"plugin-id"`
+	PolicyPackage      string                                    `json:"policy-package"`
 	Title              string                                    `json:"title"`
 	Description        string                                    `json:"description"`
 	Methods            []string                                  `json:"methods"`
-	IsActive           *bool                                     `json:"isActive"`
-	SelectorLabels     []evidenceTemplateSelectorLabelRequest    `json:"selectorLabels"`
-	LabelSchema        []evidenceTemplateLabelSchemaFieldRequest `json:"labelSchema"`
-	RiskTemplateIDs    []uuid.UUID                               `json:"riskTemplateIds"`
-	SubjectTemplateIDs []uuid.UUID                               `json:"subjectTemplateIds"`
+	IsActive           *bool                                     `json:"is-active"`
+	SelectorLabels     []evidenceTemplateSelectorLabelRequest    `json:"selector-labels"`
+	LabelSchema        []evidenceTemplateLabelSchemaFieldRequest `json:"label-schema"`
+	RiskTemplateIDs    []uuid.UUID                               `json:"risk-template-ids"`
+	SubjectTemplateIDs []uuid.UUID                               `json:"subject-template-ids"`
 }
 
 type evidenceTemplateSelectorLabelResponse struct {
@@ -77,18 +77,18 @@ type evidenceTemplateLabelSchemaFieldResponse struct {
 
 type evidenceTemplateResponse struct {
 	ID                 uuid.UUID                                  `json:"id"`
-	CreatedAt          time.Time                                  `json:"createdAt"`
-	UpdatedAt          time.Time                                  `json:"updatedAt"`
-	PluginID           string                                     `json:"pluginId"`
-	PolicyPackage      string                                     `json:"policyPackage"`
+	CreatedAt          time.Time                                  `json:"created-at"`
+	UpdatedAt          time.Time                                  `json:"updated-at"`
+	PluginID           string                                     `json:"plugin-id"`
+	PolicyPackage      string                                     `json:"policy-package"`
 	Title              string                                     `json:"title"`
 	Description        string                                     `json:"description"`
 	Methods            []string                                   `json:"methods"`
-	IsActive           bool                                       `json:"isActive"`
-	SelectorLabels     []evidenceTemplateSelectorLabelResponse    `json:"selectorLabels"`
-	LabelSchema        []evidenceTemplateLabelSchemaFieldResponse `json:"labelSchema"`
-	RiskTemplateIDs    []uuid.UUID                                `json:"riskTemplateIds"`
-	SubjectTemplateIDs []uuid.UUID                                `json:"subjectTemplateIds"`
+	IsActive           bool                                       `json:"is-active"`
+	SelectorLabels     []evidenceTemplateSelectorLabelResponse    `json:"selector-labels"`
+	LabelSchema        []evidenceTemplateLabelSchemaFieldResponse `json:"label-schema"`
+	RiskTemplateIDs    []uuid.UUID                                `json:"risk-template-ids"`
+	SubjectTemplateIDs []uuid.UUID                                `json:"subject-template-ids"`
 }
 
 type evidenceTemplateDataResponse struct {
@@ -101,9 +101,9 @@ type evidenceTemplateDataResponse struct {
 //	@Description	List evidence templates with optional filters and pagination.
 //	@Tags			Evidence Templates
 //	@Produce		json
-//	@Param			pluginId		query		string	false	"Plugin ID"
-//	@Param			policyPackage	query		string	false	"Policy package"
-//	@Param			isActive		query		bool	false	"Active flag"
+//	@Param			plugin-id		query		string	false	"Plugin ID"
+//	@Param			policy-package	query		string	false	"Policy package"
+//	@Param			is-active		query		bool	false	"Active flag"
 //	@Param			page			query		int		false	"Page number"
 //	@Param			limit			query		int		false	"Page size"
 //	@Success		200				{object}	svc.ListResponse[evidenceTemplateResponse]
@@ -120,16 +120,16 @@ func (h *EvidenceTemplateHandler) List(ctx echo.Context) error {
 	}
 
 	filters := templaterel.EvidenceTemplateListFilters{}
-	if pluginID := ctx.QueryParam("pluginId"); pluginID != "" {
+	if pluginID := ctx.QueryParam("plugin-id"); pluginID != "" {
 		filters.PluginID = &pluginID
 	}
-	if policyPackage := ctx.QueryParam("policyPackage"); policyPackage != "" {
+	if policyPackage := ctx.QueryParam("policy-package"); policyPackage != "" {
 		filters.PolicyPackage = &policyPackage
 	}
-	if rawIsActive := ctx.QueryParam("isActive"); rawIsActive != "" {
+	if rawIsActive := ctx.QueryParam("is-active"); rawIsActive != "" {
 		parsed, parseErr := strconv.ParseBool(rawIsActive)
 		if parseErr != nil {
-			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid isActive filter %q: %w", rawIsActive, parseErr)))
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid is-active filter %q: %w", rawIsActive, parseErr)))
 		}
 		filters.IsActive = &parsed
 	}

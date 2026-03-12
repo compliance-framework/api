@@ -43,10 +43,10 @@ type subjectTemplateAPIResponse struct {
 	UpdatedAt         time.Time                                 `json:"updatedAt"`
 	Name              string                                    `json:"name"`
 	Type              string                                    `json:"type"`
-	SourceMode        string                                    `json:"sourceMode"`
-	IdentityLabelKeys []string                                  `json:"identityLabelKeys"`
-	SelectorLabels    []subjectTemplateSelectorLabelResponse    `json:"selectorLabels"`
-	LabelSchema       []subjectTemplateLabelSchemaFieldResponse `json:"labelSchema"`
+	SourceMode        string                                    `json:"source-mode"`
+	IdentityLabelKeys []string                                  `json:"identity-label-keys"`
+	SelectorLabels    []subjectTemplateSelectorLabelResponse    `json:"selector-labels"`
+	LabelSchema       []subjectTemplateLabelSchemaFieldResponse `json:"label-schema"`
 }
 
 type subjectTemplateDataEnvelope struct {
@@ -101,15 +101,15 @@ func (suite *SubjectTemplateApiIntegrationSuite) unauthenticatedRequest(method, 
 }
 
 func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateCRUD() {
-	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/subject-templates", map[string]any{
-		"name":              "Runtime component identity",
-		"type":              "component",
-		"identityLabelKeys": []string{"asset_id", "cluster"},
-		"sourceMode":        "runtime-derived",
-		"selectorLabels": []map[string]any{
+	createRec, createCall := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", map[string]any{
+		"name":                "Runtime component identity",
+		"type":                "component",
+		"identity-label-keys": []string{"asset_id", "cluster"},
+		"source-mode":         "runtime-derived",
+		"selector-labels": []map[string]any{
 			{"key": "plugin", "value": "github"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "asset_id", "description": "Unique asset ID"},
 			{"key": "cluster", "description": "Cluster"},
 		},
@@ -127,7 +127,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateCRUD() {
 	require.Len(suite.T(), created.Data.SelectorLabels, 1)
 	require.Len(suite.T(), created.Data.LabelSchema, 2)
 
-	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/subject-templates?type=component&sourceMode=runtime-derived&page=1&limit=10", nil)
+	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/admin/subject-templates?type=component&source-mode=runtime-derived&page=1&limit=10", nil)
 	suite.server.E().ServeHTTP(listRec, listCall)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)
 
@@ -137,19 +137,19 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateCRUD() {
 	require.NoError(suite.T(), json.Unmarshal(listRec.Body.Bytes(), &listed))
 	require.NotEmpty(suite.T(), listed.Data)
 
-	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/subject-templates/%s", created.Data.ID), nil)
+	getRec, getCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/admin/subject-templates/%s", created.Data.ID), nil)
 	suite.server.E().ServeHTTP(getRec, getCall)
 	require.Equal(suite.T(), http.StatusOK, getRec.Code)
 
-	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/subject-templates/%s", created.Data.ID), map[string]any{
-		"name":              "Runtime component identity updated",
-		"type":              "component",
-		"identityLabelKeys": []string{"asset_id", "namespace"},
-		"sourceMode":        "runtime-derived",
-		"selectorLabels": []map[string]any{
+	updateRec, updateCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/admin/subject-templates/%s", created.Data.ID), map[string]any{
+		"name":                "Runtime component identity updated",
+		"type":                "component",
+		"identity-label-keys": []string{"asset_id", "namespace"},
+		"source-mode":         "runtime-derived",
+		"selector-labels": []map[string]any{
 			{"key": "plugin", "value": "gitlab"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "asset_id", "description": "Unique asset ID"},
 			{"key": "namespace", "description": "Namespace"},
 		},
@@ -175,48 +175,48 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateCRUD() {
 }
 
 func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateValidationAndNotFound() {
-	badCreateRec, badCreateCall := suite.authedRequest(http.MethodPost, "/api/subject-templates", map[string]any{
-		"name":       "",
-		"type":       "component",
-		"sourceMode": "runtime-derived",
+	badCreateRec, badCreateCall := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", map[string]any{
+		"name":        "",
+		"type":        "component",
+		"source-mode": "runtime-derived",
 	})
 	suite.server.E().ServeHTTP(badCreateRec, badCreateCall)
 	require.Equal(suite.T(), http.StatusBadRequest, badCreateRec.Code)
 
-	invalidIDRec, invalidIDCall := suite.authedRequest(http.MethodGet, "/api/subject-templates/not-a-uuid", nil)
+	invalidIDRec, invalidIDCall := suite.authedRequest(http.MethodGet, "/api/admin/subject-templates/not-a-uuid", nil)
 	suite.server.E().ServeHTTP(invalidIDRec, invalidIDCall)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidIDRec.Code)
 
-	missingIDRec, missingIDCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/subject-templates/%s", uuid.New()), nil)
+	missingIDRec, missingIDCall := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/admin/subject-templates/%s", uuid.New()), nil)
 	suite.server.E().ServeHTTP(missingIDRec, missingIDCall)
 	require.Equal(suite.T(), http.StatusNotFound, missingIDRec.Code)
 
-	putMissingIDRec, putMissingIDCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/subject-templates/%s", uuid.New()), map[string]any{
-		"name":              "Missing template",
-		"type":              "component",
-		"identityLabelKeys": []string{"asset_id"},
-		"sourceMode":        "runtime-derived",
-		"selectorLabels": []map[string]any{
+	putMissingIDRec, putMissingIDCall := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/admin/subject-templates/%s", uuid.New()), map[string]any{
+		"name":                "Missing template",
+		"type":                "component",
+		"identity-label-keys": []string{"asset_id"},
+		"source-mode":         "runtime-derived",
+		"selector-labels": []map[string]any{
 			{"key": "plugin", "value": "github"},
 		},
-		"labelSchema": []map[string]any{
+		"label-schema": []map[string]any{
 			{"key": "asset_id"},
 		},
 	})
 	suite.server.E().ServeHTTP(putMissingIDRec, putMissingIDCall)
 	require.Equal(suite.T(), http.StatusNotFound, putMissingIDRec.Code)
 
-	invalidTypeFilterRec, invalidTypeFilterCall := suite.authedRequest(http.MethodGet, "/api/subject-templates?type=invalid-type", nil)
+	invalidTypeFilterRec, invalidTypeFilterCall := suite.authedRequest(http.MethodGet, "/api/admin/subject-templates?type=invalid-type", nil)
 	suite.server.E().ServeHTTP(invalidTypeFilterRec, invalidTypeFilterCall)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidTypeFilterRec.Code)
 
-	invalidSourceModeFilterRec, invalidSourceModeFilterCall := suite.authedRequest(http.MethodGet, "/api/subject-templates?sourceMode=invalid-mode", nil)
+	invalidSourceModeFilterRec, invalidSourceModeFilterCall := suite.authedRequest(http.MethodGet, "/api/admin/subject-templates?source-mode=invalid-mode", nil)
 	suite.server.E().ServeHTTP(invalidSourceModeFilterRec, invalidSourceModeFilterCall)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidSourceModeFilterRec.Code)
 }
 
 func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateRequiresAuthentication() {
-	rec, req := suite.unauthenticatedRequest(http.MethodGet, "/api/subject-templates", nil)
+	rec, req := suite.unauthenticatedRequest(http.MethodGet, "/api/admin/subject-templates", nil)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }

@@ -71,17 +71,17 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.POST("/:id/accept", h.AcceptForSSP)
 	api.POST("/:id/review", h.ReviewForSSP)
 	api.DELETE("/:id", h.DeleteForSSP)
-	api.GET("/:id/evidence", h.GetEvidenceLinks)
-	api.POST("/:id/evidence", h.AddEvidenceLink)
-	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLink)
+	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP)
+	api.POST("/:id/evidence", h.AddEvidenceLinkForSSP)
+	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLinkForSSP)
 
-	api.GET("/:id/controls", h.GetControlLinks)
-	api.POST("/:id/controls", h.AddControlLink)
-	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink)
+	api.GET("/:id/controls", h.GetControlLinksForSSP)
+	api.POST("/:id/controls", h.AddControlLinkForSSP)
+	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLinkForSSP)
 
-	api.GET("/:id/components", h.GetComponentLinks)
-	api.POST("/:id/components", h.AddComponentLink)
-	api.DELETE("/:id/components/:componentId", h.DeleteComponentLink)
+	api.GET("/:id/components", h.GetComponentLinksForSSP)
+	api.POST("/:id/components", h.AddComponentLinkForSSP)
+	api.DELETE("/:id/components/:componentId", h.DeleteComponentLinkForSSP)
 }
 
 type riskOwnerAssignmentRequest struct {
@@ -195,12 +195,13 @@ type reviewRiskRequest struct {
 //	@Param			status					query		string	false	"Risk status"
 //	@Param			likelihood				query		string	false	"Risk likelihood"
 //	@Param			impact					query		string	false	"Risk impact"
-//	@Param			sspId					query		string	false	"SSP ID"
-//	@Param			controlId				query		string	false	"Control ID"
-//	@Param			evidenceId				query		string	false	"Evidence ID"
-//	@Param			ownerKind				query		string	false	"Owner kind"
-//	@Param			ownerRef				query		string	false	"Owner reference"
-//	@Param			reviewDeadlineBefore	query		string	false	"Review deadline upper bound (RFC3339)"
+//	@Param			ssp-id					query		string	false	"SSP ID"
+//	@Param			control-id				query		string	false	"Control ID"
+//	@Param			component-id			query		string	false	"Component ID"
+//	@Param			evidence-id				query		string	false	"Evidence ID"
+//	@Param			owner-kind				query		string	false	"Owner kind"
+//	@Param			owner-ref				query		string	false	"Owner reference"
+//	@Param			review-deadline-before	query		string	false	"Review deadline upper bound (RFC3339)"
 //	@Param			page					query		int		false	"Page number"
 //	@Param			limit					query		int		false	"Page size"
 //	@Param			sort					query		string	false	"Sort field"
@@ -376,6 +377,7 @@ func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest)
 //	@Param			likelihood				query		string	false	"Risk likelihood"
 //	@Param			impact					query		string	false	"Risk impact"
 //	@Param			controlId				query		string	false	"Control ID"
+//	@Param			componentId				query		string	false	"Component ID"
 //	@Param			evidenceId				query		string	false	"Evidence ID"
 //	@Param			ownerKind				query		string	false	"Owner kind"
 //	@Param			ownerRef				query		string	false	"Owner reference"
@@ -389,7 +391,7 @@ func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest)
 //	@Failure		404						{object}	api.Error
 //	@Failure		500						{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks [get]
+//	@Router			/oscal/system-security-plans/{sspId}/risks [get]
 func (h *RiskHandler) ListForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -422,7 +424,7 @@ func (h *RiskHandler) ListForSSP(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks [post]
+//	@Router			/oscal/system-security-plans/{sspId}/risks [post]
 func (h *RiskHandler) CreateForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -450,7 +452,7 @@ func (h *RiskHandler) CreateForSSP(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks/{id} [get]
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id} [get]
 func (h *RiskHandler) GetForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -484,7 +486,7 @@ func (h *RiskHandler) GetForSSP(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks/{id} [put]
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id} [put]
 func (h *RiskHandler) UpdateForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -515,7 +517,7 @@ func (h *RiskHandler) UpdateForSSP(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks/{id} [delete]
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id} [delete]
 func (h *RiskHandler) DeleteForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -549,7 +551,7 @@ func (h *RiskHandler) DeleteForSSP(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks/{id}/accept [post]
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/accept [post]
 func (h *RiskHandler) AcceptForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -583,7 +585,7 @@ func (h *RiskHandler) AcceptForSSP(ctx echo.Context) error {
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/ssp/{sspId}/risks/{id}/review [post]
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/review [post]
 func (h *RiskHandler) ReviewForSSP(ctx echo.Context) error {
 	sspID, err := parsePathUUID(ctx, "sspId")
 	if err != nil {
@@ -923,6 +925,40 @@ func (h *RiskHandler) Delete(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
+// GetEvidenceLinksForSSP godoc
+//
+//	@Summary		List risk evidence links for SSP
+//	@Description	Lists evidence IDs linked to a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[uuid.UUID]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/evidence [get]
+func (h *RiskHandler) GetEvidenceLinksForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetEvidenceLinks(ctx)
+}
+
 // GetEvidenceLinks godoc
 //
 //	@Summary		List risk evidence links
@@ -947,6 +983,40 @@ func (h *RiskHandler) GetEvidenceLinks(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusOK, svc.NewListResponse(ids, total, pagination.Page, pagination.Limit))
 	})
+}
+
+// AddEvidenceLinkForSSP godoc
+//
+//	@Summary		Link evidence to risk for SSP
+//	@Description	Idempotently links an evidence item to a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			sspId	path		string					true	"SSP ID"
+//	@Param			id		path		string					true	"Risk ID"
+//	@Param			link	body		addEvidenceLinkRequest	true	"Evidence link payload"
+//	@Success		201		{object}	GenericDataResponse[risks.RiskEvidenceLink]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/evidence [post]
+func (h *RiskHandler) AddEvidenceLinkForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.AddEvidenceLink(ctx)
 }
 
 // AddEvidenceLink godoc
@@ -991,6 +1061,38 @@ func (h *RiskHandler) AddEvidenceLink(ctx echo.Context) error {
 	})
 }
 
+// DeleteEvidenceLinkForSSP godoc
+//
+//	@Summary		Delete risk evidence link for SSP
+//	@Description	Deletes the link between a risk and evidence item scoped to an SSP.
+//	@Tags			Risks
+//	@Param			sspId		path	string	true	"SSP ID"
+//	@Param			id			path	string	true	"Risk ID"
+//	@Param			evidenceId	path	string	true	"Evidence ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/evidence/{evidenceId} [delete]
+func (h *RiskHandler) DeleteEvidenceLinkForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.DeleteEvidenceLink(ctx)
+}
+
 // DeleteEvidenceLink godoc
 //
 //	@Summary		Delete risk evidence link
@@ -1025,6 +1127,40 @@ func (h *RiskHandler) DeleteEvidenceLink(ctx echo.Context) error {
 	})
 }
 
+// GetControlLinksForSSP godoc
+//
+//	@Summary		List risk control links for SSP
+//	@Description	Lists controls linked to a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskControlLink]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/controls [get]
+func (h *RiskHandler) GetControlLinksForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetControlLinks(ctx)
+}
+
 // GetControlLinks godoc
 //
 //	@Summary		List risk control links
@@ -1049,6 +1185,40 @@ func (h *RiskHandler) GetControlLinks(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusOK, svc.NewListResponse(links, total, pagination.Page, pagination.Limit))
 	})
+}
+
+// AddControlLinkForSSP godoc
+//
+//	@Summary		Link control to risk for SSP
+//	@Description	Idempotently links a control to a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			sspId	path		string					true	"SSP ID"
+//	@Param			id		path		string					true	"Risk ID"
+//	@Param			link	body		addControlLinkRequest	true	"Control link payload"
+//	@Success		201		{object}	GenericDataResponse[risks.RiskControlLink]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/controls [post]
+func (h *RiskHandler) AddControlLinkForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.AddControlLink(ctx)
 }
 
 // AddControlLink godoc
@@ -1093,6 +1263,39 @@ func (h *RiskHandler) AddControlLink(ctx echo.Context) error {
 	})
 }
 
+// DeleteControlLinkForSSP godoc
+//
+//	@Summary		Delete risk control link for SSP
+//	@Description	Deletes the link between a risk and control scoped to an SSP.
+//	@Tags			Risks
+//	@Param			sspId		path	string	true	"SSP ID"
+//	@Param			id			path	string	true	"Risk ID"
+//	@Param			catalogId	path	string	true	"Catalog ID"
+//	@Param			controlId	path	string	true	"Control ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/controls/{catalogId}/{controlId} [delete]
+func (h *RiskHandler) DeleteControlLinkForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.DeleteControlLink(ctx)
+}
+
 // DeleteControlLink godoc
 //
 //	@Summary		Delete risk control link
@@ -1133,6 +1336,40 @@ func (h *RiskHandler) DeleteControlLink(ctx echo.Context) error {
 	})
 }
 
+// GetComponentLinksForSSP godoc
+//
+//	@Summary		List risk component links for SSP
+//	@Description	Lists components linked to a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskComponentLink]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/components [get]
+func (h *RiskHandler) GetComponentLinksForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetComponentLinks(ctx)
+}
+
 // GetComponentLinks godoc
 //
 //	@Summary		List risk component links
@@ -1157,6 +1394,40 @@ func (h *RiskHandler) GetComponentLinks(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusOK, svc.NewListResponse(links, total, pagination.Page, pagination.Limit))
 	})
+}
+
+// AddComponentLinkForSSP godoc
+//
+//	@Summary		Link component to risk for SSP
+//	@Description	Idempotently links a component to a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			sspId	path		string					true	"SSP ID"
+//	@Param			id		path		string					true	"Risk ID"
+//	@Param			link	body		addComponentLinkRequest	true	"Component link payload"
+//	@Success		201		{object}	GenericDataResponse[risks.RiskComponentLink]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/components [post]
+func (h *RiskHandler) AddComponentLinkForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.AddComponentLink(ctx)
 }
 
 // AddComponentLink godoc
@@ -1199,6 +1470,38 @@ func (h *RiskHandler) AddComponentLink(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusCreated, GenericDataResponse[riskrel.RiskComponentLink]{Data: *link})
 	})
+}
+
+// DeleteComponentLinkForSSP godoc
+//
+//	@Summary		Delete risk component link for SSP
+//	@Description	Deletes the link between a risk and component scoped to an SSP.
+//	@Tags			Risks
+//	@Param			sspId		path	string	true	"SSP ID"
+//	@Param			id			path	string	true	"Risk ID"
+//	@Param			componentId	path	string	true	"Component ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/components/{componentId} [delete]
+func (h *RiskHandler) DeleteComponentLinkForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.DeleteComponentLink(ctx)
 }
 
 // DeleteComponentLink godoc
@@ -1317,6 +1620,13 @@ func parseListFilters(ctx echo.Context) (riskrel.ListFilters, error) {
 	}
 	if v := ctx.QueryParam("controlId"); v != "" {
 		filters.ControlID = &v
+	}
+	if componentID := ctx.QueryParam("componentId"); componentID != "" {
+		parsed, err := uuid.Parse(componentID)
+		if err != nil {
+			return filters, fmt.Errorf("invalid componentId")
+		}
+		filters.ComponentID = &parsed
 	}
 	if v := ctx.QueryParam("ownerKind"); v != "" {
 		filters.OwnerKind = &v

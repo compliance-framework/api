@@ -65,12 +65,8 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	riskGroup := server.API().Group("/risks")
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup)
-<<<<<<< Updated upstream
-	sspRiskGroup := server.API().Group("/ssp/:sspId/risks")
-=======
 
 	sspRiskGroup := server.API().Group("/oscal/system-security-plans/:sspId/risks")
->>>>>>> Stashed changes
 	sspRiskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.RegisterSSPScoped(sspRiskGroup)
 	riskTemplateHandler := templatehandlers.NewRiskTemplateHandler(logger, db)

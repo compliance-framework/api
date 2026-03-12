@@ -100,7 +100,7 @@ type subjectTemplateDataResponse struct {
 //	@Tags			Subject Templates
 //	@Produce		json
 //	@Param			type		query		string	false	"Subject type"
-//	@Param			sourceMode	query		string	false	"Source mode"
+//	@Param			source-mode	query		string	false	"Source mode"
 //	@Param			page		query		int		false	"Page number"
 //	@Param			limit		query		int		false	"Page size"
 //	@Success		200			{object}	svc.ListResponse[subjectTemplateResponse]
@@ -121,7 +121,7 @@ func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 		}
 		filters.Type = &templateType
 	}
-	if sourceMode := ctx.QueryParam("sourceMode"); sourceMode != "" {
+	if sourceMode := ctx.QueryParam("source-mode"); sourceMode != "" {
 		if !templaterel.IsValidSubjectTemplateSourceMode(sourceMode) {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid sourceMode filter %q", sourceMode)))
 		}
