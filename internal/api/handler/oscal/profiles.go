@@ -33,6 +33,13 @@ type rule struct {
 	Value    string `json:"value"`
 }
 
+type resolvedWithCatalogsResponse struct {
+	ControlID string    `json:"control-id"`
+	CatalogID uuid.UUID `json:"catalog-id"`
+	Title     string    `json:"title"`
+	Class     string    `json:"class"`
+}
+
 // BuildByPropsRequest represents the payload to build a Profile by matching control props.
 type BuildByPropsRequest struct {
 	CatalogID     string `json:"catalogId"`
@@ -62,6 +69,8 @@ func (h *ProfileHandler) Register(api *echo.Group) {
 	api.POST("/build-props", h.BuildByProps)
 	api.GET("/:id", h.Get)
 	api.GET("/:id/resolved", h.Resolved)
+	api.GET("/:id/resolved-with-catalogs", h.ResolvedWithCatalogs)
+	api.GET("/:id/compliance-progress", h.ComplianceProgress)
 
 	api.GET("/:id/modify", h.GetModify)
 	api.GET("/:id/back-matter", h.GetBackmatter)
@@ -446,6 +455,67 @@ func (h *ProfileHandler) Resolved(ctx echo.Context) error {
 	}
 	catalog.Metadata = profile.Metadata
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.Catalog]{Data: *catalog.MarshalOscal()})
+}
+
+// ResolvedWithCatalogs godoc
+//
+//	@Summary		Get Resolved Profile with Catalog IDs
+//	@Description	Returns a simplified flat list of controls from a resolved profile with control-id, catalog-id, title, and class.
+//	@Tags			Profile
+//	@Param			id	path	string	true	"Profile ID"
+//	@Produce		json
+//	@Success		200	{object}	handler.GenericDataListResponse[resolvedWithCatalogsResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/profiles/{id}/resolved-with-catalogs [get]
+func (h *ProfileHandler) ResolvedWithCatalogs(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		h.sugar.Errorw("error parsing UUID", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	profile, err := FindFullProfile(h.db, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Errorw("error finding profile", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	catalog, err := GetControlCatalogFromBuiltProfile(profile, h.db)
+	if err != nil {
+		h.sugar.Errorw("error building control catalog", "id", id, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Flatten all controls from catalog and groups into a single list
+	allControls := flattenControls(catalog.Controls)
+	for _, group := range catalog.Groups {
+		allControls = append(allControls, flattenControlsFromGroup(group)...)
+	}
+
+	// Convert to simplified response
+	response := make([]resolvedWithCatalogsResponse, len(allControls))
+	for i, ctrl := range allControls {
+		class := ""
+		if ctrl.Class != nil {
+			class = *ctrl.Class
+		}
+		response[i] = resolvedWithCatalogsResponse{
+			ControlID: ctrl.ID,
+			CatalogID: ctrl.CatalogID,
+			Title:     ctrl.Title,
+			Class:     class,
+		}
+	}
+
+	return ctx.JSON(http.StatusOK, handler.GenericDataListResponse[resolvedWithCatalogsResponse]{Data: response})
 }
 
 // ListImports godoc
@@ -1648,7 +1718,29 @@ func FindOscalCatalogFromBackMatter(profile *relational.Profile, ref string) (uu
 	return uuid.Nil, errors.New("no valid catalog uuid was found within the backmatter. ref: " + ref)
 }
 
-// GatherControlIds extracts unique control IDs from an Import’s IncludeControls, avoiding duplicates.
+// flattenControls recursively flattens a list of controls and their sub-controls
+func flattenControls(controls []relational.Control) []relational.Control {
+	var result []relational.Control
+	for _, ctrl := range controls {
+		result = append(result, ctrl)
+		if len(ctrl.Controls) > 0 {
+			result = append(result, flattenControls(ctrl.Controls)...)
+		}
+	}
+	return result
+}
+
+// flattenControlsFromGroup recursively flattens controls from a group and its sub-groups
+func flattenControlsFromGroup(group relational.Group) []relational.Control {
+	var result []relational.Control
+	result = append(result, flattenControls(group.Controls)...)
+	for _, subGroup := range group.Groups {
+		result = append(result, flattenControlsFromGroup(subGroup)...)
+	}
+	return result
+}
+
+// GatherControlIds extracts unique control IDs from an Import's IncludeControls, avoiding duplicates.
 func GatherControlIds(imports relational.Import) []string {
 	var controlIds []string
 	seen := map[string]bool{}

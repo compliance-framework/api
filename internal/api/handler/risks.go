@@ -53,9 +53,11 @@ func (h *RiskHandler) Register(api *echo.Group) {
 
 	api.GET("/:id/controls", h.GetControlLinks)
 	api.POST("/:id/controls", h.AddControlLink)
+	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink)
 
 	api.GET("/:id/components", h.GetComponentLinks)
 	api.POST("/:id/components", h.AddComponentLink)
+	api.DELETE("/:id/components/:componentId", h.DeleteComponentLink)
 
 	api.GET("/:id/subjects", h.GetSubjectLinks)
 	api.POST("/:id/subjects", h.AddSubjectLink)
@@ -69,108 +71,119 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.POST("/:id/accept", h.AcceptForSSP)
 	api.POST("/:id/review", h.ReviewForSSP)
 	api.DELETE("/:id", h.DeleteForSSP)
+	api.GET("/:id/evidence", h.GetEvidenceLinks)
+	api.POST("/:id/evidence", h.AddEvidenceLink)
+	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLink)
+
+	api.GET("/:id/controls", h.GetControlLinks)
+	api.POST("/:id/controls", h.AddControlLink)
+	api.DELETE("/:id/controls/:catalogId/:controlId", h.DeleteControlLink)
+
+	api.GET("/:id/components", h.GetComponentLinks)
+	api.POST("/:id/components", h.AddComponentLink)
+	api.DELETE("/:id/components/:componentId", h.DeleteComponentLink)
 }
 
 type riskOwnerAssignmentRequest struct {
-	OwnerKind string `json:"ownerKind"`
-	OwnerRef  string `json:"ownerRef"`
-	IsPrimary bool   `json:"isPrimary"`
+	OwnerKind string `json:"owner-kind"`
+	OwnerRef  string `json:"owner-ref"`
+	IsPrimary bool   `json:"is-primary"`
 }
 
 type createRiskRequest struct {
 	Title                   string                       `json:"title"`
 	Description             string                       `json:"description"`
 	Status                  *string                      `json:"status"`
-	PrimaryOwnerUserID      *uuid.UUID                   `json:"primaryOwnerUserId"`
-	OwnerAssignments        []riskOwnerAssignmentRequest `json:"ownerAssignments"`
+	PrimaryOwnerUserID      *uuid.UUID                   `json:"primary-owner-user-id"`
+	OwnerAssignments        []riskOwnerAssignmentRequest `json:"owner-assignments"`
 	Likelihood              *string                      `json:"likelihood"`
 	Impact                  *string                      `json:"impact"`
-	SSPID                   uuid.UUID                    `json:"sspId"`
-	RiskTemplateID          *uuid.UUID                   `json:"riskTemplateId"`
-	ReviewDeadline          *time.Time                   `json:"reviewDeadline"`
-	LastReviewedAt          *time.Time                   `json:"lastReviewedAt"`
-	AcceptanceJustification *string                      `json:"acceptanceJustification"`
+	SSPID                   uuid.UUID                    `json:"ssp-id"`
+	RiskTemplateID          *uuid.UUID                   `json:"risk-template-id"`
+	ReviewDeadline          *time.Time                   `json:"review-deadline"`
+	LastReviewedAt          *time.Time                   `json:"last-reviewed-at"`
+	AcceptanceJustification *string                      `json:"acceptance-justification"`
 }
 
 type updateRiskRequest struct {
 	Title                   *string                       `json:"title"`
 	Description             *string                       `json:"description"`
 	Status                  *string                       `json:"status"`
-	PrimaryOwnerUserID      *uuid.UUID                    `json:"primaryOwnerUserId"`
-	OwnerAssignments        *[]riskOwnerAssignmentRequest `json:"ownerAssignments"`
+	PrimaryOwnerUserID      *uuid.UUID                    `json:"primary-owner-user-id"`
+	OwnerAssignments        *[]riskOwnerAssignmentRequest `json:"owner-assignments"`
 	Likelihood              *string                       `json:"likelihood"`
 	Impact                  *string                       `json:"impact"`
-	RiskTemplateID          *uuid.UUID                    `json:"riskTemplateId"`
-	ReviewDeadline          *time.Time                    `json:"reviewDeadline"`
-	LastReviewedAt          *time.Time                    `json:"lastReviewedAt"`
-	ReviewJustification     *string                       `json:"reviewJustification"`
-	AcceptanceJustification *string                       `json:"acceptanceJustification"`
+	RiskTemplateID          *uuid.UUID                    `json:"risk-template-id"`
+	ReviewDeadline          *time.Time                    `json:"review-deadline"`
+	LastReviewedAt          *time.Time                    `json:"last-reviewed-at"`
+	ReviewJustification     *string                       `json:"review-justification"`
+	AcceptanceJustification *string                       `json:"acceptance-justification"`
 }
 
 type riskOwnerAssignmentResponse struct {
-	OwnerKind string `json:"ownerKind"`
-	OwnerRef  string `json:"ownerRef"`
-	IsPrimary bool   `json:"isPrimary"`
+	OwnerKind string `json:"owner-kind"`
+	OwnerRef  string `json:"owner-ref"`
+	IsPrimary bool   `json:"is-primary"`
 }
 
 type riskControlLinkResponse struct {
-	CatalogID uuid.UUID `json:"catalogId"`
-	ControlID string    `json:"controlId"`
+	CatalogID uuid.UUID `json:"catalog-id"`
+	ControlID string    `json:"control-id"`
 }
 
 type riskResponse struct {
 	ID                      uuid.UUID                     `json:"id"`
-	CreatedAt               time.Time                     `json:"createdAt"`
-	UpdatedAt               time.Time                     `json:"updatedAt"`
+	CreatedAt               time.Time                     `json:"created-at"`
+	UpdatedAt               time.Time                     `json:"updated-at"`
 	Title                   string                        `json:"title"`
 	Description             string                        `json:"description"`
 	Status                  string                        `json:"status"`
-	PrimaryOwnerUserID      *uuid.UUID                    `json:"primaryOwnerUserId"`
-	OwnerAssignments        []riskOwnerAssignmentResponse `json:"ownerAssignments"`
+	PrimaryOwnerUserID      *uuid.UUID                    `json:"primary-owner-user-id"`
+	OwnerAssignments        []riskOwnerAssignmentResponse `json:"owner-assignments"`
 	Likelihood              *string                       `json:"likelihood"`
 	Impact                  *string                       `json:"impact"`
-	SSPID                   uuid.UUID                     `json:"sspId"`
-	SourceType              string                        `json:"sourceType"`
-	RiskTemplateID          *uuid.UUID                    `json:"riskTemplateId"`
-	DedupeKey               string                        `json:"dedupeKey"`
-	ReviewDeadline          *time.Time                    `json:"reviewDeadline"`
-	LastReviewedAt          *time.Time                    `json:"lastReviewedAt"`
-	AcceptanceJustification *string                       `json:"acceptanceJustification"`
-	FirstSeenAt             time.Time                     `json:"firstSeenAt"`
-	LastSeenAt              time.Time                     `json:"lastSeenAt"`
-	EvidenceIDs             []uuid.UUID                   `json:"evidenceIds"`
-	ControlLinks            []riskControlLinkResponse     `json:"controlLinks"`
-	ComponentIDs            []uuid.UUID                   `json:"componentIds"`
-	SubjectIDs              []uuid.UUID                   `json:"subjectIds"`
+	SSPID                   uuid.UUID                     `json:"ssp-id"`
+	SourceType              string                        `json:"source-type"`
+	RiskTemplateID          *uuid.UUID                    `json:"risk-template-id"`
+	DedupeKey               string                        `json:"dedupe-key"`
+	ReviewDeadline          *time.Time                    `json:"review-deadline"`
+	LastReviewedAt          *time.Time                    `json:"last-reviewed-at"`
+	AcceptanceJustification *string                       `json:"acceptance-justification"`
+	FirstSeenAt             time.Time                     `json:"first-seen-at"`
+	LastSeenAt              time.Time                     `json:"last-seen-at"`
+	EvidenceIDs             []uuid.UUID                   `json:"evidence-ids"`
+	ControlLinks            []riskControlLinkResponse     `json:"control-links"`
+	ComponentIDs            []uuid.UUID                   `json:"component-ids"`
+	SubjectIDs              []uuid.UUID                   `json:"subject-ids"`
 }
 
 type addEvidenceLinkRequest struct {
-	EvidenceID uuid.UUID `json:"evidenceId"`
+	EvidenceID uuid.UUID `json:"evidence-id"`
 }
 
 type addControlLinkRequest struct {
-	CatalogID uuid.UUID `json:"catalogId"`
-	ControlID string    `json:"controlId"`
+	CatalogID uuid.UUID `json:"catalog-id"`
+	ControlID string    `json:"control-id"`
 }
 
 type addComponentLinkRequest struct {
-	ComponentID uuid.UUID `json:"componentId"`
+	ComponentID uuid.UUID `json:"component-id"`
 }
 
 type addSubjectLinkRequest struct {
-	SubjectID uuid.UUID `json:"subjectId"`
+	SubjectID uuid.UUID `json:"subject-id"`
 }
 
 type acceptRiskRequest struct {
 	Justification  string    `json:"justification"`
-	ReviewDeadline time.Time `json:"reviewDeadline"`
+	ReviewDeadline time.Time `json:"review-deadline"`
 }
 
 type reviewRiskRequest struct {
-	ReviewedAt         *time.Time `json:"reviewedAt"`
+	ReviewedAt         *time.Time `json:"reviewed-at"`
 	Decision           string     `json:"decision"`
 	Notes              *string    `json:"notes"`
-	NextReviewDeadline *time.Time `json:"nextReviewDeadline"`
+	NextReviewDeadline *time.Time `json:"next-review-deadline"`
 }
 
 // List godoc
@@ -1080,6 +1093,46 @@ func (h *RiskHandler) AddControlLink(ctx echo.Context) error {
 	})
 }
 
+// DeleteControlLink godoc
+//
+//	@Summary		Delete risk control link
+//	@Description	Deletes the link between a risk and control.
+//	@Tags			Risks
+//	@Param			id			path	string	true	"Risk ID"
+//	@Param			catalogId	path	string	true	"Catalog ID"
+//	@Param			controlId	path	string	true	"Control ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/controls/{catalogId}/{controlId} [delete]
+func (h *RiskHandler) DeleteControlLink(ctx echo.Context) error {
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	catalogID, err := parsePathUUID(ctx, "catalogId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	controlID := ctx.Param("controlId")
+	if controlID == "" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("controlId is required")))
+	}
+
+	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
+		deleted, err := h.riskService.DeleteControlLink(riskID, catalogID, controlID, actorID)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to delete risk control link", err)
+		}
+		if !deleted {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk control link not found")))
+		}
+		return ctx.NoContent(http.StatusNoContent)
+	})
+}
+
 // GetComponentLinks godoc
 //
 //	@Summary		List risk component links
@@ -1145,6 +1198,41 @@ func (h *RiskHandler) AddComponentLink(ctx echo.Context) error {
 		}
 
 		return ctx.JSON(http.StatusCreated, GenericDataResponse[riskrel.RiskComponentLink]{Data: *link})
+	})
+}
+
+// DeleteComponentLink godoc
+//
+//	@Summary		Delete risk component link
+//	@Description	Deletes the link between a risk and component.
+//	@Tags			Risks
+//	@Param			id			path	string	true	"Risk ID"
+//	@Param			componentId	path	string	true	"Component ID"
+//	@Success		204
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/components/{componentId} [delete]
+func (h *RiskHandler) DeleteComponentLink(ctx echo.Context) error {
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	componentID, err := parsePathUUID(ctx, "componentId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
+		deleted, err := h.riskService.DeleteComponentLink(riskID, componentID, actorID)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to delete risk component link", err)
+		}
+		if !deleted {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk component link not found")))
+		}
+		return ctx.NoContent(http.StatusNoContent)
 	})
 }
 

@@ -46,7 +46,7 @@ type threatIDRequest struct {
 
 type remediationTaskRequest struct {
 	Title      string `json:"title"`
-	OrderIndex int    `json:"orderIndex"`
+	OrderIndex int    `json:"order-index"`
 }
 
 type remediationTemplateRequest struct {
@@ -56,17 +56,17 @@ type remediationTemplateRequest struct {
 }
 
 type upsertRiskTemplateRequest struct {
-	PluginID       string                      `json:"pluginId"`
-	PolicyPackage  string                      `json:"policyPackage"`
+	PluginID       string                      `json:"plugin-id"`
+	PolicyPackage  string                      `json:"policy-package"`
 	Name           string                      `json:"name"`
 	Title          string                      `json:"title"`
 	Statement      string                      `json:"statement"`
-	LikelihoodHint *string                     `json:"likelihoodHint"`
-	ImpactHint     *string                     `json:"impactHint"`
-	ViolationIDs   []string                    `json:"violationIds"`
-	ThreatIDs      []threatIDRequest           `json:"threatIds"`
-	Remediation    *remediationTemplateRequest `json:"remediationTemplate"`
-	IsActive       *bool                       `json:"isActive"`
+	LikelihoodHint *string                     `json:"likelihood-hint"`
+	ImpactHint     *string                     `json:"impact-hint"`
+	ViolationIDs   []string                    `json:"violation-ids"`
+	ThreatIDs      []threatIDRequest           `json:"threat-ids"`
+	Remediation    *remediationTemplateRequest `json:"remediation-template"`
+	IsActive       *bool                       `json:"is-active"`
 }
 
 type threatIDResponse struct {
@@ -79,7 +79,7 @@ type threatIDResponse struct {
 type remediationTaskResponse struct {
 	ID         uuid.UUID `json:"id"`
 	Title      string    `json:"title"`
-	OrderIndex int       `json:"orderIndex"`
+	OrderIndex int       `json:"order-index"`
 }
 
 type remediationTemplateResponse struct {
@@ -93,17 +93,17 @@ type riskTemplateResponse struct {
 	ID             uuid.UUID                    `json:"id"`
 	CreatedAt      time.Time                    `json:"createdAt"`
 	UpdatedAt      time.Time                    `json:"updatedAt"`
-	PluginID       string                       `json:"pluginId"`
-	PolicyPackage  string                       `json:"policyPackage"`
+	PluginID       string                       `json:"plugin-id"`
+	PolicyPackage  string                       `json:"policy-package"`
 	Name           string                       `json:"name"`
 	Title          string                       `json:"title"`
 	Statement      string                       `json:"statement"`
-	LikelihoodHint *string                      `json:"likelihoodHint"`
-	ImpactHint     *string                      `json:"impactHint"`
-	ViolationIDs   []string                     `json:"violationIds"`
-	ThreatIDs      []threatIDResponse           `json:"threatIds"`
-	Remediation    *remediationTemplateResponse `json:"remediationTemplate,omitempty"`
-	IsActive       bool                         `json:"isActive"`
+	LikelihoodHint *string                      `json:"likelihood-hint"`
+	ImpactHint     *string                      `json:"impact-hint"`
+	ViolationIDs   []string                     `json:"violation-ids"`
+	ThreatIDs      []threatIDResponse           `json:"threat-ids"`
+	Remediation    *remediationTemplateResponse `json:"remediation-template,omitempty"`
+	IsActive       bool                         `json:"is-active"`
 }
 
 type riskTemplateDataResponse struct {

@@ -49,16 +49,16 @@ type subjectTemplateLabelSchemaFieldRequest struct {
 type upsertSubjectTemplateRequest struct {
 	Name                string                                   `json:"name" validate:"required"`
 	Type                string                                   `json:"type" validate:"required"`
-	TitleTemplate       *string                                  `json:"titleTemplate"`
-	DescriptionTemplate *string                                  `json:"descriptionTemplate"`
-	PurposeTemplate     *string                                  `json:"purposeTemplate"`
-	RemarksTemplate     *string                                  `json:"remarksTemplate"`
-	IdentityLabelKeys   []string                                 `json:"identityLabelKeys" validate:"required"`
+	TitleTemplate       *string                                  `json:"title-template"`
+	DescriptionTemplate *string                                  `json:"description-template"`
+	PurposeTemplate     *string                                  `json:"purpose-template"`
+	RemarksTemplate     *string                                  `json:"remarks-template"`
+	IdentityLabelKeys   []string                                 `json:"identity-label-keys" validate:"required"`
 	Props               []relational.Prop                        `json:"props"`
 	Links               []relational.Link                        `json:"links"`
-	SourceMode          string                                   `json:"sourceMode" validate:"required"`
-	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selectorLabels" validate:"required"`
-	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"labelSchema" validate:"required"`
+	SourceMode          string                                   `json:"source-mode" validate:"required"`
+	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selector-labels" validate:"required"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"label-schema" validate:"required"`
 }
 
 type subjectTemplateSelectorLabelResponse struct {
@@ -77,16 +77,16 @@ type subjectTemplateResponse struct {
 	UpdatedAt           time.Time                                 `json:"updatedAt"`
 	Name                string                                    `json:"name"`
 	Type                string                                    `json:"type"`
-	TitleTemplate       *string                                   `json:"titleTemplate"`
-	DescriptionTemplate *string                                   `json:"descriptionTemplate"`
-	PurposeTemplate     *string                                   `json:"purposeTemplate"`
-	RemarksTemplate     *string                                   `json:"remarksTemplate"`
-	IdentityLabelKeys   []string                                  `json:"identityLabelKeys"`
+	TitleTemplate       *string                                   `json:"title-template"`
+	DescriptionTemplate *string                                   `json:"description-template"`
+	PurposeTemplate     *string                                   `json:"purpose-template"`
+	RemarksTemplate     *string                                   `json:"remarks-template"`
+	IdentityLabelKeys   []string                                  `json:"identity-label-keys"`
 	Props               []relational.Prop                         `json:"props"`
 	Links               []relational.Link                         `json:"links"`
-	SourceMode          string                                    `json:"sourceMode"`
-	SelectorLabels      []subjectTemplateSelectorLabelResponse    `json:"selectorLabels"`
-	LabelSchema         []subjectTemplateLabelSchemaFieldResponse `json:"labelSchema"`
+	SourceMode          string                                    `json:"source-mode"`
+	SelectorLabels      []subjectTemplateSelectorLabelResponse    `json:"selector-labels"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldResponse `json:"label-schema"`
 }
 
 type subjectTemplateDataResponse struct {
