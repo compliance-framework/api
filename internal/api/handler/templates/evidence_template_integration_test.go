@@ -141,7 +141,7 @@ func (suite *EvidenceTemplateApiIntegrationSuite) TestEvidenceTemplateCRUD() {
 	require.Empty(suite.T(), created.Data.RiskTemplateIDs)
 	require.Empty(suite.T(), created.Data.SubjectTemplateIDs)
 
-	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/admin/evidence-templates?pluginId=github-repositories&isActive=true&page=1&limit=10", nil)
+	listRec, listCall := suite.authedRequest(http.MethodGet, "/api/admin/evidence-templates?plugin-id=github-repositories&is-active=true&page=1&limit=10", nil)
 	suite.server.E().ServeHTTP(listRec, listCall)
 	require.Equal(suite.T(), http.StatusOK, listRec.Code)
 
