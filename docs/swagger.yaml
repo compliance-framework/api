@@ -8520,6 +8520,512 @@ paths:
       summary: Trigger evidence digest
       tags:
       - Digest
+  /admin/evidence-templates:
+    get:
+      description: List evidence templates with optional filters and pagination.
+      parameters:
+      - description: Plugin ID
+        in: query
+        name: plugin-id
+        type: string
+      - description: Policy package
+        in: query
+        name: policy-package
+        type: string
+      - description: Active flag
+        in: query
+        name: is-active
+        type: boolean
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_evidenceTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List evidence templates
+      tags:
+      - Evidence Templates
+    post:
+      consumes:
+      - application/json
+      description: Create an evidence template with selector labels, label schema,
+        and linked risk/subject template IDs.
+      parameters:
+      - description: Evidence template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create evidence template
+      tags:
+      - Evidence Templates
+  /admin/evidence-templates/{id}:
+    delete:
+      description: Delete an evidence template and its associated selector labels,
+        label schema, and join rows.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete evidence template
+      tags:
+      - Evidence Templates
+    get:
+      description: Get an evidence template by ID.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get evidence template
+      tags:
+      - Evidence Templates
+    put:
+      consumes:
+      - application/json
+      description: Update an evidence template and atomically replace selector labels,
+        label schema, and linked IDs.
+      parameters:
+      - description: Evidence Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evidence template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update evidence template
+      tags:
+      - Evidence Templates
+  /admin/risk-templates:
+    get:
+      description: List risk templates with optional filters and pagination.
+      parameters:
+      - description: Plugin ID
+        in: query
+        name: plugin-id
+        type: string
+      - description: Policy package
+        in: query
+        name: policy-package
+        type: string
+      - description: Active flag
+        in: query
+        name: is-active
+        type: boolean
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_riskTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk templates
+      tags:
+      - Risk Templates
+    post:
+      consumes:
+      - application/json
+      description: Create a risk template with threat references and remediation template/tasks.
+      parameters:
+      - description: Risk template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertRiskTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.riskTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create risk template
+      tags:
+      - Risk Templates
+  /admin/risk-templates/{id}:
+    delete:
+      description: Delete a risk template and its associated threat references and
+        remediation data.
+      parameters:
+      - description: Risk Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk template
+      tags:
+      - Risk Templates
+    get:
+      description: Get a risk template by ID.
+      parameters:
+      - description: Risk Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.riskTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk template
+      tags:
+      - Risk Templates
+    put:
+      consumes:
+      - application/json
+      description: Update a risk template and atomically replace threat refs and remediation
+        tasks.
+      parameters:
+      - description: Risk Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Risk template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertRiskTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.riskTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update risk template
+      tags:
+      - Risk Templates
+  /admin/subject-templates:
+    get:
+      description: List subject templates with optional filters and pagination.
+      parameters:
+      - description: Subject type
+        in: query
+        name: type
+        type: string
+      - description: Source mode
+        in: query
+        name: source-mode
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-templates_subjectTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List subject templates
+      tags:
+      - Subject Templates
+    post:
+      consumes:
+      - application/json
+      description: Create a subject template with selector labels and label schema.
+      parameters:
+      - description: Subject template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create subject template
+      tags:
+      - Subject Templates
+  /admin/subject-templates/{id}:
+    get:
+      description: Get a subject template by ID.
+      parameters:
+      - description: Subject Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get subject template
+      tags:
+      - Subject Templates
+    put:
+      consumes:
+      - application/json
+      description: Update a subject template and atomically replace selector labels
+        and label schema.
+      parameters:
+      - description: Subject Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Subject template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.subjectTemplateDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update subject template
+      tags:
+      - Subject Templates
   /admin/users:
     get:
       description: Lists all users in the system
@@ -8932,187 +9438,6 @@ paths:
       summary: Create new Evidence
       tags:
       - Evidence
-  /evidence-templates:
-    get:
-      description: List evidence templates with optional filters and pagination.
-      parameters:
-      - description: Plugin ID
-        in: query
-        name: plugin-id
-        type: string
-      - description: Policy package
-        in: query
-        name: policy-package
-        type: string
-      - description: Active flag
-        in: query
-        name: is-active
-        type: boolean
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/service.ListResponse-templates_evidenceTemplateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List evidence templates
-      tags:
-      - Evidence Templates
-    post:
-      consumes:
-      - application/json
-      description: Create an evidence template with selector labels, label schema,
-        and linked risk/subject template IDs.
-      parameters:
-      - description: Evidence template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create evidence template
-      tags:
-      - Evidence Templates
-  /evidence-templates/{id}:
-    delete:
-      description: Delete an evidence template and its associated selector labels,
-        label schema, and join rows.
-      parameters:
-      - description: Evidence Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Delete evidence template
-      tags:
-      - Evidence Templates
-    get:
-      description: Get an evidence template by ID.
-      parameters:
-      - description: Evidence Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get evidence template
-      tags:
-      - Evidence Templates
-    put:
-      consumes:
-      - application/json
-      description: Update an evidence template and atomically replace selector labels,
-        label schema, and linked IDs.
-      parameters:
-      - description: Evidence Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Evidence template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Update evidence template
-      tags:
-      - Evidence Templates
   /evidence/{id}:
     get:
       description: Retrieves a single Evidence record by its unique ID, including
@@ -21162,186 +21487,6 @@ paths:
       summary: Delete a risk link
       tags:
       - POAM Items
-  /risk-templates:
-    get:
-      description: List risk templates with optional filters and pagination.
-      parameters:
-      - description: Plugin ID
-        in: query
-        name: plugin-id
-        type: string
-      - description: Policy package
-        in: query
-        name: policy-package
-        type: string
-      - description: Active flag
-        in: query
-        name: is-active
-        type: boolean
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/service.ListResponse-templates_riskTemplateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List risk templates
-      tags:
-      - Risk Templates
-    post:
-      consumes:
-      - application/json
-      description: Create a risk template with threat references and remediation template/tasks.
-      parameters:
-      - description: Risk template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertRiskTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/templates.riskTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create risk template
-      tags:
-      - Risk Templates
-  /risk-templates/{id}:
-    delete:
-      description: Delete a risk template and its associated threat references and
-        remediation data.
-      parameters:
-      - description: Risk Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Delete risk template
-      tags:
-      - Risk Templates
-    get:
-      description: Get a risk template by ID.
-      parameters:
-      - description: Risk Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.riskTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get risk template
-      tags:
-      - Risk Templates
-    put:
-      consumes:
-      - application/json
-      description: Update a risk template and atomically replace threat refs and remediation
-        tasks.
-      parameters:
-      - description: Risk Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Risk template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertRiskTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.riskTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Update risk template
-      tags:
-      - Risk Templates
   /risks:
     get:
       description: Lists risk register entries with filtering, sorting, and pagination.
@@ -21360,31 +21505,31 @@ paths:
         type: string
       - description: SSP ID
         in: query
-        name: ssp-id
+        name: sspId
         type: string
       - description: Control ID
         in: query
-        name: control-id
+        name: controlId
         type: string
       - description: Component ID
         in: query
-        name: component-id
+        name: componentId
         type: string
       - description: Evidence ID
         in: query
-        name: evidence-id
+        name: evidenceId
         type: string
       - description: Owner kind
         in: query
-        name: owner-kind
+        name: ownerKind
         type: string
       - description: Owner reference
         in: query
-        name: owner-ref
+        name: ownerRef
         type: string
       - description: Review deadline upper bound (RFC3339)
         in: query
-        name: review-deadline-before
+        name: reviewDeadlineBefore
         type: string
       - description: Page number
         in: query
@@ -22073,151 +22218,6 @@ paths:
       summary: Link subject to risk
       tags:
       - Risks
-  /subject-templates:
-    get:
-      description: List subject templates with optional filters and pagination.
-      parameters:
-      - description: Subject type
-        in: query
-        name: type
-        type: string
-      - description: Source mode
-        in: query
-        name: source-mode
-        type: string
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/service.ListResponse-templates_subjectTemplateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List subject templates
-      tags:
-      - Subject Templates
-    post:
-      consumes:
-      - application/json
-      description: Create a subject template with selector labels and label schema.
-      parameters:
-      - description: Subject template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/templates.subjectTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create subject template
-      tags:
-      - Subject Templates
-  /subject-templates/{id}:
-    get:
-      description: Get a subject template by ID.
-      parameters:
-      - description: Subject Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.subjectTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get subject template
-      tags:
-      - Subject Templates
-    put:
-      consumes:
-      - application/json
-      description: Update a subject template and atomically replace selector labels
-        and label schema.
-      parameters:
-      - description: Subject Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Subject template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertSubjectTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.subjectTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Update subject template
-      tags:
-      - Subject Templates
   /users/{id}/change-password:
     post:
       consumes:

@@ -107,7 +107,7 @@ type subjectTemplateDataResponse struct {
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates [get]
+//	@Router			/admin/subject-templates [get]
 func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
@@ -157,7 +157,7 @@ func (h *SubjectTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates [post]
+//	@Router			/admin/subject-templates [post]
 func (h *SubjectTemplateHandler) Create(ctx echo.Context) error {
 	var req upsertSubjectTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -188,7 +188,7 @@ func (h *SubjectTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates/{id} [get]
+//	@Router			/admin/subject-templates/{id} [get]
 func (h *SubjectTemplateHandler) Get(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -217,7 +217,7 @@ func (h *SubjectTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/subject-templates/{id} [put]
+//	@Router			/admin/subject-templates/{id} [put]
 func (h *SubjectTemplateHandler) Update(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

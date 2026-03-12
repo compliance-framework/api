@@ -125,7 +125,7 @@ type riskTemplateDataResponse struct {
 //	@Failure		400				{object}	api.Error
 //	@Failure		500				{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates [get]
+//	@Router			/admin/risk-templates [get]
 func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 	pagination, err := h.pagination.ParseParams(ctx)
 	if err != nil {
@@ -176,7 +176,7 @@ func (h *RiskTemplateHandler) List(ctx echo.Context) error {
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates [post]
+//	@Router			/admin/risk-templates [post]
 func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
 	var req upsertRiskTemplateRequest
 	if err := ctx.Bind(&req); err != nil {
@@ -205,7 +205,7 @@ func (h *RiskTemplateHandler) Create(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates/{id} [get]
+//	@Router			/admin/risk-templates/{id} [get]
 func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -234,7 +234,7 @@ func (h *RiskTemplateHandler) Get(ctx echo.Context) error {
 //	@Failure		404			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates/{id} [put]
+//	@Router			/admin/risk-templates/{id} [put]
 func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -268,7 +268,7 @@ func (h *RiskTemplateHandler) Update(ctx echo.Context) error {
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
 //	@Security		OAuth2Password
-//	@Router			/risk-templates/{id} [delete]
+//	@Router			/admin/risk-templates/{id} [delete]
 func (h *RiskTemplateHandler) Delete(ctx echo.Context) error {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
