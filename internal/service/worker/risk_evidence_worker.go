@@ -65,7 +65,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 	}
 
 	// 3. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
-	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(riskTemplates, evidence.Labels)
+	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(riskTemplates, evidence.Props)
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
@@ -166,10 +166,10 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	return riskTemplates, nil
 }
 
-// filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence labels
-func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(riskTemplates []templates.RiskTemplate, evidenceLabels []relational.Labels) ([]templates.RiskTemplate, error) {
-	// Extract violation IDs from evidence labels
-	violationIDs := w.extractViolationIDs(evidenceLabels)
+// filterRiskTemplatesByViolations filters risk templates based on violation IDs in evidence props
+func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(riskTemplates []templates.RiskTemplate, evidenceProps datatypes.JSONSlice[relational.Prop]) ([]templates.RiskTemplate, error) {
+	// Extract violation IDs from evidence props
+	violationIDs := w.extractViolationIDs(evidenceProps)
 
 	var filteredTemplates []templates.RiskTemplate
 
@@ -189,16 +189,16 @@ func (w *RiskEvidenceWorker) filterRiskTemplatesByViolations(riskTemplates []tem
 	return filteredTemplates, nil
 }
 
-// extractViolationIDs extracts violation IDs from evidence labels
-func (w *RiskEvidenceWorker) extractViolationIDs(labels []relational.Labels) []string {
+// extractViolationIDs extracts violation IDs from evidence props
+func (w *RiskEvidenceWorker) extractViolationIDs(props datatypes.JSONSlice[relational.Prop]) []string {
 	var violationIDs []string
 
-	for _, label := range labels {
-		labelName := strings.ToLower(strings.TrimSpace(label.Name))
-		labelValue := strings.TrimSpace(label.Value)
-		// Accept both current and legacy violation label names.
-		if (labelName == "_violation_id" || labelName == "violation_id") && labelValue != "" {
-			violationIDs = append(violationIDs, labelValue)
+	for _, prop := range props {
+		propName := strings.ToLower(strings.TrimSpace(prop.Name))
+		propValue := strings.TrimSpace(prop.Value)
+		// Accept both current and legacy violation prop names.
+		if (propName == "_violation_id" || propName == "violation_id") && propValue != "" {
+			violationIDs = append(violationIDs, propValue)
 		}
 	}
 
