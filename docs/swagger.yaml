@@ -7206,6 +7206,140 @@ definitions:
       totalPages:
         type: integer
     type: object
+  templates.batchRiskTemplateItem:
+    properties:
+      id:
+        type: string
+      impact-hint:
+        type: string
+      is-active:
+        type: boolean
+      likelihood-hint:
+        type: string
+      name:
+        type: string
+      remediation-template:
+        $ref: '#/definitions/templates.remediationTemplateRequest'
+      statement:
+        type: string
+      threat-ids:
+        items:
+          $ref: '#/definitions/templates.threatIDRequest'
+        type: array
+      title:
+        type: string
+      violation-ids:
+        items:
+          type: string
+        type: array
+    type: object
+  templates.batchSubjectTemplateItem:
+    properties:
+      description-template:
+        type: string
+      id:
+        type: string
+      identity-label-keys:
+        items:
+          type: string
+        type: array
+      label-schema:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateLabelSchemaFieldRequest'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/relational.Link'
+        type: array
+      name:
+        type: string
+      props:
+        items:
+          $ref: '#/definitions/relational.Prop'
+        type: array
+      purpose-template:
+        type: string
+      remarks-template:
+        type: string
+      selector-labels:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateSelectorLabelRequest'
+        type: array
+      source-mode:
+        type: string
+      title-template:
+        type: string
+      type:
+        type: string
+    type: object
+  templates.batchUpsertRiskTemplatesData:
+    properties:
+      created:
+        items:
+          $ref: '#/definitions/templates.riskTemplateResponse'
+        type: array
+      deleted:
+        items:
+          type: string
+        type: array
+      unchanged:
+        items:
+          type: string
+        type: array
+      updated:
+        items:
+          $ref: '#/definitions/templates.riskTemplateResponse'
+        type: array
+    type: object
+  templates.batchUpsertRiskTemplatesRequest:
+    properties:
+      plugin-id:
+        type: string
+      policy-package:
+        type: string
+      templates:
+        items:
+          $ref: '#/definitions/templates.batchRiskTemplateItem'
+        type: array
+    type: object
+  templates.batchUpsertRiskTemplatesResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.batchUpsertRiskTemplatesData'
+    type: object
+  templates.batchUpsertSubjectTemplatesData:
+    properties:
+      created:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateResponse'
+        type: array
+      deleted:
+        items:
+          type: string
+        type: array
+      unchanged:
+        items:
+          type: string
+        type: array
+      updated:
+        items:
+          $ref: '#/definitions/templates.subjectTemplateResponse'
+        type: array
+    type: object
+  templates.batchUpsertSubjectTemplatesRequest:
+    properties:
+      plugin-id:
+        type: string
+      templates:
+        items:
+          $ref: '#/definitions/templates.batchSubjectTemplateItem'
+        type: array
+    type: object
+  templates.batchUpsertSubjectTemplatesResponse:
+    properties:
+      data:
+        $ref: '#/definitions/templates.batchUpsertSubjectTemplatesData'
+    type: object
   templates.evidenceTemplateDataResponse:
     properties:
       data:
@@ -9258,6 +9392,74 @@ paths:
       summary: Get Heartbeat Metrics Over Time
       tags:
       - Heartbeat
+  /agent/risk-templates/batch:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.
+        Creates, updates, and deletes templates atomically. Templates still in use are skipped.
+      parameters:
+      - description: Batch upsert payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/templates.batchUpsertRiskTemplatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.batchUpsertRiskTemplatesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Batch upsert risk templates
+      tags:
+      - Risk Templates
+  /agent/subject-templates/batch:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Reconcile the full set of subject templates for a plugin (scoped via selector-label key="plugin").
+        Creates, updates, and deletes templates atomically. Templates still in use are skipped.
+      parameters:
+      - description: Batch upsert payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/templates.batchUpsertSubjectTemplatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/templates.batchUpsertSubjectTemplatesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Batch upsert subject templates
+      tags:
+      - Subject Templates
   /auth/forgot-password:
     post:
       consumes:

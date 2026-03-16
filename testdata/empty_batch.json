@@ -1,0 +1,5 @@
+{
+  "plugin-id": "my-plugin",
+  "policy-package": "compliance_framework.secret_scanning",
+  "templates": []
+}

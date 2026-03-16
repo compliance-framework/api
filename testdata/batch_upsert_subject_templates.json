@@ -1,0 +1,95 @@
+{
+  "plugin-id": "my-plugin",
+  "templates": [
+    {
+      "id": "00000000-0000-0000-0001-000000000001",
+      "name": "github-repository",
+      "type": "component",
+      "source-mode": "runtime-derived",
+      "title-template": "GitHub Repository: {{ .repo_name }}",
+      "description-template": "A GitHub repository owned by {{ .github_org }}.",
+      "identity-label-keys": ["github_org", "repo_name"],
+      "selector-labels": [
+        { "key": "plugin", "value": "my-plugin" },
+        { "key": "asset_type", "value": "github_repository" }
+      ],
+      "label-schema": [
+        { "key": "github_org", "description": "GitHub organisation name" },
+        { "key": "repo_name", "description": "Repository name" },
+        { "key": "default_branch", "description": "Default branch name" }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0001-000000000002",
+      "name": "aws-s3-bucket",
+      "type": "component",
+      "source-mode": "runtime-derived",
+      "title-template": "S3 Bucket: {{ .bucket_name }}",
+      "description-template": "An AWS S3 bucket in account {{ .aws_account_id }}.",
+      "identity-label-keys": ["aws_account_id", "bucket_name"],
+      "selector-labels": [
+        { "key": "plugin", "value": "my-plugin" },
+        { "key": "asset_type", "value": "aws_s3_bucket" }
+      ],
+      "label-schema": [
+        { "key": "aws_account_id", "description": "AWS account ID" },
+        { "key": "bucket_name", "description": "S3 bucket name" },
+        { "key": "region", "description": "AWS region the bucket resides in" }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0001-000000000003",
+      "name": "kubernetes-namespace",
+      "type": "component",
+      "source-mode": "runtime-derived",
+      "title-template": "Namespace: {{ .namespace }}",
+      "description-template": "Kubernetes namespace {{ .namespace }} on cluster {{ .cluster }}.",
+      "identity-label-keys": ["cluster", "namespace"],
+      "selector-labels": [
+        { "key": "plugin", "value": "my-plugin" },
+        { "key": "asset_type", "value": "k8s_namespace" }
+      ],
+      "label-schema": [
+        { "key": "cluster", "description": "Kubernetes cluster name" },
+        { "key": "namespace", "description": "Namespace name" }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0001-000000000004",
+      "name": "azure-storage-account",
+      "type": "component",
+      "source-mode": "runtime-derived",
+      "title-template": "Storage Account: {{ .account_name }}",
+      "description-template": "Azure Storage Account {{ .account_name }} in subscription {{ .subscription_id }}.",
+      "identity-label-keys": ["subscription_id", "account_name"],
+      "selector-labels": [
+        { "key": "plugin", "value": "my-plugin" },
+        { "key": "asset_type", "value": "azure_storage_account" }
+      ],
+      "label-schema": [
+        { "key": "subscription_id", "description": "Azure subscription ID" },
+        { "key": "account_name", "description": "Storage account name" },
+        { "key": "resource_group", "description": "Resource group name" }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-0001-000000000004",
+      "name": "gcp-gcs-bucket",
+      "type": "component",
+      "source-mode": "runtime-derived",
+      "title-template": "GCS Bucket: {{ .bucket_name }}",
+      "description-template": "A Google Cloud Storage bucket in project {{ .gcp_project }}.",
+      "identity-label-keys": ["gcp_project", "bucket_name"],
+      "selector-labels": [
+        { "key": "plugin", "value": "my-plugin" },
+        { "key": "asset_type", "value": "gcp_gcs_bucket" }
+      ],
+      "label-schema": [
+        { "key": "gcp_project", "description": "GCP project ID" },
+        { "key": "bucket_name", "description": "GCS bucket name" },
+        { "key": "location", "description": "Bucket location/region" },
+        { "key": "storage_class", "description": "Storage class" }
+      ]
+    }
+  ]
+}

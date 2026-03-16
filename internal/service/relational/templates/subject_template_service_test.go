@@ -552,6 +552,7 @@ func newSubjectTemplateTestDB(t *testing.T) *gorm.DB {
 		&SubjectTemplate{},
 		&SubjectTemplateSelectorLabel{},
 		&SubjectTemplateLabelSchemaField{},
+		&EvidenceTemplateSubjectTemplate{},
 		&AssessmentSubjectIdentity{},
 		&SystemComponentIdentity{},
 		&ComponentDefinitionIdentity{},
@@ -1029,6 +1030,403 @@ func TestSubjectTemplateService_CreateWithValidTemplateNoRender(t *testing.T) {
 	require.NoError(t, db.First(&dc, "id = ?", result.DefinedComponentIDs[0]).Error)
 	require.Equal(t, "No Template Component", dc.Title)
 	require.Equal(t, "", dc.Description)
+}
+
+func TestSubjectTemplateService_BatchUpsertCreateUpdateDelete(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "batch-plugin"
+
+	firstID := uuid.New()
+	secondID := uuid.New()
+
+	item := func(id uuid.UUID, name string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                id,
+			Name:              name,
+			Type:              "component",
+			SourceMode:        "runtime-derived",
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id", Description: strPtr("Unique asset ID")},
+			},
+		}
+	}
+
+	// Round 1: create two templates.
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		item(firstID, "Subject one"),
+		item(secondID, "Subject two"),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Created, 2)
+	require.Empty(t, result.Updated)
+	require.Empty(t, result.Deleted)
+
+	createdIDs := make(map[uuid.UUID]bool)
+	for _, row := range result.Created {
+		createdIDs[*row.ID] = true
+	}
+	require.True(t, createdIDs[firstID])
+	require.True(t, createdIDs[secondID])
+
+	// Round 2: update first, drop second (deleted), create third.
+	thirdID := uuid.New()
+	updated := item(firstID, "Subject one updated")
+	updated.IdentityLabelKeys = []string{"asset_id", "region"}
+	updated.LabelSchema = append(updated.LabelSchema, SubjectTemplateLabelSchemaFieldInput{
+		Key:         "region",
+		Description: strPtr("Cloud region"),
+	})
+
+	result2, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		updated,
+		item(thirdID, "Subject three"),
+	})
+	require.NoError(t, err)
+	require.Len(t, result2.Updated, 1)
+	require.Equal(t, firstID, *result2.Updated[0].ID)
+	require.Equal(t, "Subject one updated", result2.Updated[0].Name)
+	require.Len(t, result2.Updated[0].LabelSchema, 2)
+	require.Len(t, result2.Created, 1)
+	require.Equal(t, thirdID, *result2.Created[0].ID)
+	require.Len(t, result2.Deleted, 1)
+	require.Equal(t, secondID, result2.Deleted[0])
+	// Confirm second template is gone.
+	var count int64
+	require.NoError(t, db.Model(&SubjectTemplate{}).Where("id = ?", secondID).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+func TestSubjectTemplateService_BatchUpsertEmptyPayloadDeletesAll(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "delete-plugin"
+	id1, id2 := uuid.New(), uuid.New()
+
+	makeItem := func(id uuid.UUID, name string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                id,
+			Name:              name,
+			Type:              "component",
+			SourceMode:        "runtime-derived",
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+			},
+		}
+	}
+
+	_, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(id1, "Delete subject one"),
+		makeItem(id2, "Delete subject two"),
+	})
+	require.NoError(t, err)
+
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{})
+	require.NoError(t, err)
+	require.Empty(t, result.Created)
+	require.Empty(t, result.Updated)
+	require.Len(t, result.Deleted, 2)
+
+	var remaining int64
+	require.NoError(t, db.Model(&SubjectTemplate{}).Count(&remaining).Error)
+	require.Equal(t, int64(0), remaining)
+}
+
+func TestSubjectTemplateService_BatchUpsertAlwaysDeletesEvenIfReferenced(t *testing.T) {
+	db := newSubjectTemplateTestDBWithEvidence(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "always-delete-plugin"
+	keepID := uuid.New()
+	referencedID := uuid.New()
+
+	makeItem := func(id uuid.UUID, name string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                id,
+			Name:              name,
+			Type:              "component",
+			SourceMode:        "runtime-derived",
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+			},
+		}
+	}
+
+	_, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(keepID, "Keep me"),
+		makeItem(referencedID, "Referenced but deleted"),
+	})
+	require.NoError(t, err)
+
+	// Simulate a reference to referencedID via evidence template.
+	require.NoError(t, db.Create(&EvidenceTemplateSubjectTemplate{
+		EvidenceTemplateID: uuid.New(),
+		SubjectTemplateID:  referencedID,
+	}).Error)
+
+	// Even though referencedID is referenced, it should be deleted (no in-use guard).
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(keepID, "Keep me updated"),
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Updated, 1)
+	require.Empty(t, result.Created)
+	require.Len(t, result.Deleted, 1)
+	require.Equal(t, referencedID, result.Deleted[0])
+
+	var count int64
+	require.NoError(t, db.Model(&SubjectTemplate{}).Where("id = ?", referencedID).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+func TestSubjectTemplateService_BatchUpsertSkipsUnchanged(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "unchanged-plugin"
+
+	id1 := uuid.New()
+	id2 := uuid.New()
+
+	makeItem := func(id uuid.UUID, name string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                id,
+			Name:              name,
+			Type:              "component",
+			SourceMode:        "runtime-derived",
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+			},
+		}
+	}
+
+	// Round 1: create two templates.
+	_, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(id1, "Template One"),
+		makeItem(id2, "Template Two"),
+	})
+	require.NoError(t, err)
+
+	// Round 2: same payload — nothing should be updated.
+	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(id1, "Template One"),
+		makeItem(id2, "Template Two"),
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Created)
+	require.Empty(t, result.Updated)
+	require.Empty(t, result.Deleted)
+	require.Len(t, result.Unchanged, 2)
+	require.Contains(t, result.Unchanged, id1)
+	require.Contains(t, result.Unchanged, id2)
+
+	// Round 3: update only id1 — id2 should remain unchanged.
+	result2, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		makeItem(id1, "Template One Modified"),
+		makeItem(id2, "Template Two"),
+	})
+	require.NoError(t, err)
+	require.Len(t, result2.Updated, 1)
+	require.Equal(t, id1, *result2.Updated[0].ID)
+	require.Empty(t, result2.Created)
+	require.Empty(t, result2.Deleted)
+	require.Len(t, result2.Unchanged, 1)
+	require.Equal(t, id2, result2.Unchanged[0])
+}
+
+func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "batch-plugin"
+
+	// Missing plugin ID.
+	_, err := svc.BatchUpsert("", []BatchSubjectTemplateItem{})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	// Missing item ID (uuid.Nil).
+	_, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		{
+			ID:         uuid.Nil,
+			Name:       "No ID",
+			Type:       "component",
+			SourceMode: "runtime-derived",
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.Contains(t, err.Error(), "id is required")
+
+	// Item with invalid payload (empty name).
+	_, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		{
+			ID:         uuid.New(),
+			Name:       "",
+			Type:       "component",
+			SourceMode: "runtime-derived",
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	// Duplicate ID.
+	sharedID := uuid.New()
+	_, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		{
+			ID:         sharedID,
+			Name:       "First",
+			Type:       "component",
+			SourceMode: "runtime-derived",
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+		},
+		{
+			ID:         sharedID,
+			Name:       "Second",
+			Type:       "component",
+			SourceMode: "runtime-derived",
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.Contains(t, err.Error(), "duplicate id")
+}
+
+func TestSubjectTemplateService_BatchUpsertIsolatesByPlugin(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	idA := uuid.New()
+	idB := uuid.New()
+
+	makeItem := func(id uuid.UUID, plugin string) BatchSubjectTemplateItem {
+		return BatchSubjectTemplateItem{
+			ID:                id,
+			Name:              "Template for " + plugin,
+			Type:              "component",
+			SourceMode:        "runtime-derived",
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: plugin},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id"},
+			},
+		}
+	}
+
+	_, err := svc.BatchUpsert("plugin-a", []BatchSubjectTemplateItem{makeItem(idA, "plugin-a")})
+	require.NoError(t, err)
+
+	_, err = svc.BatchUpsert("plugin-b", []BatchSubjectTemplateItem{makeItem(idB, "plugin-b")})
+	require.NoError(t, err)
+
+	// Empty batch for plugin-a should only delete plugin-a's template.
+	result, err := svc.BatchUpsert("plugin-a", []BatchSubjectTemplateItem{})
+	require.NoError(t, err)
+	require.Len(t, result.Deleted, 1)
+	require.Equal(t, idA, result.Deleted[0])
+
+	// plugin-b's template must still exist.
+	var count int64
+	require.NoError(t, db.Model(&SubjectTemplate{}).Where("id = ?", idB).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
+
+func TestSubjectTemplateService_BatchUpsertDeleteCleansUpSelectorLabelsAndSchema(t *testing.T) {
+	db := newSubjectTemplateTestDB(t)
+	svc := NewSubjectTemplateService(db)
+
+	pluginID := "cleanup-plugin"
+	id := uuid.New()
+
+	_, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
+		{
+			ID:                id,
+			Name:              "Template with labels",
+			Type:              "component",
+			SourceMode:        "runtime-derived",
+			IdentityLabelKeys: []string{"asset_id"},
+			SelectorLabels: []SubjectTemplateSelectorLabelInput{
+				{Key: "plugin", Value: pluginID},
+			},
+			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
+				{Key: "asset_id", Description: strPtr("Asset ID")},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var selectorCount, schemaCount int64
+	require.NoError(t, db.Model(&SubjectTemplateSelectorLabel{}).Where("subject_template_id = ?", id).Count(&selectorCount).Error)
+	require.Equal(t, int64(1), selectorCount)
+	require.NoError(t, db.Model(&SubjectTemplateLabelSchemaField{}).Where("subject_template_id = ?", id).Count(&schemaCount).Error)
+	require.Equal(t, int64(1), schemaCount)
+
+	// Delete via empty batch.
+	_, err = svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{})
+	require.NoError(t, err)
+
+	require.NoError(t, db.Model(&SubjectTemplateSelectorLabel{}).Where("subject_template_id = ?", id).Count(&selectorCount).Error)
+	require.Equal(t, int64(0), selectorCount)
+	require.NoError(t, db.Model(&SubjectTemplateLabelSchemaField{}).Where("subject_template_id = ?", id).Count(&schemaCount).Error)
+	require.Equal(t, int64(0), schemaCount)
+}
+
+func newSubjectTemplateTestDBWithEvidence(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(
+		&SubjectTemplate{},
+		&SubjectTemplateSelectorLabel{},
+		&SubjectTemplateLabelSchemaField{},
+		&AssessmentSubjectIdentity{},
+		&SystemComponentIdentity{},
+		&ComponentDefinitionIdentity{},
+		&subjectResolverAssessmentSubjectRow{},
+		&subjectResolverSystemComponentRow{},
+		&subjectResolverSystemImplementationRow{},
+		&relational.Metadata{},
+		&relational.ComponentDefinition{},
+		&relational.DefinedComponent{},
+		&riskrel.AssessmentSubjectLabel{},
+		&riskrel.SystemComponentLabel{},
+		&riskrel.ComponentDefinitionLabel{},
+		&EvidenceTemplateSubjectTemplate{},
+	))
+
+	return db
 }
 
 func validSubjectTemplatePayload() SubjectTemplatePayload {
