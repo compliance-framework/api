@@ -361,7 +361,7 @@ type batchUpsertRiskTemplatesResponse struct {
 //
 //	@Summary		Batch upsert risk templates
 //	@Description	Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.
-//	@Description	Creates, updates, and deletes templates atomically. Templates still in use are skipped.
+//	@Description	Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
 //	@Tags			Risk Templates
 //	@Accept			json
 //	@Produce		json
@@ -369,7 +369,6 @@ type batchUpsertRiskTemplatesResponse struct {
 //	@Success		200		{object}	batchUpsertRiskTemplatesResponse
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
 //	@Router			/agent/risk-templates/batch [post]
 func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
 	var req batchUpsertRiskTemplatesRequest

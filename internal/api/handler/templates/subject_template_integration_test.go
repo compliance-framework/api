@@ -244,6 +244,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"identity-label-keys": []string{"asset_id"},
 				"selector-labels": []map[string]any{
 					{"key": "plugin", "value": "batch-plugin"},
+					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
 					{"key": "asset_id", "description": "Unique asset ID"},
@@ -257,6 +258,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"identity-label-keys": []string{"cluster"},
 				"selector-labels": []map[string]any{
 					{"key": "plugin", "value": "batch-plugin"},
+					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
 					{"key": "cluster", "description": "Cluster name"},
@@ -301,6 +303,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"identity-label-keys": []string{"asset_id", "region"},
 				"selector-labels": []map[string]any{
 					{"key": "plugin", "value": "batch-plugin"},
+					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
 					{"key": "asset_id", "description": "Unique asset ID"},
@@ -315,6 +318,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"identity-label-keys": []string{"namespace"},
 				"selector-labels": []map[string]any{
 					{"key": "plugin", "value": "batch-plugin"},
+					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
 					{"key": "namespace", "description": "Kubernetes namespace"},
@@ -341,7 +345,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 	var selectorCount int64
 	require.NoError(suite.T(), suite.DB.Model(&templaterel.SubjectTemplateSelectorLabel{}).
 		Where("subject_template_id = ?", firstID).Count(&selectorCount).Error)
-	require.Equal(suite.T(), int64(1), selectorCount)
+	require.Equal(suite.T(), int64(2), selectorCount)
 
 	// Step 3 — confirm second template is gone.
 	var count int64
@@ -414,6 +418,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertV
 				"source-mode": "runtime-derived",
 				"selector-labels": []map[string]any{
 					{"key": "plugin", "value": "batch-plugin"},
+					{"key": "_plugin", "value": "batch-plugin"},
 				},
 			},
 		},
@@ -422,7 +427,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertV
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
 
-func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertRequiresAuth() {
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertIsPublic() {
 	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
 		"plugin-id": "batch-plugin",
 		"templates": []map[string]any{},

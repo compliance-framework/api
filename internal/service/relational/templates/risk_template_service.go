@@ -740,21 +740,6 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 		resolved[i].item = batchItemFromPayload(r.item, payload)
 	}
 
-	// Load existing templates for this (plugin, policy) scope with associations needed for comparison.
-	var existingRows []RiskTemplate
-	if err := s.db.
-		Where("plugin_id = ? AND policy_package = ?", pluginID, policyPackage).
-		Preload("ThreatRefs", preloadThreatRefs).
-		Preload("RemediationTemplate").
-		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
-		Find(&existingRows).Error; err != nil {
-		return nil, err
-	}
-	existingByID := make(map[uuid.UUID]RiskTemplate, len(existingRows))
-	for _, row := range existingRows {
-		existingByID[*row.ID] = row
-	}
-
 	payloadIDs := make(map[uuid.UUID]struct{}, len(resolved))
 	for _, r := range resolved {
 		payloadIDs[r.id] = struct{}{}
@@ -765,6 +750,24 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 		return nil, tx.Error
 	}
 	defer rollbackTxOnPanic(tx)
+
+	// Load existing templates inside the transaction so the read and all subsequent
+	// mutations are part of the same consistent snapshot, eliminating the race window
+	// between a pre-tx read and the tx writes.
+	var existingRows []RiskTemplate
+	if err := tx.
+		Where("plugin_id = ? AND policy_package = ?", pluginID, policyPackage).
+		Preload("ThreatRefs", preloadThreatRefs).
+		Preload("RemediationTemplate").
+		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
+		Find(&existingRows).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	existingByID := make(map[uuid.UUID]RiskTemplate, len(existingRows))
+	for _, row := range existingRows {
+		existingByID[*row.ID] = row
+	}
 
 	result := &BatchUpsertRiskTemplatesResult{
 		Created:   make([]RiskTemplate, 0),
@@ -912,12 +915,6 @@ func createRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 	).Create(&row).Error; err != nil {
 		return nil, err
 	}
-	if payload.IsActive != nil && !*payload.IsActive {
-		if err := tx.Model(&RiskTemplate{}).Where("id = ?", id).Update("is_active", false).Error; err != nil {
-			return nil, err
-		}
-	}
-
 	if err := replaceThreatRefs(tx, id, payload.ThreatRefs); err != nil {
 		return nil, err
 	}

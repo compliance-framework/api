@@ -791,7 +791,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertValidat
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
 
-func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertRequiresAuth() {
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertIsPublic() {
 	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
 		"plugin-id":      "batch-plugin",
 		"policy-package": "compliance_framework.batch_test",

@@ -1585,6 +1585,17 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		if _, dup := seen[item.ID]; dup {
 			return nil, newValidationError(fmt.Sprintf("item %d: duplicate id %s", i, item.ID))
 		}
+		// Validate that each item carries a _plugin selector label matching the batch scope.
+		hasPluginLabel := false
+		for _, sl := range item.SelectorLabels {
+			if sl.Key == "_plugin" && sl.Value == pluginID {
+				hasPluginLabel = true
+				break
+			}
+		}
+		if !hasPluginLabel {
+			return nil, newValidationError(fmt.Sprintf("item %d (id %s): missing selector label _plugin=%s", i, item.ID, pluginID))
+		}
 		seen[item.ID] = struct{}{}
 		resolved = append(resolved, resolvedItem{id: item.ID, item: item})
 	}
@@ -1598,16 +1609,6 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		resolved[i].item = batchSubjectItemFromPayload(r.item, payload)
 	}
 
-	// Load existing templates scoped to this plugin via selector-labels.
-	existingRows, err := listSubjectTemplatesByPluginSelectorLabel(s.db, pluginID)
-	if err != nil {
-		return nil, err
-	}
-	existingByID := make(map[uuid.UUID]SubjectTemplate, len(existingRows))
-	for _, row := range existingRows {
-		existingByID[*row.ID] = row
-	}
-
 	payloadIDs := make(map[uuid.UUID]struct{}, len(resolved))
 	for _, r := range resolved {
 		payloadIDs[r.id] = struct{}{}
@@ -1618,6 +1619,19 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		return nil, tx.Error
 	}
 	defer rollbackTxOnPanic(tx)
+
+	// Load existing templates inside the transaction so the read and all subsequent
+	// mutations are part of the same consistent snapshot, eliminating the race window
+	// between a pre-tx read and the tx writes.
+	existingRows, err := listSubjectTemplatesByPluginSelectorLabel(tx, pluginID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	existingByID := make(map[uuid.UUID]SubjectTemplate, len(existingRows))
+	for _, row := range existingRows {
+		existingByID[*row.ID] = row
+	}
 
 	result := &BatchUpsertSubjectTemplatesResult{
 		Created:   make([]SubjectTemplate, 0),
@@ -1656,6 +1670,10 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 			continue
 		}
 
+		if err := tx.Delete(&EvidenceTemplateSubjectTemplate{}, "subject_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete evidence template links for subject template %s: %w", id, err)
+		}
 		if err := tx.Delete(&SubjectTemplateSelectorLabel{}, "subject_template_id = ?", id).Error; err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("delete selector labels for subject template %s: %w", id, err)

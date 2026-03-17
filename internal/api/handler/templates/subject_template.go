@@ -312,8 +312,8 @@ type batchUpsertSubjectTemplatesResponse struct {
 // BatchUpsert godoc
 //
 //	@Summary		Batch upsert subject templates
-//	@Description	Reconcile the full set of subject templates for a plugin (scoped via selector-label key="plugin").
-//	@Description	Creates, updates, and deletes templates atomically. Templates still in use are skipped.
+//	@Description	Reconcile the full set of subject templates for a plugin (scoped via selector-label key="_plugin").
+//	@Description	Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
 //	@Tags			Subject Templates
 //	@Accept			json
 //	@Produce		json
@@ -321,7 +321,6 @@ type batchUpsertSubjectTemplatesResponse struct {
 //	@Success		200		{object}	batchUpsertSubjectTemplatesResponse
 //	@Failure		400		{object}	api.Error
 //	@Failure		500		{object}	api.Error
-//	@Security		OAuth2Password
 //	@Router			/agent/subject-templates/batch [post]
 func (h *SubjectTemplateHandler) BatchUpsert(ctx echo.Context) error {
 	var req batchUpsertSubjectTemplatesRequest

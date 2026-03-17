@@ -1050,6 +1050,7 @@ func TestSubjectTemplateService_BatchUpsertCreateUpdateDelete(t *testing.T) {
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
 				{Key: "asset_id", Description: strPtr("Unique asset ID")},
@@ -1118,6 +1119,7 @@ func TestSubjectTemplateService_BatchUpsertEmptyPayloadDeletesAll(t *testing.T) 
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
 				{Key: "asset_id"},
@@ -1159,6 +1161,7 @@ func TestSubjectTemplateService_BatchUpsertAlwaysDeletesEvenIfReferenced(t *test
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
 				{Key: "asset_id"},
@@ -1211,6 +1214,7 @@ func TestSubjectTemplateService_BatchUpsertSkipsUnchanged(t *testing.T) {
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
 				{Key: "asset_id"},
@@ -1304,6 +1308,7 @@ func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
 			SourceMode: "runtime-derived",
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 		},
 		{
@@ -1313,6 +1318,7 @@ func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
 			SourceMode: "runtime-derived",
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 		},
 	})
@@ -1337,6 +1343,7 @@ func TestSubjectTemplateService_BatchUpsertIsolatesByPlugin(t *testing.T) {
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: plugin},
+				{Key: "_plugin", Value: plugin},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
 				{Key: "asset_id"},
@@ -1378,6 +1385,7 @@ func TestSubjectTemplateService_BatchUpsertDeleteCleansUpSelectorLabelsAndSchema
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
 				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
 				{Key: "asset_id", Description: strPtr("Asset ID")},
