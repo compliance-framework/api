@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -9,17 +10,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+)
+
+const (
+	minimumJWTKeyBitSize                                 = 2048
+	jwtBootstrapLockWaitTimeout                          = 30 * time.Second
+	jwtBootstrapLockRetryInterval                        = 100 * time.Millisecond
+	jwtBootstrapLockStaleThreshold                       = 2 * time.Minute
+	JWTKeyBootstrapNoop            JWTKeyBootstrapAction = "noop"
+	JWTKeyBootstrapGenerated       JWTKeyBootstrapAction = "generated"
+	JWTKeyBootstrapDerivedPublic   JWTKeyBootstrapAction = "derived_public"
+	JWTKeyBootstrapRegenerated     JWTKeyBootstrapAction = "regenerated"
 )
 
 type JWTKeyBootstrapAction string
-
-const (
-	minimumJWTKeyBitSize                               = 2048
-	JWTKeyBootstrapNoop          JWTKeyBootstrapAction = "noop"
-	JWTKeyBootstrapGenerated     JWTKeyBootstrapAction = "generated"
-	JWTKeyBootstrapDerivedPublic JWTKeyBootstrapAction = "derived_public"
-	JWTKeyBootstrapRegenerated   JWTKeyBootstrapAction = "regenerated"
-)
 
 // BootstrapJWTKeyPair ensures a matching JWT RSA keypair exists at the given paths.
 //
@@ -49,56 +54,158 @@ func BootstrapJWTKeyPair(privateKeyPath, publicKeyPath string, bitSize int, forc
 		return "", fmt.Errorf("private and public key paths must be different")
 	}
 
-	privateExists, err := fileExists(privateKeyPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to check private key path %s: %w", privateKeyPath, err)
-	}
-
-	publicExists, err := fileExists(publicKeyPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to check public key path %s: %w", publicKeyPath, err)
-	}
-
-	if !force {
-		if privateExists && publicExists {
-			if err := validateExistingJWTKeyPair(privateKeyPath, publicKeyPath); err != nil {
-				return "", fmt.Errorf("existing JWT keypair is invalid or mismatched: %w; rerun with --force to regenerate", err)
-			}
-			return JWTKeyBootstrapNoop, nil
+	return withJWTBootstrapLock(privateKeyPath, publicKeyPath, func() (JWTKeyBootstrapAction, error) {
+		privateExists, err := fileExists(privateKeyPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to check private key path %s: %w", privateKeyPath, err)
 		}
 
-		if privateExists && !publicExists {
-			privateKey, err := loadRSAPrivateKey(privateKeyPath)
-			if err != nil {
-				return "", fmt.Errorf("failed to load existing private key from %s: %w", privateKeyPath, err)
-			}
-
-			if err := writeRSAPublicKey(publicKeyPath, &privateKey.PublicKey); err != nil {
-				return "", err
-			}
-
-			return JWTKeyBootstrapDerivedPublic, nil
+		publicExists, err := fileExists(publicKeyPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to check public key path %s: %w", publicKeyPath, err)
 		}
-	}
 
-	privateKey, publicKey, err := GenerateKeyPair(bitSize)
+		if !force {
+			if privateExists && publicExists {
+				if err := validateExistingJWTKeyPair(privateKeyPath, publicKeyPath, bitSize); err != nil {
+					return "", fmt.Errorf("existing JWT keypair is invalid or mismatched: %w; rerun with --force to regenerate", err)
+				}
+				return JWTKeyBootstrapNoop, nil
+			}
+
+			if privateExists && !publicExists {
+				privateKey, err := loadRSAPrivateKey(privateKeyPath)
+				if err != nil {
+					return "", fmt.Errorf("failed to load existing private key from %s: %w", privateKeyPath, err)
+				}
+				if privateKey.N.BitLen() < bitSize {
+					return "", fmt.Errorf(
+						"existing private key size %d is below required minimum %d; rerun with --force to regenerate",
+						privateKey.N.BitLen(),
+						bitSize,
+					)
+				}
+
+				if err := writeRSAPublicKey(publicKeyPath, &privateKey.PublicKey); err != nil {
+					return "", err
+				}
+
+				return JWTKeyBootstrapDerivedPublic, nil
+			}
+		}
+
+		privateKey, publicKey, err := GenerateKeyPair(bitSize)
+		if err != nil {
+			return "", err
+		}
+
+		if err := writeRSAPrivateKey(privateKeyPath, privateKey); err != nil {
+			return "", err
+		}
+
+		if err := writeRSAPublicKey(publicKeyPath, publicKey); err != nil {
+			return "", err
+		}
+
+		if privateExists || publicExists {
+			return JWTKeyBootstrapRegenerated, nil
+		}
+
+		return JWTKeyBootstrapGenerated, nil
+	})
+}
+
+func withJWTBootstrapLock(privateKeyPath, publicKeyPath string, fn func() (JWTKeyBootstrapAction, error)) (JWTKeyBootstrapAction, error) {
+	lockPath, err := jwtBootstrapLockPath(privateKeyPath, publicKeyPath)
 	if err != nil {
 		return "", err
 	}
 
-	if err := writeRSAPrivateKey(privateKeyPath, privateKey); err != nil {
+	release, err := acquireJWTBootstrapLock(lockPath, jwtBootstrapLockWaitTimeout)
+	if err != nil {
 		return "", err
 	}
+	defer release()
 
-	if err := writeRSAPublicKey(publicKeyPath, publicKey); err != nil {
-		return "", err
+	return fn()
+}
+
+func jwtBootstrapLockPath(privateKeyPath, publicKeyPath string) (string, error) {
+	privateAbs, err := filepath.Abs(privateKeyPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve private key path %s: %w", privateKeyPath, err)
+	}
+	publicAbs, err := filepath.Abs(publicKeyPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve public key path %s: %w", publicKeyPath, err)
 	}
 
-	if privateExists || publicExists {
-		return JWTKeyBootstrapRegenerated, nil
+	lockKey := privateAbs + "\n" + publicAbs
+	lockHash := sha256.Sum256([]byte(lockKey))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("ccf-jwt-bootstrap-%x.lock", lockHash[:])), nil
+}
+
+func acquireJWTBootstrapLock(lockPath string, timeout time.Duration) (func(), error) {
+	deadline := time.Now().Add(timeout)
+
+	for {
+		lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			if _, writeErr := lockFile.WriteString(fmt.Sprintf("pid=%d time=%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano))); writeErr != nil {
+				_ = lockFile.Close()
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("failed to initialize bootstrap lock %s: %w", lockPath, writeErr)
+			}
+			if closeErr := lockFile.Close(); closeErr != nil {
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("failed to close bootstrap lock %s: %w", lockPath, closeErr)
+			}
+
+			return func() {
+				_ = os.Remove(lockPath)
+			}, nil
+		}
+
+		if !errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("failed to acquire bootstrap lock %s: %w", lockPath, err)
+		}
+
+		staleRemoved, staleErr := removeStaleBootstrapLock(lockPath)
+		if staleErr != nil {
+			return nil, staleErr
+		}
+		if staleRemoved {
+			continue
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timed out waiting for bootstrap lock %s", lockPath)
+		}
+
+		time.Sleep(jwtBootstrapLockRetryInterval)
+	}
+}
+
+func removeStaleBootstrapLock(lockPath string) (bool, error) {
+	lockInfo, err := os.Stat(lockPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to inspect bootstrap lock %s: %w", lockPath, err)
 	}
 
-	return JWTKeyBootstrapGenerated, nil
+	if time.Since(lockInfo.ModTime()) < jwtBootstrapLockStaleThreshold {
+		return false, nil
+	}
+
+	if err := os.Remove(lockPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true, nil
+		}
+		return false, fmt.Errorf("failed to remove stale bootstrap lock %s: %w", lockPath, err)
+	}
+	return true, nil
 }
 
 func fileExists(path string) (bool, error) {
@@ -179,14 +286,20 @@ func resolvePathIfExists(path string) string {
 	return path
 }
 
-func validateExistingJWTKeyPair(privateKeyPath, publicKeyPath string) error {
+func validateExistingJWTKeyPair(privateKeyPath, publicKeyPath string, bitSize int) error {
 	privateKey, err := loadRSAPrivateKey(privateKeyPath)
 	if err != nil {
 		return err
 	}
+	if privateKey.N.BitLen() < bitSize {
+		return fmt.Errorf("private key size %d is below required minimum %d", privateKey.N.BitLen(), bitSize)
+	}
 	publicKey, err := loadRSAPublicKey(publicKeyPath)
 	if err != nil {
 		return err
+	}
+	if publicKey.N.BitLen() < bitSize {
+		return fmt.Errorf("public key size %d is below required minimum %d", publicKey.N.BitLen(), bitSize)
 	}
 	if !rsaPublicKeysEqual(&privateKey.PublicKey, publicKey) {
 		return fmt.Errorf("public key does not match private key")

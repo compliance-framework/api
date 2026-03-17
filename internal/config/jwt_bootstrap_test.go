@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,4 +107,75 @@ func TestBootstrapJWTKeyPair_RejectsMismatchedExistingPair(t *testing.T) {
 	require.Error(t, err)
 	assert.Empty(t, action)
 	assert.Contains(t, err.Error(), "invalid or mismatched")
+}
+
+func TestBootstrapJWTKeyPair_RejectsWeakExistingPair(t *testing.T) {
+	privateKeyPath := filepath.Join(t.TempDir(), "private.pem")
+	publicKeyPath := filepath.Join(filepath.Dir(privateKeyPath), "public.pem")
+
+	weakPrivateKey, weakPublicKey, err := GenerateKeyPair(1024)
+	require.NoError(t, err)
+	require.NoError(t, writeRSAPrivateKey(privateKeyPath, weakPrivateKey))
+	require.NoError(t, writeRSAPublicKey(publicKeyPath, weakPublicKey))
+
+	action, err := BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, false)
+	require.Error(t, err)
+	assert.Empty(t, action)
+	assert.Contains(t, err.Error(), "below required minimum")
+}
+
+func TestBootstrapJWTKeyPair_RejectsWeakPrivateWhenDerivingPublic(t *testing.T) {
+	privateKeyPath := filepath.Join(t.TempDir(), "private.pem")
+	publicKeyPath := filepath.Join(filepath.Dir(privateKeyPath), "public.pem")
+
+	weakPrivateKey, _, err := GenerateKeyPair(1024)
+	require.NoError(t, err)
+	require.NoError(t, writeRSAPrivateKey(privateKeyPath, weakPrivateKey))
+
+	action, err := BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, false)
+	require.Error(t, err)
+	assert.Empty(t, action)
+	assert.Contains(t, err.Error(), "below required minimum")
+
+	action, err = BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, true)
+	require.NoError(t, err)
+	assert.Equal(t, JWTKeyBootstrapRegenerated, action)
+
+	regeneratedPrivateKey, err := loadRSAPrivateKey(privateKeyPath)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, regeneratedPrivateKey.N.BitLen(), minimumJWTKeyBitSize)
+}
+
+func TestBootstrapJWTKeyPair_ConcurrentCallsUseConsistentKeyPair(t *testing.T) {
+	privateKeyPath := filepath.Join(t.TempDir(), "private.pem")
+	publicKeyPath := filepath.Join(filepath.Dir(privateKeyPath), "public.pem")
+
+	const workers = 8
+	start := make(chan struct{})
+	errCh := make(chan error, workers)
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, false)
+			errCh <- err
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+
+	privateKey, err := loadRSAPrivateKey(privateKeyPath)
+	require.NoError(t, err)
+	publicKey, err := loadRSAPublicKey(publicKeyPath)
+	require.NoError(t, err)
+	assert.True(t, rsaPublicKeysEqual(&privateKey.PublicKey, publicKey))
 }
