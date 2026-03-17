@@ -393,7 +393,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertM
 				"type":        "component",
 				"source-mode": "runtime-derived",
 				"selector-labels": []map[string]any{
-					{"key": "plugin", "value": "batch-plugin"},
+					{"key": "_plugin", "value": "batch-plugin"},
 				},
 			},
 		},

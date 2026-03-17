@@ -1562,7 +1562,7 @@ type BatchUpsertSubjectTemplatesResult struct {
 
 // BatchUpsert reconciles the full set of subject templates scoped to a given pluginID.
 // Scope is determined by templates that carry a selector-label with
-// key=pluginSelectorLabelKey ("plugin") and value=pluginID.
+// key=pluginSelectorLabelKey ("_plugin") and value=pluginID.
 // All mutations are executed in a single atomic transaction.
 // Templates not present in the payload are always deleted (no in-use guard).
 func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubjectTemplateItem) (*BatchUpsertSubjectTemplatesResult, error) {

@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -719,7 +718,6 @@ func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 		&RemediationTemplate{},
 		&RemediationTask{},
 		&EvidenceTemplateRiskTemplate{},
-		&riskrel.Risk{},
 	))
 
 	return db
@@ -743,7 +741,6 @@ func newRiskTemplateTestDBWithEvidence(t *testing.T) *gorm.DB {
 		&EvidenceTemplateLabelSchemaField{},
 		&EvidenceTemplateRiskTemplate{},
 		&EvidenceTemplateSubjectTemplate{},
-		&riskrel.Risk{},
 	))
 
 	return db
