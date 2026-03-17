@@ -908,6 +908,7 @@ func createRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 		LikelihoodHint: payload.LikelihoodHint,
 		ImpactHint:     payload.ImpactHint,
 		ViolationIDs:   datatypes.NewJSONSlice(payload.ViolationIDs),
+		IsActive:       true,
 	}
 	row.ID = &id
 	if payload.IsActive != nil {
