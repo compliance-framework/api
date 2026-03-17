@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -71,8 +72,10 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 			{Name: "environment", Value: "production"},
 			{Name: "category", Value: "security"},
 			{Name: "_policy", Value: "test-policy"},
-			{Name: "violation_id", Value: "VIOL-001"},
 		},
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: "violation_id", Value: "VIOL-001"},
+		}),
 	}
 
 	require.NoError(t, db.Create(evidence).Error)
@@ -346,7 +349,7 @@ func TestRiskEvidenceWorker_loadEvidenceWithRelations(t *testing.T) {
 	assert.NotNil(t, loaded)
 	assert.Equal(t, evidence.ID, loaded.ID)
 	assert.Equal(t, evidence.UUID, loaded.UUID)
-	assert.Len(t, loaded.Labels, 4) // environment, category, _policy, violation_id
+	assert.Len(t, loaded.Labels, 3) // environment, category, _policy
 }
 
 func TestRiskEvidenceWorker_loadEvidenceWithRelations_NotFound(t *testing.T) {
@@ -710,13 +713,13 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 
 	riskTemplates := []templates.RiskTemplate{*template1, *template2, *template3}
 
-	// Create evidence labels with violation ID
-	evidenceLabels := []relational.Labels{
+	// Create evidence props with violation ID
+	evidenceProps := datatypes.NewJSONSlice([]relational.Prop{
 		{Name: "violation_id", Value: "VIOL-001"},
-	}
+	})
 
 	// Filter templates
-	filtered, err := worker.filterRiskTemplatesByViolations(riskTemplates, evidenceLabels)
+	filtered, err := worker.filterRiskTemplatesByViolations(riskTemplates, evidenceProps)
 
 	assert.NoError(t, err)
 	assert.Len(t, filtered, 2) // template1 and template3 should match
@@ -727,15 +730,15 @@ func TestRiskEvidenceWorker_extractViolationIDs(t *testing.T) {
 
 	worker := createTestRiskEvidenceWorker(t)
 
-	labels := []relational.Labels{
+	props := datatypes.NewJSONSlice([]relational.Prop{
 		{Name: "violation_id", Value: "VIOL-001"},
 		{Name: " Violation_ID ", Value: "VIOL-002"},
 		{Name: " _VIOLATION_ID ", Value: "VIOL-003"},
 		{Name: "other_label", Value: "value"},
 		{Name: "violation_id", Value: "   "},
-	}
+	})
 
-	violationIDs := worker.extractViolationIDs(labels)
+	violationIDs := worker.extractViolationIDs(props)
 
 	assert.Len(t, violationIDs, 3)
 	assert.Contains(t, violationIDs, "VIOL-001")
@@ -844,8 +847,8 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
 	require.NoError(t, worker.db.Preload("Labels").Preload("Subjects").Preload("Components").First(&loaded, "id = ?", evidence.ID).Error)
 
 	// Create existing risk using the new dedupe key format:
-	// ssp_id:risk_template_id:sorted_subject_ids (evidence has no subjects → empty)
-	dedupeKey := fmt.Sprintf("%s:%s:", ssp.ID.String(), riskTemplate.ID.String())
+	// ssp_id:risk_template_id (no subject IDs appended anymore)
+	dedupeKey := fmt.Sprintf("%s:%s", ssp.ID.String(), riskTemplate.ID.String())
 	existingRisk := &risks.Risk{
 		Title:          "Existing Risk",
 		Description:    "Existing description",
@@ -878,6 +881,20 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	// Create test evidence with subjects and components
 	evidence := createTestEvidence(t, worker.db)
 
+	// Create SSP and SystemImplementation for proper component linking
+	sspID := uuid.New()
+	ssp := &relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+	}
+	require.NoError(t, worker.db.Create(ssp).Error)
+
+	systemImplID := uuid.New()
+	systemImpl := &relational.SystemImplementation{
+		UUIDModel:            relational.UUIDModel{ID: &systemImplID},
+		SystemSecurityPlanId: sspID,
+	}
+	require.NoError(t, worker.db.Create(systemImpl).Error)
+
 	// Add subjects and components to evidence
 	subject := &relational.AssessmentSubject{
 		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
@@ -885,10 +902,11 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	*subject.ID = uuid.New()
 	require.NoError(t, worker.db.Create(subject).Error)
 
+	componentID := uuid.New()
 	component := &relational.SystemComponent{
-		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
+		UUIDModel:              relational.UUIDModel{ID: &componentID},
+		SystemImplementationId: systemImplID,
 	}
-	*component.ID = uuid.New()
 	require.NoError(t, worker.db.Create(component).Error)
 
 	// Update evidence with subjects and components
@@ -899,9 +917,22 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	evidence, err := worker.loadEvidenceWithRelations(ctx, *evidence.ID)
 	require.NoError(t, err)
 
-	// Create risk links
+	// Create a risk record so FK-backed links can be inserted.
 	riskID := uuid.New()
-	err = worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		SSPID:       sspID,
+		Title:       "Test Risk",
+		Description: "Test Description",
+		Status:      "open",
+		SourceType:  "manual",
+		FirstSeenAt: time.Now(),
+		LastSeenAt:  time.Now(),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+
+	// Create risk links
+	err = worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence)
 
 	assert.NoError(t, err)
 
@@ -936,9 +967,23 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	// Create test evidence without subjects or components
 	evidence := createTestEvidence(t, worker.db)
 
-	// Create risk links
+	// Create a risk record so FK-backed links can be inserted.
+	sspID := uuid.New()
 	riskID := uuid.New()
-	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		SSPID:       sspID,
+		Title:       "Test Risk",
+		Description: "Test Description",
+		Status:      "open",
+		SourceType:  "manual",
+		FirstSeenAt: time.Now(),
+		LastSeenAt:  time.Now(),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+
+	// Create risk links
+	err := worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence)
 
 	assert.NoError(t, err)
 
@@ -976,7 +1021,7 @@ func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing
 	require.NoError(t, worker.db.Create(evidence).Error)
 
 	riskID := uuid.New()
-	err := worker.createRiskLinks(ctx, worker.db, riskID, evidence)
+	err := worker.createRiskLinks(ctx, worker.db, riskID, uuid.New(), evidence)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "missing stream uuid")
 

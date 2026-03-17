@@ -145,8 +145,8 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) buildSSP(controlID stri
 // buildFilterAndEvidence creates the Filter → Evidence → ComponentDefinitionLabel chain
 // required for the suggestion engine to match a DefinedComponent to the given controlID.
 // It seeds the data directly into the DB, mirroring what SubjectTemplateService does in production.
-// Returns the DefinedComponent UUID.
-func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(controlID string) string {
+// Returns the DefinedComponent UUID and ComponentDefinition UUID.
+func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(controlID string) (string, string) {
 	labelKey := "plugin"
 	labelValue := "test-" + controlID
 
@@ -204,7 +204,7 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) buildFilterAndEvidence(
 		dc.ID, compDef.ID, labelKey, labelValue,
 	).Error)
 
-	return dc.ID.String()
+	return dc.ID.String(), compDef.ID.String()
 }
 
 func (suite *SystemComponentSuggestionsIntegrationSuite) addStatement(implReqID string) string {
@@ -389,12 +389,15 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponents_N
 func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponents_AlreadyLinkedExcluded() {
 	const controlID = "ac-4"
 	sspID, implReqID := suite.buildSSP(controlID)
-	dcUUID := suite.buildFilterAndEvidence(controlID)
+	dcUUID, compDefUUID := suite.buildFilterAndEvidence(controlID)
 
 	// Apply the suggestion first so the component is already in the SSP
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
-		nil)
+		map[string]any{
+			"componentDefinitionId": compDefUUID,
+			"definedComponentId":    dcUUID,
+		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Require().Equal(http.StatusNoContent, rec.Code)
 
@@ -452,11 +455,14 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponents_I
 func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_CreatesSystemComponentAndByComponent() {
 	const controlID = "sc-7"
 	sspID, implReqID := suite.buildSSP(controlID)
-	suite.buildFilterAndEvidence(controlID)
+	dcUUID, compDefUUID := suite.buildFilterAndEvidence(controlID)
 
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
-		nil)
+		map[string]any{
+			"componentDefinitionId": compDefUUID,
+			"definedComponentId":    dcUUID,
+		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusNoContent, rec.Code, rec.Body.String())
 
@@ -486,13 +492,16 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Cre
 func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Idempotent() {
 	const controlID = "sc-8"
 	sspID, implReqID := suite.buildSSP(controlID)
-	suite.buildFilterAndEvidence(controlID)
+	dcUUID, compDefUUID := suite.buildFilterAndEvidence(controlID)
 
 	path := fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID)
 
 	// Apply twice
 	for i := 0; i < 2; i++ {
-		rec, req := suite.req(http.MethodPost, path, nil)
+		rec, req := suite.req(http.MethodPost, path, map[string]any{
+			"componentDefinitionId": compDefUUID,
+			"definedComponentId":    dcUUID,
+		})
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusNoContent, rec.Code, "attempt %d: %s", i+1, rec.Body.String())
 	}
@@ -507,34 +516,64 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Ide
 	suite.Equal(int64(1), count, "duplicate SystemComponents must not be created")
 }
 
-func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_NoSuggestionsIsNoOp() {
+func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_SuggestionNotFound() {
 	const controlID = "ir-1"
 	sspID, implReqID := suite.buildSSP(controlID)
-	// No component definition for this control
+	// Build a component suggestion chain for a different control, so it is not a valid suggestion for this SSP/requirement.
+	dcUUID, compDefUUID := suite.buildFilterAndEvidence("ac-22")
 
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
-		nil)
+		map[string]any{
+			"componentDefinitionId": compDefUUID,
+			"definedComponentId":    dcUUID,
+		})
 	suite.server.E().ServeHTTP(rec, req)
-	suite.Equal(http.StatusNoContent, rec.Code)
+	suite.Equal(http.StatusNotFound, rec.Code)
+}
 
-	var si relational.SystemImplementation
-	suite.Require().NoError(suite.DB.Where("system_security_plan_id = ?", sspID).First(&si).Error)
-	var count int64
-	suite.DB.Model(&relational.SystemComponent{}).
-		Where("system_implementation_id = ? AND defined_component_id IS NOT NULL", si.ID).
-		Count(&count)
-	suite.Equal(int64(0), count)
+func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_MissingPayloadFields() {
+	const controlID = "ir-2"
+	sspID, implReqID := suite.buildSSP(controlID)
+
+	rec, req := suite.req(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
+		map[string]any{
+			"definedComponentId": uuid.New().String(),
+		})
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
 }
 
 func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestionForStatement_CreatesByComponentOnStatement() {
 	const controlID = "sc-9"
 	sspID, implReqID := suite.buildSSP(controlID)
 	stmtID := suite.addStatement(implReqID)
-	suite.buildFilterAndEvidence(controlID)
+	dcUUID, compDefUUID := suite.buildFilterAndEvidence(controlID)
 
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/apply-suggestion", sspID, implReqID, stmtID),
+		map[string]any{
+			"componentDefinitionId": compDefUUID,
+			"definedComponentId":    dcUUID,
+		})
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusNoContent, rec.Code, rec.Body.String())
+
+	stmtUUID := uuid.MustParse(stmtID)
+	parentType := "statements"
+	var byComponent relational.ByComponent
+	suite.Require().NoError(suite.DB.Where("parent_id = ? AND parent_type = ?", stmtUUID, parentType).First(&byComponent).Error)
+}
+
+func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestionsForStatement_CreatesByComponentOnStatement() {
+	const controlID = "sc-10"
+	sspID, implReqID := suite.buildSSP(controlID)
+	stmtID := suite.addStatement(implReqID)
+	suite.buildFilterAndEvidence(controlID)
+
+	rec, req := suite.req(http.MethodPost,
+		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/apply-suggestions", sspID, implReqID, stmtID),
 		nil)
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusNoContent, rec.Code, rec.Body.String())
