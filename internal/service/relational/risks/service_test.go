@@ -265,6 +265,92 @@ func TestRiskServiceGetAssociationsByRiskIDs(t *testing.T) {
 	require.Empty(t, emptyBatch)
 }
 
+func TestRiskServiceListEventsAndReviews(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "history-risk",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	olderEventTime := time.Now().UTC().Add(-2 * time.Hour)
+	newerEventTime := time.Now().UTC().Add(-time.Hour)
+	olderReviewTime := time.Now().UTC().Add(-90 * time.Minute)
+	newerReviewTime := time.Now().UTC().Add(-30 * time.Minute)
+
+	require.NoError(t, db.Create(&RiskEvent{
+		RiskID:      riskID,
+		EventType:   string(RiskEventTypeCreated),
+		ActorUserID: &actorID,
+		OccurredAt:  olderEventTime,
+		CreatedAt:   olderEventTime,
+	}).Error)
+	require.NoError(t, db.Create(&RiskEvent{
+		RiskID:      riskID,
+		EventType:   string(RiskEventTypeReviewed),
+		ActorUserID: &actorID,
+		OccurredAt:  newerEventTime,
+		CreatedAt:   newerEventTime,
+	}).Error)
+
+	require.NoError(t, db.Create(&RiskReview{
+		RiskID:           riskID,
+		ReviewedByUserID: &actorID,
+		ReviewedAt:       olderReviewTime,
+		Decision:         string(RiskReviewDecisionExtend),
+		CreatedAt:        olderReviewTime,
+	}).Error)
+	require.NoError(t, db.Create(&RiskReview{
+		RiskID:           riskID,
+		ReviewedByUserID: &actorID,
+		ReviewedAt:       newerReviewTime,
+		Decision:         string(RiskReviewDecisionReopen),
+		CreatedAt:        newerReviewTime,
+	}).Error)
+
+	events, eventTotal, err := svc.ListEvents(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), eventTotal)
+	require.Len(t, events, 2)
+	require.True(t, events[0].CreatedAt.After(events[1].CreatedAt) || events[0].CreatedAt.Equal(events[1].CreatedAt))
+
+	reviews, reviewTotal, err := svc.ListReviews(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), reviewTotal)
+	require.Len(t, reviews, 2)
+	require.True(t, reviews[0].CreatedAt.After(reviews[1].CreatedAt) || reviews[0].CreatedAt.Equal(reviews[1].CreatedAt))
+
+	pagedEvents, pagedEventTotal, err := svc.ListEvents(riskID, 1, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), pagedEventTotal)
+	require.Len(t, pagedEvents, 1)
+
+	otherRiskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &otherRiskID},
+		Title:       "history-empty",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+	emptyReviews, emptyReviewTotal, err := svc.ListReviews(otherRiskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), emptyReviewTotal)
+	require.Empty(t, emptyReviews)
+}
+
 func TestRiskServiceUpdateStatusAndReviewUsesSingleRiskSnapshotLoad(t *testing.T) {
 	db := newRiskServiceTestDB(t)
 	svc := NewRiskService(db)

@@ -46,6 +46,8 @@ func (h *RiskHandler) Register(api *echo.Group) {
 	api.POST("/:id/accept", h.Accept)
 	api.POST("/:id/review", h.Review)
 	api.DELETE("/:id", h.Delete)
+	api.GET("/:id/events", h.GetEvents)
+	api.GET("/:id/reviews", h.GetReviews)
 
 	api.GET("/:id/evidence", h.GetEvidenceLinks)
 	api.POST("/:id/evidence", h.AddEvidenceLink)
@@ -71,6 +73,8 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.POST("/:id/accept", h.AcceptForSSP)
 	api.POST("/:id/review", h.ReviewForSSP)
 	api.DELETE("/:id", h.DeleteForSSP)
+	api.GET("/:id/events", h.GetEventsForSSP)
+	api.GET("/:id/reviews", h.GetReviewsForSSP)
 	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP)
 	api.POST("/:id/evidence", h.AddEvidenceLinkForSSP)
 	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLinkForSSP)
@@ -923,6 +927,126 @@ func (h *RiskHandler) Delete(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// GetEventsForSSP godoc
+//
+//	@Summary		List risk events for SSP
+//	@Description	Lists events for a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskEvent]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/events [get]
+func (h *RiskHandler) GetEventsForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetEvents(ctx)
+}
+
+// GetEvents godoc
+//
+//	@Summary		List risk events
+//	@Description	Lists events for a risk.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskEvent]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/events [get]
+func (h *RiskHandler) GetEvents(ctx echo.Context) error {
+	return h.withRiskListContext(ctx, func(riskID uuid.UUID, pagination *svc.PaginationParams) error {
+		events, total, err := h.riskService.ListEvents(riskID, pagination.Limit, pagination.Offset)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to list risk events", err)
+		}
+
+		return ctx.JSON(http.StatusOK, svc.NewListResponse(events, total, pagination.Page, pagination.Limit))
+	})
+}
+
+// GetReviewsForSSP godoc
+//
+//	@Summary		List risk audit trail for SSP
+//	@Description	Lists risk reviews (audit trail) for a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskReview]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/reviews [get]
+func (h *RiskHandler) GetReviewsForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetReviews(ctx)
+}
+
+// GetReviews godoc
+//
+//	@Summary		List risk audit trail
+//	@Description	Lists risk reviews (audit trail) for a risk.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskReview]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/reviews [get]
+func (h *RiskHandler) GetReviews(ctx echo.Context) error {
+	return h.withRiskListContext(ctx, func(riskID uuid.UUID, pagination *svc.PaginationParams) error {
+		reviews, total, err := h.riskService.ListReviews(riskID, pagination.Limit, pagination.Offset)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to list risk reviews", err)
+		}
+
+		return ctx.JSON(http.StatusOK, svc.NewListResponse(reviews, total, pagination.Page, pagination.Limit))
+	})
 }
 
 // GetEvidenceLinksForSSP godoc

@@ -25,6 +25,9 @@ definitions:
       use:
         type: string
     type: object
+  datatypes.JSONMap:
+    additionalProperties: true
+    type: object
   datatypes.JSONType-labelfilter_Filter:
     type: object
   datatypes.JSONType-oscalTypes_1_1_3_ObjectiveStatus:
@@ -7062,6 +7065,25 @@ definitions:
       riskId:
         type: string
     type: object
+  risks.RiskEvent:
+    properties:
+      actorUserId:
+        type: string
+      createdAt:
+        type: string
+      eventType:
+        type: string
+      id:
+        type: string
+      occurredAt:
+        type: string
+      payload:
+        $ref: '#/definitions/datatypes.JSONMap'
+      riskId:
+        type: string
+      riskSnapshot:
+        $ref: '#/definitions/datatypes.JSONMap'
+    type: object
   risks.RiskEvidenceLink:
     properties:
       createdAt:
@@ -7074,6 +7096,27 @@ definitions:
         type: string
       riskId:
         type: string
+    type: object
+  risks.RiskReview:
+    properties:
+      createdAt:
+        type: string
+      decision:
+        type: string
+      id:
+        type: string
+      nextReviewDeadline:
+        type: string
+      reviewJustification:
+        type: string
+      reviewedAt:
+        type: string
+      reviewedByUserId:
+        type: string
+      riskId:
+        type: string
+      riskSnapshot:
+        $ref: '#/definitions/datatypes.JSONMap'
     type: object
   risks.RiskSubjectLink:
     properties:
@@ -7121,6 +7164,36 @@ definitions:
       data:
         items:
           $ref: '#/definitions/risks.RiskControlLink'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-risks_RiskEvent:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/risks.RiskEvent'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-risks_RiskReview:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/risks.RiskReview'
         type: array
       limit:
         type: integer
@@ -20832,6 +20905,52 @@ paths:
       summary: Delete risk control link for SSP
       tags:
       - Risks
+  /oscal/system-security-plans/{sspId}/risks/{id}/events:
+    get:
+      description: Lists events for a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskEvent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk events for SSP
+      tags:
+      - Risks
   /oscal/system-security-plans/{sspId}/risks/{id}/evidence:
     get:
       description: Lists evidence IDs linked to a risk scoped to an SSP.
@@ -21008,6 +21127,52 @@ paths:
       security:
       - OAuth2Password: []
       summary: Review risk for SSP
+      tags:
+      - Risks
+  /oscal/system-security-plans/{sspId}/risks/{id}/reviews:
+    get:
+      description: Lists risk reviews (audit trail) for a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskReview'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk audit trail for SSP
       tags:
       - Risks
   /poam-items:
@@ -22251,6 +22416,47 @@ paths:
       summary: Delete risk control link
       tags:
       - Risks
+  /risks/{id}/events:
+    get:
+      description: Lists events for a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskEvent'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk events
+      tags:
+      - Risks
   /risks/{id}/evidence:
     get:
       description: Lists evidence IDs linked to a risk.
@@ -22406,6 +22612,47 @@ paths:
       security:
       - OAuth2Password: []
       summary: Review risk
+      tags:
+      - Risks
+  /risks/{id}/reviews:
+    get:
+      description: Lists risk reviews (audit trail) for a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-risks_RiskReview'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk audit trail
       tags:
       - Risks
   /risks/{id}/subjects:
