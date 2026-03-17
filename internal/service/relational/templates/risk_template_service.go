@@ -1,8 +1,10 @@
 package templates
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -671,4 +673,450 @@ func preloadThreatRefs(db *gorm.DB) *gorm.DB {
 
 func preloadRemediationTasks(db *gorm.DB) *gorm.DB {
 	return db.Order("order_index ASC")
+}
+
+// BatchRiskTemplateItem is a single item in a batch upsert request.
+// PluginID and PolicyPackage are inherited from the batch-level scope and must not be set here.
+// ID is mandatory and must be provided by the caller (agent-side UUID generation).
+type BatchRiskTemplateItem struct {
+	ID                  uuid.UUID
+	Name                string
+	Title               string
+	Statement           string
+	LikelihoodHint      *string
+	ImpactHint          *string
+	ViolationIDs        []string
+	IsActive            *bool
+	ThreatRefs          []ThreatRefInput
+	RemediationTemplate *RemediationTemplateInput
+}
+
+// BatchUpsertRiskTemplatesResult is the result of a RiskTemplateService.BatchUpsert call.
+type BatchUpsertRiskTemplatesResult struct {
+	Created   []RiskTemplate
+	Updated   []RiskTemplate
+	Deleted   []uuid.UUID
+	Unchanged []uuid.UUID
+}
+
+// BatchUpsert reconciles the full set of risk templates for a given (pluginID, policyPackage) pair.
+// It creates, updates, and deletes templates as needed in a single atomic transaction.
+// Templates not present in the payload are always deleted.
+func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items []BatchRiskTemplateItem) (*BatchUpsertRiskTemplatesResult, error) {
+	pluginID = strings.TrimSpace(pluginID)
+	policyPackage = strings.ToLower(strings.TrimSpace(policyPackage))
+
+	if err := validateRequiredText("pluginId", pluginID); err != nil {
+		return nil, err
+	}
+	if err := validateRequiredText("policyPackage", policyPackage); err != nil {
+		return nil, err
+	}
+
+	// Validate that all items carry a non-nil, unique ID supplied by the caller.
+	type resolvedItem struct {
+		id   uuid.UUID
+		item BatchRiskTemplateItem
+	}
+	resolved := make([]resolvedItem, 0, len(items))
+	seen := make(map[uuid.UUID]struct{}, len(items))
+	for i, item := range items {
+		if item.ID == uuid.Nil {
+			return nil, newValidationError(fmt.Sprintf("item %d: id is required", i))
+		}
+		if _, dup := seen[item.ID]; dup {
+			return nil, newValidationError(fmt.Sprintf("item %d: duplicate id %s", i, item.ID))
+		}
+		seen[item.ID] = struct{}{}
+		resolved = append(resolved, resolvedItem{id: item.ID, item: item})
+	}
+
+	// Validate all payloads before opening the transaction.
+	for i, r := range resolved {
+		payload := batchItemToPayload(pluginID, policyPackage, r.item)
+		if err := validateRiskTemplatePayload(&payload); err != nil {
+			return nil, fmt.Errorf("item %d (id %s): %w", i, r.id, err)
+		}
+		resolved[i].item = batchItemFromPayload(r.item, payload)
+	}
+
+	payloadIDs := make(map[uuid.UUID]struct{}, len(resolved))
+	for _, r := range resolved {
+		payloadIDs[r.id] = struct{}{}
+	}
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	defer rollbackTxOnPanic(tx)
+
+	// Load existing templates inside the transaction so the read and all subsequent
+	// mutations are part of the same consistent snapshot, eliminating the race window
+	// between a pre-tx read and the tx writes.
+	var existingRows []RiskTemplate
+	if err := tx.
+		Where("plugin_id = ? AND policy_package = ?", pluginID, policyPackage).
+		Preload("ThreatRefs", preloadThreatRefs).
+		Preload("RemediationTemplate").
+		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
+		Find(&existingRows).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	existingByID := make(map[uuid.UUID]RiskTemplate, len(existingRows))
+	for _, row := range existingRows {
+		existingByID[*row.ID] = row
+	}
+
+	result := &BatchUpsertRiskTemplatesResult{
+		Created:   make([]RiskTemplate, 0),
+		Updated:   make([]RiskTemplate, 0),
+		Deleted:   make([]uuid.UUID, 0),
+		Unchanged: make([]uuid.UUID, 0),
+	}
+
+	// Collect IDs that need to be created (not already in this scope), then check
+	// for cross-scope collisions with a single query instead of one COUNT per item.
+	newIDs := make([]uuid.UUID, 0, len(resolved))
+	for _, r := range resolved {
+		if _, exists := existingByID[r.id]; !exists {
+			newIDs = append(newIDs, r.id)
+		}
+	}
+	if len(newIDs) > 0 {
+		var collidingIDs []uuid.UUID
+		if err := tx.Model(&RiskTemplate{}).Where("id IN ?", newIDs).Pluck("id", &collidingIDs).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(collidingIDs) > 0 {
+			tx.Rollback()
+			return nil, newValidationError(fmt.Sprintf("id %s already exists in a different scope", collidingIDs[0]))
+		}
+	}
+
+	// Create or update.
+	for _, r := range resolved {
+		payload := batchItemToPayload(pluginID, policyPackage, r.item)
+		if existing, exists := existingByID[r.id]; exists {
+			if riskTemplateMatchesPayload(existing, payload) {
+				result.Unchanged = append(result.Unchanged, r.id)
+				continue
+			}
+			row, err := updateRiskTemplateInTx(tx, r.id, payload)
+			if err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("update risk template %s: %w", r.id, err)
+			}
+			result.Updated = append(result.Updated, *row)
+		} else {
+			row, err := createRiskTemplateInTx(tx, r.id, payload)
+			if err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("create risk template %s: %w", r.id, err)
+			}
+			result.Created = append(result.Created, *row)
+		}
+	}
+
+	// Delete
+	for id := range existingByID {
+		if _, inPayload := payloadIDs[id]; inPayload {
+			continue
+		}
+
+		existing := existingByID[id]
+		if err := tx.Delete(&RiskTemplateThreatRef{}, "risk_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete threat refs for risk template %s: %w", id, err)
+		}
+		if err := tx.Delete(&EvidenceTemplateRiskTemplate{}, "risk_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete evidence links for risk template %s: %w", id, err)
+		}
+		if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete risk template %s: %w", id, err)
+		}
+		if existing.RemediationTemplateID != nil {
+			if err := deleteRemediationTemplateWithTasks(tx, *existing.RemediationTemplateID); err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("delete remediation for risk template %s: %w", id, err)
+			}
+		}
+		result.Deleted = append(result.Deleted, id)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// batchItemToPayload converts a BatchRiskTemplateItem to a RiskTemplatePayload.
+// The returned payload is NOT yet validated or normalised; call validateRiskTemplatePayload first.
+func batchItemToPayload(pluginID, policyPackage string, item BatchRiskTemplateItem) RiskTemplatePayload {
+	return RiskTemplatePayload{
+		PluginID:            pluginID,
+		PolicyPackage:       policyPackage,
+		Name:                item.Name,
+		Title:               item.Title,
+		Statement:           item.Statement,
+		LikelihoodHint:      item.LikelihoodHint,
+		ImpactHint:          item.ImpactHint,
+		ViolationIDs:        append([]string{}, item.ViolationIDs...),
+		IsActive:            item.IsActive,
+		ThreatRefs:          append([]ThreatRefInput{}, item.ThreatRefs...),
+		RemediationTemplate: item.RemediationTemplate,
+	}
+}
+
+// batchItemFromPayload copies normalised payload fields back into the item so that the
+// normalised values are used when the item is processed again.
+func batchItemFromPayload(item BatchRiskTemplateItem, payload RiskTemplatePayload) BatchRiskTemplateItem {
+	item.Name = payload.Name
+	item.Title = payload.Title
+	item.Statement = payload.Statement
+	item.LikelihoodHint = payload.LikelihoodHint
+	item.ImpactHint = payload.ImpactHint
+	item.ViolationIDs = payload.ViolationIDs
+	item.IsActive = payload.IsActive
+	item.ThreatRefs = payload.ThreatRefs
+	item.RemediationTemplate = payload.RemediationTemplate
+	return item
+}
+
+// createRiskTemplateInTx creates a risk template within an existing transaction using the given id.
+func createRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePayload) (*RiskTemplate, error) {
+	var remediationTemplateID *uuid.UUID
+	if payload.RemediationTemplate != nil {
+		remediation, err := upsertRemediationTemplate(tx, nil, payload.RemediationTemplate)
+		if err != nil {
+			return nil, err
+		}
+		remediationTemplateID = remediation.ID
+	}
+
+	row := RiskTemplate{
+		PluginID:       payload.PluginID,
+		PolicyPackage:  payload.PolicyPackage,
+		Name:           payload.Name,
+		Title:          payload.Title,
+		Statement:      payload.Statement,
+		LikelihoodHint: payload.LikelihoodHint,
+		ImpactHint:     payload.ImpactHint,
+		ViolationIDs:   datatypes.NewJSONSlice(payload.ViolationIDs),
+		IsActive:       true,
+	}
+	row.ID = &id
+	if payload.IsActive != nil {
+		row.IsActive = *payload.IsActive
+	}
+	if remediationTemplateID != nil {
+		row.RemediationTemplateID = remediationTemplateID
+	}
+
+	if err := tx.Select(
+		"ID",
+		"CreatedAt",
+		"UpdatedAt",
+		"PluginID",
+		"PolicyPackage",
+		"Name",
+		"Title",
+		"Statement",
+		"LikelihoodHint",
+		"ImpactHint",
+		"ViolationIDs",
+		"IsActive",
+		"RemediationTemplateID",
+	).Create(&row).Error; err != nil {
+		return nil, err
+	}
+	if err := replaceThreatRefs(tx, id, payload.ThreatRefs); err != nil {
+		return nil, err
+	}
+
+	return fetchRiskTemplateByID(tx, id)
+}
+
+// updateRiskTemplateInTx updates an existing risk template within an existing transaction.
+func updateRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePayload) (*RiskTemplate, error) {
+	var existing RiskTemplate
+	if err := tx.Preload("RemediationTemplate").First(&existing, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+
+	existing.PluginID = payload.PluginID
+	existing.PolicyPackage = payload.PolicyPackage
+	existing.Name = payload.Name
+	existing.Title = payload.Title
+	existing.Statement = payload.Statement
+	existing.LikelihoodHint = payload.LikelihoodHint
+	existing.ImpactHint = payload.ImpactHint
+	existing.ViolationIDs = datatypes.NewJSONSlice(payload.ViolationIDs)
+	if payload.IsActive != nil {
+		existing.IsActive = *payload.IsActive
+	}
+
+	if payload.RemediationTemplate != nil {
+		remediation, err := upsertRemediationTemplate(tx, existing.RemediationTemplateID, payload.RemediationTemplate)
+		if err != nil {
+			return nil, err
+		}
+		existing.RemediationTemplateID = remediation.ID
+	} else if existing.RemediationTemplateID != nil {
+		if err := deleteRemediationTemplateWithTasks(tx, *existing.RemediationTemplateID); err != nil {
+			return nil, err
+		}
+		existing.RemediationTemplateID = nil
+		existing.RemediationTemplate = nil
+	}
+
+	if err := tx.Omit("ThreatRefs", "RemediationTemplate").Save(&existing).Error; err != nil {
+		return nil, err
+	}
+
+	if err := replaceThreatRefs(tx, *existing.ID, payload.ThreatRefs); err != nil {
+		return nil, err
+	}
+
+	return fetchRiskTemplateByID(tx, *existing.ID)
+}
+
+// riskTemplateFP is an unexported fingerprint struct used to detect whether a batch
+// payload differs from a stored template, avoiding unnecessary UPDATE statements.
+type riskTemplateFP struct {
+	Name           string     `json:"n"`
+	Title          string     `json:"t"`
+	Statement      string     `json:"s"`
+	LikelihoodHint *string    `json:"lh,omitempty"`
+	ImpactHint     *string    `json:"ih,omitempty"`
+	IsActive       bool       `json:"ia"`
+	ViolationIDs   []string   `json:"v"`
+	ThreatRefs     []threatFP `json:"tr"`
+	Remediation    *remFP     `json:"r,omitempty"`
+}
+
+type threatFP struct {
+	System     string  `json:"s"`
+	ExternalID string  `json:"e"`
+	Title      string  `json:"t"`
+	URL        *string `json:"u,omitempty"`
+}
+
+type remFP struct {
+	Title       string   `json:"t"`
+	Description *string  `json:"d,omitempty"`
+	Tasks       []taskFP `json:"tasks"`
+}
+
+type taskFP struct {
+	Title      string `json:"t"`
+	OrderIndex int    `json:"o"`
+}
+
+// riskTemplateMatchesPayload returns true when the stored template already reflects
+// every field in the payload, so no UPDATE is necessary.
+func riskTemplateMatchesPayload(existing RiskTemplate, payload RiskTemplatePayload) bool {
+	a := riskTemplateFPFromExisting(existing)
+	b := riskTemplateFPFromPayload(payload)
+	if payload.IsActive == nil {
+		b.IsActive = existing.IsActive
+	}
+	aj, err1 := json.Marshal(a)
+	bj, err2 := json.Marshal(b)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return string(aj) == string(bj)
+}
+
+func riskTemplateFPFromExisting(t RiskTemplate) riskTemplateFP {
+	violations := make([]string, len(t.ViolationIDs))
+	copy(violations, t.ViolationIDs)
+	sort.Strings(violations)
+
+	refs := make([]threatFP, 0, len(t.ThreatRefs))
+	for _, r := range t.ThreatRefs {
+		refs = append(refs, threatFP{System: r.System, ExternalID: r.ExternalID, Title: r.Title, URL: r.URL})
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].System != refs[j].System {
+			return refs[i].System < refs[j].System
+		}
+		return refs[i].ExternalID < refs[j].ExternalID
+	})
+
+	fp := riskTemplateFP{
+		Name:           t.Name,
+		Title:          t.Title,
+		Statement:      t.Statement,
+		LikelihoodHint: t.LikelihoodHint,
+		ImpactHint:     t.ImpactHint,
+		IsActive:       t.IsActive,
+		ViolationIDs:   violations,
+		ThreatRefs:     refs,
+	}
+	if t.RemediationTemplate != nil {
+		tasks := make([]taskFP, 0, len(t.RemediationTemplate.Tasks))
+		for _, task := range t.RemediationTemplate.Tasks {
+			tasks = append(tasks, taskFP{Title: task.Title, OrderIndex: task.OrderIndex})
+		}
+		sort.Slice(tasks, func(i, j int) bool { return tasks[i].OrderIndex < tasks[j].OrderIndex })
+		fp.Remediation = &remFP{
+			Title:       t.RemediationTemplate.Title,
+			Description: t.RemediationTemplate.Description,
+			Tasks:       tasks,
+		}
+	}
+	return fp
+}
+
+func riskTemplateFPFromPayload(payload RiskTemplatePayload) riskTemplateFP {
+	isActive := true
+	if payload.IsActive != nil {
+		isActive = *payload.IsActive
+	}
+
+	violations := make([]string, len(payload.ViolationIDs))
+	copy(violations, payload.ViolationIDs)
+	sort.Strings(violations)
+
+	refs := make([]threatFP, 0, len(payload.ThreatRefs))
+	for _, r := range payload.ThreatRefs {
+		refs = append(refs, threatFP(r))
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].System != refs[j].System {
+			return refs[i].System < refs[j].System
+		}
+		return refs[i].ExternalID < refs[j].ExternalID
+	})
+
+	fp := riskTemplateFP{
+		Name:           payload.Name,
+		Title:          payload.Title,
+		Statement:      payload.Statement,
+		LikelihoodHint: payload.LikelihoodHint,
+		ImpactHint:     payload.ImpactHint,
+		IsActive:       isActive,
+		ViolationIDs:   violations,
+		ThreatRefs:     refs,
+	}
+	if payload.RemediationTemplate != nil {
+		tasks := make([]taskFP, 0, len(payload.RemediationTemplate.Tasks))
+		for _, task := range payload.RemediationTemplate.Tasks {
+			tasks = append(tasks, taskFP(task))
+		}
+		sort.Slice(tasks, func(i, j int) bool { return tasks[i].OrderIndex < tasks[j].OrderIndex })
+		fp.Remediation = &remFP{
+			Title:       payload.RemediationTemplate.Title,
+			Description: payload.RemediationTemplate.Description,
+			Tasks:       tasks,
+		}
+	}
+	return fp
 }

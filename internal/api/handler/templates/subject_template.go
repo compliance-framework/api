@@ -36,6 +36,10 @@ func (h *SubjectTemplateHandler) Register(apiGroup *echo.Group) {
 	apiGroup.PUT("/:id", h.Update)
 }
 
+func (h *SubjectTemplateHandler) RegisterAgent(apiGroup *echo.Group) {
+	apiGroup.POST("/batch", h.BatchUpsert)
+}
+
 type subjectTemplateSelectorLabelRequest struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
@@ -271,6 +275,123 @@ func mapSubjectTemplateRequestToPayload(req upsertSubjectTemplateRequest) templa
 	}
 
 	return payload
+}
+
+type batchSubjectTemplateItem struct {
+	ID                  string                                   `json:"id"`
+	Name                string                                   `json:"name"`
+	Type                string                                   `json:"type"`
+	TitleTemplate       *string                                  `json:"title-template"`
+	DescriptionTemplate *string                                  `json:"description-template"`
+	PurposeTemplate     *string                                  `json:"purpose-template"`
+	RemarksTemplate     *string                                  `json:"remarks-template"`
+	IdentityLabelKeys   []string                                 `json:"identity-label-keys"`
+	Props               []relational.Prop                        `json:"props"`
+	Links               []relational.Link                        `json:"links"`
+	SourceMode          string                                   `json:"source-mode"`
+	SelectorLabels      []subjectTemplateSelectorLabelRequest    `json:"selector-labels"`
+	LabelSchema         []subjectTemplateLabelSchemaFieldRequest `json:"label-schema"`
+}
+
+type batchUpsertSubjectTemplatesRequest struct {
+	PluginID  string                      `json:"plugin-id" validate:"required"`
+	Templates *[]batchSubjectTemplateItem `json:"templates"`
+}
+
+type batchUpsertSubjectTemplatesData struct {
+	Created   []subjectTemplateResponse `json:"created"`
+	Updated   []subjectTemplateResponse `json:"updated"`
+	Deleted   []uuid.UUID               `json:"deleted"`
+	Unchanged []uuid.UUID               `json:"unchanged"`
+}
+
+type batchUpsertSubjectTemplatesResponse struct {
+	Data batchUpsertSubjectTemplatesData `json:"data"`
+}
+
+// BatchUpsert godoc
+//
+//	@Summary		Batch upsert subject templates
+//	@Description	Reconcile the full set of subject templates for a plugin (scoped via selector-label key="_plugin").
+//	@Description	Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
+//	@Tags			Subject Templates
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		batchUpsertSubjectTemplatesRequest	true	"Batch upsert payload"
+//	@Success		200		{object}	batchUpsertSubjectTemplatesResponse
+//	@Failure		400		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/agent/subject-templates/batch [post]
+func (h *SubjectTemplateHandler) BatchUpsert(ctx echo.Context) error {
+	var req batchUpsertSubjectTemplatesRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if req.Templates == nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("templates field is required; use [] for an explicit empty list")))
+	}
+
+	items := make([]templaterel.BatchSubjectTemplateItem, 0, len(*req.Templates))
+	for _, item := range *req.Templates {
+		if item.ID == "" {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("item %d: id is required", len(items))))
+		}
+		parsedID, err := uuid.Parse(item.ID)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("item %d: invalid id %q: %w", len(items), item.ID, err)))
+		}
+		svcItem := templaterel.BatchSubjectTemplateItem{
+			ID:                  parsedID,
+			Name:                item.Name,
+			Type:                item.Type,
+			TitleTemplate:       item.TitleTemplate,
+			DescriptionTemplate: item.DescriptionTemplate,
+			PurposeTemplate:     item.PurposeTemplate,
+			RemarksTemplate:     item.RemarksTemplate,
+			IdentityLabelKeys:   append([]string{}, item.IdentityLabelKeys...),
+			Props:               append([]relational.Prop{}, item.Props...),
+			Links:               append([]relational.Link{}, item.Links...),
+			SourceMode:          item.SourceMode,
+			SelectorLabels:      make([]templaterel.SubjectTemplateSelectorLabelInput, 0, len(item.SelectorLabels)),
+			LabelSchema:         make([]templaterel.SubjectTemplateLabelSchemaFieldInput, 0, len(item.LabelSchema)),
+		}
+		for _, label := range item.SelectorLabels {
+			svcItem.SelectorLabels = append(svcItem.SelectorLabels, templaterel.SubjectTemplateSelectorLabelInput{
+				Key:   label.Key,
+				Value: label.Value,
+			})
+		}
+		for _, field := range item.LabelSchema {
+			svcItem.LabelSchema = append(svcItem.LabelSchema, templaterel.SubjectTemplateLabelSchemaFieldInput{
+				Key:         field.Key,
+				Description: field.Description,
+			})
+		}
+		items = append(items, svcItem)
+	}
+
+	result, err := h.service.BatchUpsert(req.PluginID, items)
+	if err != nil {
+		return handleTemplateServiceError(ctx, h.sugar, "failed to batch upsert subject templates", err)
+	}
+
+	data := batchUpsertSubjectTemplatesData{
+		Created:   make([]subjectTemplateResponse, 0, len(result.Created)),
+		Updated:   make([]subjectTemplateResponse, 0, len(result.Updated)),
+		Deleted:   result.Deleted,
+		Unchanged: result.Unchanged,
+	}
+	for _, row := range result.Created {
+		data.Created = append(data.Created, mapSubjectTemplateToResponse(row))
+	}
+	for _, row := range result.Updated {
+		data.Updated = append(data.Updated, mapSubjectTemplateToResponse(row))
+	}
+
+	return ctx.JSON(http.StatusOK, batchUpsertSubjectTemplatesResponse{Data: data})
 }
 
 func mapSubjectTemplateToResponse(row templaterel.SubjectTemplate) subjectTemplateResponse {

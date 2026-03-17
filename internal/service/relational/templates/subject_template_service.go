@@ -3,6 +3,7 @@ package templates
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -1522,4 +1523,439 @@ func preloadSubjectTemplateSelectorLabels(db *gorm.DB) *gorm.DB {
 
 func preloadSubjectTemplateLabelSchema(db *gorm.DB) *gorm.DB {
 	return db.Order("key ASC")
+}
+
+// pluginSelectorLabelKey is the selector-label key used to associate a subject template with
+// a specific plugin. Agents must set this label when registering subject templates.
+const pluginSelectorLabelKey = "_plugin"
+
+// BatchSubjectTemplateItem is a single item in a batch upsert request.
+// The plugin_id is inherited from the batch-level scope (via selector-label) and each item is
+// expected to carry a selector-label with key=pluginSelectorLabelKey and value=pluginID.
+// ID is mandatory and must be provided by the caller (agent-side UUID generation).
+// TODO: agents should use deterministic/generational UUID derivation so that re-running a batch
+// produces the same IDs for the same logical templates. The derivation strategy (e.g.
+// sha1(plugin_id + name + type)) must be decided and implemented on the agent side.
+type BatchSubjectTemplateItem struct {
+	ID                  uuid.UUID
+	Name                string
+	Type                string
+	TitleTemplate       *string
+	DescriptionTemplate *string
+	PurposeTemplate     *string
+	RemarksTemplate     *string
+	IdentityLabelKeys   []string
+	Props               []relational.Prop
+	Links               []relational.Link
+	SourceMode          string
+	SelectorLabels      []SubjectTemplateSelectorLabelInput
+	LabelSchema         []SubjectTemplateLabelSchemaFieldInput
+}
+
+// BatchUpsertSubjectTemplatesResult is the result of a SubjectTemplateService.BatchUpsert call.
+type BatchUpsertSubjectTemplatesResult struct {
+	Created   []SubjectTemplate
+	Updated   []SubjectTemplate
+	Deleted   []uuid.UUID
+	Unchanged []uuid.UUID
+}
+
+// BatchUpsert reconciles the full set of subject templates scoped to a given pluginID.
+// Scope is determined by templates that carry a selector-label with
+// key=pluginSelectorLabelKey ("_plugin") and value=pluginID.
+// All mutations are executed in a single atomic transaction.
+// Templates not present in the payload are always deleted (no in-use guard).
+func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubjectTemplateItem) (*BatchUpsertSubjectTemplatesResult, error) {
+	pluginID = strings.TrimSpace(pluginID)
+	if err := validateSubjectTemplateRequiredText("pluginId", pluginID); err != nil {
+		return nil, err
+	}
+
+	// Validate that all items carry a non-zero, unique ID supplied by the caller.
+	type resolvedItem struct {
+		id   uuid.UUID
+		item BatchSubjectTemplateItem
+	}
+	resolved := make([]resolvedItem, 0, len(items))
+	seen := make(map[uuid.UUID]struct{}, len(items))
+	for i, item := range items {
+		if item.ID == uuid.Nil {
+			return nil, newValidationError(fmt.Sprintf("item %d: id is required", i))
+		}
+		if _, dup := seen[item.ID]; dup {
+			return nil, newValidationError(fmt.Sprintf("item %d: duplicate id %s", i, item.ID))
+		}
+		seen[item.ID] = struct{}{}
+		resolved = append(resolved, resolvedItem{id: item.ID, item: item})
+	}
+
+	// Normalize and validate all payloads before opening the transaction.
+	for i, r := range resolved {
+		payload := batchSubjectItemToPayload(r.item)
+		if err := validateSubjectTemplatePayload(&payload); err != nil {
+			return nil, fmt.Errorf("item %d (id %s): %w", i, r.id, err)
+		}
+		resolved[i].item = batchSubjectItemFromPayload(r.item, payload)
+	}
+
+	// Validate the plugin scoping selector label on normalized items.
+	for i, r := range resolved {
+		hasPluginLabel := false
+		for _, sl := range r.item.SelectorLabels {
+			if sl.Key == pluginSelectorLabelKey && sl.Value == pluginID {
+				hasPluginLabel = true
+				break
+			}
+		}
+		if !hasPluginLabel {
+			return nil, newValidationError(fmt.Sprintf("item %d (id %s): missing selector label %s=%s", i, r.id, pluginSelectorLabelKey, pluginID))
+		}
+	}
+
+	payloadIDs := make(map[uuid.UUID]struct{}, len(resolved))
+	for _, r := range resolved {
+		payloadIDs[r.id] = struct{}{}
+	}
+
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	defer rollbackTxOnPanic(tx)
+
+	// Load existing templates inside the transaction so the read and all subsequent
+	// mutations are part of the same consistent snapshot, eliminating the race window
+	// between a pre-tx read and the tx writes.
+	existingRows, err := listSubjectTemplatesByPluginSelectorLabel(tx, pluginID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	existingByID := make(map[uuid.UUID]SubjectTemplate, len(existingRows))
+	for _, row := range existingRows {
+		existingByID[*row.ID] = row
+	}
+
+	result := &BatchUpsertSubjectTemplatesResult{
+		Created:   make([]SubjectTemplate, 0),
+		Updated:   make([]SubjectTemplate, 0),
+		Deleted:   make([]uuid.UUID, 0),
+		Unchanged: make([]uuid.UUID, 0),
+	}
+
+	// Collect IDs that need to be created (not already in this scope), then check
+	// for cross-scope collisions with a single query instead of one COUNT per item.
+	newIDs := make([]uuid.UUID, 0, len(resolved))
+	for _, r := range resolved {
+		if _, exists := existingByID[r.id]; !exists {
+			newIDs = append(newIDs, r.id)
+		}
+	}
+	if len(newIDs) > 0 {
+		var collidingIDs []uuid.UUID
+		if err := tx.Model(&SubjectTemplate{}).Where("id IN ?", newIDs).Pluck("id", &collidingIDs).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(collidingIDs) > 0 {
+			tx.Rollback()
+			return nil, newValidationError(fmt.Sprintf("id %s already exists in a different scope", collidingIDs[0]))
+		}
+	}
+
+	// Create or update.
+	for _, r := range resolved {
+		payload := batchSubjectItemToPayload(r.item)
+		if existing, exists := existingByID[r.id]; exists {
+			if subjectTemplateMatchesPayload(existing, payload) {
+				result.Unchanged = append(result.Unchanged, r.id)
+				continue
+			}
+			row, err := updateSubjectTemplateInTx(tx, r.id, payload)
+			if err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("update subject template %s: %w", r.id, err)
+			}
+			result.Updated = append(result.Updated, *row)
+		} else {
+			row, err := createSubjectTemplateInTx(tx, r.id, payload)
+			if err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("create subject template %s: %w", r.id, err)
+			}
+			result.Created = append(result.Created, *row)
+		}
+	}
+
+	// Delete.
+	for id := range existingByID {
+		if _, inPayload := payloadIDs[id]; inPayload {
+			continue
+		}
+
+		if err := tx.Delete(&EvidenceTemplateSubjectTemplate{}, "subject_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete evidence template links for subject template %s: %w", id, err)
+		}
+		if err := tx.Delete(&SubjectTemplateSelectorLabel{}, "subject_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete selector labels for subject template %s: %w", id, err)
+		}
+		if err := tx.Delete(&SubjectTemplateLabelSchemaField{}, "subject_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete label schema for subject template %s: %w", id, err)
+		}
+		if err := tx.Delete(&SubjectTemplate{}, "id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete subject template %s: %w", id, err)
+		}
+		result.Deleted = append(result.Deleted, id)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// listSubjectTemplatesByPluginSelectorLabel returns all SubjectTemplates that carry a selector-label
+// with key=pluginSelectorLabelKey and value=pluginID.
+func listSubjectTemplatesByPluginSelectorLabel(db *gorm.DB, pluginID string) ([]SubjectTemplate, error) {
+	var rows []SubjectTemplate
+	if err := db.
+		Joins("JOIN subject_template_selector_labels sl ON sl.subject_template_id = subject_templates.id").
+		Where("sl.key = ? AND sl.value = ?", pluginSelectorLabelKey, pluginID).
+		Preload("SelectorLabels", preloadSubjectTemplateSelectorLabels).
+		Preload("LabelSchema", preloadSubjectTemplateLabelSchema).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// batchSubjectItemToPayload converts a BatchSubjectTemplateItem into a SubjectTemplatePayload.
+func batchSubjectItemToPayload(item BatchSubjectTemplateItem) SubjectTemplatePayload {
+	return SubjectTemplatePayload{
+		Name:                item.Name,
+		Type:                item.Type,
+		TitleTemplate:       item.TitleTemplate,
+		DescriptionTemplate: item.DescriptionTemplate,
+		PurposeTemplate:     item.PurposeTemplate,
+		RemarksTemplate:     item.RemarksTemplate,
+		IdentityLabelKeys:   append([]string{}, item.IdentityLabelKeys...),
+		Props:               append([]relational.Prop{}, item.Props...),
+		Links:               append([]relational.Link{}, item.Links...),
+		SourceMode:          item.SourceMode,
+		SelectorLabels:      append([]SubjectTemplateSelectorLabelInput{}, item.SelectorLabels...),
+		LabelSchema:         append([]SubjectTemplateLabelSchemaFieldInput{}, item.LabelSchema...),
+	}
+}
+
+// batchSubjectItemFromPayload copies normalised payload fields back into the item.
+func batchSubjectItemFromPayload(item BatchSubjectTemplateItem, payload SubjectTemplatePayload) BatchSubjectTemplateItem {
+	item.Name = payload.Name
+	item.Type = payload.Type
+	item.TitleTemplate = payload.TitleTemplate
+	item.DescriptionTemplate = payload.DescriptionTemplate
+	item.PurposeTemplate = payload.PurposeTemplate
+	item.RemarksTemplate = payload.RemarksTemplate
+	item.IdentityLabelKeys = payload.IdentityLabelKeys
+	item.Props = payload.Props
+	item.Links = payload.Links
+	item.SourceMode = payload.SourceMode
+	item.SelectorLabels = payload.SelectorLabels
+	item.LabelSchema = payload.LabelSchema
+	return item
+}
+
+// createSubjectTemplateInTx creates a subject template within an existing transaction with the given id.
+func createSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplatePayload) (*SubjectTemplate, error) {
+	row := SubjectTemplate{
+		Name:                payload.Name,
+		Type:                payload.Type,
+		TitleTemplate:       payload.TitleTemplate,
+		DescriptionTemplate: payload.DescriptionTemplate,
+		PurposeTemplate:     payload.PurposeTemplate,
+		RemarksTemplate:     payload.RemarksTemplate,
+		IdentityLabelKeys:   datatypes.NewJSONSlice(payload.IdentityLabelKeys),
+		Props:               datatypes.NewJSONSlice(payload.Props),
+		Links:               datatypes.NewJSONSlice(payload.Links),
+		SourceMode:          payload.SourceMode,
+	}
+	row.ID = &id
+
+	if err := tx.Select(
+		"ID",
+		"CreatedAt",
+		"UpdatedAt",
+		"Name",
+		"Type",
+		"TitleTemplate",
+		"DescriptionTemplate",
+		"PurposeTemplate",
+		"RemarksTemplate",
+		"IdentityLabelKeys",
+		"Props",
+		"Links",
+		"SourceMode",
+	).Create(&row).Error; err != nil {
+		return nil, err
+	}
+
+	if err := replaceSubjectTemplateSelectorLabels(tx, id, payload.SelectorLabels); err != nil {
+		return nil, err
+	}
+	if err := replaceSubjectTemplateLabelSchema(tx, id, payload.LabelSchema); err != nil {
+		return nil, err
+	}
+
+	return fetchSubjectTemplateByID(tx, id)
+}
+
+// updateSubjectTemplateInTx updates an existing subject template within an existing transaction.
+func updateSubjectTemplateInTx(tx *gorm.DB, id uuid.UUID, payload SubjectTemplatePayload) (*SubjectTemplate, error) {
+	var existing SubjectTemplate
+	if err := tx.First(&existing, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+
+	existing.Name = payload.Name
+	existing.Type = payload.Type
+	existing.TitleTemplate = payload.TitleTemplate
+	existing.DescriptionTemplate = payload.DescriptionTemplate
+	existing.PurposeTemplate = payload.PurposeTemplate
+	existing.RemarksTemplate = payload.RemarksTemplate
+	existing.IdentityLabelKeys = datatypes.NewJSONSlice(payload.IdentityLabelKeys)
+	existing.Props = datatypes.NewJSONSlice(payload.Props)
+	existing.Links = datatypes.NewJSONSlice(payload.Links)
+	existing.SourceMode = payload.SourceMode
+
+	if err := tx.Omit("SelectorLabels", "LabelSchema").Save(&existing).Error; err != nil {
+		return nil, err
+	}
+
+	if err := replaceSubjectTemplateSelectorLabels(tx, *existing.ID, payload.SelectorLabels); err != nil {
+		return nil, err
+	}
+	if err := replaceSubjectTemplateLabelSchema(tx, *existing.ID, payload.LabelSchema); err != nil {
+		return nil, err
+	}
+
+	return fetchSubjectTemplateByID(tx, *existing.ID)
+}
+
+// subjectTemplateFP is an unexported fingerprint struct used to detect whether a batch
+// payload differs from a stored template, avoiding unnecessary UPDATE statements.
+type subjectTemplateFP struct {
+	Name                string            `json:"n"`
+	Type                string            `json:"ty"`
+	SourceMode          string            `json:"sm"`
+	TitleTemplate       *string           `json:"tt,omitempty"`
+	DescriptionTemplate *string           `json:"dt,omitempty"`
+	PurposeTemplate     *string           `json:"pt,omitempty"`
+	RemarksTemplate     *string           `json:"rt,omitempty"`
+	IdentityLabelKeys   []string          `json:"ilk"`
+	Props               []relational.Prop `json:"props"`
+	Links               []relational.Link `json:"links"`
+	SelectorLabels      []stSelectorFP    `json:"sl"`
+	LabelSchema         []stSchemaFP      `json:"ls"`
+}
+
+type stSelectorFP struct {
+	Key   string `json:"k"`
+	Value string `json:"v"`
+}
+
+type stSchemaFP struct {
+	Key         string  `json:"k"`
+	Description *string `json:"d,omitempty"`
+}
+
+// subjectTemplateMatchesPayload returns true when the stored template already reflects
+// every field in the payload, so no UPDATE is necessary.
+func subjectTemplateMatchesPayload(existing SubjectTemplate, payload SubjectTemplatePayload) bool {
+	a := subjectTemplateFPFromExisting(existing)
+	b := subjectTemplateFPFromPayload(payload)
+	aj, err1 := json.Marshal(a)
+	bj, err2 := json.Marshal(b)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return string(aj) == string(bj)
+}
+
+func subjectTemplateFPFromExisting(t SubjectTemplate) subjectTemplateFP {
+	keys := make([]string, len(t.IdentityLabelKeys))
+	copy(keys, t.IdentityLabelKeys)
+	sort.Strings(keys)
+
+	selectors := make([]stSelectorFP, 0, len(t.SelectorLabels))
+	for _, s := range t.SelectorLabels {
+		selectors = append(selectors, stSelectorFP{Key: s.Key, Value: s.Value})
+	}
+	sort.Slice(selectors, func(i, j int) bool { return selectors[i].Key < selectors[j].Key })
+
+	schema := make([]stSchemaFP, 0, len(t.LabelSchema))
+	for _, f := range t.LabelSchema {
+		schema = append(schema, stSchemaFP{Key: f.Key, Description: f.Description})
+	}
+	sort.Slice(schema, func(i, j int) bool { return schema[i].Key < schema[j].Key })
+
+	return subjectTemplateFP{
+		Name:                t.Name,
+		Type:                t.Type,
+		SourceMode:          t.SourceMode,
+		TitleTemplate:       t.TitleTemplate,
+		DescriptionTemplate: t.DescriptionTemplate,
+		PurposeTemplate:     t.PurposeTemplate,
+		RemarksTemplate:     t.RemarksTemplate,
+		IdentityLabelKeys:   keys,
+		Props:               []relational.Prop(t.Props),
+		Links:               []relational.Link(t.Links),
+		SelectorLabels:      selectors,
+		LabelSchema:         schema,
+	}
+}
+
+func subjectTemplateFPFromPayload(payload SubjectTemplatePayload) subjectTemplateFP {
+	keys := make([]string, len(payload.IdentityLabelKeys))
+	copy(keys, payload.IdentityLabelKeys)
+	sort.Strings(keys)
+
+	selectors := make([]stSelectorFP, 0, len(payload.SelectorLabels))
+	for _, s := range payload.SelectorLabels {
+		selectors = append(selectors, stSelectorFP(s))
+	}
+	sort.Slice(selectors, func(i, j int) bool { return selectors[i].Key < selectors[j].Key })
+
+	schema := make([]stSchemaFP, 0, len(payload.LabelSchema))
+	for _, f := range payload.LabelSchema {
+		schema = append(schema, stSchemaFP(f))
+	}
+	sort.Slice(schema, func(i, j int) bool { return schema[i].Key < schema[j].Key })
+
+	props := payload.Props
+	if props == nil {
+		props = []relational.Prop{}
+	}
+	links := payload.Links
+	if links == nil {
+		links = []relational.Link{}
+	}
+
+	return subjectTemplateFP{
+		Name:                payload.Name,
+		Type:                payload.Type,
+		SourceMode:          payload.SourceMode,
+		TitleTemplate:       payload.TitleTemplate,
+		DescriptionTemplate: payload.DescriptionTemplate,
+		PurposeTemplate:     payload.PurposeTemplate,
+		RemarksTemplate:     payload.RemarksTemplate,
+		IdentityLabelKeys:   keys,
+		Props:               props,
+		Links:               links,
+		SelectorLabels:      selectors,
+		LabelSchema:         schema,
+	}
 }

@@ -37,6 +37,10 @@ func (h *RiskTemplateHandler) Register(apiGroup *echo.Group) {
 	apiGroup.DELETE("/:id", h.Delete)
 }
 
+func (h *RiskTemplateHandler) RegisterAgent(apiGroup *echo.Group) {
+	apiGroup.POST("/batch", h.BatchUpsert)
+}
+
 type threatIDRequest struct {
 	System string  `json:"system"`
 	ID     string  `json:"id"`
@@ -321,6 +325,127 @@ func mapRequestToPayload(req upsertRiskTemplateRequest) templaterel.RiskTemplate
 	}
 
 	return payload
+}
+
+type batchRiskTemplateItem struct {
+	ID             string                      `json:"id"`
+	Name           string                      `json:"name"`
+	Title          string                      `json:"title"`
+	Statement      string                      `json:"statement"`
+	LikelihoodHint *string                     `json:"likelihood-hint"`
+	ImpactHint     *string                     `json:"impact-hint"`
+	ViolationIDs   []string                    `json:"violation-ids"`
+	ThreatIDs      []threatIDRequest           `json:"threat-ids"`
+	Remediation    *remediationTemplateRequest `json:"remediation-template"`
+	IsActive       *bool                       `json:"is-active"`
+}
+
+type batchUpsertRiskTemplatesRequest struct {
+	PluginID      string                   `json:"plugin-id" validate:"required"`
+	PolicyPackage string                   `json:"policy-package" validate:"required"`
+	Templates     *[]batchRiskTemplateItem `json:"templates"`
+}
+
+type batchUpsertRiskTemplatesData struct {
+	Created   []riskTemplateResponse `json:"created"`
+	Updated   []riskTemplateResponse `json:"updated"`
+	Deleted   []uuid.UUID            `json:"deleted"`
+	Unchanged []uuid.UUID            `json:"unchanged"`
+}
+
+type batchUpsertRiskTemplatesResponse struct {
+	Data batchUpsertRiskTemplatesData `json:"data"`
+}
+
+// BatchUpsert godoc
+//
+//	@Summary		Batch upsert risk templates
+//	@Description	Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.
+//	@Description	Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
+//	@Tags			Risk Templates
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		batchUpsertRiskTemplatesRequest	true	"Batch upsert payload"
+//	@Success		200		{object}	batchUpsertRiskTemplatesResponse
+//	@Failure		400		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Router			/agent/risk-templates/batch [post]
+func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
+	var req batchUpsertRiskTemplatesRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if req.Templates == nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("templates field is required; use [] for an explicit empty list")))
+	}
+
+	items := make([]templaterel.BatchRiskTemplateItem, 0, len(*req.Templates))
+	for _, item := range *req.Templates {
+		if item.ID == "" {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("item %d: id is required", len(items))))
+		}
+		parsedID, err := uuid.Parse(item.ID)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("item %d: invalid id %q: %w", len(items), item.ID, err)))
+		}
+		svcItem := templaterel.BatchRiskTemplateItem{
+			ID:             parsedID,
+			Name:           item.Name,
+			Title:          item.Title,
+			Statement:      item.Statement,
+			LikelihoodHint: item.LikelihoodHint,
+			ImpactHint:     item.ImpactHint,
+			ViolationIDs:   item.ViolationIDs,
+			IsActive:       item.IsActive,
+			ThreatRefs:     make([]templaterel.ThreatRefInput, 0, len(item.ThreatIDs)),
+		}
+		for _, ref := range item.ThreatIDs {
+			svcItem.ThreatRefs = append(svcItem.ThreatRefs, templaterel.ThreatRefInput{
+				System:     ref.System,
+				ExternalID: ref.ID,
+				Title:      ref.Title,
+				URL:        ref.URL,
+			})
+		}
+		if item.Remediation != nil {
+			rem := templaterel.RemediationTemplateInput{
+				Title:       item.Remediation.Title,
+				Description: item.Remediation.Description,
+				Tasks:       make([]templaterel.RemediationTaskInput, 0, len(item.Remediation.Tasks)),
+			}
+			for _, task := range item.Remediation.Tasks {
+				rem.Tasks = append(rem.Tasks, templaterel.RemediationTaskInput{
+					Title:      task.Title,
+					OrderIndex: task.OrderIndex,
+				})
+			}
+			svcItem.RemediationTemplate = &rem
+		}
+		items = append(items, svcItem)
+	}
+
+	result, err := h.service.BatchUpsert(req.PluginID, req.PolicyPackage, items)
+	if err != nil {
+		return handleTemplateServiceError(ctx, h.sugar, "failed to batch upsert risk templates", err)
+	}
+
+	data := batchUpsertRiskTemplatesData{
+		Created:   make([]riskTemplateResponse, 0, len(result.Created)),
+		Updated:   make([]riskTemplateResponse, 0, len(result.Updated)),
+		Deleted:   result.Deleted,
+		Unchanged: result.Unchanged,
+	}
+	for _, row := range result.Created {
+		data.Created = append(data.Created, mapRiskTemplateToResponse(row))
+	}
+	for _, row := range result.Updated {
+		data.Updated = append(data.Updated, mapRiskTemplateToResponse(row))
+	}
+
+	return ctx.JSON(http.StatusOK, batchUpsertRiskTemplatesResponse{Data: data})
 }
 
 func mapRiskTemplateToResponse(row templaterel.RiskTemplate) riskTemplateResponse {

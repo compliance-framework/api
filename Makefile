@@ -66,18 +66,40 @@ test: swag  ## Run tests
 
 .PHONY:   test-integration
 test-integration: swag  ## Run integration tests (set INTEGRATION_RUNS>1 for flakiness detection)
-	@for run in $$(seq 1 $(INTEGRATION_RUNS)); do \
+	@failed_tests=""; \
+	any_failure=0; \
+	temp_output=$$(mktemp); \
+	trap 'rm -f "$$temp_output"' EXIT; \
+	for run in $$(seq 1 $(INTEGRATION_RUNS)); do \
 		$(INFO) "Integration run $$run/$(INTEGRATION_RUNS)"; \
 		coverprofile_flag=""; \
 		if [ "$$run" -eq "$(INTEGRATION_RUNS)" ]; then \
 			coverprofile_flag="-coverprofile cover.out"; \
 		fi; \
-		if ! go test ./... -count=1 $$coverprofile_flag -v --tags integration; then \
+		if ! go test $(TEST_PATH) -count=1 $$coverprofile_flag -v --tags integration 2>&1 | tee "$$temp_output"; then \
 			$(WARN) "Tests failed on run $$run"; \
-			exit 1; \
+			any_failure=1; \
+			run_failed_tests=$$(grep "^--- FAIL:" "$$temp_output" | sed 's/^--- FAIL: //'); \
+			if [ -n "$$run_failed_tests" ]; then \
+				if [ -n "$$failed_tests" ]; then \
+					failed_tests="$$failed_tests$$run_failed_tests\n"; \
+				else \
+					failed_tests="$$run_failed_tests\n"; \
+				fi; \
+			fi; \
 		fi ; \
 	done ; \
-	$(OK) Tests passed
+	if [ -n "$$failed_tests" ] || [ "$$any_failure" -ne 0 ]; then \
+		echo ""; \
+		echo "${RED}=== FAILED TESTS SUMMARY ===${CNone}"; \
+		echo -ne "$$failed_tests" | sort | uniq; \
+		echo "${RED}============================${CNone}"; \
+		echo ""; \
+		$(WARN) "Integration tests completed with failures"; \
+		exit 1; \
+	else \
+		$(OK) Tests passed; \
+	fi
 
 
 .PHONY: test-integration-single

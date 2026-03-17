@@ -1221,6 +1221,98 @@
                 }
             }
         },
+        "/agent/risk-templates/batch": {
+            "post": {
+                "description": "Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Batch upsert risk templates",
+                "parameters": [
+                    {
+                        "description": "Batch upsert payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertRiskTemplatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertRiskTemplatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/subject-templates/batch": {
+            "post": {
+                "description": "Reconcile the full set of subject templates for a plugin (scoped via selector-label key=\"_plugin\").\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Batch upsert subject templates",
+                "parameters": [
+                    {
+                        "description": "Batch upsert payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertSubjectTemplatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertSubjectTemplatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/forgot-password": {
             "post": {
                 "description": "Sends a password reset email to users with authMethod=password",
@@ -35276,6 +35368,218 @@
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "templates.batchRiskTemplateItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "impact-hint": {
+                    "type": "string"
+                },
+                "is-active": {
+                    "type": "boolean"
+                },
+                "likelihood-hint": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "remediation-template": {
+                    "$ref": "#/definitions/templates.remediationTemplateRequest"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.threatIDRequest"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "violation-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "templates.batchSubjectTemplateItem": {
+            "type": "object",
+            "properties": {
+                "description-template": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "identity-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateLabelSchemaFieldRequest"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "purpose-template": {
+                    "type": "string"
+                },
+                "remarks-template": {
+                    "type": "string"
+                },
+                "selector-labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateSelectorLabelRequest"
+                    }
+                },
+                "source-mode": {
+                    "type": "string"
+                },
+                "title-template": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.batchUpsertRiskTemplatesData": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.riskTemplateResponse"
+                    }
+                },
+                "deleted": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unchanged": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.riskTemplateResponse"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertRiskTemplatesRequest": {
+            "type": "object",
+            "required": [
+                "plugin-id",
+                "policy-package"
+            ],
+            "properties": {
+                "plugin-id": {
+                    "type": "string"
+                },
+                "policy-package": {
+                    "type": "string"
+                },
+                "templates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.batchRiskTemplateItem"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertRiskTemplatesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.batchUpsertRiskTemplatesData"
+                }
+            }
+        },
+        "templates.batchUpsertSubjectTemplatesData": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateResponse"
+                    }
+                },
+                "deleted": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unchanged": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateResponse"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertSubjectTemplatesRequest": {
+            "type": "object",
+            "required": [
+                "plugin-id"
+            ],
+            "properties": {
+                "plugin-id": {
+                    "type": "string"
+                },
+                "templates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.batchSubjectTemplateItem"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertSubjectTemplatesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.batchUpsertSubjectTemplatesData"
                 }
             }
         },
