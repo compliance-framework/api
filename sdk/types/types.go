@@ -158,3 +158,39 @@ type Evidence struct {
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status ObjectiveStatus `json:"status"`
 }
+
+type Threat struct {
+	System     string `json:"system"`
+	ExternalID string `json:"id"`
+	Title      string `json:"title"`
+	Url        string `json:"url"`
+}
+
+type RemediationTask struct {
+	Title      string `json:"title"`
+	OrderIndex int    `json:"order-index"`
+}
+
+type Remediation struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+
+	Tasks []RemediationTask `json:"tasks"`
+}
+
+type RiskTemplate struct {
+	ID             string `json:"id"`
+	PluginId       string `json:"plugin-id"`
+	PolicyPackage  string `json:"policy-package"`
+	Name           string `json:"name"`
+	Title          string `json:"title"`
+	Statement      string `json:"statement"`
+	LikelihoodHint string `json:"likelihood-hint"`
+	ImpactHint     string `json:"impact-hint"`
+
+	ViolationIds []string `json:"violation-ids"`
+
+	Threats     []Threat     `json:"threat-ids"`
+	Remediation *Remediation `json:"remediation-template"`
+	IsActive    bool         `json:"is-active"`
+}

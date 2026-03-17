@@ -21,6 +21,8 @@ type Client struct {
 	config *Config
 
 	Evidence *evidenceClient
+
+	RiskTemplate *riskTemplateClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
@@ -28,6 +30,10 @@ func NewClient(client *http.Client, config *Config) *Client {
 		httpClient: client,
 		config:     config,
 		Evidence: &evidenceClient{
+			httpClient: client,
+			config:     config,
+		},
+		RiskTemplate: &riskTemplateClient{
 			httpClient: client,
 			config:     config,
 		},
