@@ -791,6 +791,16 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 			}
 			result.Updated = append(result.Updated, *row)
 		} else {
+			// Guard against ID collisions with templates outside this (plugin, policy) scope.
+			var count int64
+			if err := tx.Model(&RiskTemplate{}).Where("id = ?", r.id).Count(&count).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			if count > 0 {
+				tx.Rollback()
+				return nil, newValidationError(fmt.Sprintf("id %s already exists in a different scope", r.id))
+			}
 			row, err := createRiskTemplateInTx(tx, r.id, payload)
 			if err != nil {
 				tx.Rollback()

@@ -1585,28 +1585,31 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		if _, dup := seen[item.ID]; dup {
 			return nil, newValidationError(fmt.Sprintf("item %d: duplicate id %s", i, item.ID))
 		}
-		// Validate that each item carries the plugin scoping selector label.
-		hasPluginLabel := false
-		for _, sl := range item.SelectorLabels {
-			if sl.Key == pluginSelectorLabelKey && sl.Value == pluginID {
-				hasPluginLabel = true
-				break
-			}
-		}
-		if !hasPluginLabel {
-			return nil, newValidationError(fmt.Sprintf("item %d (id %s): missing selector label %s=%s", i, item.ID, pluginSelectorLabelKey, pluginID))
-		}
 		seen[item.ID] = struct{}{}
 		resolved = append(resolved, resolvedItem{id: item.ID, item: item})
 	}
 
-	// Validate all payloads before opening the transaction.
+	// Normalize and validate all payloads before opening the transaction.
 	for i, r := range resolved {
 		payload := batchSubjectItemToPayload(r.item)
 		if err := validateSubjectTemplatePayload(&payload); err != nil {
 			return nil, fmt.Errorf("item %d (id %s): %w", i, r.id, err)
 		}
 		resolved[i].item = batchSubjectItemFromPayload(r.item, payload)
+	}
+
+	// Validate the plugin scoping selector label on normalized items.
+	for i, r := range resolved {
+		hasPluginLabel := false
+		for _, sl := range r.item.SelectorLabels {
+			if sl.Key == pluginSelectorLabelKey && sl.Value == pluginID {
+				hasPluginLabel = true
+				break
+			}
+		}
+		if !hasPluginLabel {
+			return nil, newValidationError(fmt.Sprintf("item %d (id %s): missing selector label %s=%s", i, r.id, pluginSelectorLabelKey, pluginID))
+		}
 	}
 
 	payloadIDs := make(map[uuid.UUID]struct{}, len(resolved))
@@ -1655,6 +1658,16 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 			}
 			result.Updated = append(result.Updated, *row)
 		} else {
+			// Guard against ID collisions with templates outside this plugin scope.
+			var count int64
+			if err := tx.Model(&SubjectTemplate{}).Where("id = ?", r.id).Count(&count).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			if count > 0 {
+				tx.Rollback()
+				return nil, newValidationError(fmt.Sprintf("id %s already exists in a different scope", r.id))
+			}
 			row, err := createSubjectTemplateInTx(tx, r.id, payload)
 			if err != nil {
 				tx.Rollback()

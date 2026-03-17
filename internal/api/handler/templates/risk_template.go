@@ -341,9 +341,9 @@ type batchRiskTemplateItem struct {
 }
 
 type batchUpsertRiskTemplatesRequest struct {
-	PluginID      string                  `json:"plugin-id"`
-	PolicyPackage string                  `json:"policy-package"`
-	Templates     []batchRiskTemplateItem `json:"templates"`
+	PluginID      string                   `json:"plugin-id"`
+	PolicyPackage string                   `json:"policy-package"`
+	Templates     *[]batchRiskTemplateItem `json:"templates"`
 }
 
 type batchUpsertRiskTemplatesData struct {
@@ -375,9 +375,12 @@ func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	if req.Templates == nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("templates field is required; use [] for an explicit empty list")))
+	}
 
-	items := make([]templaterel.BatchRiskTemplateItem, 0, len(req.Templates))
-	for _, item := range req.Templates {
+	items := make([]templaterel.BatchRiskTemplateItem, 0, len(*req.Templates))
+	for _, item := range *req.Templates {
 		if item.ID == "" {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("item %d: id is required", len(items))))
 		}
