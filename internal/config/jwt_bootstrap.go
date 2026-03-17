@@ -149,7 +149,11 @@ func ensureParentDirectory(path string) error {
 }
 
 func normalizeKeyPath(path string) string {
-	return filepath.Clean(stripQuotes(strings.TrimSpace(path)))
+	path = stripQuotes(strings.TrimSpace(path))
+	if path == "" {
+		return ""
+	}
+	return filepath.Clean(path)
 }
 
 func keyPathsReferToSameLocation(privateKeyPath, publicKeyPath string) (bool, error) {
