@@ -35504,8 +35504,7 @@
             "type": "object",
             "required": [
                 "plugin-id",
-                "policy-package",
-                "templates"
+                "policy-package"
             ],
             "properties": {
                 "plugin-id": {
@@ -35562,8 +35561,7 @@
         "templates.batchUpsertSubjectTemplatesRequest": {
             "type": "object",
             "required": [
-                "plugin-id",
-                "templates"
+                "plugin-id"
             ],
             "properties": {
                 "plugin-id": {

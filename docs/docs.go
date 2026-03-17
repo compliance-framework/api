@@ -35510,8 +35510,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "plugin-id",
-                "policy-package",
-                "templates"
+                "policy-package"
             ],
             "properties": {
                 "plugin-id": {
@@ -35568,8 +35567,7 @@ const docTemplate = `{
         "templates.batchUpsertSubjectTemplatesRequest": {
             "type": "object",
             "required": [
-                "plugin-id",
-                "templates"
+                "plugin-id"
             ],
             "properties": {
                 "plugin-id": {

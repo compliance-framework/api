@@ -7304,7 +7304,6 @@ definitions:
     required:
     - plugin-id
     - policy-package
-    - templates
     type: object
   templates.batchUpsertRiskTemplatesResponse:
     properties:
@@ -7340,7 +7339,6 @@ definitions:
         type: array
     required:
     - plugin-id
-    - templates
     type: object
   templates.batchUpsertSubjectTemplatesResponse:
     properties:
