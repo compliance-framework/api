@@ -295,7 +295,7 @@ type batchSubjectTemplateItem struct {
 
 type batchUpsertSubjectTemplatesRequest struct {
 	PluginID  string                      `json:"plugin-id" validate:"required"`
-	Templates *[]batchSubjectTemplateItem `json:"templates" validate:"required"`
+	Templates *[]batchSubjectTemplateItem `json:"templates"`
 }
 
 type batchUpsertSubjectTemplatesData struct {

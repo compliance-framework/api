@@ -343,7 +343,7 @@ type batchRiskTemplateItem struct {
 type batchUpsertRiskTemplatesRequest struct {
 	PluginID      string                   `json:"plugin-id" validate:"required"`
 	PolicyPackage string                   `json:"policy-package" validate:"required"`
-	Templates     *[]batchRiskTemplateItem `json:"templates" validate:"required"`
+	Templates     *[]batchRiskTemplateItem `json:"templates"`
 }
 
 type batchUpsertRiskTemplatesData struct {
