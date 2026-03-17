@@ -1229,7 +1229,7 @@ const docTemplate = `{
         },
         "/agent/risk-templates/batch": {
             "post": {
-                "description": "Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.\nCreates, updates, and deletes templates atomically. Templates still in use are skipped.",
+                "description": "Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1270,17 +1270,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
+                }
             }
         },
         "/agent/subject-templates/batch": {
             "post": {
-                "description": "Reconcile the full set of subject templates for a plugin (scoped via selector-label key=\"plugin\").\nCreates, updates, and deletes templates atomically. Templates still in use are skipped.",
+                "description": "Reconcile the full set of subject templates for a plugin (scoped via selector-label key=\"_plugin\").\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1321,12 +1316,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/api.Error"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
+                }
             }
         },
         "/auth/forgot-password": {

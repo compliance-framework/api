@@ -1396,7 +1396,7 @@ func TestSubjectTemplateService_BatchUpsertDeleteCleansUpSelectorLabelsAndSchema
 
 	var selectorCount, schemaCount int64
 	require.NoError(t, db.Model(&SubjectTemplateSelectorLabel{}).Where("subject_template_id = ?", id).Count(&selectorCount).Error)
-	require.Equal(t, int64(1), selectorCount)
+	require.Equal(t, int64(2), selectorCount)
 	require.NoError(t, db.Model(&SubjectTemplateLabelSchemaField{}).Where("subject_template_id = ?", id).Count(&schemaCount).Error)
 	require.Equal(t, int64(1), schemaCount)
 

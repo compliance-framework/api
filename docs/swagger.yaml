@@ -9398,7 +9398,7 @@ paths:
       - application/json
       description: |-
         Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.
-        Creates, updates, and deletes templates atomically. Templates still in use are skipped.
+        Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
       parameters:
       - description: Batch upsert payload
         in: body
@@ -9421,8 +9421,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
       summary: Batch upsert risk templates
       tags:
       - Risk Templates
@@ -9431,8 +9429,8 @@ paths:
       consumes:
       - application/json
       description: |-
-        Reconcile the full set of subject templates for a plugin (scoped via selector-label key="plugin").
-        Creates, updates, and deletes templates atomically. Templates still in use are skipped.
+        Reconcile the full set of subject templates for a plugin (scoped via selector-label key="_plugin").
+        Creates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.
       parameters:
       - description: Batch upsert payload
         in: body
@@ -9455,8 +9453,6 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
       summary: Batch upsert subject templates
       tags:
       - Subject Templates
