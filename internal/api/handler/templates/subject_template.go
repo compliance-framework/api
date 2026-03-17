@@ -294,8 +294,8 @@ type batchSubjectTemplateItem struct {
 }
 
 type batchUpsertSubjectTemplatesRequest struct {
-	PluginID  string                      `json:"plugin-id"`
-	Templates *[]batchSubjectTemplateItem `json:"templates"`
+	PluginID  string                      `json:"plugin-id" validate:"required"`
+	Templates *[]batchSubjectTemplateItem `json:"templates" validate:"required"`
 }
 
 type batchUpsertSubjectTemplatesData struct {
@@ -325,6 +325,9 @@ type batchUpsertSubjectTemplatesResponse struct {
 func (h *SubjectTemplateHandler) BatchUpsert(ctx echo.Context) error {
 	var req batchUpsertSubjectTemplatesRequest
 	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if req.Templates == nil {

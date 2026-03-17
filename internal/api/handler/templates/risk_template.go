@@ -341,9 +341,9 @@ type batchRiskTemplateItem struct {
 }
 
 type batchUpsertRiskTemplatesRequest struct {
-	PluginID      string                   `json:"plugin-id"`
-	PolicyPackage string                   `json:"policy-package"`
-	Templates     *[]batchRiskTemplateItem `json:"templates"`
+	PluginID      string                   `json:"plugin-id" validate:"required"`
+	PolicyPackage string                   `json:"policy-package" validate:"required"`
+	Templates     *[]batchRiskTemplateItem `json:"templates" validate:"required"`
 }
 
 type batchUpsertRiskTemplatesData struct {
@@ -373,6 +373,9 @@ type batchUpsertRiskTemplatesResponse struct {
 func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
 	var req batchUpsertRiskTemplatesRequest
 	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := ctx.Validate(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 	if req.Templates == nil {

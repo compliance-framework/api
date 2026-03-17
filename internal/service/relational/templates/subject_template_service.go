@@ -1643,6 +1643,26 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		Unchanged: make([]uuid.UUID, 0),
 	}
 
+	// Collect IDs that need to be created (not already in this scope), then check
+	// for cross-scope collisions with a single query instead of one COUNT per item.
+	newIDs := make([]uuid.UUID, 0, len(resolved))
+	for _, r := range resolved {
+		if _, exists := existingByID[r.id]; !exists {
+			newIDs = append(newIDs, r.id)
+		}
+	}
+	if len(newIDs) > 0 {
+		var collidingIDs []uuid.UUID
+		if err := tx.Model(&SubjectTemplate{}).Where("id IN ?", newIDs).Pluck("id", &collidingIDs).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(collidingIDs) > 0 {
+			tx.Rollback()
+			return nil, newValidationError(fmt.Sprintf("id %s already exists in a different scope", collidingIDs[0]))
+		}
+	}
+
 	// Create or update.
 	for _, r := range resolved {
 		payload := batchSubjectItemToPayload(r.item)
@@ -1658,16 +1678,6 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 			}
 			result.Updated = append(result.Updated, *row)
 		} else {
-			// Guard against ID collisions with templates outside this plugin scope.
-			var count int64
-			if err := tx.Model(&SubjectTemplate{}).Where("id = ?", r.id).Count(&count).Error; err != nil {
-				tx.Rollback()
-				return nil, err
-			}
-			if count > 0 {
-				tx.Rollback()
-				return nil, newValidationError(fmt.Sprintf("id %s already exists in a different scope", r.id))
-			}
 			row, err := createSubjectTemplateInTx(tx, r.id, payload)
 			if err != nil {
 				tx.Rollback()
