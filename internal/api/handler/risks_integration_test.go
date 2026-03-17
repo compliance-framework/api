@@ -507,7 +507,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskEventsAndReviewsEndpoints() {
 	require.NotEmpty(suite.T(), eventsResp.Data[0].EventType)
 	require.False(suite.T(), eventsResp.Data[0].CreatedAt.IsZero())
 	require.False(suite.T(), eventsResp.Data[0].OccurredAt.IsZero())
-	require.False(suite.T(), eventsResp.Data[0].CreatedAt.Before(eventsResp.Data[1].CreatedAt))
+	require.False(suite.T(), eventsResp.Data[0].OccurredAt.Before(eventsResp.Data[1].OccurredAt))
 
 	reviewsRec, reviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/reviews?page=1&limit=1", created.ID), nil)
 	suite.server.E().ServeHTTP(reviewsRec, reviewsReq)
