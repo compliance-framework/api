@@ -12,7 +12,7 @@ func newBootstrapCMD() *cobra.Command {
 
 	bootstrap := &cobra.Command{
 		Use:   "bootstrap",
-		Short: "Bootstrap JWT key files",
+		Short: "Initialize JWT signing key files for API startup",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			privateKeyPath, publicKeyPath = resolveJWTKeyPathsForBootstrap(privateKeyPath, publicKeyPath)
 

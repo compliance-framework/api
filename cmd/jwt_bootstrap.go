@@ -10,8 +10,8 @@ import (
 const defaultJWTKeyBitSize = 2048
 
 func bootstrapConfiguredJWTKeys(bitSize int, force bool) (config.JWTKeyBootstrapAction, string, string, bool, error) {
-	privateKeyPath := strings.TrimSpace(viper.GetString("jwt_private_key"))
-	publicKeyPath := strings.TrimSpace(viper.GetString("jwt_public_key"))
+	privateKeyPath := normalizePathValue(viper.GetString("jwt_private_key"))
+	publicKeyPath := normalizePathValue(viper.GetString("jwt_public_key"))
 
 	if privateKeyPath == "" || publicKeyPath == "" {
 		return "", "", "", false, nil
@@ -26,14 +26,14 @@ func bootstrapConfiguredJWTKeys(bitSize int, force bool) (config.JWTKeyBootstrap
 }
 
 func resolveJWTKeyPathsForBootstrap(privateKeyPath, publicKeyPath string) (string, string) {
-	privateKeyPath = strings.TrimSpace(privateKeyPath)
-	publicKeyPath = strings.TrimSpace(publicKeyPath)
+	privateKeyPath = normalizePathValue(privateKeyPath)
+	publicKeyPath = normalizePathValue(publicKeyPath)
 
 	if privateKeyPath == "" {
-		privateKeyPath = strings.TrimSpace(viper.GetString("jwt_private_key"))
+		privateKeyPath = normalizePathValue(viper.GetString("jwt_private_key"))
 	}
 	if publicKeyPath == "" {
-		publicKeyPath = strings.TrimSpace(viper.GetString("jwt_public_key"))
+		publicKeyPath = normalizePathValue(viper.GetString("jwt_public_key"))
 	}
 
 	if privateKeyPath == "" {
@@ -48,4 +48,14 @@ func resolveJWTKeyPathsForBootstrap(privateKeyPath, publicKeyPath string) (strin
 
 func runJWTBootstrap(privateKeyPath, publicKeyPath string, bitSize int, force bool) (config.JWTKeyBootstrapAction, error) {
 	return config.BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, bitSize, force)
+}
+
+func normalizePathValue(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 {
+		if (value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'') {
+			value = value[1 : len(value)-1]
+		}
+	}
+	return strings.TrimSpace(value)
 }
