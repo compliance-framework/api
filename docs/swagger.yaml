@@ -7301,6 +7301,10 @@ definitions:
         items:
           $ref: '#/definitions/templates.batchRiskTemplateItem'
         type: array
+    required:
+    - plugin-id
+    - policy-package
+    - templates
     type: object
   templates.batchUpsertRiskTemplatesResponse:
     properties:
@@ -7334,6 +7338,9 @@ definitions:
         items:
           $ref: '#/definitions/templates.batchSubjectTemplateItem'
         type: array
+    required:
+    - plugin-id
+    - templates
     type: object
   templates.batchUpsertSubjectTemplatesResponse:
     properties:

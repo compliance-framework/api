@@ -35502,6 +35502,11 @@
         },
         "templates.batchUpsertRiskTemplatesRequest": {
             "type": "object",
+            "required": [
+                "plugin-id",
+                "policy-package",
+                "templates"
+            ],
             "properties": {
                 "plugin-id": {
                     "type": "string"
@@ -35556,6 +35561,10 @@
         },
         "templates.batchUpsertSubjectTemplatesRequest": {
             "type": "object",
+            "required": [
+                "plugin-id",
+                "templates"
+            ],
             "properties": {
                 "plugin-id": {
                     "type": "string"
