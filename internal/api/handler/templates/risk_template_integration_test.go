@@ -605,3 +605,193 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateUnauthenticatedReq
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }
+
+// batchRiskTemplateResult is the JSON shape returned by POST /api/agent/risk-templates/batch.
+type batchRiskTemplateResult struct {
+	Data struct {
+		Created   []riskTemplateResponse `json:"created"`
+		Updated   []riskTemplateResponse `json:"updated"`
+		Deleted   []uuid.UUID            `json:"deleted"`
+		Unchanged []uuid.UUID            `json:"unchanged"`
+	} `json:"data"`
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertCreateAndUpdate() {
+	// Step 1 — batch creates two templates. Both IDs are supplied by the caller.
+	firstID := uuid.New()
+	secondID := uuid.New()
+	batchReq := map[string]any{
+		"plugin-id":      "batch-plugin",
+		"policy-package": "compliance_framework.batch_test",
+		"templates": []map[string]any{
+			{
+				"id":        firstID.String(),
+				"name":      "Batch template one",
+				"title":     "Batch title one",
+				"statement": "Batch statement one",
+				"is-active": true,
+			},
+			{
+				"id":        secondID.String(),
+				"name":      "Batch template two",
+				"title":     "Batch title two",
+				"statement": "Batch statement two",
+			},
+		},
+	}
+
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", batchReq)
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code)
+
+	var result1 batchRiskTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result1))
+	require.Len(suite.T(), result1.Data.Created, 2)
+	require.Empty(suite.T(), result1.Data.Updated)
+	require.Empty(suite.T(), result1.Data.Deleted)
+	require.Empty(suite.T(), result1.Data.Unchanged)
+
+	// Confirm both explicit IDs were honoured.
+	var foundFirst, foundSecond bool
+	for _, row := range result1.Data.Created {
+		if row.ID == firstID {
+			foundFirst = true
+			require.Equal(suite.T(), "Batch template one", row.Name)
+		}
+		if row.ID == secondID {
+			foundSecond = true
+		}
+	}
+	require.True(suite.T(), foundFirst, "first template should be in created list")
+	require.True(suite.T(), foundSecond, "second template should be in created list")
+
+	// Step 2 — update first template, drop second (should be deleted), add a third.
+	thirdID := uuid.New()
+	batchReq2 := map[string]any{
+		"plugin-id":      "batch-plugin",
+		"policy-package": "compliance_framework.batch_test",
+		"templates": []map[string]any{
+			{
+				"id":        firstID.String(),
+				"name":      "Batch template one updated",
+				"title":     "Batch title one updated",
+				"statement": "Batch statement one updated",
+				"threat-ids": []map[string]any{
+					{
+						"system": "https://cwe.mitre.org",
+						"id":     "CWE-312",
+						"title":  "Cleartext Storage",
+					},
+				},
+			},
+			{
+				"id":        thirdID.String(),
+				"name":      "Batch template three",
+				"title":     "Batch title three",
+				"statement": "Batch statement three",
+			},
+		},
+	}
+
+	rec2, req2 := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", batchReq2)
+	suite.server.E().ServeHTTP(rec2, req2)
+	require.Equal(suite.T(), http.StatusOK, rec2.Code)
+
+	var result2 batchRiskTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec2.Body.Bytes(), &result2))
+	require.Len(suite.T(), result2.Data.Updated, 1, "first template should be updated")
+	require.Len(suite.T(), result2.Data.Created, 1, "third template should be created")
+	require.Len(suite.T(), result2.Data.Deleted, 1, "second template should be deleted")
+	require.Equal(suite.T(), secondID, result2.Data.Deleted[0])
+	require.Empty(suite.T(), result2.Data.Unchanged)
+
+	require.Equal(suite.T(), firstID, result2.Data.Updated[0].ID)
+	require.Equal(suite.T(), "Batch template one updated", result2.Data.Updated[0].Name)
+	require.Len(suite.T(), result2.Data.Updated[0].ThreatIDs, 1)
+
+	// Step 3 — confirm second template is gone from DB.
+	var count int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplate{}).Where("id = ?", secondID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertEmptyPayloadDeletesAll() {
+	// Seed two templates.
+	for _, name := range []string{"Delete me one", "Delete me two"} {
+		r, c := suite.authedRequest(http.MethodPost, "/api/admin/risk-templates", map[string]any{
+			"plugin-id":      "batch-delete-plugin",
+			"policy-package": "compliance_framework.delete_test",
+			"name":           name,
+			"title":          name,
+			"statement":      name + " statement",
+		})
+		suite.server.E().ServeHTTP(r, c)
+		require.Equal(suite.T(), http.StatusCreated, r.Code)
+	}
+
+	// Send empty template list — both should be deleted.
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+		"plugin-id":      "batch-delete-plugin",
+		"policy-package": "compliance_framework.delete_test",
+		"templates":      []map[string]any{},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code)
+
+	var result batchRiskTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result))
+	require.Empty(suite.T(), result.Data.Created)
+	require.Empty(suite.T(), result.Data.Updated)
+	require.Len(suite.T(), result.Data.Deleted, 2)
+	require.Empty(suite.T(), result.Data.Unchanged)
+
+	var remaining int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplate{}).
+		Where("plugin_id = ? AND policy_package = ?", "batch-delete-plugin", "compliance_framework.delete_test").
+		Count(&remaining).Error)
+	require.Equal(suite.T(), int64(0), remaining)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertMissingIDReturns400() {
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+		"plugin-id":      "batch-plugin",
+		"policy-package": "compliance_framework.batch_test",
+		"templates": []map[string]any{
+			{
+				"name":      "Missing ID template",
+				"title":     "Title",
+				"statement": "Statement",
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
+	require.Contains(suite.T(), rec.Body.String(), "id is required")
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertValidationError() {
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+		"plugin-id":      "batch-plugin",
+		"policy-package": "compliance_framework.batch_test",
+		"templates": []map[string]any{
+			{
+				"id":        uuid.New().String(),
+				"name":      "",
+				"title":     "Missing name",
+				"statement": "Statement",
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertIsPublic() {
+	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+		"plugin-id":      "batch-plugin",
+		"policy-package": "compliance_framework.batch_test",
+		"templates":      []map[string]any{},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code)
+}

@@ -473,6 +473,38 @@ func (s *RiskService) EnsureSSPExists(sspID uuid.UUID) error {
 	return s.db.Select("id").First(&ssp, "id = ?", sspID).Error
 }
 
+func (s *RiskService) ListEvents(riskID uuid.UUID, limit, offset int) ([]RiskEvent, int64, error) {
+	q := s.db.Model(&RiskEvent{}).Where("risk_id = ?", riskID)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var events []RiskEvent
+	if err := q.Order("occurred_at desc, created_at desc, id desc").Limit(limit).Offset(offset).Find(&events).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return events, total, nil
+}
+
+func (s *RiskService) ListReviews(riskID uuid.UUID, limit, offset int) ([]RiskReview, int64, error) {
+	q := s.db.Model(&RiskReview{}).Where("risk_id = ?", riskID)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var reviews []RiskReview
+	if err := q.Order("reviewed_at desc, created_at desc, id desc").Limit(limit).Offset(offset).Find(&reviews).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return reviews, total, nil
+}
+
 func (s *RiskService) ListEvidenceLinks(riskID uuid.UUID, limit, offset int) ([]uuid.UUID, int64, error) {
 	q := s.db.Model(&RiskEvidenceLink{}).Where("risk_id = ?", riskID)
 

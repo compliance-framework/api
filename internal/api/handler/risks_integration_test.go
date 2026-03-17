@@ -456,6 +456,186 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskAcceptAndReviewEndpoints(
 	require.Equal(suite.T(), http.StatusNotFound, notFoundReviewRec.Code)
 }
 
+func (suite *RiskApiIntegrationSuite) TestRiskEventsAndReviewsEndpoints() {
+	created := suite.createRisk(map[string]any{
+		"title":       "History endpoints risk",
+		"description": "events and reviews endpoint coverage",
+		"ssp-id":      suite.newSSPID(),
+		"status":      "investigating",
+	})
+
+	acceptDeadline := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
+	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
+		"justification":   "accepted for temporary period",
+		"review-deadline": acceptDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(acceptRec, acceptReq)
+	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
+
+	extendDeadline := time.Now().Add(21 * 24 * time.Hour).UTC().Truncate(time.Second)
+	reviewExtendRec, reviewExtendReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"decision":             "extend",
+		"notes":                "controls partially implemented",
+		"next-review-deadline": extendDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reviewExtendRec, reviewExtendReq)
+	require.Equal(suite.T(), http.StatusOK, reviewExtendRec.Code)
+
+	reviewReopenRec, reviewReopenReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+		"decision": "reopen",
+		"notes":    "further mitigation required",
+	})
+	suite.server.E().ServeHTTP(reviewReopenRec, reviewReopenReq)
+	require.Equal(suite.T(), http.StatusOK, reviewReopenRec.Code)
+
+	eventsRec, eventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/events?page=1&limit=2", created.ID), nil)
+	suite.server.E().ServeHTTP(eventsRec, eventsReq)
+	require.Equal(suite.T(), http.StatusOK, eventsRec.Code)
+	var eventsResp struct {
+		Data       []riskrel.RiskEvent `json:"data"`
+		Total      int64               `json:"total"`
+		Page       int                 `json:"page"`
+		Limit      int                 `json:"limit"`
+		TotalPages int                 `json:"totalPages"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(eventsRec.Body.Bytes(), &eventsResp))
+	require.Len(suite.T(), eventsResp.Data, 2)
+	require.GreaterOrEqual(suite.T(), eventsResp.Total, int64(5))
+	require.Equal(suite.T(), 1, eventsResp.Page)
+	require.Equal(suite.T(), 2, eventsResp.Limit)
+	require.GreaterOrEqual(suite.T(), eventsResp.TotalPages, 3)
+	require.NotEmpty(suite.T(), eventsResp.Data[0].EventType)
+	require.False(suite.T(), eventsResp.Data[0].CreatedAt.IsZero())
+	require.False(suite.T(), eventsResp.Data[0].OccurredAt.IsZero())
+	require.False(suite.T(), eventsResp.Data[0].OccurredAt.Before(eventsResp.Data[1].OccurredAt))
+
+	reviewsRec, reviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/reviews?page=1&limit=1", created.ID), nil)
+	suite.server.E().ServeHTTP(reviewsRec, reviewsReq)
+	require.Equal(suite.T(), http.StatusOK, reviewsRec.Code)
+	var reviewsResp struct {
+		Data       []riskrel.RiskReview `json:"data"`
+		Total      int64                `json:"total"`
+		Page       int                  `json:"page"`
+		Limit      int                  `json:"limit"`
+		TotalPages int                  `json:"totalPages"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(reviewsRec.Body.Bytes(), &reviewsResp))
+	require.Len(suite.T(), reviewsResp.Data, 1)
+	require.Equal(suite.T(), int64(2), reviewsResp.Total)
+	require.Equal(suite.T(), 1, reviewsResp.Page)
+	require.Equal(suite.T(), 1, reviewsResp.Limit)
+	require.Equal(suite.T(), 2, reviewsResp.TotalPages)
+	require.NotEmpty(suite.T(), reviewsResp.Data[0].Decision)
+	require.False(suite.T(), reviewsResp.Data[0].CreatedAt.IsZero())
+	require.False(suite.T(), reviewsResp.Data[0].ReviewedAt.IsZero())
+
+	missingRiskID := uuid.New()
+	missingEventsRec, missingEventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/events?page=1&limit=20", missingRiskID), nil)
+	suite.server.E().ServeHTTP(missingEventsRec, missingEventsReq)
+	require.Equal(suite.T(), http.StatusNotFound, missingEventsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(missingEventsRec.Body.String()), "risk not found")
+
+	missingReviewsRec, missingReviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/reviews?page=1&limit=20", missingRiskID), nil)
+	suite.server.E().ServeHTTP(missingReviewsRec, missingReviewsReq)
+	require.Equal(suite.T(), http.StatusNotFound, missingReviewsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(missingReviewsRec.Body.String()), "risk not found")
+
+	emptyRiskID := uuid.New()
+	require.NoError(suite.T(), suite.DB.Create(&riskrel.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &emptyRiskID},
+		Title:       "no history rows",
+		Description: "manually inserted risk for empty history assertions",
+		Status:      string(riskrel.RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(riskrel.RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	emptyEventsRec, emptyEventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/events?page=1&limit=20", emptyRiskID), nil)
+	suite.server.E().ServeHTTP(emptyEventsRec, emptyEventsReq)
+	require.Equal(suite.T(), http.StatusOK, emptyEventsRec.Code)
+	var emptyEventsResp struct {
+		Data  []riskrel.RiskEvent `json:"data"`
+		Total int64               `json:"total"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(emptyEventsRec.Body.Bytes(), &emptyEventsResp))
+	require.Len(suite.T(), emptyEventsResp.Data, 0)
+	require.Equal(suite.T(), int64(0), emptyEventsResp.Total)
+
+	emptyReviewsRec, emptyReviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/reviews?page=1&limit=20", emptyRiskID), nil)
+	suite.server.E().ServeHTTP(emptyReviewsRec, emptyReviewsReq)
+	require.Equal(suite.T(), http.StatusOK, emptyReviewsRec.Code)
+	var emptyReviewsResp struct {
+		Data  []riskrel.RiskReview `json:"data"`
+		Total int64                `json:"total"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(emptyReviewsRec.Body.Bytes(), &emptyReviewsResp))
+	require.Len(suite.T(), emptyReviewsResp.Data, 0)
+	require.Equal(suite.T(), int64(0), emptyReviewsResp.Total)
+}
+
+func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskEventsAndReviewsEndpoints() {
+	sspID := suite.newSSPID()
+	otherSSPID := suite.newSSPID()
+
+	createRec, createReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks", sspID), map[string]any{
+		"title":       "Scoped history risk",
+		"description": "history endpoints scoped coverage",
+		"status":      "investigating",
+	})
+	suite.server.E().ServeHTTP(createRec, createReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+
+	acceptDeadline := time.Now().Add(10 * 24 * time.Hour).UTC().Truncate(time.Second)
+	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/accept", sspID, created.Data.ID), map[string]any{
+		"justification":   "accepted in scoped context",
+		"review-deadline": acceptDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(acceptRec, acceptReq)
+	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
+
+	nextDeadline := time.Now().Add(35 * 24 * time.Hour).UTC().Truncate(time.Second)
+	reviewRec, reviewReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/review", sspID, created.Data.ID), map[string]any{
+		"decision":             "extend",
+		"notes":                "scoped review",
+		"next-review-deadline": nextDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(reviewRec, reviewReq)
+	require.Equal(suite.T(), http.StatusOK, reviewRec.Code)
+
+	eventsRec, eventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/events?page=1&limit=20", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(eventsRec, eventsReq)
+	require.Equal(suite.T(), http.StatusOK, eventsRec.Code)
+	var eventsResp struct {
+		Data []riskrel.RiskEvent `json:"data"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(eventsRec.Body.Bytes(), &eventsResp))
+	require.NotEmpty(suite.T(), eventsResp.Data)
+
+	reviewsRec, reviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/reviews?page=1&limit=20", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(reviewsRec, reviewsReq)
+	require.Equal(suite.T(), http.StatusOK, reviewsRec.Code)
+	var reviewsResp struct {
+		Data []riskrel.RiskReview `json:"data"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(reviewsRec.Body.Bytes(), &reviewsResp))
+	require.NotEmpty(suite.T(), reviewsResp.Data)
+
+	notFoundEventsRec, notFoundEventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/events?page=1&limit=20", otherSSPID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(notFoundEventsRec, notFoundEventsReq)
+	require.Equal(suite.T(), http.StatusNotFound, notFoundEventsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(notFoundEventsRec.Body.String()), "risk not found")
+
+	notFoundReviewsRec, notFoundReviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/reviews?page=1&limit=20", otherSSPID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(notFoundReviewsRec, notFoundReviewsReq)
+	require.Equal(suite.T(), http.StatusNotFound, notFoundReviewsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(notFoundReviewsRec.Body.String()), "risk not found")
+}
+
 func (suite *RiskApiIntegrationSuite) TestEvidenceLinksAreIdempotent() {
 	evidence := relational.Evidence{
 		UUID:        uuid.New(),

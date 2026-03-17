@@ -1227,6 +1227,98 @@ const docTemplate = `{
                 }
             }
         },
+        "/agent/risk-templates/batch": {
+            "post": {
+                "description": "Reconcile the full set of risk templates for a (plugin-id, policy-package) scope.\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risk Templates"
+                ],
+                "summary": "Batch upsert risk templates",
+                "parameters": [
+                    {
+                        "description": "Batch upsert payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertRiskTemplatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertRiskTemplatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/subject-templates/batch": {
+            "post": {
+                "description": "Reconcile the full set of subject templates for a plugin (scoped via selector-label key=\"_plugin\").\nCreates, updates, and deletes templates atomically. Templates not present in the payload are always deleted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subject Templates"
+                ],
+                "summary": "Batch upsert subject templates",
+                "parameters": [
+                    {
+                        "description": "Batch upsert payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertSubjectTemplatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/templates.batchUpsertSubjectTemplatesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/forgot-password": {
             "post": {
                 "description": "Sends a password reset email to users with authMethod=password",
@@ -18582,6 +18674,77 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/events": {
+            "get": {
+                "description": "Lists events for a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk events for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-risks_RiskEvent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{sspId}/risks/{id}/evidence": {
             "get": {
                 "description": "Lists evidence IDs linked to a risk scoped to an SSP.",
@@ -18825,6 +18988,77 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/reviews": {
+            "get": {
+                "description": "Lists risk reviews (audit trail) for a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk audit trail for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-risks_RiskReview"
                         }
                     },
                     "400": {
@@ -20796,6 +21030,70 @@ const docTemplate = `{
                 ]
             }
         },
+        "/risks/{id}/events": {
+            "get": {
+                "description": "Lists events for a risk.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-risks_RiskEvent"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/risks/{id}/evidence": {
             "get": {
                 "description": "Lists evidence IDs linked to a risk.",
@@ -21011,6 +21309,70 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.GenericDataResponse-handler_riskResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/risks/{id}/reviews": {
+            "get": {
+                "description": "Lists risk reviews (audit trail) for a risk.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk audit trail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.ListResponse-risks_RiskReview"
                         }
                     },
                     "400": {
@@ -24317,6 +24679,10 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "datatypes.JSONMap": {
+            "type": "object",
+            "additionalProperties": true
         },
         "datatypes.JSONType-labelfilter_Filter": {
             "type": "object"
@@ -35066,6 +35432,35 @@ const docTemplate = `{
                 }
             }
         },
+        "risks.RiskEvent": {
+            "type": "object",
+            "properties": {
+                "actorUserId": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "eventType": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "occurredAt": {
+                    "type": "string"
+                },
+                "payload": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                },
+                "riskId": {
+                    "type": "string"
+                },
+                "riskSnapshot": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
+                }
+            }
+        },
         "risks.RiskEvidenceLink": {
             "type": "object",
             "properties": {
@@ -35081,6 +35476,38 @@ const docTemplate = `{
                 },
                 "riskId": {
                     "type": "string"
+                }
+            }
+        },
+        "risks.RiskReview": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "decision": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nextReviewDeadline": {
+                    "type": "string"
+                },
+                "reviewJustification": {
+                    "type": "string"
+                },
+                "reviewedAt": {
+                    "type": "string"
+                },
+                "reviewedByUserId": {
+                    "type": "string"
+                },
+                "riskId": {
+                    "type": "string"
+                },
+                "riskSnapshot": {
+                    "$ref": "#/definitions/datatypes.JSONMap"
                 }
             }
         },
@@ -35154,6 +35581,52 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/risks.RiskControlLink"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-risks_RiskEvent": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/risks.RiskEvent"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-risks_RiskReview": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/risks.RiskReview"
                     }
                 },
                 "limit": {
@@ -35282,6 +35755,218 @@ const docTemplate = `{
                 },
                 "totalPages": {
                     "type": "integer"
+                }
+            }
+        },
+        "templates.batchRiskTemplateItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "impact-hint": {
+                    "type": "string"
+                },
+                "is-active": {
+                    "type": "boolean"
+                },
+                "likelihood-hint": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "remediation-template": {
+                    "$ref": "#/definitions/templates.remediationTemplateRequest"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.threatIDRequest"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "violation-ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "templates.batchSubjectTemplateItem": {
+            "type": "object",
+            "properties": {
+                "description-template": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "identity-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateLabelSchemaFieldRequest"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Link"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Prop"
+                    }
+                },
+                "purpose-template": {
+                    "type": "string"
+                },
+                "remarks-template": {
+                    "type": "string"
+                },
+                "selector-labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateSelectorLabelRequest"
+                    }
+                },
+                "source-mode": {
+                    "type": "string"
+                },
+                "title-template": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.batchUpsertRiskTemplatesData": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.riskTemplateResponse"
+                    }
+                },
+                "deleted": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unchanged": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.riskTemplateResponse"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertRiskTemplatesRequest": {
+            "type": "object",
+            "required": [
+                "plugin-id",
+                "policy-package"
+            ],
+            "properties": {
+                "plugin-id": {
+                    "type": "string"
+                },
+                "policy-package": {
+                    "type": "string"
+                },
+                "templates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.batchRiskTemplateItem"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertRiskTemplatesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.batchUpsertRiskTemplatesData"
+                }
+            }
+        },
+        "templates.batchUpsertSubjectTemplatesData": {
+            "type": "object",
+            "properties": {
+                "created": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateResponse"
+                    }
+                },
+                "deleted": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unchanged": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.subjectTemplateResponse"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertSubjectTemplatesRequest": {
+            "type": "object",
+            "required": [
+                "plugin-id"
+            ],
+            "properties": {
+                "plugin-id": {
+                    "type": "string"
+                },
+                "templates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.batchSubjectTemplateItem"
+                    }
+                }
+            }
+        },
+        "templates.batchUpsertSubjectTemplatesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/templates.batchUpsertSubjectTemplatesData"
                 }
             }
         },

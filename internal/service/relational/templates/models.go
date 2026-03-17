@@ -25,7 +25,7 @@ type RiskTemplate struct {
 	RemediationTemplate   *RemediationTemplate `json:"remediationTemplate,omitempty" gorm:"foreignKey:RemediationTemplateID;references:ID"`
 
 	ViolationIDs datatypes.JSONSlice[string] `json:"violationIds" gorm:"type:jsonb"`
-	IsActive     bool                        `json:"isActive" gorm:"not null;default:true;index"`
+	IsActive     bool                        `json:"isActive" gorm:"not null;default:false;index"`
 
 	ThreatRefs []RiskTemplateThreatRef `json:"threatRefs,omitempty" gorm:"foreignKey:RiskTemplateID;constraint:OnDelete:CASCADE"`
 }
