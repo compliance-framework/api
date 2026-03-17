@@ -533,10 +533,12 @@ func (suite *RiskApiIntegrationSuite) TestRiskEventsAndReviewsEndpoints() {
 	missingEventsRec, missingEventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/events?page=1&limit=20", missingRiskID), nil)
 	suite.server.E().ServeHTTP(missingEventsRec, missingEventsReq)
 	require.Equal(suite.T(), http.StatusNotFound, missingEventsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(missingEventsRec.Body.String()), "risk not found")
 
 	missingReviewsRec, missingReviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/reviews?page=1&limit=20", missingRiskID), nil)
 	suite.server.E().ServeHTTP(missingReviewsRec, missingReviewsReq)
 	require.Equal(suite.T(), http.StatusNotFound, missingReviewsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(missingReviewsRec.Body.String()), "risk not found")
 
 	emptyRiskID := uuid.New()
 	require.NoError(suite.T(), suite.DB.Create(&riskrel.Risk{
@@ -626,10 +628,12 @@ func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskEventsAndReviewsEndpoints
 	notFoundEventsRec, notFoundEventsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/events?page=1&limit=20", otherSSPID, created.Data.ID), nil)
 	suite.server.E().ServeHTTP(notFoundEventsRec, notFoundEventsReq)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundEventsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(notFoundEventsRec.Body.String()), "risk not found")
 
 	notFoundReviewsRec, notFoundReviewsReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/reviews?page=1&limit=20", otherSSPID, created.Data.ID), nil)
 	suite.server.E().ServeHTTP(notFoundReviewsRec, notFoundReviewsReq)
 	require.Equal(suite.T(), http.StatusNotFound, notFoundReviewsRec.Code)
+	require.Contains(suite.T(), strings.ToLower(notFoundReviewsRec.Body.String()), "risk not found")
 }
 
 func (suite *RiskApiIntegrationSuite) TestEvidenceLinksAreIdempotent() {

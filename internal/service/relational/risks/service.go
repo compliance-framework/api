@@ -482,7 +482,7 @@ func (s *RiskService) ListEvents(riskID uuid.UUID, limit, offset int) ([]RiskEve
 	}
 
 	var events []RiskEvent
-	if err := q.Order("created_at desc, id desc").Limit(limit).Offset(offset).Find(&events).Error; err != nil {
+	if err := q.Order("occurred_at desc, created_at desc, id desc").Limit(limit).Offset(offset).Find(&events).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -498,7 +498,7 @@ func (s *RiskService) ListReviews(riskID uuid.UUID, limit, offset int) ([]RiskRe
 	}
 
 	var reviews []RiskReview
-	if err := q.Order("created_at desc, id desc").Limit(limit).Offset(offset).Find(&reviews).Error; err != nil {
+	if err := q.Order("reviewed_at desc, created_at desc, id desc").Limit(limit).Offset(offset).Find(&reviews).Error; err != nil {
 		return nil, 0, err
 	}
 

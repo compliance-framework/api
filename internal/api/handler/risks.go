@@ -1887,7 +1887,7 @@ func (h *RiskHandler) withRiskListContext(ctx echo.Context, fn func(riskID uuid.
 	}
 	if err := h.ensureRiskExists(riskID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
 		}
 		return h.internalServerError(ctx, "failed to validate risk", err)
 	}

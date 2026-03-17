@@ -292,14 +292,14 @@ func TestRiskServiceListEventsAndReviews(t *testing.T) {
 		EventType:   string(RiskEventTypeCreated),
 		ActorUserID: &actorID,
 		OccurredAt:  olderEventTime,
-		CreatedAt:   olderEventTime,
+		CreatedAt:   time.Now().UTC().Add(-10 * time.Minute),
 	}).Error)
 	require.NoError(t, db.Create(&RiskEvent{
 		RiskID:      riskID,
 		EventType:   string(RiskEventTypeReviewed),
 		ActorUserID: &actorID,
 		OccurredAt:  newerEventTime,
-		CreatedAt:   newerEventTime,
+		CreatedAt:   time.Now().UTC().Add(-3 * time.Hour),
 	}).Error)
 
 	require.NoError(t, db.Create(&RiskReview{
@@ -307,27 +307,31 @@ func TestRiskServiceListEventsAndReviews(t *testing.T) {
 		ReviewedByUserID: &actorID,
 		ReviewedAt:       olderReviewTime,
 		Decision:         string(RiskReviewDecisionExtend),
-		CreatedAt:        olderReviewTime,
+		CreatedAt:        time.Now().UTC().Add(-5 * time.Minute),
 	}).Error)
 	require.NoError(t, db.Create(&RiskReview{
 		RiskID:           riskID,
 		ReviewedByUserID: &actorID,
 		ReviewedAt:       newerReviewTime,
 		Decision:         string(RiskReviewDecisionReopen),
-		CreatedAt:        newerReviewTime,
+		CreatedAt:        time.Now().UTC().Add(-4 * time.Hour),
 	}).Error)
 
 	events, eventTotal, err := svc.ListEvents(riskID, 10, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), eventTotal)
 	require.Len(t, events, 2)
-	require.True(t, events[0].CreatedAt.After(events[1].CreatedAt) || events[0].CreatedAt.Equal(events[1].CreatedAt))
+	require.Equal(t, string(RiskEventTypeReviewed), events[0].EventType)
+	require.Equal(t, string(RiskEventTypeCreated), events[1].EventType)
+	require.True(t, events[0].OccurredAt.After(events[1].OccurredAt))
 
 	reviews, reviewTotal, err := svc.ListReviews(riskID, 10, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), reviewTotal)
 	require.Len(t, reviews, 2)
-	require.True(t, reviews[0].CreatedAt.After(reviews[1].CreatedAt) || reviews[0].CreatedAt.Equal(reviews[1].CreatedAt))
+	require.Equal(t, string(RiskReviewDecisionReopen), reviews[0].Decision)
+	require.Equal(t, string(RiskReviewDecisionExtend), reviews[1].Decision)
+	require.True(t, reviews[0].ReviewedAt.After(reviews[1].ReviewedAt))
 
 	pagedEvents, pagedEventTotal, err := svc.ListEvents(riskID, 1, 0)
 	require.NoError(t, err)
