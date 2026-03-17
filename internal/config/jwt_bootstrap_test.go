@@ -179,3 +179,42 @@ func TestBootstrapJWTKeyPair_ConcurrentCallsUseConsistentKeyPair(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, rsaPublicKeysEqual(&privateKey.PublicKey, publicKey))
 }
+
+func TestBootstrapJWTKeyPair_RollsBackPrivateKeyWhenPublicWriteFailsOnRegenerate(t *testing.T) {
+	privateKeyPath := filepath.Join(t.TempDir(), "private.pem")
+	publicKeyPath := filepath.Join(filepath.Dir(privateKeyPath), "public.pem")
+
+	_, err := BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, false)
+	require.NoError(t, err)
+
+	originalPrivateData, err := os.ReadFile(privateKeyPath)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Remove(publicKeyPath))
+	require.NoError(t, os.Symlink(filepath.Join(filepath.Dir(privateKeyPath), "public-target.pem"), publicKeyPath))
+
+	action, err := BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, true)
+	require.Error(t, err)
+	assert.Empty(t, action)
+	assert.Contains(t, err.Error(), "failed to write public key")
+
+	restoredPrivateData, err := os.ReadFile(privateKeyPath)
+	require.NoError(t, err)
+	assert.Equal(t, originalPrivateData, restoredPrivateData)
+}
+
+func TestBootstrapJWTKeyPair_RemovesNewPrivateKeyWhenPublicWriteFailsOnCreate(t *testing.T) {
+	privateKeyPath := filepath.Join(t.TempDir(), "private.pem")
+	publicKeyPath := filepath.Join(filepath.Dir(privateKeyPath), "public.pem")
+
+	require.NoError(t, os.Symlink(filepath.Join(filepath.Dir(privateKeyPath), "public-target.pem"), publicKeyPath))
+
+	action, err := BootstrapJWTKeyPair(privateKeyPath, publicKeyPath, minimumJWTKeyBitSize, true)
+	require.Error(t, err)
+	assert.Empty(t, action)
+	assert.Contains(t, err.Error(), "failed to write public key")
+
+	_, statErr := os.Stat(privateKeyPath)
+	require.Error(t, statErr)
+	assert.True(t, os.IsNotExist(statErr))
+}

@@ -26,6 +26,12 @@ const (
 
 type JWTKeyBootstrapAction string
 
+type fileBackup struct {
+	exists bool
+	data   []byte
+	mode   os.FileMode
+}
+
 // BootstrapJWTKeyPair ensures a matching JWT RSA keypair exists at the given paths.
 //
 // Behavior:
@@ -99,12 +105,20 @@ func BootstrapJWTKeyPair(privateKeyPath, publicKeyPath string, bitSize int, forc
 			return "", err
 		}
 
+		privateBackup, err := backupExistingFile(privateKeyPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to backup existing private key %s: %w", privateKeyPath, err)
+		}
+
 		if err := writeRSAPrivateKey(privateKeyPath, privateKey); err != nil {
 			return "", err
 		}
 
 		if err := writeRSAPublicKey(publicKeyPath, publicKey); err != nil {
-			return "", err
+			if rollbackErr := restoreOrRemoveFile(privateKeyPath, privateBackup); rollbackErr != nil {
+				return "", fmt.Errorf("failed to write public key: %w (private key rollback failed: %v)", err, rollbackErr)
+			}
+			return "", fmt.Errorf("failed to write public key: %w", err)
 		}
 
 		if privateExists || publicExists {
@@ -151,7 +165,7 @@ func acquireJWTBootstrapLock(lockPath string, timeout time.Duration) (func(), er
 	for {
 		lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err == nil {
-			if _, writeErr := lockFile.WriteString(fmt.Sprintf("pid=%d time=%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano))); writeErr != nil {
+			if _, writeErr := fmt.Fprintf(lockFile, "pid=%d time=%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano)); writeErr != nil {
 				_ = lockFile.Close()
 				_ = os.Remove(lockPath)
 				return nil, fmt.Errorf("failed to initialize bootstrap lock %s: %w", lockPath, writeErr)
@@ -217,6 +231,39 @@ func fileExists(path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+func backupExistingFile(path string) (fileBackup, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fileBackup{exists: false}, nil
+		}
+		return fileBackup{}, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fileBackup{}, err
+	}
+
+	return fileBackup{
+		exists: true,
+		data:   data,
+		mode:   fileInfo.Mode().Perm(),
+	}, nil
+}
+
+func restoreOrRemoveFile(path string, backup fileBackup) error {
+	if !backup.exists {
+		err := os.Remove(path)
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	return writePEMAtomically(path, backup.data, backup.mode)
 }
 
 func writeRSAPrivateKey(path string, key *rsa.PrivateKey) error {
@@ -358,7 +405,7 @@ func writePEMAtomically(path string, data []byte, mode os.FileMode) error {
 		return fmt.Errorf("unable to atomically write key file %s: %w", path, err)
 	}
 
-	fileInfo, err := os.Stat(path)
+	fileInfo, err := os.Lstat(path)
 	if err != nil {
 		return fmt.Errorf("unable to stat key file %s after write: %w", path, err)
 	}
