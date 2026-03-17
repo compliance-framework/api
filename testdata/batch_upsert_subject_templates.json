@@ -10,7 +10,7 @@
       "description-template": "A GitHub repository owned by {{ .github_org }}.",
       "identity-label-keys": ["github_org", "repo_name"],
       "selector-labels": [
-        { "key": "plugin", "value": "my-plugin" },
+        { "key": "_plugin", "value": "my-plugin" },
         { "key": "asset_type", "value": "github_repository" }
       ],
       "label-schema": [
@@ -28,7 +28,7 @@
       "description-template": "An AWS S3 bucket in account {{ .aws_account_id }}.",
       "identity-label-keys": ["aws_account_id", "bucket_name"],
       "selector-labels": [
-        { "key": "plugin", "value": "my-plugin" },
+        { "key": "_plugin", "value": "my-plugin" },
         { "key": "asset_type", "value": "aws_s3_bucket" }
       ],
       "label-schema": [
@@ -46,7 +46,7 @@
       "description-template": "Kubernetes namespace {{ .namespace }} on cluster {{ .cluster }}.",
       "identity-label-keys": ["cluster", "namespace"],
       "selector-labels": [
-        { "key": "plugin", "value": "my-plugin" },
+        { "key": "_plugin", "value": "my-plugin" },
         { "key": "asset_type", "value": "k8s_namespace" }
       ],
       "label-schema": [
@@ -63,7 +63,7 @@
       "description-template": "Azure Storage Account {{ .account_name }} in subscription {{ .subscription_id }}.",
       "identity-label-keys": ["subscription_id", "account_name"],
       "selector-labels": [
-        { "key": "plugin", "value": "my-plugin" },
+        { "key": "_plugin", "value": "my-plugin" },
         { "key": "asset_type", "value": "azure_storage_account" }
       ],
       "label-schema": [
@@ -81,7 +81,7 @@
       "description-template": "A Google Cloud Storage bucket in project {{ .gcp_project }}.",
       "identity-label-keys": ["gcp_project", "bucket_name"],
       "selector-labels": [
-        { "key": "plugin", "value": "my-plugin" },
+        { "key": "_plugin", "value": "my-plugin" },
         { "key": "asset_type", "value": "gcp_gcs_bucket" }
       ],
       "label-schema": [

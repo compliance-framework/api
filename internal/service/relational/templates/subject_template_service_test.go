@@ -1049,7 +1049,6 @@ func TestSubjectTemplateService_BatchUpsertCreateUpdateDelete(t *testing.T) {
 			SourceMode:        "runtime-derived",
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
@@ -1118,7 +1117,6 @@ func TestSubjectTemplateService_BatchUpsertEmptyPayloadDeletesAll(t *testing.T) 
 			SourceMode:        "runtime-derived",
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
@@ -1160,7 +1158,6 @@ func TestSubjectTemplateService_BatchUpsertAlwaysDeletesEvenIfReferenced(t *test
 			SourceMode:        "runtime-derived",
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
@@ -1213,7 +1210,6 @@ func TestSubjectTemplateService_BatchUpsertSkipsUnchanged(t *testing.T) {
 			SourceMode:        "runtime-derived",
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
@@ -1275,7 +1271,7 @@ func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
 			Type:       "component",
 			SourceMode: "runtime-derived",
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 		},
 	})
@@ -1291,7 +1287,7 @@ func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
 			Type:       "component",
 			SourceMode: "runtime-derived",
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
+				{Key: "_plugin", Value: pluginID},
 			},
 		},
 	})
@@ -1307,7 +1303,6 @@ func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
 			Type:       "component",
 			SourceMode: "runtime-derived",
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 		},
@@ -1317,7 +1312,6 @@ func TestSubjectTemplateService_BatchUpsertValidationErrors(t *testing.T) {
 			Type:       "component",
 			SourceMode: "runtime-derived",
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 		},
@@ -1342,7 +1336,6 @@ func TestSubjectTemplateService_BatchUpsertIsolatesByPlugin(t *testing.T) {
 			SourceMode:        "runtime-derived",
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: plugin},
 				{Key: "_plugin", Value: plugin},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
@@ -1384,7 +1377,6 @@ func TestSubjectTemplateService_BatchUpsertDeleteCleansUpSelectorLabelsAndSchema
 			SourceMode:        "runtime-derived",
 			IdentityLabelKeys: []string{"asset_id"},
 			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "plugin", Value: pluginID},
 				{Key: "_plugin", Value: pluginID},
 			},
 			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
@@ -1396,7 +1388,7 @@ func TestSubjectTemplateService_BatchUpsertDeleteCleansUpSelectorLabelsAndSchema
 
 	var selectorCount, schemaCount int64
 	require.NoError(t, db.Model(&SubjectTemplateSelectorLabel{}).Where("subject_template_id = ?", id).Count(&selectorCount).Error)
-	require.Equal(t, int64(2), selectorCount)
+	require.Equal(t, int64(1), selectorCount)
 	require.NoError(t, db.Model(&SubjectTemplateLabelSchemaField{}).Where("subject_template_id = ?", id).Count(&schemaCount).Error)
 	require.Equal(t, int64(1), schemaCount)
 

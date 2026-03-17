@@ -243,7 +243,6 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"source-mode":         "runtime-derived",
 				"identity-label-keys": []string{"asset_id"},
 				"selector-labels": []map[string]any{
-					{"key": "plugin", "value": "batch-plugin"},
 					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
@@ -257,7 +256,6 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"source-mode":         "runtime-derived",
 				"identity-label-keys": []string{"cluster"},
 				"selector-labels": []map[string]any{
-					{"key": "plugin", "value": "batch-plugin"},
 					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
@@ -302,7 +300,6 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"source-mode":         "runtime-derived",
 				"identity-label-keys": []string{"asset_id", "region"},
 				"selector-labels": []map[string]any{
-					{"key": "plugin", "value": "batch-plugin"},
 					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
@@ -317,7 +314,6 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 				"source-mode":         "runtime-derived",
 				"identity-label-keys": []string{"namespace"},
 				"selector-labels": []map[string]any{
-					{"key": "plugin", "value": "batch-plugin"},
 					{"key": "_plugin", "value": "batch-plugin"},
 				},
 				"label-schema": []map[string]any{
@@ -345,7 +341,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 	var selectorCount int64
 	require.NoError(suite.T(), suite.DB.Model(&templaterel.SubjectTemplateSelectorLabel{}).
 		Where("subject_template_id = ?", firstID).Count(&selectorCount).Error)
-	require.Equal(suite.T(), int64(2), selectorCount)
+	require.Equal(suite.T(), int64(1), selectorCount)
 
 	// Step 3 — confirm second template is gone.
 	var count int64
@@ -363,7 +359,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertE
 			"source-mode":         "runtime-derived",
 			"identity-label-keys": []string{"asset_id"},
 			"selector-labels": []map[string]any{
-				{"key": "plugin", "value": "delete-plugin"},
+				{"key": "_plugin", "value": "delete-plugin"},
 			},
 			"label-schema": []map[string]any{
 				{"key": "asset_id", "description": "ID"},
@@ -417,7 +413,6 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertV
 				"type":        "component",
 				"source-mode": "runtime-derived",
 				"selector-labels": []map[string]any{
-					{"key": "plugin", "value": "batch-plugin"},
 					{"key": "_plugin", "value": "batch-plugin"},
 				},
 			},

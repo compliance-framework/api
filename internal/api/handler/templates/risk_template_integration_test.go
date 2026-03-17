@@ -609,16 +609,11 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateUnauthenticatedReq
 // batchRiskTemplateResult is the JSON shape returned by POST /api/agent/risk-templates/batch.
 type batchRiskTemplateResult struct {
 	Data struct {
-		Created []riskTemplateResponse     `json:"created"`
-		Updated []riskTemplateResponse     `json:"updated"`
-		Deleted []uuid.UUID                `json:"deleted"`
-		Skipped []batchSkippedItemResponse `json:"skipped"`
+		Created   []riskTemplateResponse `json:"created"`
+		Updated   []riskTemplateResponse `json:"updated"`
+		Deleted   []uuid.UUID            `json:"deleted"`
+		Unchanged []uuid.UUID            `json:"unchanged"`
 	} `json:"data"`
-}
-
-type batchSkippedItemResponse struct {
-	ID     uuid.UUID `json:"id"`
-	Reason string    `json:"reason"`
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertCreateAndUpdate() {
@@ -654,7 +649,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertCreateA
 	require.Len(suite.T(), result1.Data.Created, 2)
 	require.Empty(suite.T(), result1.Data.Updated)
 	require.Empty(suite.T(), result1.Data.Deleted)
-	require.Empty(suite.T(), result1.Data.Skipped)
+	require.Empty(suite.T(), result1.Data.Unchanged)
 
 	// Confirm both explicit IDs were honoured.
 	var foundFirst, foundSecond bool
@@ -708,7 +703,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertCreateA
 	require.Len(suite.T(), result2.Data.Created, 1, "third template should be created")
 	require.Len(suite.T(), result2.Data.Deleted, 1, "second template should be deleted")
 	require.Equal(suite.T(), secondID, result2.Data.Deleted[0])
-	require.Empty(suite.T(), result2.Data.Skipped)
+	require.Empty(suite.T(), result2.Data.Unchanged)
 
 	require.Equal(suite.T(), firstID, result2.Data.Updated[0].ID)
 	require.Equal(suite.T(), "Batch template one updated", result2.Data.Updated[0].Name)
@@ -748,7 +743,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertEmptyPa
 	require.Empty(suite.T(), result.Data.Created)
 	require.Empty(suite.T(), result.Data.Updated)
 	require.Len(suite.T(), result.Data.Deleted, 2)
-	require.Empty(suite.T(), result.Data.Skipped)
+	require.Empty(suite.T(), result.Data.Unchanged)
 
 	var remaining int64
 	require.NoError(suite.T(), suite.DB.Model(&templaterel.RiskTemplate{}).

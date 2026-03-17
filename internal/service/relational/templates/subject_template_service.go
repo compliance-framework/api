@@ -1527,7 +1527,7 @@ func preloadSubjectTemplateLabelSchema(db *gorm.DB) *gorm.DB {
 
 // pluginSelectorLabelKey is the selector-label key used to associate a subject template with
 // a specific plugin. Agents must set this label when registering subject templates.
-const pluginSelectorLabelKey = "plugin"
+const pluginSelectorLabelKey = "_plugin"
 
 // BatchSubjectTemplateItem is a single item in a batch upsert request.
 // The plugin_id is inherited from the batch-level scope (via selector-label) and each item is
@@ -1585,16 +1585,16 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 		if _, dup := seen[item.ID]; dup {
 			return nil, newValidationError(fmt.Sprintf("item %d: duplicate id %s", i, item.ID))
 		}
-		// Validate that each item carries a _plugin selector label matching the batch scope.
+		// Validate that each item carries the plugin scoping selector label.
 		hasPluginLabel := false
 		for _, sl := range item.SelectorLabels {
-			if sl.Key == "_plugin" && sl.Value == pluginID {
+			if sl.Key == pluginSelectorLabelKey && sl.Value == pluginID {
 				hasPluginLabel = true
 				break
 			}
 		}
 		if !hasPluginLabel {
-			return nil, newValidationError(fmt.Sprintf("item %d (id %s): missing selector label _plugin=%s", i, item.ID, pluginID))
+			return nil, newValidationError(fmt.Sprintf("item %d (id %s): missing selector label %s=%s", i, item.ID, pluginSelectorLabelKey, pluginID))
 		}
 		seen[item.ID] = struct{}{}
 		resolved = append(resolved, resolvedItem{id: item.ID, item: item})
