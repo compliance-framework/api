@@ -1693,10 +1693,6 @@ func (s *SubjectTemplateService) BatchUpsert(pluginID string, items []BatchSubje
 			continue
 		}
 
-		if err := tx.Delete(&EvidenceTemplateSubjectTemplate{}, "subject_template_id = ?", id).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("delete evidence template links for subject template %s: %w", id, err)
-		}
 		if err := tx.Delete(&SubjectTemplateSelectorLabel{}, "subject_template_id = ?", id).Error; err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("delete selector labels for subject template %s: %w", id, err)

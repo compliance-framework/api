@@ -100,285 +100,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/admin/evidence-templates": {
-            "get": {
-                "description": "List evidence templates with optional filters and pagination.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "List evidence templates",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Plugin ID",
-                        "name": "plugin-id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Policy package",
-                        "name": "policy-package",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Active flag",
-                        "name": "is-active",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/service.ListResponse-templates_evidenceTemplateResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "post": {
-                "description": "Create an evidence template with selector labels, label schema, and linked risk/subject template IDs.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Create evidence template",
-                "parameters": [
-                    {
-                        "description": "Evidence template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
-        "/admin/evidence-templates/{id}": {
-            "get": {
-                "description": "Get an evidence template by ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Get evidence template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Evidence Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "put": {
-                "description": "Update an evidence template and atomically replace selector labels, label schema, and linked IDs.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Update evidence template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Evidence Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Evidence template payload",
-                        "name": "template",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/templates.upsertEvidenceTemplateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/templates.evidenceTemplateDataResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            },
-            "delete": {
-                "description": "Delete an evidence template and its associated selector labels, label schema, and join rows.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Evidence Templates"
-                ],
-                "summary": "Delete evidence template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Evidence Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "OAuth2Password": []
-                    }
-                ]
-            }
-        },
         "/admin/risk-templates": {
             "get": {
                 "description": "List risk templates with optional filters and pagination.",
@@ -18947,7 +18668,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{sspId}/risks/{id}/review": {
             "post": {
-                "description": "Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.",
+                "description": "Records a risk review by ID scoped to an SSP. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.",
                 "consumes": [
                     "application/json"
                 ],
@@ -21275,7 +20996,7 @@ const docTemplate = `{
         },
         "/risks/{id}/review": {
             "post": {
-                "description": "Records a structured review for an accepted risk. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.",
+                "description": "Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.",
                 "consumes": [
                     "application/json"
                 ],
@@ -27366,6 +27087,12 @@ const docTemplate = `{
                 "decision": {
                     "type": "string"
                 },
+                "impact": {
+                    "type": "string"
+                },
+                "likelihood": {
+                    "type": "string"
+                },
                 "next-review-deadline": {
                     "type": "string"
                 },
@@ -27710,15 +27437,15 @@ const docTemplate = `{
         "oscal.ApplySuggestionRequest": {
             "type": "object",
             "required": [
-                "componentDefinitionId",
-                "definedComponentId"
+                "component-definition-id",
+                "defined-component-id"
             ],
             "properties": {
-                "componentDefinitionId": {
+                "component-definition-id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "definedComponentId": {
+                "defined-component-id": {
                     "type": "string",
                     "format": "uuid"
                 }
@@ -35441,6 +35168,9 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "details": {
+                    "type": "string"
+                },
                 "eventType": {
                     "type": "string"
                 },
@@ -35492,6 +35222,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "nextReviewDeadline": {
+                    "type": "string"
+                },
+                "reassessedImpact": {
+                    "type": "string"
+                },
+                "reassessedLikelihood": {
                     "type": "string"
                 },
                 "reviewJustification": {
@@ -35650,29 +35386,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/risks.RiskSubjectLink"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "totalPages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "service.ListResponse-templates_evidenceTemplateResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/templates.evidenceTemplateResponse"
                     }
                 },
                 "limit": {
@@ -35970,123 +35683,6 @@ const docTemplate = `{
                 }
             }
         },
-        "templates.evidenceTemplateDataResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/templates.evidenceTemplateResponse"
-                }
-            }
-        },
-        "templates.evidenceTemplateLabelSchemaFieldRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "required": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "templates.evidenceTemplateLabelSchemaFieldResponse": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "required": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "templates.evidenceTemplateResponse": {
-            "type": "object",
-            "properties": {
-                "created-at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is-active": {
-                    "type": "boolean"
-                },
-                "label-schema": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse"
-                    }
-                },
-                "methods": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "plugin-id": {
-                    "type": "string"
-                },
-                "policy-package": {
-                    "type": "string"
-                },
-                "risk-template-ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "selector-labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelResponse"
-                    }
-                },
-                "subject-template-ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated-at": {
-                    "type": "string"
-                }
-            }
-        },
-        "templates.evidenceTemplateSelectorLabelRequest": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "templates.evidenceTemplateSelectorLabelResponse": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
         "templates.remediationTaskRequest": {
             "type": "object",
             "properties": {
@@ -36357,56 +35953,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "templates.upsertEvidenceTemplateRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "is-active": {
-                    "type": "boolean"
-                },
-                "label-schema": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest"
-                    }
-                },
-                "methods": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "plugin-id": {
-                    "type": "string"
-                },
-                "policy-package": {
-                    "type": "string"
-                },
-                "risk-template-ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "selector-labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/templates.evidenceTemplateSelectorLabelRequest"
-                    }
-                },
-                "subject-template-ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "title": {
                     "type": "string"
                 }
             }

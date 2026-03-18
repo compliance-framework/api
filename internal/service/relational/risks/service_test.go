@@ -19,7 +19,7 @@ func TestRiskServiceCreateUpdateDeleteAndAuditRetention(t *testing.T) {
 
 	actorID := uuid.New()
 	sspID := uuid.New()
-	l := string(RiskLevelMedium)
+	l := string(RiskLevelModerate)
 	i := string(RiskLevelHigh)
 
 	created, err := svc.Create(CreateRiskParams{
@@ -46,6 +46,8 @@ func TestRiskServiceCreateUpdateDeleteAndAuditRetention(t *testing.T) {
 	require.Len(t, createdEvents, 1)
 	require.Equal(t, string(RiskEventTypeCreated), createdEvents[0].EventType)
 	require.NotEmpty(t, createdEvents[0].RiskSnapshot)
+	require.NotNil(t, createdEvents[0].Details)
+	require.NotEmpty(t, *createdEvents[0].Details)
 
 	reviewDeadline := time.Now().UTC().Add(14 * 24 * time.Hour)
 	acceptanceJustification := "accepted for limited period"
@@ -790,6 +792,129 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).
 		Count(&statusChangeEventCount).Error)
 	require.Equal(t, int64(1), statusChangeEventCount)
+}
+
+func TestRiskServiceReviewRiskReassess(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	actorID := uuid.New()
+	low := "low"
+	critical := "critical"
+	medium := "medium"
+
+	createRisk := func(status RiskStatus) uuid.UUID {
+		riskID := uuid.New()
+		require.NoError(t, db.Create(&Risk{
+			UUIDModel:   relational.UUIDModel{ID: &riskID},
+			Title:       "reassess-risk-" + string(status),
+			Description: "desc",
+			Status:      string(status),
+			SSPID:       uuid.New(),
+			SourceType:  string(RiskSourceTypeManual),
+			Likelihood:  &low,
+			Impact:      &low,
+			FirstSeenAt: time.Now().UTC(),
+			LastSeenAt:  time.Now().UTC(),
+		}).Error)
+		return riskID
+	}
+
+	openRiskID := createRisk(RiskStatusOpen)
+	nextDeadline := time.Now().Add(7 * 24 * time.Hour).UTC()
+
+	_, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      openRiskID,
+		ActorUserID: &actorID,
+		Decision:    RiskReviewDecisionReassess,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "likelihood is required and must be one of: negligible, low, moderate, high, critical")
+
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             openRiskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionReassess,
+		Likelihood:         &medium,
+		Impact:             &critical,
+		NextReviewDeadline: &nextDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "nextReviewDeadline must not be provided when decision is reassess")
+
+	notes := "risk score changed after reassessment"
+	reassessed, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      openRiskID,
+		ActorUserID: &actorID,
+		Decision:    RiskReviewDecisionReassess,
+		Likelihood:  &medium,
+		Impact:      &critical,
+		Notes:       &notes,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusOpen), reassessed.Status)
+	require.NotNil(t, reassessed.Likelihood)
+	require.NotNil(t, reassessed.Impact)
+	require.Equal(t, string(RiskLevelModerate), *reassessed.Likelihood)
+	require.Equal(t, string(RiskLevelCritical), *reassessed.Impact)
+	require.NotNil(t, reassessed.LastReviewedAt)
+
+	var reviews []RiskReview
+	require.NoError(t, db.Where("risk_id = ?", openRiskID).Order("created_at asc").Find(&reviews).Error)
+	require.Len(t, reviews, 1)
+	require.Equal(t, string(RiskReviewDecisionReassess), reviews[0].Decision)
+	require.NotNil(t, reviews[0].ReassessedLikelihood)
+	require.NotNil(t, reviews[0].ReassessedImpact)
+	require.Equal(t, string(RiskLevelModerate), *reviews[0].ReassessedLikelihood)
+	require.Equal(t, string(RiskLevelCritical), *reviews[0].ReassessedImpact)
+	require.NotNil(t, reviews[0].ReviewJustification)
+	require.Equal(t, notes, *reviews[0].ReviewJustification)
+
+	var reassessEvents []RiskEvent
+	require.NoError(t, db.Where("risk_id = ? AND event_type = ?", openRiskID, string(RiskEventTypeScoreReassessed)).Find(&reassessEvents).Error)
+	require.Len(t, reassessEvents, 1)
+	require.NotNil(t, reassessEvents[0].Details)
+	require.NotEmpty(t, *reassessEvents[0].Details)
+	require.Equal(t, string(RiskReviewDecisionReassess), reassessEvents[0].Payload["decision"])
+	require.Equal(t, string(RiskStatusOpen), reassessEvents[0].Payload["status"])
+	require.Equal(t, string(RiskLevelLow), reassessEvents[0].Payload["fromLikelihood"])
+	require.Equal(t, string(RiskLevelLow), reassessEvents[0].Payload["fromImpact"])
+	require.Equal(t, string(RiskLevelModerate), reassessEvents[0].Payload["toLikelihood"])
+	require.Equal(t, string(RiskLevelCritical), reassessEvents[0].Payload["toImpact"])
+
+	var reviewedEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", openRiskID, string(RiskEventTypeReviewed)).
+		Count(&reviewedEventCount).Error)
+	require.Equal(t, int64(0), reviewedEventCount)
+
+	for _, status := range []RiskStatus{RiskStatusInvestigating, RiskStatusMitigatingImplemented} {
+		riskID := createRisk(status)
+		_, err := svc.ReviewRisk(ReviewRiskParams{
+			RiskID:      riskID,
+			ActorUserID: &actorID,
+			Decision:    RiskReviewDecisionReassess,
+			Likelihood:  &medium,
+			Impact:      &critical,
+		})
+		require.NoError(t, err)
+	}
+
+	for _, status := range []RiskStatus{RiskStatusRiskAccepted, RiskStatusMitigatingPlanned, RiskStatusClosed} {
+		riskID := createRisk(status)
+		_, err := svc.ReviewRisk(ReviewRiskParams{
+			RiskID:      riskID,
+			ActorUserID: &actorID,
+			Decision:    RiskReviewDecisionReassess,
+			Likelihood:  &medium,
+			Impact:      &critical,
+		})
+		require.Error(t, err)
+		require.True(t, IsValidationError(err))
+		require.EqualError(t, err, "reassess is only allowed for risks in status open, investigating, or mitigating-implemented")
+	}
 }
 
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {

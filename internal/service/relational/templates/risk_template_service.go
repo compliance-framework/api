@@ -305,11 +305,6 @@ func (s *RiskTemplateService) Delete(id uuid.UUID) error {
 		return err
 	}
 
-	if err := tx.Delete(&EvidenceTemplateRiskTemplate{}, "risk_template_id = ?", id).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -612,7 +607,7 @@ func validateOptionalRiskLevel(field string, level *string) error {
 	if level == nil {
 		return nil
 	}
-	normalized := strings.TrimSpace(*level)
+	normalized := string(riskrel.NormalizeRiskLevel(*level))
 	*level = normalized
 	if normalized == "" {
 		return nil
@@ -830,10 +825,6 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 		if err := tx.Delete(&RiskTemplateThreatRef{}, "risk_template_id = ?", id).Error; err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("delete threat refs for risk template %s: %w", id, err)
-		}
-		if err := tx.Delete(&EvidenceTemplateRiskTemplate{}, "risk_template_id = ?", id).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("delete evidence links for risk template %s: %w", id, err)
 		}
 		if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
 			tx.Rollback()

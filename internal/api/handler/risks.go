@@ -187,6 +187,8 @@ type reviewRiskRequest struct {
 	ReviewedAt         *time.Time `json:"reviewed-at"`
 	Decision           string     `json:"decision"`
 	Notes              *string    `json:"notes"`
+	Likelihood         *string    `json:"likelihood"`
+	Impact             *string    `json:"impact"`
 	NextReviewDeadline *time.Time `json:"next-review-deadline"`
 }
 
@@ -306,6 +308,8 @@ func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest)
 	if err := validateRiskLevel(req.Impact); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+	req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
 	if err := validateOwnerAssignments(req.OwnerAssignments); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -577,7 +581,7 @@ func (h *RiskHandler) AcceptForSSP(ctx echo.Context) error {
 // ReviewForSSP godoc
 //
 //	@Summary		Review risk for SSP
-//	@Description	Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.
+//	@Description	Records a risk review by ID scoped to an SSP. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json
@@ -678,6 +682,8 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 	if err := validateRiskLevel(req.Impact); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+	req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
 	if req.OwnerAssignments != nil {
 		if err := validateOwnerAssignments(*req.OwnerAssignments); err != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -848,7 +854,7 @@ func (h *RiskHandler) Accept(ctx echo.Context) error {
 // Review godoc
 //
 //	@Summary		Review risk
-//	@Description	Records a structured review for an accepted risk. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.
+//	@Description	Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json
@@ -873,14 +879,30 @@ func (h *RiskHandler) Review(ctx echo.Context) error {
 	if strings.TrimSpace(req.Decision) == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("decision is required")))
 	}
+	decision := riskrel.NormalizeRiskReviewDecision(req.Decision)
+	if decision == riskrel.RiskReviewDecisionReassess {
+		if err := validateRiskLevel(req.Likelihood); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if err := validateRiskLevel(req.Impact); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+		req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
+	} else {
+		req.Likelihood = nil
+		req.Impact = nil
+	}
 
 	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
 		reviewed, err := h.riskService.ReviewRisk(riskrel.ReviewRiskParams{
 			RiskID:             riskID,
 			ActorUserID:        actorID,
 			ReviewedAt:         req.ReviewedAt,
-			Decision:           riskrel.NormalizeRiskReviewDecision(req.Decision),
+			Decision:           decision,
 			Notes:              req.Notes,
+			Likelihood:         req.Likelihood,
+			Impact:             req.Impact,
 			NextReviewDeadline: req.NextReviewDeadline,
 		})
 		if err != nil {
@@ -1737,10 +1759,26 @@ func parseListFilters(ctx echo.Context) (riskrel.ListFilters, error) {
 		filters.Status = &v
 	}
 	if v := ctx.QueryParam("likelihood"); v != "" {
-		filters.Likelihood = &v
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return filters, fmt.Errorf("invalid likelihood")
+		}
+		normalized := string(riskrel.NormalizeRiskLevel(trimmed))
+		if normalized == "" {
+			normalized = trimmed
+		}
+		filters.Likelihood = &normalized
 	}
 	if v := ctx.QueryParam("impact"); v != "" {
-		filters.Impact = &v
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return filters, fmt.Errorf("invalid impact")
+		}
+		normalized := string(riskrel.NormalizeRiskLevel(trimmed))
+		if normalized == "" {
+			normalized = trimmed
+		}
+		filters.Impact = &normalized
 	}
 	if v := ctx.QueryParam("controlId"); v != "" {
 		filters.ControlID = &v
@@ -1786,7 +1824,7 @@ func validateRiskLevel(level *string) error {
 	if level == nil || *level == "" {
 		return nil
 	}
-	if !riskrel.RiskLevel(*level).IsValid() {
+	if !riskrel.NormalizeRiskLevel(*level).IsValid() {
 		return fmt.Errorf("invalid risk level: %s", *level)
 	}
 	return nil
@@ -1980,8 +2018,8 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 		Description:             risk.Description,
 		Status:                  risk.Status,
 		PrimaryOwnerUserID:      risk.PrimaryOwnerUserID,
-		Likelihood:              risk.Likelihood,
-		Impact:                  risk.Impact,
+		Likelihood:              riskrel.NormalizeRiskLevelPtr(risk.Likelihood),
+		Impact:                  riskrel.NormalizeRiskLevelPtr(risk.Impact),
 		SSPID:                   risk.SSPID,
 		SourceType:              risk.SourceType,
 		RiskTemplateID:          risk.RiskTemplateID,

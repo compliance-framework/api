@@ -106,16 +106,18 @@ func (s *SystemComponentSuggestionService) SuggestForImplementedRequirement(
 		evidenceIDs[i] = *e.ID
 	}
 
-	// 5. Find candidate DefinedComponents whose identity labels overlap with evidence labels.
+	// 5. Find candidate DefinedComponents whose identity labels ALL match evidence labels.
+	//    A component is a match only if ALL of its labels are present in the evidence.
 	//    component_definition_labels must be scoped to defined_component_id.
 	//    Legacy rows without defined_component_id are intentionally unsupported.
 	matchedDefinedComponentIDs := make([]uuid.UUID, 0)
 	if err := s.db.Table("component_definition_labels cdl").
-		Distinct().
 		Select("cdl.defined_component_id").
 		Joins("JOIN evidence_labels el ON LOWER(el.labels_name) = LOWER(cdl.key) AND LOWER(el.labels_value) = LOWER(cdl.value)").
 		Where("el.evidence_id IN ?", evidenceIDs).
 		Where("cdl.defined_component_id IS NOT NULL").
+		Group("cdl.defined_component_id").
+		Having("COUNT(DISTINCT cdl.key || '=' || cdl.value) = (SELECT COUNT(*) FROM component_definition_labels WHERE defined_component_id = cdl.defined_component_id)").
 		Pluck("cdl.defined_component_id", &matchedDefinedComponentIDs).Error; err != nil {
 		return nil, fmt.Errorf("failed to query defined component label matches: %w", err)
 	}
