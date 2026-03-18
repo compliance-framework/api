@@ -26909,6 +26909,9 @@ const docTemplate = `{
                 "primary-owner-user-id": {
                     "type": "string"
                 },
+                "remediation-template": {
+                    "$ref": "#/definitions/handler.remediationTemplateRequest"
+                },
                 "review-deadline": {
                     "type": "string"
                 },
@@ -26920,6 +26923,12 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.threatIDRequest"
+                    }
                 },
                 "title": {
                     "type": "string"
@@ -27081,6 +27090,68 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.remediationTaskRequest": {
+            "type": "object",
+            "properties": {
+                "order-index": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.remediationTaskResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "order-index": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.remediationTemplateRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.remediationTaskRequest"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.remediationTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.remediationTaskResponse"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.reviewRiskRequest": {
             "type": "object",
             "properties": {
@@ -27217,6 +27288,9 @@ const docTemplate = `{
                 "primary-owner-user-id": {
                     "type": "string"
                 },
+                "remediation-template": {
+                    "$ref": "#/definitions/handler.remediationTemplateResponse"
+                },
                 "review-deadline": {
                     "type": "string"
                 },
@@ -27238,10 +27312,53 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.threatIDResponse"
+                    }
+                },
                 "title": {
                     "type": "string"
                 },
                 "updated-at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.threatIDRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.threatIDResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "system": {
+                    "type": "string"
+                },
+                "threat-ref-id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
                     "type": "string"
                 }
             }
@@ -27365,6 +27482,9 @@ const docTemplate = `{
                 "primary-owner-user-id": {
                     "type": "string"
                 },
+                "remediation-template": {
+                    "$ref": "#/definitions/handler.remediationTemplateRequest"
+                },
                 "review-deadline": {
                     "type": "string"
                 },
@@ -27376,6 +27496,12 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "threat-ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.threatIDRequest"
+                    }
                 },
                 "title": {
                     "type": "string"

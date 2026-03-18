@@ -1612,6 +1612,8 @@ definitions:
         type: array
       primary-owner-user-id:
         type: string
+      remediation-template:
+        $ref: '#/definitions/handler.remediationTemplateRequest'
       review-deadline:
         type: string
       risk-template-id:
@@ -1620,6 +1622,10 @@ definitions:
         type: string
       status:
         type: string
+      threat-ids:
+        items:
+          $ref: '#/definitions/handler.threatIDRequest'
+        type: array
       title:
         type: string
     type: object
@@ -1725,6 +1731,46 @@ definitions:
       updatedAt:
         type: string
     type: object
+  handler.remediationTaskRequest:
+    properties:
+      order-index:
+        type: integer
+      title:
+        type: string
+    type: object
+  handler.remediationTaskResponse:
+    properties:
+      id:
+        type: string
+      order-index:
+        type: integer
+      title:
+        type: string
+    type: object
+  handler.remediationTemplateRequest:
+    properties:
+      description:
+        type: string
+      tasks:
+        items:
+          $ref: '#/definitions/handler.remediationTaskRequest'
+        type: array
+      title:
+        type: string
+    type: object
+  handler.remediationTemplateResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      tasks:
+        items:
+          $ref: '#/definitions/handler.remediationTaskResponse'
+        type: array
+      title:
+        type: string
+    type: object
   handler.reviewRiskRequest:
     properties:
       decision:
@@ -1814,6 +1860,8 @@ definitions:
         type: array
       primary-owner-user-id:
         type: string
+      remediation-template:
+        $ref: '#/definitions/handler.remediationTemplateResponse'
       review-deadline:
         type: string
       risk-template-id:
@@ -1828,9 +1876,37 @@ definitions:
         items:
           type: string
         type: array
+      threat-ids:
+        items:
+          $ref: '#/definitions/handler.threatIDResponse'
+        type: array
       title:
         type: string
       updated-at:
+        type: string
+    type: object
+  handler.threatIDRequest:
+    properties:
+      id:
+        type: string
+      system:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  handler.threatIDResponse:
+    properties:
+      id:
+        type: string
+      system:
+        type: string
+      threat-ref-id:
+        type: string
+      title:
+        type: string
+      url:
         type: string
     type: object
   handler.updateMilestoneRequest:
@@ -1912,6 +1988,8 @@ definitions:
         type: array
       primary-owner-user-id:
         type: string
+      remediation-template:
+        $ref: '#/definitions/handler.remediationTemplateRequest'
       review-deadline:
         type: string
       review-justification:
@@ -1920,6 +1998,10 @@ definitions:
         type: string
       status:
         type: string
+      threat-ids:
+        items:
+          $ref: '#/definitions/handler.threatIDRequest'
+        type: array
       title:
         type: string
     type: object

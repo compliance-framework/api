@@ -102,6 +102,42 @@ func TestBuildRiskEventDetails(t *testing.T) {
 			expected:  "Subject sub-1 was linked to this risk.",
 		},
 		{
+			name:      "threat linked",
+			eventType: string(RiskEventTypeThreatLinked),
+			payload:   datatypes.JSONMap{"system": "CWE", "id": "79"},
+			expected:  "Threat CWE/79 was linked to this risk.",
+		},
+		{
+			name:      "threat updated",
+			eventType: string(RiskEventTypeThreatUpdated),
+			payload:   datatypes.JSONMap{"system": "CWE", "id": "89"},
+			expected:  "Threat CWE/89 was updated for this risk.",
+		},
+		{
+			name:      "threat unlinked",
+			eventType: string(RiskEventTypeThreatUnlinked),
+			payload:   datatypes.JSONMap{"system": "CWE", "id": "200"},
+			expected:  "Threat CWE/200 was unlinked from this risk.",
+		},
+		{
+			name:      "remediation created",
+			eventType: string(RiskEventTypeRemediationCreated),
+			payload:   datatypes.JSONMap{},
+			expected:  "A remediation template was created for this risk.",
+		},
+		{
+			name:      "remediation updated",
+			eventType: string(RiskEventTypeRemediationUpdated),
+			payload:   datatypes.JSONMap{},
+			expected:  "The remediation template for this risk was updated.",
+		},
+		{
+			name:      "remediation deleted",
+			eventType: string(RiskEventTypeRemediationDeleted),
+			payload:   datatypes.JSONMap{},
+			expected:  "The remediation template was removed from this risk.",
+		},
+		{
 			name:      "unknown",
 			eventType: "custom_event",
 			payload:   datatypes.JSONMap{},

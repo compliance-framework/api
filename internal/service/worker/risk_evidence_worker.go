@@ -152,6 +152,9 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	var riskTemplates []templates.RiskTemplate
 	err := w.db.WithContext(ctx).
 		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
+		Preload("ThreatRefs", func(db *gorm.DB) *gorm.DB { return db.Order("system ASC, external_id ASC") }).
+		Preload("RemediationTemplate").
+		Preload("RemediationTemplate.Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
 		Find(&riskTemplates).Error
 
 	if err != nil {
@@ -404,6 +407,9 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		if err := tx.Create(&newRisk).Error; err != nil {
 			return fmt.Errorf("failed to create new risk: %w", err)
 		}
+		if err := w.copyTemplateAssociationsToRisk(tx, *newRisk.ID, riskTemplate); err != nil {
+			return fmt.Errorf("failed to copy risk template associations: %w", err)
+		}
 		if err := w.createRiskLinks(ctx, tx, *newRisk.ID, sspID, evidence); err != nil {
 			return err
 		}
@@ -429,6 +435,51 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		"ssp_id", sspID,
 		"dedupe_key", dedupeKey,
 	)
+
+	return nil
+}
+
+func (w *RiskEvidenceWorker) copyTemplateAssociationsToRisk(tx *gorm.DB, riskID uuid.UUID, riskTemplate templates.RiskTemplate) error {
+	if len(riskTemplate.ThreatRefs) > 0 {
+		rows := make([]risks.RiskThreatRef, 0, len(riskTemplate.ThreatRefs))
+		for _, ref := range riskTemplate.ThreatRefs {
+			rows = append(rows, risks.RiskThreatRef{
+				RiskID:     riskID,
+				System:     ref.System,
+				ExternalID: ref.ExternalID,
+				Title:      ref.Title,
+				URL:        ref.URL,
+			})
+		}
+		if err := tx.Create(&rows).Error; err != nil {
+			return err
+		}
+	}
+
+	if riskTemplate.RemediationTemplate != nil && riskTemplate.RemediationTemplate.ID != nil {
+		remediation := risks.RiskRemediationTemplate{
+			RiskID:      riskID,
+			Title:       riskTemplate.RemediationTemplate.Title,
+			Description: riskTemplate.RemediationTemplate.Description,
+		}
+		if err := tx.Create(&remediation).Error; err != nil {
+			return err
+		}
+
+		if len(riskTemplate.RemediationTemplate.Tasks) > 0 {
+			tasks := make([]risks.RiskRemediationTask, 0, len(riskTemplate.RemediationTemplate.Tasks))
+			for _, task := range riskTemplate.RemediationTemplate.Tasks {
+				tasks = append(tasks, risks.RiskRemediationTask{
+					RiskRemediationTemplateID: *remediation.ID,
+					Title:                     task.Title,
+					OrderIndex:                task.OrderIndex,
+				})
+			}
+			if err := tx.Create(&tasks).Error; err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }

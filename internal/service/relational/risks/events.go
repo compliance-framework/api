@@ -14,19 +14,25 @@ import (
 type RiskEventType string
 
 const (
-	RiskEventTypeCreated         RiskEventType = "created"
-	RiskEventTypeLastSeen        RiskEventType = "last_seen"
-	RiskEventTypeStatusChange    RiskEventType = "status_changed"
-	RiskEventTypeAccepted        RiskEventType = "accepted"
-	RiskEventTypeReviewed        RiskEventType = "reviewed"
-	RiskEventTypeScoreReassessed RiskEventType = "score_reassessed"
-	RiskEventTypeEvidenceLink    RiskEventType = "evidence_linked"
-	RiskEventTypeEvidenceUnlink  RiskEventType = "evidence_unlinked"
-	RiskEventTypeControlLink     RiskEventType = "control_linked"
-	RiskEventTypeControlUnlink   RiskEventType = "control_unlinked"
-	RiskEventTypeComponentLink   RiskEventType = "component_linked"
-	RiskEventTypeComponentUnlink RiskEventType = "component_unlinked"
-	RiskEventTypeSubjectLink     RiskEventType = "subject_linked"
+	RiskEventTypeCreated            RiskEventType = "created"
+	RiskEventTypeLastSeen           RiskEventType = "last_seen"
+	RiskEventTypeStatusChange       RiskEventType = "status_changed"
+	RiskEventTypeAccepted           RiskEventType = "accepted"
+	RiskEventTypeReviewed           RiskEventType = "reviewed"
+	RiskEventTypeScoreReassessed    RiskEventType = "score_reassessed"
+	RiskEventTypeEvidenceLink       RiskEventType = "evidence_linked"
+	RiskEventTypeEvidenceUnlink     RiskEventType = "evidence_unlinked"
+	RiskEventTypeControlLink        RiskEventType = "control_linked"
+	RiskEventTypeControlUnlink      RiskEventType = "control_unlinked"
+	RiskEventTypeComponentLink      RiskEventType = "component_linked"
+	RiskEventTypeComponentUnlink    RiskEventType = "component_unlinked"
+	RiskEventTypeSubjectLink        RiskEventType = "subject_linked"
+	RiskEventTypeThreatLinked       RiskEventType = "threat_linked"
+	RiskEventTypeThreatUpdated      RiskEventType = "threat_updated"
+	RiskEventTypeThreatUnlinked     RiskEventType = "threat_unlinked"
+	RiskEventTypeRemediationCreated RiskEventType = "remediation_created"
+	RiskEventTypeRemediationUpdated RiskEventType = "remediation_updated"
+	RiskEventTypeRemediationDeleted RiskEventType = "remediation_deleted"
 )
 
 type RiskEvent struct {
@@ -148,6 +154,33 @@ func BuildRiskEventDetails(eventType string, payload datatypes.JSONMap, occurred
 			return fmt.Sprintf("Subject %s was linked to this risk.", subjectID)
 		}
 		return "A subject was linked to this risk."
+	case string(RiskEventTypeThreatLinked):
+		system := payloadString(payload, "system")
+		id := payloadString(payload, "id")
+		if system != "" && id != "" {
+			return fmt.Sprintf("Threat %s/%s was linked to this risk.", system, id)
+		}
+		return "A threat was linked to this risk."
+	case string(RiskEventTypeThreatUpdated):
+		system := payloadString(payload, "system")
+		id := payloadString(payload, "id")
+		if system != "" && id != "" {
+			return fmt.Sprintf("Threat %s/%s was updated for this risk.", system, id)
+		}
+		return "A threat was updated for this risk."
+	case string(RiskEventTypeThreatUnlinked):
+		system := payloadString(payload, "system")
+		id := payloadString(payload, "id")
+		if system != "" && id != "" {
+			return fmt.Sprintf("Threat %s/%s was unlinked from this risk.", system, id)
+		}
+		return "A threat was unlinked from this risk."
+	case string(RiskEventTypeRemediationCreated):
+		return "A remediation template was created for this risk."
+	case string(RiskEventTypeRemediationUpdated):
+		return "The remediation template for this risk was updated."
+	case string(RiskEventTypeRemediationDeleted):
+		return "The remediation template was removed from this risk."
 	default:
 		return fmt.Sprintf("Risk event recorded: %s.", eventType)
 	}

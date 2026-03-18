@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -63,6 +66,15 @@ func (h *RiskHandler) Register(api *echo.Group) {
 
 	api.GET("/:id/subjects", h.GetSubjectLinks)
 	api.POST("/:id/subjects", h.AddSubjectLink)
+	api.GET("/:id/threat-ids", h.ListThreatRefs)
+	api.POST("/:id/threat-ids", h.AddThreatRef)
+	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRef)
+	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRef)
+	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRef)
+	api.GET("/:id/remediation-template", h.GetRemediationTemplate)
+	api.POST("/:id/remediation-template", h.CreateRemediationTemplate)
+	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplate)
+	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplate)
 }
 
 func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
@@ -86,12 +98,39 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.GET("/:id/components", h.GetComponentLinksForSSP)
 	api.POST("/:id/components", h.AddComponentLinkForSSP)
 	api.DELETE("/:id/components/:componentId", h.DeleteComponentLinkForSSP)
+	api.GET("/:id/threat-ids", h.ListThreatRefsForSSP)
+	api.POST("/:id/threat-ids", h.AddThreatRefForSSP)
+	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRefForSSP)
+	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRefForSSP)
+	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRefForSSP)
+	api.GET("/:id/remediation-template", h.GetRemediationTemplateForSSP)
+	api.POST("/:id/remediation-template", h.CreateRemediationTemplateForSSP)
+	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplateForSSP)
+	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplateForSSP)
 }
 
 type riskOwnerAssignmentRequest struct {
 	OwnerKind string `json:"owner-kind"`
 	OwnerRef  string `json:"owner-ref"`
 	IsPrimary bool   `json:"is-primary"`
+}
+
+type threatIDRequest struct {
+	System string  `json:"system"`
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
+	URL    *string `json:"url"`
+}
+
+type remediationTaskRequest struct {
+	Title      string `json:"title"`
+	OrderIndex int    `json:"order-index"`
+}
+
+type remediationTemplateRequest struct {
+	Title       string                   `json:"title"`
+	Description *string                  `json:"description"`
+	Tasks       []remediationTaskRequest `json:"tasks"`
 }
 
 type createRiskRequest struct {
@@ -107,6 +146,8 @@ type createRiskRequest struct {
 	ReviewDeadline          *time.Time                   `json:"review-deadline"`
 	LastReviewedAt          *time.Time                   `json:"last-reviewed-at"`
 	AcceptanceJustification *string                      `json:"acceptance-justification"`
+	ThreatIDs               []threatIDRequest            `json:"threat-ids"`
+	Remediation             *remediationTemplateRequest  `json:"remediation-template"`
 }
 
 type updateRiskRequest struct {
@@ -122,6 +163,8 @@ type updateRiskRequest struct {
 	LastReviewedAt          *time.Time                    `json:"last-reviewed-at"`
 	ReviewJustification     *string                       `json:"review-justification"`
 	AcceptanceJustification *string                       `json:"acceptance-justification"`
+	ThreatIDs               []threatIDRequest             `json:"threat-ids"`
+	Remediation             *remediationTemplateRequest   `json:"remediation-template"`
 }
 
 type riskOwnerAssignmentResponse struct {
@@ -133,6 +176,27 @@ type riskOwnerAssignmentResponse struct {
 type riskControlLinkResponse struct {
 	CatalogID uuid.UUID `json:"catalog-id"`
 	ControlID string    `json:"control-id"`
+}
+
+type threatIDResponse struct {
+	ID     uuid.UUID `json:"threat-ref-id"`
+	System string    `json:"system"`
+	RefID  string    `json:"id"`
+	Title  string    `json:"title"`
+	URL    *string   `json:"url"`
+}
+
+type remediationTaskResponse struct {
+	ID         uuid.UUID `json:"id"`
+	Title      string    `json:"title"`
+	OrderIndex int       `json:"order-index"`
+}
+
+type remediationTemplateResponse struct {
+	ID          uuid.UUID                 `json:"id"`
+	Title       string                    `json:"title"`
+	Description *string                   `json:"description"`
+	Tasks       []remediationTaskResponse `json:"tasks"`
 }
 
 type riskResponse struct {
@@ -159,6 +223,8 @@ type riskResponse struct {
 	ControlLinks            []riskControlLinkResponse     `json:"control-links"`
 	ComponentIDs            []uuid.UUID                   `json:"component-ids"`
 	SubjectIDs              []uuid.UUID                   `json:"subject-ids"`
+	ThreatIDs               []threatIDResponse            `json:"threat-ids"`
+	Remediation             *remediationTemplateResponse  `json:"remediation-template,omitempty"`
 }
 
 type addEvidenceLinkRequest struct {
@@ -359,9 +425,14 @@ func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest)
 		created, err := h.riskService.Create(riskrel.CreateRiskParams{
 			Risk:             risk,
 			OwnerAssignments: ownerAssignments,
+			ThreatRefs:       toThreatRefs(req.ThreatIDs),
+			Remediation:      toRemediation(req.Remediation),
 			ActorUserID:      actorID,
 		})
 		if err != nil {
+			if riskrel.IsValidationError(err) {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+			}
 			return h.internalServerError(ctx, "failed to create risk", err)
 		}
 
@@ -671,9 +742,33 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var req updateRiskRequest
-	if err := ctx.Bind(&req); err != nil {
+	body, err := io.ReadAll(ctx.Request().Body)
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	ctx.Request().Body = io.NopCloser(bytes.NewReader(body))
+
+	var req updateRiskRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	rawFields := map[string]json.RawMessage{}
+	if err := json.Unmarshal(body, &rawFields); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	threatIDsRaw, hasThreatIDs := rawFields["threat-ids"]
+	replaceThreatRefs := hasThreatIDs
+	threatRefs := make([]riskrel.RiskThreatRefInput, 0)
+	if hasThreatIDs && !bytes.Equal(bytes.TrimSpace(threatIDsRaw), []byte("null")) {
+		threatRefs = toThreatRefs(req.ThreatIDs)
+	}
+
+	remediationRaw, hasRemediation := rawFields["remediation-template"]
+	replaceRemediation := hasRemediation
+	var remediation *riskrel.RiskRemediationTemplateInput
+	if hasRemediation && !bytes.Equal(bytes.TrimSpace(remediationRaw), []byte("null")) {
+		remediation = toRemediation(req.Remediation)
 	}
 
 	if err := validateRiskLevel(req.Likelihood); err != nil {
@@ -781,8 +876,15 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 			RecordReview:            recordReview,
 			ReviewedAt:              reviewedAt,
 			ReviewJustification:     req.ReviewJustification,
+			ReplaceThreatRefs:       replaceThreatRefs,
+			ThreatRefs:              threatRefs,
+			ReplaceRemediation:      replaceRemediation,
+			Remediation:             remediation,
 		})
 		if err != nil {
+			if riskrel.IsValidationError(err) {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+			}
 			return h.internalServerError(ctx, "failed to update risk", err)
 		}
 
@@ -1986,6 +2088,37 @@ func normalizeOwnerAssignmentsForPrimaryOwner(assignments []riskrel.RiskOwnerAss
 	return normalized
 }
 
+func toThreatRefs(req []threatIDRequest) []riskrel.RiskThreatRefInput {
+	rows := make([]riskrel.RiskThreatRefInput, 0, len(req))
+	for _, item := range req {
+		rows = append(rows, riskrel.RiskThreatRefInput{
+			System:     item.System,
+			ExternalID: item.ID,
+			Title:      item.Title,
+			URL:        item.URL,
+		})
+	}
+	return rows
+}
+
+func toRemediation(req *remediationTemplateRequest) *riskrel.RiskRemediationTemplateInput {
+	if req == nil {
+		return nil
+	}
+	input := &riskrel.RiskRemediationTemplateInput{
+		Title:       req.Title,
+		Description: req.Description,
+		Tasks:       make([]riskrel.RiskRemediationTaskInput, 0, len(req.Tasks)),
+	}
+	for _, task := range req.Tasks {
+		input.Tasks = append(input.Tasks, riskrel.RiskRemediationTaskInput{
+			Title:      task.Title,
+			OrderIndex: task.OrderIndex,
+		})
+	}
+	return input
+}
+
 func (h *RiskHandler) mapRiskToResponse(risk *riskrel.Risk) (riskResponse, error) {
 	associations, err := h.riskService.GetAssociations(*risk.ID)
 	if err != nil {
@@ -2020,6 +2153,7 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 		ControlLinks:            make([]riskControlLinkResponse, 0),
 		ComponentIDs:            make([]uuid.UUID, 0),
 		SubjectIDs:              make([]uuid.UUID, 0),
+		ThreatIDs:               make([]threatIDResponse, 0),
 	}
 
 	owners := append([]riskrel.RiskOwnerAssignment{}, risk.OwnerAssignments...)
@@ -2042,6 +2176,37 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 
 	for _, link := range associations.ControlLinks {
 		response.ControlLinks = append(response.ControlLinks, riskControlLinkResponse{CatalogID: link.CatalogID, ControlID: link.ControlID})
+	}
+	for _, ref := range associations.ThreatRefs {
+		if ref.ID == nil {
+			continue
+		}
+		response.ThreatIDs = append(response.ThreatIDs, threatIDResponse{
+			ID:     *ref.ID,
+			System: ref.System,
+			RefID:  ref.ExternalID,
+			Title:  ref.Title,
+			URL:    ref.URL,
+		})
+	}
+	if associations.Remediation != nil && associations.Remediation.ID != nil {
+		remediation := remediationTemplateResponse{
+			ID:          *associations.Remediation.ID,
+			Title:       associations.Remediation.Title,
+			Description: associations.Remediation.Description,
+			Tasks:       make([]remediationTaskResponse, 0, len(associations.Remediation.Tasks)),
+		}
+		for _, task := range associations.Remediation.Tasks {
+			if task.ID == nil {
+				continue
+			}
+			remediation.Tasks = append(remediation.Tasks, remediationTaskResponse{
+				ID:         *task.ID,
+				Title:      task.Title,
+				OrderIndex: task.OrderIndex,
+			})
+		}
+		response.Remediation = &remediation
 	}
 
 	return response

@@ -917,6 +917,148 @@ func TestRiskServiceReviewRiskReassess(t *testing.T) {
 	}
 }
 
+func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk with threat/remediation",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	threat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Cross-site scripting",
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, threat.ID)
+
+	sameThreat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Cross-site scripting",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, *threat.ID, *sameThreat.ID)
+
+	loadedThreat, err := svc.GetThreatRef(riskID, *threat.ID)
+	require.NoError(t, err)
+	require.Equal(t, "CWE", loadedThreat.System)
+
+	updatedThreat, err := svc.UpdateThreatRef(riskID, *threat.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "XSS updated",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, "XSS updated", updatedThreat.Title)
+
+	threatRows, total, err := svc.ListThreatRefs(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, threatRows, 1)
+
+	desc := "Apply mitigations"
+	remediation, err := svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{
+		Title:       "Fix risk",
+		Description: &desc,
+		Tasks: []RiskRemediationTaskInput{
+			{Title: "Task A", OrderIndex: 1},
+		},
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, remediation.ID)
+	require.Len(t, remediation.Tasks, 1)
+
+	_, err = svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{Title: "Duplicate"}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	remediation, err = svc.UpsertRemediationTemplate(riskID, &RiskRemediationTemplateInput{
+		Title: "Fix risk updated",
+		Tasks: []RiskRemediationTaskInput{
+			{Title: "Task B", OrderIndex: 1},
+			{Title: "Task C", OrderIndex: 2},
+		},
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, "Fix risk updated", remediation.Title)
+	require.Len(t, remediation.Tasks, 2)
+
+	loadedRemediation, err := svc.GetRemediationTemplate(riskID)
+	require.NoError(t, err)
+	require.Equal(t, "Fix risk updated", loadedRemediation.Title)
+	require.Len(t, loadedRemediation.Tasks, 2)
+
+	deletedThreat, err := svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedThreat)
+	deletedThreat, err = svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.False(t, deletedThreat)
+
+	deletedRemediation, err := svc.DeleteRemediationTemplate(riskID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedRemediation)
+	deletedRemediation, err = svc.DeleteRemediationTemplate(riskID, &actorID)
+	require.NoError(t, err)
+	require.False(t, deletedRemediation)
+}
+
+func TestRiskServiceCreateAndUpdateWithInlineThreatAndRemediation(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	actorID := uuid.New()
+	created, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:       "inline associations",
+			Description: "desc",
+			Status:      string(RiskStatusOpen),
+			SSPID:       uuid.New(),
+			SourceType:  string(RiskSourceTypeManual),
+			FirstSeenAt: time.Now().UTC(),
+			LastSeenAt:  time.Now().UTC(),
+		},
+		ThreatRefs: []RiskThreatRefInput{
+			{System: "CWE", ExternalID: "200", Title: "Data exposure"},
+		},
+		Remediation: &RiskRemediationTemplateInput{
+			Title: "Mitigate",
+			Tasks: []RiskRemediationTaskInput{{Title: "Task", OrderIndex: 1}},
+		},
+		ActorUserID: &actorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.ID)
+	require.Len(t, created.ThreatRefs, 1)
+	require.NotNil(t, created.Remediation)
+	require.Len(t, created.Remediation.Tasks, 1)
+
+	createdCopy := *created
+	updated, err := svc.Update(UpdateRiskParams{
+		Risk:               &createdCopy,
+		ActorUserID:        &actorID,
+		OldStatus:          created.Status,
+		ReplaceThreatRefs:  true,
+		ThreatRefs:         []RiskThreatRefInput{},
+		ReplaceRemediation: true,
+		Remediation:        nil,
+	})
+	require.NoError(t, err)
+	require.Len(t, updated.ThreatRefs, 0)
+	require.Nil(t, updated.Remediation)
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -931,6 +1073,9 @@ func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 		&RiskComponentLink{},
 		&RiskSubjectLink{},
 		&RiskOwnerAssignment{},
+		&RiskThreatRef{},
+		&RiskRemediationTemplate{},
+		&RiskRemediationTask{},
 		&testUserRow{},
 		&testEvidenceRow{},
 		&testControlRow{},
