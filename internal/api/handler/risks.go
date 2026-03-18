@@ -746,7 +746,6 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	ctx.Request().Body = io.NopCloser(bytes.NewReader(body))
 
 	var req updateRiskRequest
 	if err := json.Unmarshal(body, &req); err != nil {

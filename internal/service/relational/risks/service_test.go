@@ -1033,6 +1033,55 @@ func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
 	require.False(t, deletedRemediation)
 }
 
+func TestRiskServiceAddThreatRefEnforcesMaxPerRisk(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk threat cap",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	var firstThreat *RiskThreatRef
+	for i := 1; i <= maxThreatRefsPerRisk; i++ {
+		threat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+			System:     "CWE",
+			ExternalID: fmt.Sprintf("%d", i),
+			Title:      fmt.Sprintf("Threat %d", i),
+		}, &actorID)
+		require.NoError(t, err)
+		if i == 1 {
+			firstThreat = threat
+		}
+	}
+	require.NotNil(t, firstThreat)
+	require.NotNil(t, firstThreat.ID)
+
+	_, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "overflow",
+		Title:      "Overflow",
+	}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	duplicate, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "1",
+		Title:      "Threat 1",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, *firstThreat.ID, *duplicate.ID)
+}
+
 func TestRiskServiceCreateAndUpdateWithInlineThreatAndRemediation(t *testing.T) {
 	db := newRiskServiceTestDB(t)
 	svc := NewRiskService(db)

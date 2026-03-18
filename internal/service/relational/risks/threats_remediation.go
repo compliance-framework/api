@@ -391,6 +391,27 @@ func (s *RiskService) AddThreatRef(riskID uuid.UUID, input RiskThreatRefInput, a
 		return nil, err
 	}
 
+	var existing RiskThreatRef
+	if err := tx.Where("risk_id = ? AND system = ? AND external_id = ?", riskID, normalized.System, normalized.ExternalID).First(&existing).Error; err == nil {
+		if err := tx.Commit().Error; err != nil {
+			return nil, err
+		}
+		return &existing, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return nil, err
+	}
+
+	var existingCount int64
+	if err := tx.Model(&RiskThreatRef{}).Where("risk_id = ?", riskID).Count(&existingCount).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if existingCount >= maxThreatRefsPerRisk {
+		tx.Rollback()
+		return nil, newValidationError(fmt.Sprintf("threatIds must contain at most %d items", maxThreatRefsPerRisk))
+	}
+
 	row := RiskThreatRef{
 		RiskID:     riskID,
 		System:     normalized.System,
@@ -398,27 +419,18 @@ func (s *RiskService) AddThreatRef(riskID uuid.UUID, input RiskThreatRefInput, a
 		Title:      normalized.Title,
 		URL:        normalized.URL,
 	}
-	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
-	if createResult.Error != nil {
+	if err := tx.Create(&row).Error; err != nil {
 		tx.Rollback()
-		return nil, createResult.Error
+		return nil, err
 	}
-	if createResult.RowsAffected > 0 {
-		if err := s.logRiskEvent(tx, riskID, RiskEventTypeThreatLinked, actorUserID, datatypes.JSONMap{
-			"threatRefId": row.ID.String(),
-			"system":      row.System,
-			"id":          row.ExternalID,
-		}); err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	} else {
-		var existing RiskThreatRef
-		if err := tx.Where("risk_id = ? AND system = ? AND external_id = ?", riskID, row.System, row.ExternalID).First(&existing).Error; err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-		row = existing
+
+	if err := s.logRiskEvent(tx, riskID, RiskEventTypeThreatLinked, actorUserID, datatypes.JSONMap{
+		"threatRefId": row.ID.String(),
+		"system":      row.System,
+		"id":          row.ExternalID,
+	}); err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
