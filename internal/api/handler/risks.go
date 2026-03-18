@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -742,22 +741,26 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	body, err := io.ReadAll(ctx.Request().Body)
-	if err != nil {
+	decoder := json.NewDecoder(ctx.Request().Body)
+	rawFields := map[string]json.RawMessage{}
+	if err := decoder.Decode(&rawFields); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid request body")))
 	}
 
 	var req updateRiskRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	normalizedBody, err := json.Marshal(rawFields)
+	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
-	rawFields := map[string]json.RawMessage{}
-	if err := json.Unmarshal(body, &rawFields); err != nil {
+	if err := json.Unmarshal(normalizedBody, &req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
 	threatIDsRaw, hasThreatIDs := rawFields["threat-ids"]
-	if hasThreatIDs && bytes.Equal(bytes.TrimSpace(threatIDsRaw), []byte("null")) {
+	if hasThreatIDs && strings.TrimSpace(string(threatIDsRaw)) == "null" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("threat-ids must be an array")))
 	}
 	replaceThreatRefs := hasThreatIDs
@@ -769,7 +772,7 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 	remediationRaw, hasRemediation := rawFields["remediation-template"]
 	replaceRemediation := hasRemediation
 	var remediation *riskrel.RiskRemediationTemplateInput
-	if hasRemediation && !bytes.Equal(bytes.TrimSpace(remediationRaw), []byte("null")) {
+	if hasRemediation && strings.TrimSpace(string(remediationRaw)) != "null" {
 		remediation = toRemediation(req.Remediation)
 	}
 
