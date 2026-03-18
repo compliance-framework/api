@@ -240,6 +240,13 @@ func TestApplyRiskFilters(t *testing.T) {
 		require.Len(t, out, 1)
 		require.Equal(t, *riskA.ID, *out[0].ID)
 	})
+
+	t.Run("whitespace likelihood filter does not broaden results", func(t *testing.T) {
+		whitespace := " "
+		var out []Risk
+		require.NoError(t, ApplyRiskFilters(db, ListFilters{Likelihood: &whitespace}).Find(&out).Error)
+		require.Empty(t, out)
+	})
 }
 
 func TestApplyRiskSorting(t *testing.T) {

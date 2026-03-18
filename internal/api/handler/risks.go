@@ -879,21 +879,27 @@ func (h *RiskHandler) Review(ctx echo.Context) error {
 	if strings.TrimSpace(req.Decision) == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("decision is required")))
 	}
-	if err := validateRiskLevel(req.Likelihood); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	decision := riskrel.NormalizeRiskReviewDecision(req.Decision)
+	if decision == riskrel.RiskReviewDecisionReassess {
+		if err := validateRiskLevel(req.Likelihood); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if err := validateRiskLevel(req.Impact); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+		req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
+	} else {
+		req.Likelihood = nil
+		req.Impact = nil
 	}
-	if err := validateRiskLevel(req.Impact); err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-	req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
-	req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
 
 	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
 		reviewed, err := h.riskService.ReviewRisk(riskrel.ReviewRiskParams{
 			RiskID:             riskID,
 			ActorUserID:        actorID,
 			ReviewedAt:         req.ReviewedAt,
-			Decision:           riskrel.NormalizeRiskReviewDecision(req.Decision),
+			Decision:           decision,
 			Notes:              req.Notes,
 			Likelihood:         req.Likelihood,
 			Impact:             req.Impact,
@@ -1753,16 +1759,24 @@ func parseListFilters(ctx echo.Context) (riskrel.ListFilters, error) {
 		filters.Status = &v
 	}
 	if v := ctx.QueryParam("likelihood"); v != "" {
-		normalized := string(riskrel.NormalizeRiskLevel(v))
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return filters, fmt.Errorf("invalid likelihood")
+		}
+		normalized := string(riskrel.NormalizeRiskLevel(trimmed))
 		if normalized == "" {
-			normalized = v
+			normalized = trimmed
 		}
 		filters.Likelihood = &normalized
 	}
 	if v := ctx.QueryParam("impact"); v != "" {
-		normalized := string(riskrel.NormalizeRiskLevel(v))
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return filters, fmt.Errorf("invalid impact")
+		}
+		normalized := string(riskrel.NormalizeRiskLevel(trimmed))
 		if normalized == "" {
-			normalized = v
+			normalized = trimmed
 		}
 		filters.Impact = &normalized
 	}

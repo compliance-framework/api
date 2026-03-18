@@ -298,8 +298,10 @@ func (suite *RiskApiIntegrationSuite) TestRiskAcceptAndReviewEndpoints() {
 	require.Equal(suite.T(), http.StatusBadRequest, reviewReopenWithDeadlineRec.Code)
 
 	reviewReopenRec, reviewReopenReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
-		"decision": "reopen",
-		"notes":    "mitigation can proceed now",
+		"decision":   "reopen",
+		"notes":      "mitigation can proceed now",
+		"likelihood": "invalid-level",
+		"impact":     "still-invalid",
 	})
 	suite.server.E().ServeHTTP(reviewReopenRec, reviewReopenReq)
 	require.Equal(suite.T(), http.StatusOK, reviewReopenRec.Code)
@@ -1438,6 +1440,14 @@ func (suite *RiskApiIntegrationSuite) TestRiskNotFoundAndInvalidFilterBranches()
 	invalidDeadlineFilterRec, invalidDeadlineFilterReq := suite.authedRequest(http.MethodGet, "/api/risks?reviewDeadlineBefore=not-a-time", nil)
 	suite.server.E().ServeHTTP(invalidDeadlineFilterRec, invalidDeadlineFilterReq)
 	require.Equal(suite.T(), http.StatusBadRequest, invalidDeadlineFilterRec.Code)
+
+	whitespaceLikelihoodRec, whitespaceLikelihoodReq := suite.authedRequest(http.MethodGet, "/api/risks?likelihood=%20", nil)
+	suite.server.E().ServeHTTP(whitespaceLikelihoodRec, whitespaceLikelihoodReq)
+	require.Equal(suite.T(), http.StatusBadRequest, whitespaceLikelihoodRec.Code)
+
+	whitespaceImpactRec, whitespaceImpactReq := suite.authedRequest(http.MethodGet, "/api/risks?impact=%20", nil)
+	suite.server.E().ServeHTTP(whitespaceImpactRec, whitespaceImpactReq)
+	require.Equal(suite.T(), http.StatusBadRequest, whitespaceImpactRec.Code)
 }
 
 func (suite *RiskApiIntegrationSuite) TestRiskListContextInternalErrorIs500() {
