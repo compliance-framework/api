@@ -1082,6 +1082,46 @@ func TestRiskServiceAddThreatRefEnforcesMaxPerRisk(t *testing.T) {
 	require.Equal(t, *firstThreat.ID, *duplicate.ID)
 }
 
+func TestRiskServiceThreatRefCRUDWithoutActorDoesNotLogEvents(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk threat no actor",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	created, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "352",
+		Title:      "Cross-site request forgery",
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, created.ID)
+
+	_, err = svc.UpdateThreatRef(riskID, *created.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "352",
+		Title:      "CSRF updated",
+	}, nil)
+	require.NoError(t, err)
+
+	deleted, err := svc.DeleteThreatRef(riskID, *created.ID, nil)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	var events []RiskEvent
+	require.NoError(t, db.Where("risk_id = ?", riskID).Find(&events).Error)
+	require.Len(t, events, 0)
+}
+
 func TestRiskServiceCreateAndUpdateWithInlineThreatAndRemediation(t *testing.T) {
 	db := newRiskServiceTestDB(t)
 	svc := NewRiskService(db)
