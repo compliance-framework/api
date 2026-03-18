@@ -343,9 +343,9 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 			return fmt.Errorf("failed to update existing risk: %w", err)
 		}
 
-		// Re-create all risk links (evidence, subjects, components) for this new piece of evidence.
+		// Re-create all risk links (evidence, components) for this new piece of evidence.
 		// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
-		// and also keeps subject/component associations up to date as new evidence arrives.
+		// and also keeps component associations up to date as new evidence arrives.
 		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, existingRisk.SSPID, evidence); err != nil {
 			return fmt.Errorf("failed to create risk links: %w", err)
 		}
@@ -433,7 +433,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 	return nil
 }
 
-// createRiskLinks creates all necessary links for a risk (evidence, subject, component, control).
+// createRiskLinks creates all necessary links for a risk (evidence, component, control).
 // Accepts a *gorm.DB so the caller can pass a transaction.
 // Uses OnConflict{DoNothing} throughout so retries are idempotent.
 func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, riskSSPID uuid.UUID, evidence *relational.Evidence) error {
@@ -454,18 +454,6 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 	}
 	if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(evidenceLink).Error; err != nil {
 		return fmt.Errorf("failed to create evidence link: %w", err)
-	}
-
-	// Link subjects
-	for _, subject := range evidence.Subjects {
-		subjectLink := &risks.RiskSubjectLink{
-			RiskID:    riskID,
-			SubjectID: *subject.ID,
-			CreatedAt: now,
-		}
-		if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(subjectLink).Error; err != nil {
-			return fmt.Errorf("failed to create subject link: %w", err)
-		}
 	}
 
 	// Prefetch SystemImplementations for all evidence components to avoid an N+1 query pattern.
@@ -540,11 +528,16 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 // emitRiskEvent creates a risk event record using the provided DB handle.
 // Accepts a *gorm.DB so the caller can pass a transaction handle.
 func (w *RiskEvidenceWorker) emitRiskEvent(ctx context.Context, db *gorm.DB, riskID uuid.UUID, eventType string, payload map[string]interface{}) error {
+	occurredAt := time.Now().UTC()
+	payloadMap := datatypes.JSONMap(payload)
+	details := risks.BuildRiskEventDetails(eventType, payloadMap, occurredAt)
+
 	event := &risks.RiskEvent{
 		RiskID:     riskID,
 		EventType:  eventType,
-		OccurredAt: time.Now().UTC(),
-		Payload:    datatypes.JSONMap(payload),
+		OccurredAt: occurredAt,
+		Details:    &details,
+		Payload:    payloadMap,
 	}
 
 	return db.WithContext(ctx).Create(event).Error

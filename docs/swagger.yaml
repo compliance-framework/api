@@ -1729,6 +1729,10 @@ definitions:
     properties:
       decision:
         type: string
+      impact:
+        type: string
+      likelihood:
+        type: string
       next-review-deadline:
         type: string
       notes:
@@ -7071,6 +7075,8 @@ definitions:
         type: string
       createdAt:
         type: string
+      details:
+        type: string
       eventType:
         type: string
       id:
@@ -7106,6 +7112,10 @@ definitions:
       id:
         type: string
       nextReviewDeadline:
+        type: string
+      reassessedImpact:
+        type: string
+      reassessedLikelihood:
         type: string
       reviewJustification:
         type: string
@@ -7209,21 +7219,6 @@ definitions:
       data:
         items:
           $ref: '#/definitions/risks.RiskSubjectLink'
-        type: array
-      limit:
-        type: integer
-      page:
-        type: integer
-      total:
-        type: integer
-      totalPages:
-        type: integer
-    type: object
-  service.ListResponse-templates_evidenceTemplateResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/templates.evidenceTemplateResponse'
         type: array
       limit:
         type: integer
@@ -7418,82 +7413,6 @@ definitions:
       data:
         $ref: '#/definitions/templates.batchUpsertSubjectTemplatesData'
     type: object
-  templates.evidenceTemplateDataResponse:
-    properties:
-      data:
-        $ref: '#/definitions/templates.evidenceTemplateResponse'
-    type: object
-  templates.evidenceTemplateLabelSchemaFieldRequest:
-    properties:
-      description:
-        type: string
-      key:
-        type: string
-      required:
-        type: boolean
-    type: object
-  templates.evidenceTemplateLabelSchemaFieldResponse:
-    properties:
-      description:
-        type: string
-      key:
-        type: string
-      required:
-        type: boolean
-    type: object
-  templates.evidenceTemplateResponse:
-    properties:
-      created-at:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      is-active:
-        type: boolean
-      label-schema:
-        items:
-          $ref: '#/definitions/templates.evidenceTemplateLabelSchemaFieldResponse'
-        type: array
-      methods:
-        items:
-          type: string
-        type: array
-      plugin-id:
-        type: string
-      policy-package:
-        type: string
-      risk-template-ids:
-        items:
-          type: string
-        type: array
-      selector-labels:
-        items:
-          $ref: '#/definitions/templates.evidenceTemplateSelectorLabelResponse'
-        type: array
-      subject-template-ids:
-        items:
-          type: string
-        type: array
-      title:
-        type: string
-      updated-at:
-        type: string
-    type: object
-  templates.evidenceTemplateSelectorLabelRequest:
-    properties:
-      key:
-        type: string
-      value:
-        type: string
-    type: object
-  templates.evidenceTemplateSelectorLabelResponse:
-    properties:
-      key:
-        type: string
-      value:
-        type: string
-    type: object
   templates.remediationTaskRequest:
     properties:
       order-index:
@@ -7670,39 +7589,6 @@ definitions:
       title:
         type: string
       url:
-        type: string
-    type: object
-  templates.upsertEvidenceTemplateRequest:
-    properties:
-      description:
-        type: string
-      is-active:
-        type: boolean
-      label-schema:
-        items:
-          $ref: '#/definitions/templates.evidenceTemplateLabelSchemaFieldRequest'
-        type: array
-      methods:
-        items:
-          type: string
-        type: array
-      plugin-id:
-        type: string
-      policy-package:
-        type: string
-      risk-template-ids:
-        items:
-          type: string
-        type: array
-      selector-labels:
-        items:
-          $ref: '#/definitions/templates.evidenceTemplateSelectorLabelRequest'
-        type: array
-      subject-template-ids:
-        items:
-          type: string
-        type: array
-      title:
         type: string
     type: object
   templates.upsertRiskTemplateRequest:
@@ -8744,187 +8630,6 @@ paths:
       summary: Trigger evidence digest
       tags:
       - Digest
-  /admin/evidence-templates:
-    get:
-      description: List evidence templates with optional filters and pagination.
-      parameters:
-      - description: Plugin ID
-        in: query
-        name: plugin-id
-        type: string
-      - description: Policy package
-        in: query
-        name: policy-package
-        type: string
-      - description: Active flag
-        in: query
-        name: is-active
-        type: boolean
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/service.ListResponse-templates_evidenceTemplateResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: List evidence templates
-      tags:
-      - Evidence Templates
-    post:
-      consumes:
-      - application/json
-      description: Create an evidence template with selector labels, label schema,
-        and linked risk/subject template IDs.
-      parameters:
-      - description: Evidence template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Create evidence template
-      tags:
-      - Evidence Templates
-  /admin/evidence-templates/{id}:
-    delete:
-      description: Delete an evidence template and its associated selector labels,
-        label schema, and join rows.
-      parameters:
-      - description: Evidence Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Delete evidence template
-      tags:
-      - Evidence Templates
-    get:
-      description: Get an evidence template by ID.
-      parameters:
-      - description: Evidence Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Get evidence template
-      tags:
-      - Evidence Templates
-    put:
-      consumes:
-      - application/json
-      description: Update an evidence template and atomically replace selector labels,
-        label schema, and linked IDs.
-      parameters:
-      - description: Evidence Template ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Evidence template payload
-        in: body
-        name: template
-        required: true
-        schema:
-          $ref: '#/definitions/templates.upsertEvidenceTemplateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/templates.evidenceTemplateDataResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - OAuth2Password: []
-      summary: Update evidence template
-      tags:
-      - Evidence Templates
   /admin/risk-templates:
     get:
       description: List risk templates with optional filters and pagination.
@@ -21086,8 +20791,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Records a risk review by ID scoped to an SSP. nextReviewDeadline
-        is required for decision=extend and must be omitted for decision=reopen.
+      description: Records a risk review by ID scoped to an SSP. For decision=extend,
+        nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen,
+        nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess,
+        likelihood and impact are required, nextReviewDeadline must be omitted, and
+        risk must be open/investigating/mitigating-implemented.
       parameters:
       - description: SSP ID
         in: path
@@ -22576,8 +22284,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Records a structured review for an accepted risk. nextReviewDeadline
-        is required for decision=extend and must be omitted for decision=reopen.
+      description: Records a structured review. For decision=extend, nextReviewDeadline
+        is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline
+        must be omitted and risk must be risk-accepted. For decision=reassess, likelihood
+        and impact are required, nextReviewDeadline must be omitted, and risk must
+        be open/investigating/mitigating-implemented.
       parameters:
       - description: Risk ID
         in: path

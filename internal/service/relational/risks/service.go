@@ -62,6 +62,8 @@ type ReviewRiskParams struct {
 	ReviewedAt         *time.Time
 	Decision           RiskReviewDecision
 	Notes              *string
+	Likelihood         *string
+	Impact             *string
 	NextReviewDeadline *time.Time
 	// RequireCurrentReviewDeadlineBefore enforces, under lock, that the current review deadline
 	// is set and no later than this timestamp before applying the decision.
@@ -158,6 +160,8 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 	if params.Risk == nil || params.Risk.ID == nil {
 		return nil, fmt.Errorf("risk is required")
 	}
+	params.Risk.Likelihood = NormalizeRiskLevelPtr(params.Risk.Likelihood)
+	params.Risk.Impact = NormalizeRiskLevelPtr(params.Risk.Impact)
 
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -310,8 +314,12 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		return nil, newValidationError("decision is required")
 	}
 	if !decision.IsValid() {
-		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen))
+		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess))
 	}
+
+	reassessedLikelihood := NormalizeRiskLevelPtr(params.Likelihood)
+	reassessedImpact := NormalizeRiskLevelPtr(params.Impact)
+
 	nextReviewDeadline := params.NextReviewDeadline
 	if decision == RiskReviewDecisionExtend {
 		if nextReviewDeadline == nil {
@@ -326,6 +334,17 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	if decision == RiskReviewDecisionReopen && nextReviewDeadline != nil {
 		return nil, newValidationError("nextReviewDeadline must not be provided when decision is reopen")
 	}
+	if decision == RiskReviewDecisionReassess {
+		if nextReviewDeadline != nil {
+			return nil, newValidationError("nextReviewDeadline must not be provided when decision is reassess")
+		}
+		if reassessedLikelihood == nil || !RiskLevel(*reassessedLikelihood).IsValid() {
+			return nil, newValidationError("likelihood is required and must be one of: negligible, low, moderate, high, critical")
+		}
+		if reassessedImpact == nil || !RiskLevel(*reassessedImpact).IsValid() {
+			return nil, newValidationError("impact is required and must be one of: negligible, low, moderate, high, critical")
+		}
+	}
 
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -338,17 +357,26 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		tx.Rollback()
 		return nil, err
 	}
-	if risk.Status != string(RiskStatusRiskAccepted) {
-		tx.Rollback()
-		return nil, newValidationError("only risks in status risk-accepted can be reviewed")
-	}
-	if params.RequireCurrentReviewDeadlineBefore != nil {
-		cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
-		if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
+	if decision == RiskReviewDecisionReassess {
+		if !isReassessEligibleRiskStatus(risk.Status) {
 			tx.Rollback()
-			return nil, newValidationError("risk review deadline no longer eligible for requested decision")
+			return nil, newValidationError("reassess is only allowed for risks in status open, investigating, or mitigating-implemented")
+		}
+	} else {
+		if risk.Status != string(RiskStatusRiskAccepted) {
+			tx.Rollback()
+			return nil, newValidationError("only risks in status risk-accepted can be reviewed")
+		}
+		if params.RequireCurrentReviewDeadlineBefore != nil {
+			cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
+			if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
+				tx.Rollback()
+				return nil, newValidationError("risk review deadline no longer eligible for requested decision")
+			}
 		}
 	}
+	fromLikelihood := NormalizeRiskLevelPtr(risk.Likelihood)
+	fromImpact := NormalizeRiskLevelPtr(risk.Impact)
 
 	reviewedAt := time.Now().UTC()
 	if params.ReviewedAt != nil {
@@ -362,6 +390,10 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		risk.Status = string(RiskStatusInvestigating)
 		risk.ReviewDeadline = nil
 		risk.AcceptanceJustification = nil
+	}
+	if decision == RiskReviewDecisionReassess {
+		risk.Likelihood = reassessedLikelihood
+		risk.Impact = reassessedImpact
 	}
 
 	risk.LastReviewedAt = &reviewedAt
@@ -386,24 +418,65 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		}
 	}
 
+	var reviewReassessedLikelihood *string
+	var reviewReassessedImpact *string
+	if decision == RiskReviewDecisionReassess {
+		reviewReassessedLikelihood = reassessedLikelihood
+		reviewReassessedImpact = reassessedImpact
+	}
+
 	review := RiskReview{
-		RiskID:              *risk.ID,
-		ReviewedByUserID:    params.ActorUserID,
-		ReviewedAt:          reviewedAt,
-		Decision:            string(decision),
-		NextReviewDeadline:  nextReviewDeadline,
-		ReviewJustification: params.Notes,
-		RiskSnapshot:        riskSnapshot,
+		RiskID:               *risk.ID,
+		ReviewedByUserID:     params.ActorUserID,
+		ReviewedAt:           reviewedAt,
+		Decision:             string(decision),
+		NextReviewDeadline:   nextReviewDeadline,
+		ReassessedLikelihood: reviewReassessedLikelihood,
+		ReassessedImpact:     reviewReassessedImpact,
+		ReviewJustification:  params.Notes,
+		RiskSnapshot:         riskSnapshot,
 	}
 	if err := tx.Create(&review).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
-	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
-		"decision": string(decision),
-	}, riskSnapshot); err != nil {
-		tx.Rollback()
-		return nil, err
+
+	if decision == RiskReviewDecisionReassess {
+		var toLikelihood any
+		var toImpact any
+		if reassessedLikelihood != nil {
+			toLikelihood = *reassessedLikelihood
+		}
+		if reassessedImpact != nil {
+			toImpact = *reassessedImpact
+		}
+		var fromLikelihoodValue any
+		var fromImpactValue any
+		if fromLikelihood != nil {
+			fromLikelihoodValue = *fromLikelihood
+		}
+		if fromImpact != nil {
+			fromImpactValue = *fromImpact
+		}
+
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeScoreReassessed, params.ActorUserID, datatypes.JSONMap{
+			"decision":       string(decision),
+			"status":         risk.Status,
+			"fromLikelihood": fromLikelihoodValue,
+			"fromImpact":     fromImpactValue,
+			"toLikelihood":   toLikelihood,
+			"toImpact":       toImpact,
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
+			"decision": string(decision),
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -411,6 +484,15 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	}
 
 	return s.GetByID(*risk.ID)
+}
+
+func isReassessEligibleRiskStatus(status string) bool {
+	switch status {
+	case string(RiskStatusOpen), string(RiskStatusInvestigating), string(RiskStatusMitigatingImplemented):
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *RiskService) Delete(riskID uuid.UUID) error {
@@ -1074,6 +1156,8 @@ func (s *RiskService) logRiskEventWithSnapshot(tx *gorm.DB, riskID uuid.UUID, ev
 		Payload:      payload,
 		RiskSnapshot: riskSnapshot,
 	}
+	details := BuildRiskEventDetails(event.EventType, payload, event.OccurredAt)
+	event.Details = &details
 	return tx.Create(&event).Error
 }
 

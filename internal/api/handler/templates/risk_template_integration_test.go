@@ -45,14 +45,16 @@ type remediationTemplateResponse struct {
 }
 
 type riskTemplateResponse struct {
-	ID          uuid.UUID                    `json:"id"`
-	CreatedAt   time.Time                    `json:"created-at"`
-	UpdatedAt   time.Time                    `json:"updated-at"`
-	PluginID    string                       `json:"plugin-id"`
-	Name        string                       `json:"name"`
-	IsActive    bool                         `json:"is-active"`
-	ThreatIDs   []threatIDResponse           `json:"threat-ids"`
-	Remediation *remediationTemplateResponse `json:"remediation-template,omitempty"`
+	ID             uuid.UUID                    `json:"id"`
+	CreatedAt      time.Time                    `json:"created-at"`
+	UpdatedAt      time.Time                    `json:"updated-at"`
+	PluginID       string                       `json:"plugin-id"`
+	Name           string                       `json:"name"`
+	LikelihoodHint *string                      `json:"likelihood-hint"`
+	ImpactHint     *string                      `json:"impact-hint"`
+	IsActive       bool                         `json:"is-active"`
+	ThreatIDs      []threatIDResponse           `json:"threat-ids"`
+	Remediation    *remediationTemplateResponse `json:"remediation-template,omitempty"`
 }
 
 type genericDataResponse[T any] struct {
@@ -139,6 +141,8 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateCRUD() {
 	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
 	require.NotEqual(suite.T(), uuid.Nil, created.Data.ID)
 	require.Equal(suite.T(), "github-repositories", created.Data.PluginID)
+	require.NotNil(suite.T(), created.Data.LikelihoodHint)
+	require.Equal(suite.T(), "moderate", *created.Data.LikelihoodHint)
 	require.False(suite.T(), created.Data.CreatedAt.IsZero())
 	require.False(suite.T(), created.Data.UpdatedAt.IsZero())
 	require.Len(suite.T(), created.Data.ThreatIDs, 1)
@@ -189,6 +193,8 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateCRUD() {
 	var updated genericDataResponse[riskTemplateResponse]
 	require.NoError(suite.T(), json.Unmarshal(updateRec.Body.Bytes(), &updated))
 	require.Equal(suite.T(), "Secret scanning risk template updated", updated.Data.Name)
+	require.NotNil(suite.T(), updated.Data.ImpactHint)
+	require.Equal(suite.T(), "moderate", *updated.Data.ImpactHint)
 	require.False(suite.T(), updated.Data.IsActive)
 	require.Len(suite.T(), updated.Data.ThreatIDs, 1)
 	require.Equal(suite.T(), "CWE-200", updated.Data.ThreatIDs[0].ID)
@@ -253,7 +259,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateDefaultActiveAndHi
 		"name":            "Invalid hint template",
 		"title":           "Template title",
 		"statement":       "Template statement",
-		"likelihood-hint": "critical",
+		"likelihood-hint": "invalid",
 		"threat-ids": []map[string]any{
 			{
 				"system": "https://cwe.mitre.org",

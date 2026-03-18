@@ -28,10 +28,20 @@ func ApplyRiskFilters(query *gorm.DB, filters ListFilters) *gorm.DB {
 		q = q.Where("risk_register_risks.status = ?", *filters.Status)
 	}
 	if filters.Likelihood != nil && *filters.Likelihood != "" {
-		q = q.Where("risk_register_risks.likelihood = ?", *filters.Likelihood)
+		values := RiskLevelFilterValues(*filters.Likelihood)
+		if len(values) == 1 {
+			q = q.Where("risk_register_risks.likelihood = ?", values[0])
+		} else if len(values) > 1 {
+			q = q.Where("risk_register_risks.likelihood IN ?", values)
+		}
 	}
 	if filters.Impact != nil && *filters.Impact != "" {
-		q = q.Where("risk_register_risks.impact = ?", *filters.Impact)
+		values := RiskLevelFilterValues(*filters.Impact)
+		if len(values) == 1 {
+			q = q.Where("risk_register_risks.impact = ?", values[0])
+		} else if len(values) > 1 {
+			q = q.Where("risk_register_risks.impact IN ?", values)
+		}
 	}
 	if filters.SSPID != nil {
 		q = q.Where("risk_register_risks.ssp_id = ?", *filters.SSPID)

@@ -35,9 +35,6 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&relational.SystemImplementation{},
 		&relational.InventoryItem{},
 		&relational.SystemSecurityPlan{},
-		&templates.EvidenceTemplate{},
-		&templates.EvidenceTemplateSelectorLabel{},
-		&templates.EvidenceTemplateRiskTemplate{},
 		&templates.RiskTemplate{},
 		&risks.Risk{},
 		&risks.RiskEvidenceLink{},
@@ -878,7 +875,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test evidence with subjects and components
+	// Create test evidence with components
 	evidence := createTestEvidence(t, worker.db)
 
 	// Create SSP and SystemImplementation for proper component linking
@@ -895,13 +892,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	}
 	require.NoError(t, worker.db.Create(systemImpl).Error)
 
-	// Add subjects and components to evidence
-	subject := &relational.AssessmentSubject{
-		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
-	}
-	*subject.ID = uuid.New()
-	require.NoError(t, worker.db.Create(subject).Error)
-
+	// Add component to evidence
 	componentID := uuid.New()
 	component := &relational.SystemComponent{
 		UUIDModel:              relational.UUIDModel{ID: &componentID},
@@ -909,8 +900,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	}
 	require.NoError(t, worker.db.Create(component).Error)
 
-	// Update evidence with subjects and components
-	require.NoError(t, worker.db.Model(evidence).Association("Subjects").Append(subject))
+	// Update evidence with components
 	require.NoError(t, worker.db.Model(evidence).Association("Components").Append(component))
 
 	// Reload evidence with associations
@@ -941,13 +931,6 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	err = worker.db.WithContext(ctx).
 		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
 		First(&evidenceLink).Error
-	assert.NoError(t, err)
-
-	// Verify subject link
-	var subjectLink risks.RiskSubjectLink
-	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND subject_id = ?", riskID, *subject.ID).
-		First(&subjectLink).Error
 	assert.NoError(t, err)
 
 	// Verify component link
@@ -1061,6 +1044,8 @@ func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {
 	assert.Equal(t, riskID, event.RiskID)
 	assert.Equal(t, eventType, event.EventType)
 	assert.NotZero(t, event.OccurredAt)
+	assert.NotNil(t, event.Details)
+	assert.NotEmpty(t, *event.Details)
 }
 
 func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
@@ -1116,6 +1101,8 @@ func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, riskID, event.RiskID)
 			assert.Equal(t, tc.eventType, event.EventType)
+			assert.NotNil(t, event.Details)
+			assert.NotEmpty(t, *event.Details)
 		})
 	}
 }
