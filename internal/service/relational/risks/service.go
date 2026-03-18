@@ -1049,6 +1049,31 @@ func (s *RiskService) AddSubjectLink(riskID, subjectID uuid.UUID, actorUserID *u
 }
 
 func (s *RiskService) GetAssociations(riskID uuid.UUID) (Associations, error) {
+	associations, err := s.GetLinkAssociations(riskID)
+	if err != nil {
+		return associations, err
+	}
+
+	if err := s.db.Where("risk_id = ?", riskID).Order("system asc, external_id asc").Find(&associations.ThreatRefs).Error; err != nil {
+		return associations, err
+	}
+
+	var remediation RiskRemediationTemplate
+	if err := s.db.
+		Where("risk_id = ?", riskID).
+		Preload("Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
+		First(&remediation).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return associations, err
+		}
+	} else {
+		associations.Remediation = &remediation
+	}
+
+	return associations, nil
+}
+
+func (s *RiskService) GetLinkAssociations(riskID uuid.UUID) (Associations, error) {
 	associations := Associations{}
 
 	var evidenceLinks []RiskEvidenceLink
@@ -1077,22 +1102,6 @@ func (s *RiskService) GetAssociations(riskID uuid.UUID) (Associations, error) {
 	}
 	for _, link := range subjectLinks {
 		associations.SubjectIDs = append(associations.SubjectIDs, link.SubjectID)
-	}
-
-	if err := s.db.Where("risk_id = ?", riskID).Order("system asc, external_id asc").Find(&associations.ThreatRefs).Error; err != nil {
-		return associations, err
-	}
-
-	var remediation RiskRemediationTemplate
-	if err := s.db.
-		Where("risk_id = ?", riskID).
-		Preload("Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
-		First(&remediation).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return associations, err
-		}
-	} else {
-		associations.Remediation = &remediation
 	}
 
 	return associations, nil

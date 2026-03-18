@@ -2139,10 +2139,12 @@ func toRemediation(req *remediationTemplateRequest) *riskrel.RiskRemediationTemp
 }
 
 func (h *RiskHandler) mapRiskToResponse(risk *riskrel.Risk) (riskResponse, error) {
-	associations, err := h.riskService.GetAssociations(*risk.ID)
+	associations, err := h.riskService.GetLinkAssociations(*risk.ID)
 	if err != nil {
 		return riskResponse{}, err
 	}
+	associations.ThreatRefs = append(associations.ThreatRefs, risk.ThreatRefs...)
+	associations.Remediation = risk.Remediation
 
 	return h.mapRiskToResponseWithAssociations(risk, associations), nil
 }
