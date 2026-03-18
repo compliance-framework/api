@@ -758,9 +758,12 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 	}
 
 	threatIDsRaw, hasThreatIDs := rawFields["threat-ids"]
+	if hasThreatIDs && bytes.Equal(bytes.TrimSpace(threatIDsRaw), []byte("null")) {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("threat-ids must be an array")))
+	}
 	replaceThreatRefs := hasThreatIDs
 	threatRefs := make([]riskrel.RiskThreatRefInput, 0)
-	if hasThreatIDs && !bytes.Equal(bytes.TrimSpace(threatIDsRaw), []byte("null")) {
+	if hasThreatIDs {
 		threatRefs = toThreatRefs(req.ThreatIDs)
 	}
 

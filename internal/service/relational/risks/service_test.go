@@ -981,7 +981,7 @@ func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
 
 	_, err = svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{Title: "Duplicate"}, &actorID)
 	require.Error(t, err)
-	require.True(t, IsValidationError(err))
+	require.ErrorIs(t, err, ErrRemediationTemplateAlreadyExists)
 
 	remediation, err = svc.UpsertRemediationTemplate(riskID, &RiskRemediationTemplateInput{
 		Title: "Fix risk updated",

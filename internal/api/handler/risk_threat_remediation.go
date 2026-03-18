@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
 	svc "github.com/compliance-framework/api/internal/service"
@@ -339,10 +338,10 @@ func (h *RiskHandler) CreateRemediationTemplate(ctx echo.Context) error {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
 			}
+			if errors.Is(err, riskrel.ErrRemediationTemplateAlreadyExists) {
+				return ctx.JSON(http.StatusConflict, api.NewError(err))
+			}
 			if riskrel.IsValidationError(err) {
-				if strings.Contains(strings.ToLower(err.Error()), "already exists") {
-					return ctx.JSON(http.StatusConflict, api.NewError(err))
-				}
 				return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 			}
 			return h.internalServerError(ctx, "failed to create remediation template", err)

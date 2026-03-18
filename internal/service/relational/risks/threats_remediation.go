@@ -376,6 +376,8 @@ func (s *RiskService) AddThreatRef(riskID uuid.UUID, input RiskThreatRefInput, a
 	if err := validateRiskThreatRefs([]RiskThreatRefInput{input}); err != nil {
 		return nil, err
 	}
+	normalized := input
+	normalizeThreatRefInput(&normalized)
 
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -391,10 +393,10 @@ func (s *RiskService) AddThreatRef(riskID uuid.UUID, input RiskThreatRefInput, a
 
 	row := RiskThreatRef{
 		RiskID:     riskID,
-		System:     strings.TrimSpace(input.System),
-		ExternalID: strings.TrimSpace(input.ExternalID),
-		Title:      strings.TrimSpace(input.Title),
-		URL:        input.URL,
+		System:     normalized.System,
+		ExternalID: normalized.ExternalID,
+		Title:      normalized.Title,
+		URL:        normalized.URL,
 	}
 	createResult := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
 	if createResult.Error != nil {
@@ -430,6 +432,8 @@ func (s *RiskService) UpdateThreatRef(riskID, threatRefID uuid.UUID, input RiskT
 	if err := validateRiskThreatRefs([]RiskThreatRefInput{input}); err != nil {
 		return nil, err
 	}
+	normalized := input
+	normalizeThreatRefInput(&normalized)
 
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -443,10 +447,10 @@ func (s *RiskService) UpdateThreatRef(riskID, threatRefID uuid.UUID, input RiskT
 		return nil, err
 	}
 
-	row.System = strings.TrimSpace(input.System)
-	row.ExternalID = strings.TrimSpace(input.ExternalID)
-	row.Title = strings.TrimSpace(input.Title)
-	row.URL = input.URL
+	row.System = normalized.System
+	row.ExternalID = normalized.ExternalID
+	row.Title = normalized.Title
+	row.URL = normalized.URL
 	if err := tx.Save(&row).Error; err != nil {
 		tx.Rollback()
 		return nil, err
@@ -540,7 +544,7 @@ func (s *RiskService) CreateRemediationTemplate(riskID uuid.UUID, input *RiskRem
 	var existing RiskRemediationTemplate
 	if err := tx.Where("risk_id = ?", riskID).First(&existing).Error; err == nil {
 		tx.Rollback()
-		return nil, newValidationError("remediationTemplate already exists for risk")
+		return nil, ErrRemediationTemplateAlreadyExists
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		tx.Rollback()
 		return nil, err

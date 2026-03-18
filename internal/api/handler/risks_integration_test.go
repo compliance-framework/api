@@ -1709,6 +1709,13 @@ func (suite *RiskApiIntegrationSuite) TestRiskThreatAndRemediationInlineAndNeste
 	require.Len(suite.T(), kept.Data.ThreatIDs, 1)
 	require.NotNil(suite.T(), kept.Data.Remediation)
 
+	// threat-ids must be an array when present.
+	updateNullThreatsRec, updateNullThreatsReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
+		"threat-ids": nil,
+	})
+	suite.server.E().ServeHTTP(updateNullThreatsRec, updateNullThreatsReq)
+	require.Equal(suite.T(), http.StatusBadRequest, updateNullThreatsRec.Code)
+
 	// Explicit replace semantics: [] clears threats; null removes remediation.
 	updateClearRec, updateClearReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
 		"threat-ids":           []map[string]any{},
