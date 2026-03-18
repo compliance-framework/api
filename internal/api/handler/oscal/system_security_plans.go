@@ -35,16 +35,16 @@ type SystemComponentRequest struct {
 }
 
 type ApplySuggestionRequest struct {
-	ComponentDefinitionID *uuid.UUID `json:"componentDefinitionId" binding:"required" format:"uuid"`
-	DefinedComponentID    *uuid.UUID `json:"definedComponentId" binding:"required" format:"uuid"`
+	ComponentDefinitionID *uuid.UUID `json:"component-definition-id" binding:"required" format:"uuid"`
+	DefinedComponentID    *uuid.UUID `json:"defined-component-id" binding:"required" format:"uuid"`
 }
 
 func (r *ApplySuggestionRequest) Validate() error {
 	if r.ComponentDefinitionID == nil || *r.ComponentDefinitionID == uuid.Nil {
-		return fmt.Errorf("componentDefinitionId is required")
+		return fmt.Errorf("component-definition-id is required")
 	}
 	if r.DefinedComponentID == nil || *r.DefinedComponentID == uuid.Nil {
-		return fmt.Errorf("definedComponentId is required")
+		return fmt.Errorf("defined-component-id is required")
 	}
 	return nil
 }

@@ -395,8 +395,8 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestSuggestComponents_A
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
 		map[string]any{
-			"componentDefinitionId": compDefUUID,
-			"definedComponentId":    dcUUID,
+			"component-definition-id": compDefUUID,
+			"defined-component-id":    dcUUID,
 		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Require().Equal(http.StatusNoContent, rec.Code)
@@ -460,8 +460,8 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Cre
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
 		map[string]any{
-			"componentDefinitionId": compDefUUID,
-			"definedComponentId":    dcUUID,
+			"component-definition-id": compDefUUID,
+			"defined-component-id":    dcUUID,
 		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusNoContent, rec.Code, rec.Body.String())
@@ -499,8 +499,8 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Ide
 	// Apply twice
 	for i := 0; i < 2; i++ {
 		rec, req := suite.req(http.MethodPost, path, map[string]any{
-			"componentDefinitionId": compDefUUID,
-			"definedComponentId":    dcUUID,
+			"component-definition-id": compDefUUID,
+			"defined-component-id":    dcUUID,
 		})
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(http.StatusNoContent, rec.Code, "attempt %d: %s", i+1, rec.Body.String())
@@ -525,8 +525,8 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Sug
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
 		map[string]any{
-			"componentDefinitionId": compDefUUID,
-			"definedComponentId":    dcUUID,
+			"component-definition-id": compDefUUID,
+			"defined-component-id":    dcUUID,
 		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusNotFound, rec.Code)
@@ -539,7 +539,7 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestion_Mis
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/apply-suggestion", sspID, implReqID),
 		map[string]any{
-			"definedComponentId": uuid.New().String(),
+			"defined-component-id": uuid.New().String(),
 		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusBadRequest, rec.Code)
@@ -554,8 +554,8 @@ func (suite *SystemComponentSuggestionsIntegrationSuite) TestApplySuggestionForS
 	rec, req := suite.req(http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/control-implementation/implemented-requirements/%s/statements/%s/apply-suggestion", sspID, implReqID, stmtID),
 		map[string]any{
-			"componentDefinitionId": compDefUUID,
-			"definedComponentId":    dcUUID,
+			"component-definition-id": compDefUUID,
+			"defined-component-id":    dcUUID,
 		})
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusNoContent, rec.Code, rec.Body.String())

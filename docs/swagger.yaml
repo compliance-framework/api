@@ -1960,15 +1960,15 @@ definitions:
     type: object
   oscal.ApplySuggestionRequest:
     properties:
-      componentDefinitionId:
+      component-definition-id:
         format: uuid
         type: string
-      definedComponentId:
+      defined-component-id:
         format: uuid
         type: string
     required:
-    - componentDefinitionId
-    - definedComponentId
+    - component-definition-id
+    - defined-component-id
     type: object
   oscal.BuildByPropsRequest:
     properties:
