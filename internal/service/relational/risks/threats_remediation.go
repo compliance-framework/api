@@ -451,6 +451,19 @@ func (s *RiskService) UpdateThreatRef(riskID, threatRefID uuid.UUID, input RiskT
 	row.ExternalID = normalized.ExternalID
 	row.Title = normalized.Title
 	row.URL = normalized.URL
+
+	var duplicate RiskThreatRef
+	if err := tx.
+		Select("id").
+		Where("risk_id = ? AND system = ? AND external_id = ? AND id <> ?", riskID, row.System, row.ExternalID, threatRefID).
+		First(&duplicate).Error; err == nil {
+		tx.Rollback()
+		return nil, newValidationError("threatIds contains duplicate system/id pairs")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return nil, err
+	}
+
 	if err := tx.Save(&row).Error; err != nil {
 		tx.Rollback()
 		return nil, err

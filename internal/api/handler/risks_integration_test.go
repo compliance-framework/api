@@ -1760,9 +1760,30 @@ func (suite *RiskApiIntegrationSuite) TestRiskThreatAndRemediationInlineAndNeste
 	suite.server.E().ServeHTTP(updateThreatRec, updateThreatReq)
 	require.Equal(suite.T(), http.StatusOK, updateThreatRec.Code)
 
+	secondThreatRec, secondThreatReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/threat-ids", created.ID), map[string]any{
+		"system": "CWE",
+		"id":     "89",
+		"title":  "SQL injection",
+	})
+	suite.server.E().ServeHTTP(secondThreatRec, secondThreatReq)
+	require.Equal(suite.T(), http.StatusCreated, secondThreatRec.Code)
+	var secondThreat GenericDataResponse[threatIDResponse]
+	require.NoError(suite.T(), json.Unmarshal(secondThreatRec.Body.Bytes(), &secondThreat))
+
+	duplicateThreatRec, duplicateThreatReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, secondThreat.Data.ID), map[string]any{
+		"system": "CWE",
+		"id":     "200",
+		"title":  "Should fail duplicate",
+	})
+	suite.server.E().ServeHTTP(duplicateThreatRec, duplicateThreatReq)
+	require.Equal(suite.T(), http.StatusBadRequest, duplicateThreatRec.Code)
+
 	deleteThreatRec, deleteThreatReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, createdThreat.Data.ID), nil)
 	suite.server.E().ServeHTTP(deleteThreatRec, deleteThreatReq)
 	require.Equal(suite.T(), http.StatusNoContent, deleteThreatRec.Code)
+	deleteSecondThreatRec, deleteSecondThreatReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, secondThreat.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteSecondThreatRec, deleteSecondThreatReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteSecondThreatRec.Code)
 
 	// Remediation nested CRUD
 	createRemRec, createRemReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{

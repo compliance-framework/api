@@ -873,11 +873,25 @@ definitions:
         - $ref: '#/definitions/handler.poamItemResponse'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_remediationTemplateResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.remediationTemplateResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_riskResponse:
     properties:
       data:
         allOf:
         - $ref: '#/definitions/handler.riskResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_threatIDResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.threatIDResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-oscal_BuildByPropsResponse:
@@ -7226,6 +7240,21 @@ definitions:
       data:
         items:
           $ref: '#/definitions/handler.riskResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-handler_threatIDResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.threatIDResponse'
         type: array
       limit:
         type: integer
@@ -20869,6 +20898,175 @@ paths:
       summary: Delete risk evidence link for SSP
       tags:
       - Risks
+  /oscal/system-security-plans/{sspId}/risks/{id}/remediation-template:
+    delete:
+      description: Deletes the remediation template linked to a risk scoped to an
+        SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk remediation template for SSP
+      tags:
+      - Risks
+    get:
+      description: Gets the remediation template linked to a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_remediationTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk remediation template for SSP
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Creates a remediation template for a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Remediation template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/handler.remediationTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_remediationTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create risk remediation template for SSP
+      tags:
+      - Risks
+    put:
+      consumes:
+      - application/json
+      description: Replaces or creates the remediation template for a risk scoped
+        to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Remediation template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/handler.remediationTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_remediationTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Upsert risk remediation template for SSP
+      tags:
+      - Risks
   /oscal/system-security-plans/{sspId}/risks/{id}/review:
     post:
       consumes:
@@ -20963,6 +21161,230 @@ paths:
       security:
       - OAuth2Password: []
       summary: List risk audit trail for SSP
+      tags:
+      - Risks
+  /oscal/system-security-plans/{sspId}/risks/{id}/threat-ids:
+    get:
+      description: Lists threat references linked to a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk threat references for SSP
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Adds a threat reference to a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference payload
+        in: body
+        name: threat
+        required: true
+        schema:
+          $ref: '#/definitions/handler.threatIDRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add risk threat reference for SSP
+      tags:
+      - Risks
+  /oscal/system-security-plans/{sspId}/risks/{id}/threat-ids/{threatRefId}:
+    delete:
+      description: Deletes a threat reference linked to a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference ID
+        in: path
+        name: threatRefId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk threat reference for SSP
+      tags:
+      - Risks
+    get:
+      description: Gets a threat reference linked to a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference ID
+        in: path
+        name: threatRefId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk threat reference for SSP
+      tags:
+      - Risks
+    put:
+      consumes:
+      - application/json
+      description: Updates a threat reference linked to a risk scoped to an SSP.
+      parameters:
+      - description: SSP ID
+        in: path
+        name: sspId
+        required: true
+        type: string
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference ID
+        in: path
+        name: threatRefId
+        required: true
+        type: string
+      - description: Threat reference payload
+        in: body
+        name: threat
+        required: true
+        schema:
+          $ref: '#/definitions/handler.threatIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update risk threat reference for SSP
       tags:
       - Risks
   /poam-items:
@@ -22362,6 +22784,153 @@ paths:
       summary: Delete risk evidence link
       tags:
       - Risks
+  /risks/{id}/remediation-template:
+    delete:
+      description: Deletes the remediation template linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk remediation template
+      tags:
+      - Risks
+    get:
+      description: Gets the remediation template linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_remediationTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk remediation template
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Creates a remediation template for a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Remediation template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/handler.remediationTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_remediationTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Create risk remediation template
+      tags:
+      - Risks
+    put:
+      consumes:
+      - application/json
+      description: Replaces or creates the remediation template for a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Remediation template payload
+        in: body
+        name: template
+        required: true
+        schema:
+          $ref: '#/definitions/handler.remediationTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_remediationTemplateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Upsert risk remediation template
+      tags:
+      - Risks
   /risks/{id}/review:
     post:
       consumes:
@@ -22527,6 +23096,205 @@ paths:
       security:
       - OAuth2Password: []
       summary: Link subject to risk
+      tags:
+      - Risks
+  /risks/{id}/threat-ids:
+    get:
+      description: Lists threat references linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.ListResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List risk threat references
+      tags:
+      - Risks
+    post:
+      consumes:
+      - application/json
+      description: Adds a threat reference to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference payload
+        in: body
+        name: threat
+        required: true
+        schema:
+          $ref: '#/definitions/handler.threatIDRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Add risk threat reference
+      tags:
+      - Risks
+  /risks/{id}/threat-ids/{threatRefId}:
+    delete:
+      description: Deletes a threat reference linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference ID
+        in: path
+        name: threatRefId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Delete risk threat reference
+      tags:
+      - Risks
+    get:
+      description: Gets a threat reference linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference ID
+        in: path
+        name: threatRefId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get risk threat reference
+      tags:
+      - Risks
+    put:
+      consumes:
+      - application/json
+      description: Updates a threat reference linked to a risk.
+      parameters:
+      - description: Risk ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Threat reference ID
+        in: path
+        name: threatRefId
+        required: true
+        type: string
+      - description: Threat reference payload
+        in: body
+        name: threat
+        required: true
+        schema:
+          $ref: '#/definitions/handler.threatIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_threatIDResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Update risk threat reference
       tags:
       - Risks
   /users/{id}/change-password:

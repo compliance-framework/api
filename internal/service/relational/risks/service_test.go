@@ -962,10 +962,26 @@ func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "XSS updated", updatedThreat.Title)
 
+	secondThreat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "89",
+		Title:      "SQL injection",
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, secondThreat.ID)
+
+	_, err = svc.UpdateThreatRef(riskID, *secondThreat.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Duplicate pair",
+	}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
 	threatRows, total, err := svc.ListThreatRefs(riskID, 10, 0)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), total)
-	require.Len(t, threatRows, 1)
+	require.Equal(t, int64(2), total)
+	require.Len(t, threatRows, 2)
 
 	desc := "Apply mitigations"
 	remediation, err := svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{
@@ -1000,6 +1016,9 @@ func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
 	require.Len(t, loadedRemediation.Tasks, 2)
 
 	deletedThreat, err := svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedThreat)
+	deletedThreat, err = svc.DeleteThreatRef(riskID, *secondThreat.ID, &actorID)
 	require.NoError(t, err)
 	require.True(t, deletedThreat)
 	deletedThreat, err = svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
