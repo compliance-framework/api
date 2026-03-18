@@ -65,7 +65,7 @@ func TestFromOSCALSetsSourceType(t *testing.T) {
 
 func TestToOSCALIncludesFallbackStatementAndProps(t *testing.T) {
 	id := uuid.New()
-	level := string(RiskLevelMedium)
+	level := string(RiskLevelModerate)
 	ownerID := uuid.New()
 	reviewDeadline := time.Now().UTC().Truncate(time.Second)
 	justification := "accepted for 90 days"
@@ -129,7 +129,7 @@ func TestApplyRiskFilters(t *testing.T) {
 	evidenceID := uuid.New()
 	now := time.Now().UTC()
 
-	medium := string(RiskLevelMedium)
+	medium := string(RiskLevelModerate)
 	moderate := string(RiskLevelModerate)
 	high := string(RiskLevelHigh)
 	low := string(RiskLevelLow)
