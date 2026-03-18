@@ -44,9 +44,8 @@ const (
 	RiskLevelHigh       RiskLevel = "high"
 	RiskLevelCritical   RiskLevel = "critical"
 
-	// Legacy input/output alias for backward compatibility.
+	// Legacy storage/input value kept only for compatibility with existing data and filters.
 	RiskLevelMediumLegacy RiskLevel = "medium"
-	RiskLevelMedium       RiskLevel = RiskLevelMediumLegacy
 )
 
 func (l RiskLevel) IsValid() bool {

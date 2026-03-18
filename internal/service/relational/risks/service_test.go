@@ -19,7 +19,7 @@ func TestRiskServiceCreateUpdateDeleteAndAuditRetention(t *testing.T) {
 
 	actorID := uuid.New()
 	sspID := uuid.New()
-	l := string(RiskLevelMedium)
+	l := string(RiskLevelModerate)
 	i := string(RiskLevelHigh)
 
 	created, err := svc.Create(CreateRiskParams{

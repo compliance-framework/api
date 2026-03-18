@@ -484,7 +484,7 @@ func (w *RiskEvidenceWorker) copyTemplateAssociationsToRisk(tx *gorm.DB, riskID 
 	return nil
 }
 
-// createRiskLinks creates all necessary links for a risk (evidence, component, control).
+// createRiskLinks creates the currently supported links for a risk (evidence and component).
 // Accepts a *gorm.DB so the caller can pass a transaction.
 // Uses OnConflict{DoNothing} throughout so retries are idempotent.
 func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, riskSSPID uuid.UUID, evidence *relational.Evidence) error {
