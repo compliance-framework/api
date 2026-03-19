@@ -28,12 +28,13 @@ type upsertRiskTemplatesRequest struct {
 }
 
 func (r *riskTemplateClient) Upsert(ctx context.Context, riskTemplates ...types.RiskTemplate) error {
+	if len(riskTemplates) == 0 {
+		riskTemplates = []types.RiskTemplate{}
+	}
+
 	groupedTemplates := groupRiskTemplatesByPluginAndPackage(riskTemplates)
 
 	for groupKey, templates := range groupedTemplates {
-		if len(templates) == 0 {
-			continue
-		}
 		reqData := &upsertRiskTemplatesRequest{
 			PluginId:      groupKey.pluginID,
 			PolicyPackage: groupKey.policyPackage,

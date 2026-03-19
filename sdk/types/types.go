@@ -194,3 +194,38 @@ type RiskTemplate struct {
 	Remediation *Remediation `json:"remediation-template"`
 	IsActive    bool         `json:"is-active"`
 }
+
+type SubjectTemplateSelectorLabel struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type SubjectTemplateLabelSchema struct {
+	Key         string `json:"key"`
+	Description string `json:"description"`
+}
+
+type SubjectProp struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type SubjectLink struct {
+	Href string `json:"href"`
+}
+
+type SubjectTemplate struct {
+	ID                  string                         `json:"id"`
+	Name                string                         `json:"name"`
+	Type                string                         `json:"type"`
+	TitleTemplate       string                         `json:"title-template"`
+	DescriptionTemplate string                         `json:"description-template"`
+	PurposeTemplate     string                         `json:"purpose-template"`
+	RemarksTemplate     string                         `json:"remarks-template"`
+	IdentityLabelKeys   []string                       `json:"identity-label-keys"`
+	Props               []SubjectProp                  `json:"props"`
+	Links               []SubjectLink                  `json:"links"`
+	SourceMode          string                         `json:"source-mode"`
+	SelectorLabels      []SubjectTemplateSelectorLabel `json:"selector-labels"`
+	LabelSchema         []SubjectTemplateLabelSchema   `json:"label-schema"`
+}

@@ -23,6 +23,8 @@ type Client struct {
 	Evidence *evidenceClient
 
 	RiskTemplate *riskTemplateClient
+
+	SubjectTemplate *subjectTemplateClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
@@ -34,6 +36,10 @@ func NewClient(client *http.Client, config *Config) *Client {
 			config:     config,
 		},
 		RiskTemplate: &riskTemplateClient{
+			httpClient: client,
+			config:     config,
+		},
+		SubjectTemplate: &subjectTemplateClient{
 			httpClient: client,
 			config:     config,
 		},

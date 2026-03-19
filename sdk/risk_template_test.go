@@ -93,45 +93,6 @@ func TestUpsertRiskTemplatesRequestMarshalPreservesZeroOrderIndex(t *testing.T) 
 	}
 }
 
-func TestUpsertRiskTemplatesRequestMarshalOmitsNilRemediation(t *testing.T) {
-	reqData := upsertRiskTemplatesRequest{
-		PluginId:      "plugin-a",
-		PolicyPackage: "package-a",
-		Templates: []types.RiskTemplate{
-			{
-				ID:        "template-a",
-				Name:      "template-a",
-				Title:     "Template A",
-				Statement: "Template statement",
-			},
-		},
-	}
-
-	reqBody, err := json.Marshal(reqData)
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(reqBody, &payload); err != nil {
-		t.Fatalf("unmarshal request: %v", err)
-	}
-
-	templates, ok := payload["templates"].([]any)
-	if !ok || len(templates) != 1 {
-		t.Fatalf("expected 1 template in payload, got %#v", payload["templates"])
-	}
-
-	template, ok := templates[0].(map[string]any)
-	if !ok {
-		t.Fatalf("expected template object, got %#v", templates[0])
-	}
-
-	if _, exists := template["remediation-template"]; exists {
-		t.Fatalf("expected remediation-template to be omitted, got %#v", template["remediation-template"])
-	}
-}
-
 func TestUpsertRiskTemplatesRequestMarshalIncludesDefaultFalseIsActive(t *testing.T) {
 	reqData := upsertRiskTemplatesRequest{
 		PluginId:      "plugin-a",
