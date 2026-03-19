@@ -169,24 +169,39 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	suite.server.E().ServeHTTP(skippedTransitionRec, skippedTransitionReq)
 	require.Equal(suite.T(), http.StatusBadRequest, skippedTransitionRec.Code)
 
+	directCloseRec, directCloseReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{"status": "closed"})
+	suite.server.E().ServeHTTP(directCloseRec, directCloseReq)
+	require.Equal(suite.T(), http.StatusOK, directCloseRec.Code)
+
+	reopenAfterDirectCloseRec, reopenAfterDirectCloseReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{"status": "open"})
+	suite.server.E().ServeHTTP(reopenAfterDirectCloseRec, reopenAfterDirectCloseReq)
+	require.Equal(suite.T(), http.StatusBadRequest, reopenAfterDirectCloseRec.Code)
+
+	fullPathRisk := suite.createRisk(map[string]any{
+		"title":       "Full path risk",
+		"description": "Testing full workflow",
+		"ssp-id":      suite.newSSPID(),
+		"status":      "open",
+	})
+
 	toInvestigating := map[string]any{"status": "investigating"}
-	investigatingRec, investigatingReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), toInvestigating)
+	investigatingRec, investigatingReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), toInvestigating)
 	suite.server.E().ServeHTTP(investigatingRec, investigatingReq)
 	require.Equal(suite.T(), http.StatusOK, investigatingRec.Code)
 
-	toPlannedRec, toPlannedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{"status": "mitigating-planned"})
+	toPlannedRec, toPlannedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "mitigating-planned"})
 	suite.server.E().ServeHTTP(toPlannedRec, toPlannedReq)
 	require.Equal(suite.T(), http.StatusOK, toPlannedRec.Code)
 
-	toImplementedRec, toImplementedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{"status": "mitigating-implemented"})
+	toImplementedRec, toImplementedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "mitigating-implemented"})
 	suite.server.E().ServeHTTP(toImplementedRec, toImplementedReq)
 	require.Equal(suite.T(), http.StatusOK, toImplementedRec.Code)
 
-	toClosedRec, toClosedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{"status": "closed"})
+	toClosedRec, toClosedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "closed"})
 	suite.server.E().ServeHTTP(toClosedRec, toClosedReq)
 	require.Equal(suite.T(), http.StatusOK, toClosedRec.Code)
 
-	reopenRec, reopenReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.Data.ID), map[string]any{"status": "open"})
+	reopenRec, reopenReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "open"})
 	suite.server.E().ServeHTTP(reopenRec, reopenReq)
 	require.Equal(suite.T(), http.StatusBadRequest, reopenRec.Code)
 

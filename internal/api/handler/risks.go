@@ -1978,6 +1978,7 @@ func validateStatusTransition(oldStatus, newStatus string) error {
 	allowed := map[string]map[string]struct{}{
 		string(riskrel.RiskStatusOpen): {
 			string(riskrel.RiskStatusInvestigating): {},
+			string(riskrel.RiskStatusClosed):        {},
 		},
 		string(riskrel.RiskStatusInvestigating): {
 			string(riskrel.RiskStatusMitigatingPlanned): {},
