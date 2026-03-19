@@ -128,6 +128,8 @@ type Risk struct {
 
 	SystemSecurityPlan *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`
 	OwnerAssignments   []RiskOwnerAssignment          `json:"ownerAssignments,omitempty" gorm:"foreignKey:RiskID;constraint:OnDelete:CASCADE"`
+	ThreatRefs         []RiskThreatRef                `json:"threatRefs,omitempty" gorm:"foreignKey:RiskID;constraint:OnDelete:CASCADE"`
+	Remediation        *RiskRemediationTemplate       `json:"remediation,omitempty" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (Risk) TableName() string {

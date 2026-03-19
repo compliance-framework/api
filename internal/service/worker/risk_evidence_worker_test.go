@@ -36,11 +36,17 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&relational.InventoryItem{},
 		&relational.SystemSecurityPlan{},
 		&templates.RiskTemplate{},
+		&templates.RiskTemplateThreatRef{},
+		&templates.RemediationTemplate{},
+		&templates.RemediationTask{},
 		&risks.Risk{},
 		&risks.RiskEvidenceLink{},
 		&risks.RiskSubjectLink{},
 		&risks.RiskComponentLink{},
 		&risks.RiskControlLink{},
+		&risks.RiskThreatRef{},
+		&risks.RiskRemediationTemplate{},
+		&risks.RiskRemediationTask{},
 		&risks.RiskEvent{},
 	))
 
@@ -767,6 +773,28 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 	// Create test data
 	ssp := createTestSSP(t, worker.db)
 	riskTemplate := createTestRiskTemplate(t, worker.db)
+	require.NoError(t, worker.db.Create(&templates.RiskTemplateThreatRef{
+		RiskTemplateID: *riskTemplate.ID,
+		System:         "CWE",
+		ExternalID:     "79",
+		Title:          "Cross-site scripting",
+	}).Error)
+	remediation := templates.RemediationTemplate{
+		Title:       "Fix template issue",
+		Description: stringPtr("Apply secure encoding"),
+	}
+	require.NoError(t, worker.db.Create(&remediation).Error)
+	require.NoError(t, worker.db.Create(&templates.RemediationTask{
+		RemediationTemplateID: *remediation.ID,
+		Title:                 "Patch code",
+		OrderIndex:            1,
+	}).Error)
+	require.NoError(t, worker.db.Model(&templates.RiskTemplate{}).Where("id = ?", riskTemplate.ID).Update("remediation_template_id", remediation.ID).Error)
+	require.NoError(t, worker.db.
+		Preload("ThreatRefs").
+		Preload("RemediationTemplate").
+		Preload("RemediationTemplate.Tasks").
+		First(riskTemplate, "id = ?", riskTemplate.ID).Error)
 
 	// Create system implementation linked to SSP
 	impl := &relational.SystemImplementation{
@@ -806,6 +834,22 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 	assert.Equal(t, riskTemplate.Statement, risk.Description)
 	assert.Equal(t, risks.RiskStatusOpen, risks.RiskStatus(risk.Status))
 	assert.Equal(t, *ssp.ID, risk.SSPID)
+
+	var threatRefs []risks.RiskThreatRef
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).Find(&threatRefs).Error)
+	require.Len(t, threatRefs, 1)
+	assert.Equal(t, "CWE", threatRefs[0].System)
+	assert.Equal(t, "79", threatRefs[0].ExternalID)
+
+	var remediationTemplates []risks.RiskRemediationTemplate
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).Find(&remediationTemplates).Error)
+	require.Len(t, remediationTemplates, 1)
+	assert.Equal(t, "Fix template issue", remediationTemplates[0].Title)
+	var remediationTasks []risks.RiskRemediationTask
+	require.NotNil(t, remediationTemplates[0].ID)
+	require.NoError(t, worker.db.Where("risk_remediation_template_id = ?", *remediationTemplates[0].ID).Find(&remediationTasks).Error)
+	require.Len(t, remediationTasks, 1)
+	assert.Equal(t, "Patch code", remediationTasks[0].Title)
 }
 
 func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {

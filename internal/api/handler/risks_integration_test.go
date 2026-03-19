@@ -1320,6 +1320,21 @@ func (suite *RiskApiIntegrationSuite) TestRiskDeleteCleansLinkedSubResources() {
 	subjectLinkRec, subjectLinkCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/subjects", created.ID), map[string]any{"subject-id": subjectID.String()})
 	suite.server.E().ServeHTTP(subjectLinkRec, subjectLinkCall)
 	require.Equal(suite.T(), http.StatusCreated, subjectLinkRec.Code)
+	threatCreateRec, threatCreateCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/threat-ids", created.ID), map[string]any{
+		"system": "CWE",
+		"id":     "22",
+		"title":  "Path traversal",
+	})
+	suite.server.E().ServeHTTP(threatCreateRec, threatCreateCall)
+	require.Equal(suite.T(), http.StatusCreated, threatCreateRec.Code)
+	remCreateRec, remCreateCall := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{
+		"title": "Delete cleanup remediation",
+		"tasks": []map[string]any{
+			{"title": "cleanup task", "order-index": 1},
+		},
+	})
+	suite.server.E().ServeHTTP(remCreateRec, remCreateCall)
+	require.Equal(suite.T(), http.StatusCreated, remCreateRec.Code)
 
 	var count int64
 	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvidenceLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
@@ -1332,6 +1347,12 @@ func (suite *RiskApiIntegrationSuite) TestRiskDeleteCleansLinkedSubResources() {
 	require.Equal(suite.T(), int64(1), count)
 	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskOwnerAssignment{}).Where("risk_id = ?", created.ID).Count(&count).Error)
 	require.Equal(suite.T(), int64(2), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskThreatRef{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskRemediationTemplate{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
+	require.NoError(suite.T(), suite.DB.Table("risk_remediation_tasks").Where("risk_remediation_template_id IN (SELECT id FROM risk_remediation_templates WHERE risk_id = ?)", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(1), count)
 
 	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s", created.ID), nil)
 	suite.server.E().ServeHTTP(deleteRec, deleteReq)
@@ -1350,6 +1371,12 @@ func (suite *RiskApiIntegrationSuite) TestRiskDeleteCleansLinkedSubResources() {
 	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskSubjectLink{}).Where("risk_id = ?", created.ID).Count(&count).Error)
 	require.Equal(suite.T(), int64(0), count)
 	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskOwnerAssignment{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskThreatRef{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskRemediationTemplate{}).Where("risk_id = ?", created.ID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+	require.NoError(suite.T(), suite.DB.Table("risk_remediation_tasks").Where("risk_remediation_template_id IN (SELECT id FROM risk_remediation_templates WHERE risk_id = ?)", created.ID).Count(&count).Error)
 	require.Equal(suite.T(), int64(0), count)
 }
 
@@ -1649,6 +1676,194 @@ func (suite *RiskApiIntegrationSuite) TestRiskCreateMissingSSPAndSanitizedIntern
 	require.Contains(suite.T(), body, "internal server error")
 	require.False(suite.T(), strings.Contains(strings.ToLower(body), "relation"))
 	require.False(suite.T(), strings.Contains(strings.ToLower(body), "risk_evidence_links"))
+}
+
+func (suite *RiskApiIntegrationSuite) TestRiskThreatAndRemediationInlineAndNestedCRUD() {
+	created := suite.createRisk(map[string]any{
+		"title":       "Threat/remediation inline",
+		"description": "created with associations",
+		"ssp-id":      suite.newSSPID(),
+		"threat-ids": []map[string]any{
+			{"system": "CWE", "id": "79", "title": "XSS"},
+		},
+		"remediation-template": map[string]any{
+			"title":       "Fix XSS",
+			"description": "Encode output",
+			"tasks": []map[string]any{
+				{"title": "Patch templates", "order-index": 1},
+			},
+		},
+	})
+	require.Len(suite.T(), created.ThreatIDs, 1)
+	require.NotNil(suite.T(), created.Remediation)
+	require.Len(suite.T(), created.Remediation.Tasks, 1)
+
+	// Omitted fields on update keep existing associations.
+	updateKeepRec, updateKeepReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
+		"title": "Threat/remediation inline updated",
+	})
+	suite.server.E().ServeHTTP(updateKeepRec, updateKeepReq)
+	require.Equal(suite.T(), http.StatusOK, updateKeepRec.Code)
+	var kept GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(updateKeepRec.Body.Bytes(), &kept))
+	require.Len(suite.T(), kept.Data.ThreatIDs, 1)
+	require.NotNil(suite.T(), kept.Data.Remediation)
+
+	// threat-ids must be an array when present.
+	updateNullThreatsRec, updateNullThreatsReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
+		"threat-ids": nil,
+	})
+	suite.server.E().ServeHTTP(updateNullThreatsRec, updateNullThreatsReq)
+	require.Equal(suite.T(), http.StatusBadRequest, updateNullThreatsRec.Code)
+
+	// Explicit replace semantics: [] clears threats; null removes remediation.
+	updateClearRec, updateClearReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", created.ID), map[string]any{
+		"threat-ids":           []map[string]any{},
+		"remediation-template": nil,
+	})
+	suite.server.E().ServeHTTP(updateClearRec, updateClearReq)
+	require.Equal(suite.T(), http.StatusOK, updateClearRec.Code)
+	var cleared GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(updateClearRec.Body.Bytes(), &cleared))
+	require.Len(suite.T(), cleared.Data.ThreatIDs, 0)
+	require.Nil(suite.T(), cleared.Data.Remediation)
+
+	// Threat nested CRUD
+	postThreatRec, postThreatReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/threat-ids", created.ID), map[string]any{
+		"system": "CWE",
+		"id":     "200",
+		"title":  "Data exposure",
+	})
+	suite.server.E().ServeHTTP(postThreatRec, postThreatReq)
+	require.Equal(suite.T(), http.StatusCreated, postThreatRec.Code)
+	var createdThreat GenericDataResponse[threatIDResponse]
+	require.NoError(suite.T(), json.Unmarshal(postThreatRec.Body.Bytes(), &createdThreat))
+
+	getThreatRec, getThreatReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, createdThreat.Data.ID), nil)
+	suite.server.E().ServeHTTP(getThreatRec, getThreatReq)
+	require.Equal(suite.T(), http.StatusOK, getThreatRec.Code)
+
+	listThreatRec, listThreatReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/threat-ids?page=1&limit=20", created.ID), nil)
+	suite.server.E().ServeHTTP(listThreatRec, listThreatReq)
+	require.Equal(suite.T(), http.StatusOK, listThreatRec.Code)
+	var listedThreats struct {
+		Data []threatIDResponse `json:"data"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(listThreatRec.Body.Bytes(), &listedThreats))
+	require.Len(suite.T(), listedThreats.Data, 1)
+
+	updateThreatRec, updateThreatReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, createdThreat.Data.ID), map[string]any{
+		"system": "CWE",
+		"id":     "200",
+		"title":  "Data exposure updated",
+	})
+	suite.server.E().ServeHTTP(updateThreatRec, updateThreatReq)
+	require.Equal(suite.T(), http.StatusOK, updateThreatRec.Code)
+
+	secondThreatRec, secondThreatReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/threat-ids", created.ID), map[string]any{
+		"system": "CWE",
+		"id":     "89",
+		"title":  "SQL injection",
+	})
+	suite.server.E().ServeHTTP(secondThreatRec, secondThreatReq)
+	require.Equal(suite.T(), http.StatusCreated, secondThreatRec.Code)
+	var secondThreat GenericDataResponse[threatIDResponse]
+	require.NoError(suite.T(), json.Unmarshal(secondThreatRec.Body.Bytes(), &secondThreat))
+
+	duplicateThreatRec, duplicateThreatReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, secondThreat.Data.ID), map[string]any{
+		"system": "CWE",
+		"id":     "200",
+		"title":  "Should fail duplicate",
+	})
+	suite.server.E().ServeHTTP(duplicateThreatRec, duplicateThreatReq)
+	require.Equal(suite.T(), http.StatusBadRequest, duplicateThreatRec.Code)
+
+	deleteThreatRec, deleteThreatReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, createdThreat.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteThreatRec, deleteThreatReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteThreatRec.Code)
+	deleteSecondThreatRec, deleteSecondThreatReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s/threat-ids/%s", created.ID, secondThreat.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteSecondThreatRec, deleteSecondThreatReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteSecondThreatRec.Code)
+
+	// Remediation nested CRUD
+	createRemRec, createRemReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{
+		"title": "Fix exposure",
+		"tasks": []map[string]any{
+			{"title": "Harden outputs", "order-index": 1},
+		},
+	})
+	suite.server.E().ServeHTTP(createRemRec, createRemReq)
+	require.Equal(suite.T(), http.StatusCreated, createRemRec.Code)
+
+	conflictRemRec, conflictRemReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{
+		"title": "Duplicate remediation",
+	})
+	suite.server.E().ServeHTTP(conflictRemRec, conflictRemReq)
+	require.Equal(suite.T(), http.StatusConflict, conflictRemRec.Code)
+
+	upsertRemRec, upsertRemReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{
+		"title": "Fix exposure updated",
+		"tasks": []map[string]any{
+			{"title": "Task 1", "order-index": 1},
+			{"title": "Task 2", "order-index": 2},
+		},
+	})
+	suite.server.E().ServeHTTP(upsertRemRec, upsertRemReq)
+	require.Equal(suite.T(), http.StatusOK, upsertRemRec.Code)
+
+	getRemRec, getRemReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), nil)
+	suite.server.E().ServeHTTP(getRemRec, getRemReq)
+	require.Equal(suite.T(), http.StatusOK, getRemRec.Code)
+	var gotRemediation GenericDataResponse[remediationTemplateResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRemRec.Body.Bytes(), &gotRemediation))
+	require.Len(suite.T(), gotRemediation.Data.Tasks, 2)
+
+	deleteRemRec, deleteRemReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), nil)
+	suite.server.E().ServeHTTP(deleteRemRec, deleteRemReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteRemRec.Code)
+}
+
+func (suite *RiskApiIntegrationSuite) TestSSPScopedThreatAndRemediationEndpoints() {
+	sspID := suite.newSSPID()
+	otherSSPID := suite.newSSPID()
+
+	createRec, createReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks", sspID), map[string]any{
+		"title":       "Scoped threat/remediation",
+		"description": "scoped endpoints",
+	})
+	suite.server.E().ServeHTTP(createRec, createReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+	var created GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+
+	postThreatRec, postThreatReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/threat-ids", sspID, created.Data.ID), map[string]any{
+		"system": "CWE",
+		"id":     "89",
+		"title":  "SQL injection",
+	})
+	suite.server.E().ServeHTTP(postThreatRec, postThreatReq)
+	require.Equal(suite.T(), http.StatusCreated, postThreatRec.Code)
+
+	notFoundThreatRec, notFoundThreatReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/threat-ids", otherSSPID, created.Data.ID), map[string]any{
+		"system": "CWE",
+		"id":     "89",
+		"title":  "SQL injection",
+	})
+	suite.server.E().ServeHTTP(notFoundThreatRec, notFoundThreatReq)
+	require.Equal(suite.T(), http.StatusNotFound, notFoundThreatRec.Code)
+
+	upsertRemRec, upsertRemReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/remediation-template", sspID, created.Data.ID), map[string]any{
+		"title": "Scoped remediation",
+		"tasks": []map[string]any{
+			{"title": "Scoped task", "order-index": 1},
+		},
+	})
+	suite.server.E().ServeHTTP(upsertRemRec, upsertRemReq)
+	require.Equal(suite.T(), http.StatusOK, upsertRemRec.Code)
+
+	getRemRec, getRemReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/remediation-template", sspID, created.Data.ID), nil)
+	suite.server.E().ServeHTTP(getRemRec, getRemReq)
+	require.Equal(suite.T(), http.StatusOK, getRemRec.Code)
 }
 
 func (suite *RiskApiIntegrationSuite) createRisk(reqBody map[string]any) riskResponse {

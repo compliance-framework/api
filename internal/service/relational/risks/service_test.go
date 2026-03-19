@@ -917,6 +917,256 @@ func TestRiskServiceReviewRiskReassess(t *testing.T) {
 	}
 }
 
+func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk with threat/remediation",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	threat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Cross-site scripting",
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, threat.ID)
+
+	sameThreat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Cross-site scripting",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, *threat.ID, *sameThreat.ID)
+
+	loadedThreat, err := svc.GetThreatRef(riskID, *threat.ID)
+	require.NoError(t, err)
+	require.Equal(t, "CWE", loadedThreat.System)
+
+	updatedThreat, err := svc.UpdateThreatRef(riskID, *threat.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "XSS updated",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, "XSS updated", updatedThreat.Title)
+
+	secondThreat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "89",
+		Title:      "SQL injection",
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, secondThreat.ID)
+
+	_, err = svc.UpdateThreatRef(riskID, *secondThreat.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Duplicate pair",
+	}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	threatRows, total, err := svc.ListThreatRefs(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Len(t, threatRows, 2)
+
+	desc := "Apply mitigations"
+	remediation, err := svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{
+		Title:       "Fix risk",
+		Description: &desc,
+		Tasks: []RiskRemediationTaskInput{
+			{Title: "Task A", OrderIndex: 1},
+		},
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, remediation.ID)
+	require.Len(t, remediation.Tasks, 1)
+
+	_, err = svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{Title: "Duplicate"}, &actorID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrRemediationTemplateAlreadyExists)
+
+	remediation, err = svc.UpsertRemediationTemplate(riskID, &RiskRemediationTemplateInput{
+		Title: "Fix risk updated",
+		Tasks: []RiskRemediationTaskInput{
+			{Title: "Task B", OrderIndex: 1},
+			{Title: "Task C", OrderIndex: 2},
+		},
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, "Fix risk updated", remediation.Title)
+	require.Len(t, remediation.Tasks, 2)
+
+	loadedRemediation, err := svc.GetRemediationTemplate(riskID)
+	require.NoError(t, err)
+	require.Equal(t, "Fix risk updated", loadedRemediation.Title)
+	require.Len(t, loadedRemediation.Tasks, 2)
+
+	deletedThreat, err := svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedThreat)
+	deletedThreat, err = svc.DeleteThreatRef(riskID, *secondThreat.ID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedThreat)
+	deletedThreat, err = svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.False(t, deletedThreat)
+
+	deletedRemediation, err := svc.DeleteRemediationTemplate(riskID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedRemediation)
+	deletedRemediation, err = svc.DeleteRemediationTemplate(riskID, &actorID)
+	require.NoError(t, err)
+	require.False(t, deletedRemediation)
+}
+
+func TestRiskServiceAddThreatRefEnforcesMaxPerRisk(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk threat cap",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	var firstThreat *RiskThreatRef
+	for i := 1; i <= maxThreatRefsPerRisk; i++ {
+		threat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+			System:     "CWE",
+			ExternalID: fmt.Sprintf("%d", i),
+			Title:      fmt.Sprintf("Threat %d", i),
+		}, &actorID)
+		require.NoError(t, err)
+		if i == 1 {
+			firstThreat = threat
+		}
+	}
+	require.NotNil(t, firstThreat)
+	require.NotNil(t, firstThreat.ID)
+
+	_, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "overflow",
+		Title:      "Overflow",
+	}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	duplicate, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "1",
+		Title:      "Threat 1",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, *firstThreat.ID, *duplicate.ID)
+}
+
+func TestRiskServiceThreatRefCRUDWithoutActorDoesNotLogEvents(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk threat no actor",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	created, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "352",
+		Title:      "Cross-site request forgery",
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, created.ID)
+
+	_, err = svc.UpdateThreatRef(riskID, *created.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "352",
+		Title:      "CSRF updated",
+	}, nil)
+	require.NoError(t, err)
+
+	deleted, err := svc.DeleteThreatRef(riskID, *created.ID, nil)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	var events []RiskEvent
+	require.NoError(t, db.Where("risk_id = ?", riskID).Find(&events).Error)
+	require.Len(t, events, 0)
+}
+
+func TestRiskServiceCreateAndUpdateWithInlineThreatAndRemediation(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	actorID := uuid.New()
+	created, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:       "inline associations",
+			Description: "desc",
+			Status:      string(RiskStatusOpen),
+			SSPID:       uuid.New(),
+			SourceType:  string(RiskSourceTypeManual),
+			FirstSeenAt: time.Now().UTC(),
+			LastSeenAt:  time.Now().UTC(),
+		},
+		ThreatRefs: []RiskThreatRefInput{
+			{System: "CWE", ExternalID: "200", Title: "Data exposure"},
+		},
+		Remediation: &RiskRemediationTemplateInput{
+			Title: "Mitigate",
+			Tasks: []RiskRemediationTaskInput{{Title: "Task", OrderIndex: 1}},
+		},
+		ActorUserID: &actorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.ID)
+	require.Len(t, created.ThreatRefs, 1)
+	require.NotNil(t, created.Remediation)
+	require.Len(t, created.Remediation.Tasks, 1)
+
+	createdCopy := *created
+	updated, err := svc.Update(UpdateRiskParams{
+		Risk:               &createdCopy,
+		ActorUserID:        &actorID,
+		OldStatus:          created.Status,
+		ReplaceThreatRefs:  true,
+		ThreatRefs:         []RiskThreatRefInput{},
+		ReplaceRemediation: true,
+		Remediation:        nil,
+	})
+	require.NoError(t, err)
+	require.Len(t, updated.ThreatRefs, 0)
+	require.Nil(t, updated.Remediation)
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -931,6 +1181,9 @@ func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 		&RiskComponentLink{},
 		&RiskSubjectLink{},
 		&RiskOwnerAssignment{},
+		&RiskThreatRef{},
+		&RiskRemediationTemplate{},
+		&RiskRemediationTask{},
 		&testUserRow{},
 		&testEvidenceRow{},
 		&testControlRow{},
