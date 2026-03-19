@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -123,6 +125,49 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 	first := response.Data[0]
 	suite.Require().Equal(map[string]any{"displayName": first["displayName"], "id": first["id"]}, first)
 	suite.Require().Equal([]string{"displayName", "id"}, sortedKeys(first), "Expected selectable user response to contain only id and displayName")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/select?search=dummy", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for filtered ListSelectableUsers")
+
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for filtered ListSelectableUsers")
+	suite.Require().NotEmpty(response.Data, "Expected filtered ListSelectableUsers to return at least one user")
+	for _, user := range response.Data {
+		displayName := user["displayName"].(string)
+		suite.Contains(strings.ToLower(displayName), "dummy", "Expected filtered selectable users to match the search term")
+	}
+
+	var fallbackUser relational.User
+	err = suite.DB.First(&fallbackUser).Error
+	suite.Require().NoError(err, "Failed to retrieve a user for display name fallback test")
+	fallbackUser.FirstName = ""
+	fallbackUser.LastName = ""
+	err = suite.DB.Save(&fallbackUser).Error
+	suite.Require().NoError(err, "Failed to save fallback user with empty names")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/select", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for selectable users fallback test")
+
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for selectable users fallback test")
+	suite.Require().NotEmpty(response.Data, "Expected selectable users fallback test to return at least one user")
+
+	foundFallback := false
+	for _, user := range response.Data {
+		if user["id"] == fallbackUser.UUIDModel.ID.String() {
+			foundFallback = true
+			suite.Equal(fallbackUser.UUIDModel.ID.String(), user["displayName"], "Expected fallback display name to use the user ID when first and last name are empty")
+		}
+	}
+	suite.True(foundFallback, "Expected selectable users response to include the fallback user")
 }
 
 func sortedKeys(m map[string]any) []string {
@@ -130,13 +175,7 @@ func sortedKeys(m map[string]any) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	for i := 0; i < len(keys); i++ {
-		for j := i + 1; j < len(keys); j++ {
-			if keys[j] < keys[i] {
-				keys[i], keys[j] = keys[j], keys[i]
-			}
-		}
-	}
+	sort.Strings(keys)
 	return keys
 }
 

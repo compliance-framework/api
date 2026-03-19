@@ -2,6 +2,8 @@ package handler
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
@@ -42,6 +44,11 @@ type UpdateSubscriptionsRequest struct {
 	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
 	RiskNotificationsSubscribed  *bool `json:"riskNotificationsSubscribed"`
 }
+
+const (
+	defaultSelectableUsersLimit = 100
+	maxSelectableUsersLimit     = 1000
+)
 
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 	return &UserHandler{
@@ -117,6 +124,27 @@ func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 	search := strings.TrimSpace(ctx.QueryParam("search"))
 	query := h.db.Model(&relational.User{}).Select("id", "first_name", "last_name")
 
+	limit := defaultSelectableUsersLimit
+	if rawLimit := strings.TrimSpace(ctx.QueryParam("limit")); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit < 1 {
+			return ctx.JSON(400, api.NewError(fmt.Errorf("invalid limit parameter")))
+		}
+		if parsedLimit > maxSelectableUsersLimit {
+			parsedLimit = maxSelectableUsersLimit
+		}
+		limit = parsedLimit
+	}
+
+	offset := 0
+	if rawOffset := strings.TrimSpace(ctx.QueryParam("offset")); rawOffset != "" {
+		parsedOffset, err := strconv.Atoi(rawOffset)
+		if err != nil || parsedOffset < 0 {
+			return ctx.JSON(400, api.NewError(fmt.Errorf("invalid offset parameter")))
+		}
+		offset = parsedOffset
+	}
+
 	if search != "" {
 		pattern := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
@@ -128,7 +156,7 @@ func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 	}
 
 	var users []relational.User
-	if err := query.Order("first_name ASC, last_name ASC").Find(&users).Error; err != nil {
+	if err := query.Order("first_name ASC, last_name ASC").Limit(limit).Offset(offset).Find(&users).Error; err != nil {
 		h.sugar.Errorw("Failed to list selectable users", "error", err)
 		return ctx.JSON(500, api.NewError(err))
 	}
@@ -139,7 +167,9 @@ func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 			continue
 		}
 
-		displayName := strings.TrimSpace(strings.TrimSpace(user.FirstName) + " " + strings.TrimSpace(user.LastName))
+		firstName := strings.TrimSpace(user.FirstName)
+		lastName := strings.TrimSpace(user.LastName)
+		displayName := strings.TrimSpace(firstName + " " + lastName)
 		if displayName == "" {
 			displayName = user.ID.String()
 		}
