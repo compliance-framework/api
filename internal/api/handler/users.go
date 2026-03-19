@@ -115,7 +115,10 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 //	@Tags			Users
 //	@Produce		json
 //	@Param			search	query		string	false	"Filter users by name"
+//	@Param			limit	query		int		false	"Maximum users to return"
+//	@Param			offset	query		int		false	"Number of users to skip"
 //	@Success		200		{object}	handler.GenericDataListResponse[handler.selectableUserResponse]
+//	@Failure		400		{object}	api.Error
 //	@Failure		401		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password

@@ -23492,6 +23492,14 @@ paths:
         in: query
         name: search
         type: string
+      - description: Maximum users to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of users to skip
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
@@ -23499,6 +23507,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.GenericDataListResponse-handler_selectableUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
           schema:
