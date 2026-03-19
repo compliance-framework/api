@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 )
@@ -139,8 +141,21 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 		IsLocked:   false,
 	}
 	suite.Require().NoError(inactiveUser.SetPassword("Pa55w0rd"))
-	suite.Require().NoError(suite.DB.Create(&inactiveUser).Error)
-	suite.Require().NoError(suite.DB.Model(&inactiveUser).UpdateColumn("is_active", false).Error)
+	inactiveID := uuid.New()
+	inactiveUser.UUIDModel.ID = &inactiveID
+	now := time.Now().UTC()
+	suite.Require().NoError(suite.DB.Table(inactiveUser.TableName()).Create(map[string]any{
+		"id":            inactiveID,
+		"created_at":    now,
+		"updated_at":    now,
+		"email":         inactiveUser.Email,
+		"password_hash": inactiveUser.PasswordHash,
+		"first_name":    inactiveUser.FirstName,
+		"last_name":     inactiveUser.LastName,
+		"is_active":     inactiveUser.IsActive,
+		"is_locked":     inactiveUser.IsLocked,
+		"auth_method":   inactiveUser.AuthMethod,
+	}).Error)
 
 	lockedUser := relational.User{
 		Email:      "locked@example.com",
@@ -152,6 +167,17 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 	}
 	suite.Require().NoError(lockedUser.SetPassword("Pa55w0rd"))
 	suite.Require().NoError(suite.DB.Create(&lockedUser).Error)
+
+	fallbackUser := relational.User{
+		Email:      "fallback@example.com",
+		FirstName:  "",
+		LastName:   "",
+		AuthMethod: "password",
+		IsActive:   true,
+		IsLocked:   false,
+	}
+	suite.Require().NoError(fallbackUser.SetPassword("Pa55w0rd"))
+	suite.Require().NoError(suite.DB.Create(&fallbackUser).Error)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/users/select", nil)
@@ -188,14 +214,6 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 	for _, user := range response.Data {
 		suite.Contains(strings.ToLower(user.DisplayName), "dummy", "Expected filtered selectable users to match the search term")
 	}
-
-	var fallbackUser relational.User
-	err = suite.DB.First(&fallbackUser).Error
-	suite.Require().NoError(err, "Failed to retrieve a user for display name fallback test")
-	fallbackUser.FirstName = ""
-	fallbackUser.LastName = ""
-	err = suite.DB.Save(&fallbackUser).Error
-	suite.Require().NoError(err, "Failed to save fallback user with empty names")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/api/users/select", nil)
