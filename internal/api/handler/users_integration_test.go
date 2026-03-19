@@ -103,6 +103,43 @@ func (suite *UserApiIntegrationSuite) TestGetMe() {
 	suite.Require().Equal(response.Data.LastName, "User", "Expected last name to match dummy user in GetMe response")
 }
 
+func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/users/select", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for ListSelectableUsers")
+	suite.NotEmpty(rec.Body.String(), "Expected non-empty response body for ListSelectableUsers")
+
+	var response GenericDataListResponse[map[string]any]
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for ListSelectableUsers")
+	suite.Require().NotEmpty(response.Data, "Expected at least one selectable user")
+
+	first := response.Data[0]
+	suite.Require().Equal(map[string]any{"displayName": first["displayName"], "id": first["id"]}, first)
+	suite.Require().Equal([]string{"displayName", "id"}, sortedKeys(first), "Expected selectable user response to contain only id and displayName")
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[j] < keys[i] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	return keys
+}
+
 func (suite *UserApiIntegrationSuite) TestCreateUser() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)

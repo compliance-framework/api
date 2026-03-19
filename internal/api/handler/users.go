@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
@@ -21,6 +22,11 @@ type UserHandler struct {
 type userResponse struct {
 	relational.User
 	AuthProvider *string `json:"authProvider,omitempty"`
+}
+
+type selectableUserResponse struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
 }
 
 type SubscriptionsResponse struct {
@@ -60,6 +66,10 @@ func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
 	api.PUT("/me/subscriptions", h.UpdateSubscriptions)
 }
 
+func (h *UserHandler) RegisterSelectableRoutes(api *echo.Group) {
+	api.GET("/select", h.ListSelectableUsers)
+}
+
 // ListUsers godoc
 //
 //	@Summary		List all users
@@ -87,6 +97,59 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(200, GenericDataListResponse[userResponse]{
+		Data: responses,
+	})
+}
+
+// ListSelectableUsers godoc
+//
+//	@Summary		List selectable users
+//	@Description	Lists users with only id and display name for selection controls
+//	@Tags			Users
+//	@Produce		json
+//	@Param			search	query		string	false	"Filter users by name"
+//	@Success		200		{object}	handler.GenericDataListResponse[handler.selectableUserResponse]
+//	@Failure		401		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/select [get]
+func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
+	search := strings.TrimSpace(ctx.QueryParam("search"))
+	query := h.db.Model(&relational.User{}).Select("id", "first_name", "last_name")
+
+	if search != "" {
+		pattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(COALESCE(first_name, '')) LIKE ? OR LOWER(COALESCE(last_name, '')) LIKE ? OR LOWER(COALESCE(first_name, '')) || ' ' || LOWER(COALESCE(last_name, '')) LIKE ?",
+			pattern,
+			pattern,
+			pattern,
+		)
+	}
+
+	var users []relational.User
+	if err := query.Order("first_name ASC, last_name ASC").Find(&users).Error; err != nil {
+		h.sugar.Errorw("Failed to list selectable users", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	responses := make([]selectableUserResponse, 0, len(users))
+	for _, user := range users {
+		if user.ID == nil {
+			continue
+		}
+
+		displayName := strings.TrimSpace(strings.TrimSpace(user.FirstName) + " " + strings.TrimSpace(user.LastName))
+		if displayName == "" {
+			displayName = user.ID.String()
+		}
+		responses = append(responses, selectableUserResponse{
+			ID:          user.ID.String(),
+			DisplayName: displayName,
+		})
+	}
+
+	return ctx.JSON(200, GenericDataListResponse[selectableUserResponse]{
 		Data: responses,
 	})
 }

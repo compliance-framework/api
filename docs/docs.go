@@ -22586,6 +22586,51 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/select": {
+            "get": {
+                "description": "Lists users with only id and display name for selection controls",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List selectable users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter users by name",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_selectableUserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/users/{id}/change-password": {
             "post": {
                 "description": "Changes the password for a user by ID",
@@ -26140,6 +26185,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_selectableUserResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.selectableUserResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan": {
             "type": "object",
             "properties": {
@@ -28485,6 +28542,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated-at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.selectableUserResponse": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "string"
                 }
             }
