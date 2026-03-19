@@ -108,6 +108,51 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
 
+	activeBefore := relational.User{
+		Email:      "active-before@example.com",
+		FirstName:  "Aaron",
+		LastName:   "Able",
+		AuthMethod: "password",
+		IsActive:   true,
+		IsLocked:   false,
+	}
+	suite.Require().NoError(activeBefore.SetPassword("Pa55w0rd"))
+	suite.Require().NoError(suite.DB.Create(&activeBefore).Error)
+
+	activeAfter := relational.User{
+		Email:      "active-after@example.com",
+		FirstName:  "Zara",
+		LastName:   "Zulu",
+		AuthMethod: "password",
+		IsActive:   true,
+		IsLocked:   false,
+	}
+	suite.Require().NoError(activeAfter.SetPassword("Pa55w0rd"))
+	suite.Require().NoError(suite.DB.Create(&activeAfter).Error)
+
+	inactiveUser := relational.User{
+		Email:      "inactive@example.com",
+		FirstName:  "Inactive",
+		LastName:   "User",
+		AuthMethod: "password",
+		IsActive:   false,
+		IsLocked:   false,
+	}
+	suite.Require().NoError(inactiveUser.SetPassword("Pa55w0rd"))
+	suite.Require().NoError(suite.DB.Create(&inactiveUser).Error)
+	suite.Require().NoError(suite.DB.Model(&inactiveUser).UpdateColumn("is_active", false).Error)
+
+	lockedUser := relational.User{
+		Email:      "locked@example.com",
+		FirstName:  "Locked",
+		LastName:   "User",
+		AuthMethod: "password",
+		IsActive:   true,
+		IsLocked:   true,
+	}
+	suite.Require().NoError(lockedUser.SetPassword("Pa55w0rd"))
+	suite.Require().NoError(suite.DB.Create(&lockedUser).Error)
+
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/users/select", nil)
 	req.Header.Set("Authorization", "Bearer "+*token)
@@ -124,6 +169,11 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 	first := response.Data[0]
 	suite.Require().NotEmpty(first.ID, "Expected selectable user response to include an id")
 	suite.Require().NotEmpty(first.DisplayName, "Expected selectable user response to include a display name")
+
+	for _, user := range response.Data {
+		suite.NotEqual(inactiveUser.UUIDModel.ID.String(), user.ID, "Inactive users should not be returned")
+		suite.NotEqual(lockedUser.UUIDModel.ID.String(), user.ID, "Locked users should not be returned")
+	}
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/api/users/select?search=dummy", nil)
@@ -166,6 +216,44 @@ func (suite *UserApiIntegrationSuite) TestListSelectableUsers() {
 		}
 	}
 	suite.True(foundFallback, "Expected selectable users response to include the fallback user")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/select?limit=1", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for selectable users limit test")
+
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for selectable users limit test")
+	suite.Require().Len(response.Data, 1, "Expected limit=1 to return a single user")
+	firstPageUserID := response.Data[0].ID
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/select?limit=1&offset=1", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for selectable users offset test")
+
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for selectable users offset test")
+	suite.Require().Len(response.Data, 1, "Expected limit=1&offset=1 to return a single user")
+	suite.NotEqual(firstPageUserID, response.Data[0].ID, "Expected the offset page to return a different user than the first page")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/select?limit=0", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(400, rec.Code, "Expected bad request response for invalid limit")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/select?offset=-1", nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(400, rec.Code, "Expected bad request response for invalid offset")
 }
 
 func (suite *UserApiIntegrationSuite) TestCreateUser() {

@@ -125,7 +125,9 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 //	@Router			/users/select [get]
 func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 	search := strings.TrimSpace(ctx.QueryParam("search"))
-	query := h.db.Model(&relational.User{}).Select("id", "first_name", "last_name")
+	query := h.db.Model(&relational.User{}).
+		Select("id", "first_name", "last_name").
+		Where("is_active = ? AND is_locked = ?", true, false)
 
 	limit := defaultSelectableUsersLimit
 	if rawLimit := strings.TrimSpace(ctx.QueryParam("limit")); rawLimit != "" {
@@ -159,7 +161,7 @@ func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
 	}
 
 	var users []relational.User
-	if err := query.Order("first_name ASC, last_name ASC").Limit(limit).Offset(offset).Find(&users).Error; err != nil {
+	if err := query.Order("first_name ASC, last_name ASC, id ASC").Limit(limit).Offset(offset).Find(&users).Error; err != nil {
 		h.sugar.Errorw("Failed to list selectable users", "error", err)
 		return ctx.JSON(500, api.NewError(err))
 	}
