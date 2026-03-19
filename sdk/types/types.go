@@ -160,10 +160,10 @@ type Evidence struct {
 }
 
 type Threat struct {
-	System     string `json:"system"`
-	ExternalID string `json:"id"`
-	Title      string `json:"title"`
-	Url        string `json:"url"`
+	System     string  `json:"system"`
+	ExternalID string  `json:"id"`
+	Title      string  `json:"title"`
+	Url        *string `json:"url,omitempty"`
 }
 
 type RemediationTask struct {
@@ -179,18 +179,18 @@ type Remediation struct {
 }
 
 type RiskTemplate struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Title          string `json:"title"`
-	Statement      string `json:"statement"`
-	LikelihoodHint string `json:"likelihood-hint"`
-	ImpactHint     string `json:"impact-hint"`
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Title          string  `json:"title"`
+	Statement      string  `json:"statement"`
+	LikelihoodHint *string `json:"likelihood-hint,omitempty"`
+	ImpactHint     *string `json:"impact-hint,omitempty"`
 
 	ViolationIds []string `json:"violation-ids"`
 
 	Threats     []Threat     `json:"threat-ids"`
 	Remediation *Remediation `json:"remediation-template"`
-	IsActive    bool         `json:"is-active"`
+	IsActive    *bool        `json:"is-active,omitempty"`
 }
 
 type SubjectTemplateSelectorLabel struct {
@@ -216,10 +216,10 @@ type SubjectTemplate struct {
 	ID                  string                         `json:"id"`
 	Name                string                         `json:"name"`
 	Type                string                         `json:"type"`
-	TitleTemplate       string                         `json:"title-template"`
-	DescriptionTemplate string                         `json:"description-template"`
-	PurposeTemplate     string                         `json:"purpose-template"`
-	RemarksTemplate     string                         `json:"remarks-template"`
+	TitleTemplate       *string                        `json:"title-template,omitempty"`
+	DescriptionTemplate *string                        `json:"description-template,omitempty"`
+	PurposeTemplate     *string                        `json:"purpose-template,omitempty"`
+	RemarksTemplate     *string                        `json:"remarks-template,omitempty"`
 	IdentityLabelKeys   []string                       `json:"identity-label-keys"`
 	Props               []SubjectProp                  `json:"props"`
 	Links               []SubjectLink                  `json:"links"`
