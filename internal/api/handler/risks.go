@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -46,6 +48,8 @@ func (h *RiskHandler) Register(api *echo.Group) {
 	api.POST("/:id/accept", h.Accept)
 	api.POST("/:id/review", h.Review)
 	api.DELETE("/:id", h.Delete)
+	api.GET("/:id/events", h.GetEvents)
+	api.GET("/:id/reviews", h.GetReviews)
 
 	api.GET("/:id/evidence", h.GetEvidenceLinks)
 	api.POST("/:id/evidence", h.AddEvidenceLink)
@@ -61,6 +65,15 @@ func (h *RiskHandler) Register(api *echo.Group) {
 
 	api.GET("/:id/subjects", h.GetSubjectLinks)
 	api.POST("/:id/subjects", h.AddSubjectLink)
+	api.GET("/:id/threat-ids", h.ListThreatRefs)
+	api.POST("/:id/threat-ids", h.AddThreatRef)
+	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRef)
+	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRef)
+	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRef)
+	api.GET("/:id/remediation-template", h.GetRemediationTemplate)
+	api.POST("/:id/remediation-template", h.CreateRemediationTemplate)
+	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplate)
+	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplate)
 }
 
 func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
@@ -71,6 +84,8 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.POST("/:id/accept", h.AcceptForSSP)
 	api.POST("/:id/review", h.ReviewForSSP)
 	api.DELETE("/:id", h.DeleteForSSP)
+	api.GET("/:id/events", h.GetEventsForSSP)
+	api.GET("/:id/reviews", h.GetReviewsForSSP)
 	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP)
 	api.POST("/:id/evidence", h.AddEvidenceLinkForSSP)
 	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLinkForSSP)
@@ -82,12 +97,39 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.GET("/:id/components", h.GetComponentLinksForSSP)
 	api.POST("/:id/components", h.AddComponentLinkForSSP)
 	api.DELETE("/:id/components/:componentId", h.DeleteComponentLinkForSSP)
+	api.GET("/:id/threat-ids", h.ListThreatRefsForSSP)
+	api.POST("/:id/threat-ids", h.AddThreatRefForSSP)
+	api.GET("/:id/threat-ids/:threatRefId", h.GetThreatRefForSSP)
+	api.PUT("/:id/threat-ids/:threatRefId", h.UpdateThreatRefForSSP)
+	api.DELETE("/:id/threat-ids/:threatRefId", h.DeleteThreatRefForSSP)
+	api.GET("/:id/remediation-template", h.GetRemediationTemplateForSSP)
+	api.POST("/:id/remediation-template", h.CreateRemediationTemplateForSSP)
+	api.PUT("/:id/remediation-template", h.UpsertRemediationTemplateForSSP)
+	api.DELETE("/:id/remediation-template", h.DeleteRemediationTemplateForSSP)
 }
 
 type riskOwnerAssignmentRequest struct {
 	OwnerKind string `json:"owner-kind"`
 	OwnerRef  string `json:"owner-ref"`
 	IsPrimary bool   `json:"is-primary"`
+}
+
+type threatIDRequest struct {
+	System string  `json:"system"`
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
+	URL    *string `json:"url"`
+}
+
+type remediationTaskRequest struct {
+	Title      string `json:"title"`
+	OrderIndex int    `json:"order-index"`
+}
+
+type remediationTemplateRequest struct {
+	Title       string                   `json:"title"`
+	Description *string                  `json:"description"`
+	Tasks       []remediationTaskRequest `json:"tasks"`
 }
 
 type createRiskRequest struct {
@@ -103,6 +145,8 @@ type createRiskRequest struct {
 	ReviewDeadline          *time.Time                   `json:"review-deadline"`
 	LastReviewedAt          *time.Time                   `json:"last-reviewed-at"`
 	AcceptanceJustification *string                      `json:"acceptance-justification"`
+	ThreatIDs               []threatIDRequest            `json:"threat-ids"`
+	Remediation             *remediationTemplateRequest  `json:"remediation-template"`
 }
 
 type updateRiskRequest struct {
@@ -118,6 +162,8 @@ type updateRiskRequest struct {
 	LastReviewedAt          *time.Time                    `json:"last-reviewed-at"`
 	ReviewJustification     *string                       `json:"review-justification"`
 	AcceptanceJustification *string                       `json:"acceptance-justification"`
+	ThreatIDs               []threatIDRequest             `json:"threat-ids"`
+	Remediation             *remediationTemplateRequest   `json:"remediation-template"`
 }
 
 type riskOwnerAssignmentResponse struct {
@@ -129,6 +175,27 @@ type riskOwnerAssignmentResponse struct {
 type riskControlLinkResponse struct {
 	CatalogID uuid.UUID `json:"catalog-id"`
 	ControlID string    `json:"control-id"`
+}
+
+type threatIDResponse struct {
+	ID     uuid.UUID `json:"threat-ref-id"`
+	System string    `json:"system"`
+	RefID  string    `json:"id"`
+	Title  string    `json:"title"`
+	URL    *string   `json:"url"`
+}
+
+type remediationTaskResponse struct {
+	ID         uuid.UUID `json:"id"`
+	Title      string    `json:"title"`
+	OrderIndex int       `json:"order-index"`
+}
+
+type remediationTemplateResponse struct {
+	ID          uuid.UUID                 `json:"id"`
+	Title       string                    `json:"title"`
+	Description *string                   `json:"description"`
+	Tasks       []remediationTaskResponse `json:"tasks"`
 }
 
 type riskResponse struct {
@@ -155,6 +222,8 @@ type riskResponse struct {
 	ControlLinks            []riskControlLinkResponse     `json:"control-links"`
 	ComponentIDs            []uuid.UUID                   `json:"component-ids"`
 	SubjectIDs              []uuid.UUID                   `json:"subject-ids"`
+	ThreatIDs               []threatIDResponse            `json:"threat-ids"`
+	Remediation             *remediationTemplateResponse  `json:"remediation-template,omitempty"`
 }
 
 type addEvidenceLinkRequest struct {
@@ -183,6 +252,8 @@ type reviewRiskRequest struct {
 	ReviewedAt         *time.Time `json:"reviewed-at"`
 	Decision           string     `json:"decision"`
 	Notes              *string    `json:"notes"`
+	Likelihood         *string    `json:"likelihood"`
+	Impact             *string    `json:"impact"`
 	NextReviewDeadline *time.Time `json:"next-review-deadline"`
 }
 
@@ -302,6 +373,8 @@ func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest)
 	if err := validateRiskLevel(req.Impact); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+	req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
 	if err := validateOwnerAssignments(req.OwnerAssignments); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
@@ -351,9 +424,14 @@ func (h *RiskHandler) createFromRequest(ctx echo.Context, req createRiskRequest)
 		created, err := h.riskService.Create(riskrel.CreateRiskParams{
 			Risk:             risk,
 			OwnerAssignments: ownerAssignments,
+			ThreatRefs:       toThreatRefs(req.ThreatIDs),
+			Remediation:      toRemediation(req.Remediation),
 			ActorUserID:      actorID,
 		})
 		if err != nil {
+			if riskrel.IsValidationError(err) {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+			}
 			return h.internalServerError(ctx, "failed to create risk", err)
 		}
 
@@ -573,7 +651,7 @@ func (h *RiskHandler) AcceptForSSP(ctx echo.Context) error {
 // ReviewForSSP godoc
 //
 //	@Summary		Review risk for SSP
-//	@Description	Records a risk review by ID scoped to an SSP. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.
+//	@Description	Records a risk review by ID scoped to an SSP. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json
@@ -663,9 +741,39 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	var req updateRiskRequest
-	if err := ctx.Bind(&req); err != nil {
+	decoder := json.NewDecoder(ctx.Request().Body)
+	rawFields := map[string]json.RawMessage{}
+	if err := decoder.Decode(&rawFields); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid request body")))
+	}
+
+	var req updateRiskRequest
+	normalizedBody, err := json.Marshal(rawFields)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := json.Unmarshal(normalizedBody, &req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	threatIDsRaw, hasThreatIDs := rawFields["threat-ids"]
+	if hasThreatIDs && strings.TrimSpace(string(threatIDsRaw)) == "null" {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("threat-ids must be an array")))
+	}
+	replaceThreatRefs := hasThreatIDs
+	threatRefs := make([]riskrel.RiskThreatRefInput, 0)
+	if hasThreatIDs {
+		threatRefs = toThreatRefs(req.ThreatIDs)
+	}
+
+	remediationRaw, hasRemediation := rawFields["remediation-template"]
+	replaceRemediation := hasRemediation
+	var remediation *riskrel.RiskRemediationTemplateInput
+	if hasRemediation && strings.TrimSpace(string(remediationRaw)) != "null" {
+		remediation = toRemediation(req.Remediation)
 	}
 
 	if err := validateRiskLevel(req.Likelihood); err != nil {
@@ -674,6 +782,8 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 	if err := validateRiskLevel(req.Impact); err != nil {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
+	req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+	req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
 	if req.OwnerAssignments != nil {
 		if err := validateOwnerAssignments(*req.OwnerAssignments); err != nil {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -771,8 +881,15 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 			RecordReview:            recordReview,
 			ReviewedAt:              reviewedAt,
 			ReviewJustification:     req.ReviewJustification,
+			ReplaceThreatRefs:       replaceThreatRefs,
+			ThreatRefs:              threatRefs,
+			ReplaceRemediation:      replaceRemediation,
+			Remediation:             remediation,
 		})
 		if err != nil {
+			if riskrel.IsValidationError(err) {
+				return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+			}
 			return h.internalServerError(ctx, "failed to update risk", err)
 		}
 
@@ -844,7 +961,7 @@ func (h *RiskHandler) Accept(ctx echo.Context) error {
 // Review godoc
 //
 //	@Summary		Review risk
-//	@Description	Records a structured review for an accepted risk. nextReviewDeadline is required for decision=extend and must be omitted for decision=reopen.
+//	@Description	Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json
@@ -869,14 +986,30 @@ func (h *RiskHandler) Review(ctx echo.Context) error {
 	if strings.TrimSpace(req.Decision) == "" {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("decision is required")))
 	}
+	decision := riskrel.NormalizeRiskReviewDecision(req.Decision)
+	if decision == riskrel.RiskReviewDecisionReassess {
+		if err := validateRiskLevel(req.Likelihood); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		if err := validateRiskLevel(req.Impact); err != nil {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		req.Likelihood = riskrel.NormalizeRiskLevelPtr(req.Likelihood)
+		req.Impact = riskrel.NormalizeRiskLevelPtr(req.Impact)
+	} else {
+		req.Likelihood = nil
+		req.Impact = nil
+	}
 
 	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
 		reviewed, err := h.riskService.ReviewRisk(riskrel.ReviewRiskParams{
 			RiskID:             riskID,
 			ActorUserID:        actorID,
 			ReviewedAt:         req.ReviewedAt,
-			Decision:           riskrel.NormalizeRiskReviewDecision(req.Decision),
+			Decision:           decision,
 			Notes:              req.Notes,
+			Likelihood:         req.Likelihood,
+			Impact:             req.Impact,
 			NextReviewDeadline: req.NextReviewDeadline,
 		})
 		if err != nil {
@@ -923,6 +1056,126 @@ func (h *RiskHandler) Delete(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// GetEventsForSSP godoc
+//
+//	@Summary		List risk events for SSP
+//	@Description	Lists events for a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskEvent]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/events [get]
+func (h *RiskHandler) GetEventsForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetEvents(ctx)
+}
+
+// GetEvents godoc
+//
+//	@Summary		List risk events
+//	@Description	Lists events for a risk.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskEvent]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/events [get]
+func (h *RiskHandler) GetEvents(ctx echo.Context) error {
+	return h.withRiskListContext(ctx, func(riskID uuid.UUID, pagination *svc.PaginationParams) error {
+		events, total, err := h.riskService.ListEvents(riskID, pagination.Limit, pagination.Offset)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to list risk events", err)
+		}
+
+		return ctx.JSON(http.StatusOK, svc.NewListResponse(events, total, pagination.Page, pagination.Limit))
+	})
+}
+
+// GetReviewsForSSP godoc
+//
+//	@Summary		List risk audit trail for SSP
+//	@Description	Lists risk reviews (audit trail) for a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskReview]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/reviews [get]
+func (h *RiskHandler) GetReviewsForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetReviews(ctx)
+}
+
+// GetReviews godoc
+//
+//	@Summary		List risk audit trail
+//	@Description	Lists risk reviews (audit trail) for a risk.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[risks.RiskReview]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/reviews [get]
+func (h *RiskHandler) GetReviews(ctx echo.Context) error {
+	return h.withRiskListContext(ctx, func(riskID uuid.UUID, pagination *svc.PaginationParams) error {
+		reviews, total, err := h.riskService.ListReviews(riskID, pagination.Limit, pagination.Offset)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to list risk reviews", err)
+		}
+
+		return ctx.JSON(http.StatusOK, svc.NewListResponse(reviews, total, pagination.Page, pagination.Limit))
+	})
 }
 
 // GetEvidenceLinksForSSP godoc
@@ -1613,10 +1866,26 @@ func parseListFilters(ctx echo.Context) (riskrel.ListFilters, error) {
 		filters.Status = &v
 	}
 	if v := ctx.QueryParam("likelihood"); v != "" {
-		filters.Likelihood = &v
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return filters, fmt.Errorf("invalid likelihood")
+		}
+		normalized := string(riskrel.NormalizeRiskLevel(trimmed))
+		if normalized == "" {
+			normalized = trimmed
+		}
+		filters.Likelihood = &normalized
 	}
 	if v := ctx.QueryParam("impact"); v != "" {
-		filters.Impact = &v
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return filters, fmt.Errorf("invalid impact")
+		}
+		normalized := string(riskrel.NormalizeRiskLevel(trimmed))
+		if normalized == "" {
+			normalized = trimmed
+		}
+		filters.Impact = &normalized
 	}
 	if v := ctx.QueryParam("controlId"); v != "" {
 		filters.ControlID = &v
@@ -1662,7 +1931,7 @@ func validateRiskLevel(level *string) error {
 	if level == nil || *level == "" {
 		return nil
 	}
-	if !riskrel.RiskLevel(*level).IsValid() {
+	if !riskrel.NormalizeRiskLevel(*level).IsValid() {
 		return fmt.Errorf("invalid risk level: %s", *level)
 	}
 	return nil
@@ -1709,6 +1978,7 @@ func validateStatusTransition(oldStatus, newStatus string) error {
 	allowed := map[string]map[string]struct{}{
 		string(riskrel.RiskStatusOpen): {
 			string(riskrel.RiskStatusInvestigating): {},
+			string(riskrel.RiskStatusClosed):        {},
 		},
 		string(riskrel.RiskStatusInvestigating): {
 			string(riskrel.RiskStatusMitigatingPlanned): {},
@@ -1763,7 +2033,7 @@ func (h *RiskHandler) withRiskListContext(ctx echo.Context, fn func(riskID uuid.
 	}
 	if err := h.ensureRiskExists(riskID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
 		}
 		return h.internalServerError(ctx, "failed to validate risk", err)
 	}
@@ -1838,11 +2108,44 @@ func normalizeOwnerAssignmentsForPrimaryOwner(assignments []riskrel.RiskOwnerAss
 	return normalized
 }
 
+func toThreatRefs(req []threatIDRequest) []riskrel.RiskThreatRefInput {
+	rows := make([]riskrel.RiskThreatRefInput, 0, len(req))
+	for _, item := range req {
+		rows = append(rows, riskrel.RiskThreatRefInput{
+			System:     item.System,
+			ExternalID: item.ID,
+			Title:      item.Title,
+			URL:        item.URL,
+		})
+	}
+	return rows
+}
+
+func toRemediation(req *remediationTemplateRequest) *riskrel.RiskRemediationTemplateInput {
+	if req == nil {
+		return nil
+	}
+	input := &riskrel.RiskRemediationTemplateInput{
+		Title:       req.Title,
+		Description: req.Description,
+		Tasks:       make([]riskrel.RiskRemediationTaskInput, 0, len(req.Tasks)),
+	}
+	for _, task := range req.Tasks {
+		input.Tasks = append(input.Tasks, riskrel.RiskRemediationTaskInput{
+			Title:      task.Title,
+			OrderIndex: task.OrderIndex,
+		})
+	}
+	return input
+}
+
 func (h *RiskHandler) mapRiskToResponse(risk *riskrel.Risk) (riskResponse, error) {
-	associations, err := h.riskService.GetAssociations(*risk.ID)
+	associations, err := h.riskService.GetLinkAssociations(*risk.ID)
 	if err != nil {
 		return riskResponse{}, err
 	}
+	associations.ThreatRefs = append(associations.ThreatRefs, risk.ThreatRefs...)
+	associations.Remediation = risk.Remediation
 
 	return h.mapRiskToResponseWithAssociations(risk, associations), nil
 }
@@ -1856,8 +2159,8 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 		Description:             risk.Description,
 		Status:                  risk.Status,
 		PrimaryOwnerUserID:      risk.PrimaryOwnerUserID,
-		Likelihood:              risk.Likelihood,
-		Impact:                  risk.Impact,
+		Likelihood:              riskrel.NormalizeRiskLevelPtr(risk.Likelihood),
+		Impact:                  riskrel.NormalizeRiskLevelPtr(risk.Impact),
 		SSPID:                   risk.SSPID,
 		SourceType:              risk.SourceType,
 		RiskTemplateID:          risk.RiskTemplateID,
@@ -1872,6 +2175,7 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 		ControlLinks:            make([]riskControlLinkResponse, 0),
 		ComponentIDs:            make([]uuid.UUID, 0),
 		SubjectIDs:              make([]uuid.UUID, 0),
+		ThreatIDs:               make([]threatIDResponse, 0),
 	}
 
 	owners := append([]riskrel.RiskOwnerAssignment{}, risk.OwnerAssignments...)
@@ -1894,6 +2198,37 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 
 	for _, link := range associations.ControlLinks {
 		response.ControlLinks = append(response.ControlLinks, riskControlLinkResponse{CatalogID: link.CatalogID, ControlID: link.ControlID})
+	}
+	for _, ref := range associations.ThreatRefs {
+		if ref.ID == nil {
+			continue
+		}
+		response.ThreatIDs = append(response.ThreatIDs, threatIDResponse{
+			ID:     *ref.ID,
+			System: ref.System,
+			RefID:  ref.ExternalID,
+			Title:  ref.Title,
+			URL:    ref.URL,
+		})
+	}
+	if associations.Remediation != nil && associations.Remediation.ID != nil {
+		remediation := remediationTemplateResponse{
+			ID:          *associations.Remediation.ID,
+			Title:       associations.Remediation.Title,
+			Description: associations.Remediation.Description,
+			Tasks:       make([]remediationTaskResponse, 0, len(associations.Remediation.Tasks)),
+		}
+		for _, task := range associations.Remediation.Tasks {
+			if task.ID == nil {
+				continue
+			}
+			remediation.Tasks = append(remediation.Tasks, remediationTaskResponse{
+				ID:         *task.ID,
+				Title:      task.Title,
+				OrderIndex: task.OrderIndex,
+			})
+		}
+		response.Remediation = &remediation
 	}
 
 	return response

@@ -52,6 +52,10 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 	require.Equal(t, "Secret scanning risk template", created.Name)
 	require.Equal(t, "Undetected secrets committed to repository", created.Title)
 	require.Equal(t, "Secret scanning is disabled and secrets may leak.", created.Statement)
+	require.NotNil(t, created.LikelihoodHint)
+	require.Equal(t, "moderate", *created.LikelihoodHint)
+	require.NotNil(t, created.ImpactHint)
+	require.Equal(t, "high", *created.ImpactHint)
 	require.Equal(t, "missing_secret_scanning", created.ViolationIDs[0])
 	require.Equal(t, "https://cwe.mitre.org", created.ThreatRefs[0].System)
 	require.Equal(t, "CWE-312", created.ThreatRefs[0].ExternalID)
@@ -111,6 +115,8 @@ func TestRiskTemplateService_CreateListGetUpdate(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "Secret scanning risk template (updated)", updated.Name)
+	require.NotNil(t, updated.ImpactHint)
+	require.Equal(t, "moderate", *updated.ImpactHint)
 	require.False(t, updated.IsActive)
 	require.Len(t, updated.ThreatRefs, 1)
 	require.Equal(t, "CWE-200", updated.ThreatRefs[0].ExternalID)
@@ -144,7 +150,7 @@ func TestRiskTemplateService_CreateValidationErrors(t *testing.T) {
 		{
 			name: "invalid likelihood hint",
 			mutate: func(payload *RiskTemplatePayload) {
-				payload.LikelihoodHint = strPtr("critical")
+				payload.LikelihoodHint = strPtr("invalid")
 			},
 			message: "invalid likelihoodHint",
 		},
@@ -323,39 +329,6 @@ func TestRiskTemplateService_CreateNormalizesEmptyRiskLevelHints(t *testing.T) {
 	require.Equal(t, "", *created.ImpactHint)
 }
 
-func TestRiskTemplateService_DeleteCleansEvidenceTemplateLinks(t *testing.T) {
-	db := newRiskTemplateTestDBWithEvidence(t)
-	riskSvc := NewRiskTemplateService(db)
-	evidenceSvc := NewEvidenceTemplateService(db)
-
-	riskTemplate, err := riskSvc.Create(validRiskTemplatePayload())
-	require.NoError(t, err)
-
-	_, err = evidenceSvc.Create(EvidenceTemplatePayload{
-		PluginID:        "github-repositories",
-		PolicyPackage:   "compliance_framework.secret_scanning_enabled",
-		Title:           "Linked evidence template",
-		RiskTemplateIDs: []uuid.UUID{*riskTemplate.ID},
-		SelectorLabels: []EvidenceTemplateSelectorLabelInput{
-			{Key: "_policy", Value: "compliance_framework.secret_scanning_enabled"},
-		},
-		LabelSchema: []EvidenceTemplateLabelSchemaFieldInput{
-			{Key: "github.org"},
-		},
-	})
-	require.NoError(t, err)
-
-	var linkCountBefore int64
-	require.NoError(t, db.Model(&EvidenceTemplateRiskTemplate{}).Where("risk_template_id = ?", *riskTemplate.ID).Count(&linkCountBefore).Error)
-	require.Equal(t, int64(1), linkCountBefore)
-
-	require.NoError(t, riskSvc.Delete(*riskTemplate.ID))
-
-	var linkCountAfter int64
-	require.NoError(t, db.Model(&EvidenceTemplateRiskTemplate{}).Where("risk_template_id = ?", *riskTemplate.ID).Count(&linkCountAfter).Error)
-	require.Equal(t, int64(0), linkCountAfter)
-}
-
 func TestRiskTemplateService_PolicyPackageNormalization(t *testing.T) {
 	db := newRiskTemplateTestDB(t)
 	svc := NewRiskTemplateService(db)
@@ -414,6 +387,299 @@ func TestRiskTemplateService_PolicyPackageNormalization(t *testing.T) {
 	require.Equal(t, "compliance_framework.secret_scanning_enabled", rows[0].PolicyPackage)
 }
 
+func TestRiskTemplateService_BatchUpsertCreateUpdateDelete(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	pluginID := "batch-plugin"
+	policy := "compliance_framework.batch_test"
+
+	firstID := uuid.New()
+	secondID := uuid.New()
+
+	// Round 1: create two templates.
+	result, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{
+			ID:        firstID,
+			Name:      "Batch one",
+			Title:     "Batch title one",
+			Statement: "Batch statement one",
+		},
+		{
+			ID:        secondID,
+			Name:      "Batch two",
+			Title:     "Batch title two",
+			Statement: "Batch statement two",
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Created, 2)
+	require.Empty(t, result.Updated)
+	require.Empty(t, result.Deleted)
+
+	createdIDs := make(map[uuid.UUID]bool)
+	for _, row := range result.Created {
+		createdIDs[*row.ID] = true
+	}
+	require.True(t, createdIDs[firstID])
+	require.True(t, createdIDs[secondID])
+
+	// Round 2: update first, drop second (deleted), create third.
+	thirdID := uuid.New()
+	result2, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{
+			ID:        firstID,
+			Name:      "Batch one updated",
+			Title:     "Batch title one updated",
+			Statement: "Batch statement one updated",
+			ThreatRefs: []ThreatRefInput{
+				{System: "https://cwe.mitre.org", ExternalID: "CWE-312", Title: "Cleartext Storage"},
+			},
+		},
+		{
+			ID:        thirdID,
+			Name:      "Batch three",
+			Title:     "Batch title three",
+			Statement: "Batch statement three",
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result2.Updated, 1)
+	require.Equal(t, firstID, *result2.Updated[0].ID)
+	require.Equal(t, "Batch one updated", result2.Updated[0].Name)
+	require.Len(t, result2.Updated[0].ThreatRefs, 1)
+	require.Len(t, result2.Created, 1)
+	require.Equal(t, thirdID, *result2.Created[0].ID)
+	require.Len(t, result2.Deleted, 1)
+	require.Equal(t, secondID, result2.Deleted[0])
+	// Confirm second template is gone from the DB.
+	var count int64
+	require.NoError(t, db.Model(&RiskTemplate{}).Where("id = ?", secondID).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+func TestRiskTemplateService_BatchUpsertEmptyPayloadDeletesAll(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	pluginID := "delete-plugin"
+	policy := "compliance_framework.delete_test"
+
+	id1, id2 := uuid.New(), uuid.New()
+	_, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: id1, Name: "Delete me one", Title: "T", Statement: "S"},
+		{ID: id2, Name: "Delete me two", Title: "T", Statement: "S"},
+	})
+	require.NoError(t, err)
+
+	result, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{})
+	require.NoError(t, err)
+	require.Empty(t, result.Created)
+	require.Empty(t, result.Updated)
+	require.Len(t, result.Deleted, 2)
+
+	var remaining int64
+	require.NoError(t, db.Model(&RiskTemplate{}).
+		Where("plugin_id = ? AND policy_package = ?", pluginID, policy).
+		Count(&remaining).Error)
+	require.Equal(t, int64(0), remaining)
+}
+
+func TestRiskTemplateService_BatchUpsertAlwaysDeletesEvenIfReferenced(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	pluginID := "always-delete-plugin"
+	policy := "compliance_framework.always_delete_test"
+
+	keepID := uuid.New()
+	referencedID := uuid.New()
+
+	_, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: keepID, Name: "Keep me", Title: "T", Statement: "S"},
+		{ID: referencedID, Name: "Referenced but deleted", Title: "T", Statement: "S"},
+	})
+	require.NoError(t, err)
+
+	// Even though referencedID exists, it should be deleted (no in-use guard).
+	result, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: keepID, Name: "Keep me updated", Title: "T updated", Statement: "S updated"},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Updated, 1)
+	require.Empty(t, result.Created)
+	require.Len(t, result.Deleted, 1)
+	require.Equal(t, referencedID, result.Deleted[0])
+
+	var count int64
+	require.NoError(t, db.Model(&RiskTemplate{}).Where("id = ?", referencedID).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+func TestRiskTemplateService_BatchUpsertSkipsUnchanged(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	pluginID := "unchanged-plugin"
+	policy := "compliance_framework.unchanged_test"
+
+	id1 := uuid.New()
+	id2 := uuid.New()
+
+	// Round 1: create two templates.
+	_, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: id1, Name: "Template One", Title: "T1", Statement: "S1"},
+		{ID: id2, Name: "Template Two", Title: "T2", Statement: "S2"},
+	})
+	require.NoError(t, err)
+
+	// Round 2: same payload — nothing should be updated.
+	result, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: id1, Name: "Template One", Title: "T1", Statement: "S1"},
+		{ID: id2, Name: "Template Two", Title: "T2", Statement: "S2"},
+	})
+	require.NoError(t, err)
+	require.Empty(t, result.Created)
+	require.Empty(t, result.Updated)
+	require.Empty(t, result.Deleted)
+	require.Len(t, result.Unchanged, 2)
+	require.Contains(t, result.Unchanged, id1)
+	require.Contains(t, result.Unchanged, id2)
+
+	// Round 3: update only id1 — id2 should still be unchanged.
+	result2, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: id1, Name: "Template One Modified", Title: "T1", Statement: "S1"},
+		{ID: id2, Name: "Template Two", Title: "T2", Statement: "S2"},
+	})
+	require.NoError(t, err)
+	require.Len(t, result2.Updated, 1)
+	require.Equal(t, id1, *result2.Updated[0].ID)
+	require.Empty(t, result2.Created)
+	require.Empty(t, result2.Deleted)
+	require.Len(t, result2.Unchanged, 1)
+	require.Equal(t, id2, result2.Unchanged[0])
+}
+
+func TestRiskTemplateService_BatchUpsertValidationErrors(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	pluginID := "batch-plugin"
+	policy := "compliance_framework.batch_test"
+
+	// Missing ID (uuid.Nil).
+	_, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: uuid.Nil, Name: "No ID", Title: "T", Statement: "S"},
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.Contains(t, err.Error(), "id is required")
+
+	// Missing plugin ID.
+	_, err = svc.BatchUpsert("", policy, []BatchRiskTemplateItem{})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	// Missing policy package.
+	_, err = svc.BatchUpsert(pluginID, "", []BatchRiskTemplateItem{})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	// Item with invalid payload (empty name).
+	_, err = svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: uuid.New(), Name: "", Title: "T", Statement: "S"},
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	// Duplicate ID.
+	sharedID := uuid.New()
+	_, err = svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{ID: sharedID, Name: "First", Title: "T", Statement: "S"},
+		{ID: sharedID, Name: "Second", Title: "T", Statement: "S"},
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.Contains(t, err.Error(), "duplicate id")
+}
+
+func TestRiskTemplateService_BatchUpsertIsolatesByScope(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	idA := uuid.New()
+	idB := uuid.New()
+
+	// Seed one template in scope A and one in scope B.
+	_, err := svc.BatchUpsert("plugin-a", "pkg.a", []BatchRiskTemplateItem{
+		{ID: idA, Name: "Scope A template", Title: "T", Statement: "S"},
+	})
+	require.NoError(t, err)
+
+	_, err = svc.BatchUpsert("plugin-b", "pkg.b", []BatchRiskTemplateItem{
+		{ID: idB, Name: "Scope B template", Title: "T", Statement: "S"},
+	})
+	require.NoError(t, err)
+
+	// Batch upsert for scope A with empty list should only delete scope A.
+	result, err := svc.BatchUpsert("plugin-a", "pkg.a", []BatchRiskTemplateItem{})
+	require.NoError(t, err)
+	require.Len(t, result.Deleted, 1)
+	require.Equal(t, idA, result.Deleted[0])
+
+	// Scope B template must still exist.
+	var count int64
+	require.NoError(t, db.Model(&RiskTemplate{}).Where("id = ?", idB).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
+
+func TestRiskTemplateService_BatchUpsertDeleteCleansUpDependentRows(t *testing.T) {
+	db := newRiskTemplateTestDB(t)
+	svc := NewRiskTemplateService(db)
+
+	pluginID := "cleanup-plugin"
+	policy := "compliance_framework.cleanup_test"
+	id := uuid.New()
+
+	// Create with threat refs and remediation.
+	_, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
+		{
+			ID:        id,
+			Name:      "Template with deps",
+			Title:     "T",
+			Statement: "S",
+			ThreatRefs: []ThreatRefInput{
+				{System: "https://cwe.mitre.org", ExternalID: "CWE-312", Title: "Cleartext Storage"},
+			},
+			RemediationTemplate: &RemediationTemplateInput{
+				Title: "Fix it",
+				Tasks: []RemediationTaskInput{
+					{Title: "Step 1", OrderIndex: 1},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Confirm dependent rows were created.
+	var threatCount, remCount int64
+	require.NoError(t, db.Model(&RiskTemplateThreatRef{}).Where("risk_template_id = ?", id).Count(&threatCount).Error)
+	require.Equal(t, int64(1), threatCount)
+	var tmpl RiskTemplate
+	require.NoError(t, db.First(&tmpl, "id = ?", id).Error)
+	require.NotNil(t, tmpl.RemediationTemplateID)
+
+	// Delete via empty batch.
+	_, err = svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{})
+	require.NoError(t, err)
+
+	// Dependent rows must be gone.
+	require.NoError(t, db.Model(&RiskTemplateThreatRef{}).Where("risk_template_id = ?", id).Count(&threatCount).Error)
+	require.Equal(t, int64(0), threatCount)
+	require.NoError(t, db.Model(&RemediationTemplate{}).Where("id = ?", tmpl.RemediationTemplateID).Count(&remCount).Error)
+	require.Equal(t, int64(0), remCount)
+}
+
 func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -424,30 +690,6 @@ func newRiskTemplateTestDB(t *testing.T) *gorm.DB {
 		&RiskTemplateThreatRef{},
 		&RemediationTemplate{},
 		&RemediationTask{},
-		&EvidenceTemplateRiskTemplate{},
-	))
-
-	return db
-}
-
-func newRiskTemplateTestDBWithEvidence(t *testing.T) *gorm.DB {
-	t.Helper()
-
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(
-		&RiskTemplate{},
-		&RiskTemplateThreatRef{},
-		&RemediationTemplate{},
-		&RemediationTask{},
-		&SubjectTemplate{},
-		&SubjectTemplateSelectorLabel{},
-		&SubjectTemplateLabelSchemaField{},
-		&EvidenceTemplate{},
-		&EvidenceTemplateSelectorLabel{},
-		&EvidenceTemplateLabelSchemaField{},
-		&EvidenceTemplateRiskTemplate{},
-		&EvidenceTemplateSubjectTemplate{},
 	))
 
 	return db

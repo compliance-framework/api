@@ -2,6 +2,7 @@ package risks
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -37,18 +38,50 @@ func (s RiskStatus) IsValid() bool {
 type RiskLevel string
 
 const (
-	RiskLevelLow    RiskLevel = "low"
-	RiskLevelMedium RiskLevel = "medium"
-	RiskLevelHigh   RiskLevel = "high"
+	RiskLevelNegligible RiskLevel = "negligible"
+	RiskLevelLow        RiskLevel = "low"
+	RiskLevelModerate   RiskLevel = "moderate"
+	RiskLevelHigh       RiskLevel = "high"
+	RiskLevelCritical   RiskLevel = "critical"
+
+	// Legacy storage/input value kept only for compatibility with existing data and filters.
+	RiskLevelMediumLegacy RiskLevel = "medium"
 )
 
 func (l RiskLevel) IsValid() bool {
 	switch l {
-	case RiskLevelLow, RiskLevelMedium, RiskLevelHigh:
+	case RiskLevelNegligible, RiskLevelLow, RiskLevelModerate, RiskLevelHigh, RiskLevelCritical:
 		return true
 	default:
 		return false
 	}
+}
+
+func NormalizeRiskLevel(raw string) RiskLevel {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if normalized == string(RiskLevelMediumLegacy) {
+		normalized = string(RiskLevelModerate)
+	}
+	return RiskLevel(normalized)
+}
+
+func NormalizeRiskLevelPtr(level *string) *string {
+	if level == nil {
+		return nil
+	}
+	normalized := string(NormalizeRiskLevel(*level))
+	return &normalized
+}
+
+func RiskLevelFilterValues(raw string) []string {
+	normalized := NormalizeRiskLevel(raw)
+	if normalized == "" {
+		return nil
+	}
+	if normalized == RiskLevelModerate {
+		return []string{string(RiskLevelModerate), string(RiskLevelMediumLegacy)}
+	}
+	return []string{string(normalized)}
 }
 
 type RiskSourceType string
@@ -95,6 +128,8 @@ type Risk struct {
 
 	SystemSecurityPlan *relational.SystemSecurityPlan `json:"-" gorm:"foreignKey:SSPID;references:ID"`
 	OwnerAssignments   []RiskOwnerAssignment          `json:"ownerAssignments,omitempty" gorm:"foreignKey:RiskID;constraint:OnDelete:CASCADE"`
+	ThreatRefs         []RiskThreatRef                `json:"threatRefs,omitempty" gorm:"foreignKey:RiskID;constraint:OnDelete:CASCADE"`
+	Remediation        *RiskRemediationTemplate       `json:"remediation,omitempty" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (Risk) TableName() string {
@@ -127,11 +162,21 @@ func (r *Risk) BeforeCreate(tx *gorm.DB) error {
 	if !RiskSourceType(r.SourceType).IsValid() {
 		return fmt.Errorf("invalid risk source type: %s", r.SourceType)
 	}
-	if r.Likelihood != nil && !RiskLevel(*r.Likelihood).IsValid() {
-		return fmt.Errorf("invalid likelihood: %s", *r.Likelihood)
+	if r.Likelihood != nil {
+		normalized := NormalizeRiskLevel(*r.Likelihood)
+		if !normalized.IsValid() {
+			return fmt.Errorf("invalid likelihood: %s", *r.Likelihood)
+		}
+		canonical := string(normalized)
+		r.Likelihood = &canonical
 	}
-	if r.Impact != nil && !RiskLevel(*r.Impact).IsValid() {
-		return fmt.Errorf("invalid impact: %s", *r.Impact)
+	if r.Impact != nil {
+		normalized := NormalizeRiskLevel(*r.Impact)
+		if !normalized.IsValid() {
+			return fmt.Errorf("invalid impact: %s", *r.Impact)
+		}
+		canonical := string(normalized)
+		r.Impact = &canonical
 	}
 
 	return nil

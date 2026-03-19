@@ -220,3 +220,213 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateRequiresAuth
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }
+
+type batchSubjectTemplateResult struct {
+	Data struct {
+		Created []subjectTemplateAPIResponse `json:"created"`
+		Updated []subjectTemplateAPIResponse `json:"updated"`
+		Deleted []uuid.UUID                  `json:"deleted"`
+	} `json:"data"`
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertCreateAndUpdate() {
+	// Step 1 — batch creates two templates scoped to "batch-plugin". Both IDs supplied by caller.
+	firstID := uuid.New()
+	secondID := uuid.New()
+	batchReq := map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			{
+				"id":                  firstID.String(),
+				"name":                "Batch subject one",
+				"type":                "component",
+				"source-mode":         "runtime-derived",
+				"identity-label-keys": []string{"asset_id"},
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "batch-plugin"},
+				},
+				"label-schema": []map[string]any{
+					{"key": "asset_id", "description": "Unique asset ID"},
+				},
+			},
+			{
+				"id":                  secondID.String(),
+				"name":                "Batch subject two",
+				"type":                "component",
+				"source-mode":         "runtime-derived",
+				"identity-label-keys": []string{"cluster"},
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "batch-plugin"},
+				},
+				"label-schema": []map[string]any{
+					{"key": "cluster", "description": "Cluster name"},
+				},
+			},
+		},
+	}
+
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq)
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code)
+
+	var result1 batchSubjectTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result1))
+	require.Len(suite.T(), result1.Data.Created, 2)
+	require.Empty(suite.T(), result1.Data.Updated)
+	require.Empty(suite.T(), result1.Data.Deleted)
+	// Confirm both explicit IDs were honoured.
+	var foundFirst, foundSecond bool
+	for _, row := range result1.Data.Created {
+		if row.ID == firstID {
+			foundFirst = true
+			require.Equal(suite.T(), "Batch subject one", row.Name)
+		}
+		if row.ID == secondID {
+			foundSecond = true
+		}
+	}
+	require.True(suite.T(), foundFirst, "first template should be in created list")
+	require.True(suite.T(), foundSecond, "second template should be in created list")
+
+	// Step 2 — update first, drop second (deleted), add a third.
+	thirdID := uuid.New()
+	batchReq2 := map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			{
+				"id":                  firstID.String(),
+				"name":                "Batch subject one updated",
+				"type":                "component",
+				"source-mode":         "runtime-derived",
+				"identity-label-keys": []string{"asset_id", "region"},
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "batch-plugin"},
+				},
+				"label-schema": []map[string]any{
+					{"key": "asset_id", "description": "Unique asset ID"},
+					{"key": "region", "description": "Cloud region"},
+				},
+			},
+			{
+				"id":                  thirdID.String(),
+				"name":                "Batch subject three",
+				"type":                "component",
+				"source-mode":         "runtime-derived",
+				"identity-label-keys": []string{"namespace"},
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "batch-plugin"},
+				},
+				"label-schema": []map[string]any{
+					{"key": "namespace", "description": "Kubernetes namespace"},
+				},
+			},
+		},
+	}
+
+	rec2, req2 := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq2)
+	suite.server.E().ServeHTTP(rec2, req2)
+	require.Equal(suite.T(), http.StatusOK, rec2.Code)
+
+	var result2 batchSubjectTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec2.Body.Bytes(), &result2))
+	require.Len(suite.T(), result2.Data.Updated, 1, "first template should be updated")
+	require.Len(suite.T(), result2.Data.Created, 1, "third template should be created")
+	require.Len(suite.T(), result2.Data.Deleted, 1, "second template should be deleted")
+	require.Equal(suite.T(), secondID, result2.Data.Deleted[0])
+	require.Equal(suite.T(), firstID, result2.Data.Updated[0].ID)
+	require.Equal(suite.T(), "Batch subject one updated", result2.Data.Updated[0].Name)
+	require.Len(suite.T(), result2.Data.Updated[0].LabelSchema, 2)
+
+	// Confirm selector labels were replaced correctly for the updated template.
+	var selectorCount int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.SubjectTemplateSelectorLabel{}).
+		Where("subject_template_id = ?", firstID).Count(&selectorCount).Error)
+	require.Equal(suite.T(), int64(1), selectorCount)
+
+	// Step 3 — confirm second template is gone.
+	var count int64
+	require.NoError(suite.T(), suite.DB.Model(&templaterel.SubjectTemplate{}).Where("id = ?", secondID).Count(&count).Error)
+	require.Equal(suite.T(), int64(0), count)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertEmptyPayloadDeletesAll() {
+	// Seed two templates via admin endpoint.
+	for i, name := range []string{"Delete subject one", "Delete subject two"} {
+		_ = i
+		r, c := suite.authedRequest(http.MethodPost, "/api/admin/subject-templates", map[string]any{
+			"name":                name,
+			"type":                "component",
+			"source-mode":         "runtime-derived",
+			"identity-label-keys": []string{"asset_id"},
+			"selector-labels": []map[string]any{
+				{"key": "_plugin", "value": "delete-plugin"},
+			},
+			"label-schema": []map[string]any{
+				{"key": "asset_id", "description": "ID"},
+			},
+		})
+		suite.server.E().ServeHTTP(r, c)
+		require.Equal(suite.T(), http.StatusCreated, r.Code)
+	}
+
+	// Send empty template list — both should be deleted.
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "delete-plugin",
+		"templates": []map[string]any{},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code)
+
+	var result batchSubjectTemplateResult
+	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &result))
+	require.Empty(suite.T(), result.Data.Created)
+	require.Empty(suite.T(), result.Data.Updated)
+	require.Len(suite.T(), result.Data.Deleted, 2)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertMissingIDReturns400() {
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			{
+				"name":        "Missing ID subject",
+				"type":        "component",
+				"source-mode": "runtime-derived",
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "batch-plugin"},
+				},
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
+	require.Contains(suite.T(), rec.Body.String(), "id is required")
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertValidationError() {
+	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{
+			{
+				"id":          uuid.New().String(),
+				"name":        "",
+				"type":        "component",
+				"source-mode": "runtime-derived",
+				"selector-labels": []map[string]any{
+					{"key": "_plugin", "value": "batch-plugin"},
+				},
+			},
+		},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertIsPublic() {
+	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusOK, rec.Code)
+}

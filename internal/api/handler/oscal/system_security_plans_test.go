@@ -21,6 +21,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/tests"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 )
@@ -1608,11 +1609,52 @@ func (suite *SystemSecurityPlanApiIntegrationSuite) TestSystemImplementationComp
 	suite.Equal("mfa-enabled", (*updateComponentResponse.Data.Props)[2].Name)
 	suite.Equal("true", (*updateComponentResponse.Data.Props)[2].Value)
 
+	risk := riskrel.Risk{
+		Title:       "Test risk for component cleanup",
+		Description: "Risk used to verify component link cleanup",
+		Status:      string(riskrel.RiskStatusOpen),
+		SSPID:       uuid.MustParse(ssp.UUID),
+		SourceType:  string(riskrel.RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}
+	suite.Require().NoError(suite.DB.Create(&risk).Error)
+	suite.Require().NotNil(risk.ID)
+
+	suite.Require().NoError(suite.DB.Create(&riskrel.RiskComponentLink{
+		RiskID:      *risk.ID,
+		ComponentID: uuid.MustParse(componentID),
+	}).Error)
+
+	componentUUID := uuid.MustParse(componentID)
+	byComponentID := uuid.New()
+	parentType := "statements"
+	statementUUID := uuid.MustParse((*ssp.ControlImplementation.ImplementedRequirements[0].Statements)[0].UUID)
+	suite.Require().NoError(suite.DB.Create(&relational.ByComponent{
+		UUIDModel:     relational.UUIDModel{ID: &byComponentID},
+		ParentID:      &statementUUID,
+		ParentType:    &parentType,
+		ComponentUUID: componentUUID,
+		Description:   "Test by-component bound to deleted component",
+	}).Error)
+
 	// Test DELETE component
 	req = suite.createRequest("DELETE", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components/%s", ssp.UUID, componentID), nil)
 	resp = httptest.NewRecorder()
 	server.E().ServeHTTP(resp, req)
 	suite.Equal(http.StatusNoContent, resp.Code)
+
+	var riskComponentLinkCount int64
+	suite.Require().NoError(suite.DB.Model(&riskrel.RiskComponentLink{}).
+		Where("component_id = ?", componentUUID).
+		Count(&riskComponentLinkCount).Error)
+	suite.Equal(int64(0), riskComponentLinkCount)
+
+	var byComponentCount int64
+	suite.Require().NoError(suite.DB.Model(&relational.ByComponent{}).
+		Where("component_uuid = ?", componentUUID).
+		Count(&byComponentCount).Error)
+	suite.Equal(int64(0), byComponentCount)
 
 	// Verify component is deleted
 	req = suite.createRequest("GET", fmt.Sprintf("/api/oscal/system-security-plans/%s/system-implementation/components", ssp.UUID), nil)

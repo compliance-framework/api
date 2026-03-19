@@ -35,6 +35,8 @@ Some examples include:
 ```shell
 $ go run main.go run # Run the API itself
 
+$ go run main.go bootstrap # Bootstrap JWT key files (defaults to CCF_JWT_* or private.pem/public.pem)
+
 $ go run main.go users add # Create a new user in the CCF API which can be used to authenticate with
 
 $ go run main.go migrate up # Create the database schema, or upgrade it to the current version
@@ -61,6 +63,10 @@ You can access the Swagger documentation to test and interact with the API at: [
 You can configure the API using environment variables or a `.env` file.
 
 Available variables are shown in [`.env.example`](./.env.example)
+
+JWT key behavior:
+- If both `CCF_JWT_PRIVATE_KEY` and `CCF_JWT_PUBLIC_KEY` are set, `run` bootstraps key files at those paths (if needed) and then loads them.
+- If either variable is unset, the API falls back to in-memory key generation.
 
 Copy this file to .env to configure environment variables
 ```shell

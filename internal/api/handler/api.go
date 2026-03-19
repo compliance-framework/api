@@ -75,17 +75,19 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	riskTemplateGroup.Use(middleware.RequireAdminGroups(db, config, logger))
 	riskTemplateHandler.Register(riskTemplateGroup)
 
+	agentRiskTemplateGroup := server.API().Group("/agent/risk-templates")
+	agentRiskTemplateGroup.Use(middleware.AgentJWTMiddleware(config.JWTPublicKey))
+	riskTemplateHandler.RegisterAgent(agentRiskTemplateGroup)
+
 	subjectTemplateHandler := templatehandlers.NewSubjectTemplateHandler(logger, db)
 	subjectTemplateGroup := server.API().Group("/admin/subject-templates")
 	subjectTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	subjectTemplateGroup.Use(middleware.RequireAdminGroups(db, config, logger))
 	subjectTemplateHandler.Register(subjectTemplateGroup)
 
-	evidenceTemplateHandler := templatehandlers.NewEvidenceTemplateHandler(logger, db)
-	evidenceTemplateGroup := server.API().Group("/admin/evidence-templates")
-	evidenceTemplateGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
-	evidenceTemplateGroup.Use(middleware.RequireAdminGroups(db, config, logger))
-	evidenceTemplateHandler.Register(evidenceTemplateGroup)
+	agentSubjectTemplateGroup := server.API().Group("/agent/subject-templates")
+	agentSubjectTemplateGroup.Use(middleware.AgentJWTMiddleware(config.JWTPublicKey))
+	subjectTemplateHandler.RegisterAgent(agentSubjectTemplateGroup)
 
 	userHandler := NewUserHandler(logger, db)
 

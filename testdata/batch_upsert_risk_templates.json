@@ -1,0 +1,91 @@
+{
+  "plugin-id": "my-plugin",
+  "policy-package": "compliance_framework.secret_scanning",
+  "templates": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "secret-scanning-disabled",
+      "title": "Secret scanning is disabled",
+      "statement": "The repository has secret scanning disabled, which may allow secrets to be committed undetected.",
+      "likelihood-hint": "high",
+      "impact-hint": "high",
+      "violation-ids": ["secret_scanning_disabled"],
+      "threat-ids": [
+        {
+          "system": "https://cwe.mitre.org",
+          "id": "CWE-312",
+          "title": "Cleartext Storage of Sensitive Information",
+          "url": "https://cwe.mitre.org/data/definitions/312.html"
+        }
+      ],
+      "remediation-template": {
+        "title": "Enable secret scanning",
+        "description": "Enable secret scanning on the repository to detect committed secrets.",
+        "tasks": [
+          { "title": "Navigate to repository Settings > Security > Secret scanning", "order-index": 1 },
+          { "title": "Enable secret scanning and push protection", "order-index": 2 }
+        ]
+      },
+      "is-active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "name": "branch-protection-missing",
+      "title": "Branch protection rules are not configured",
+      "statement": "The default branch has no protection rules, allowing force pushes and direct commits.",
+      "likelihood-hint": "medium",
+      "impact-hint": "high",
+      "violation-ids": ["missing_branch_protection"],
+      "threat-ids": [],
+      "remediation-template": {
+        "title": "Configure branch protection",
+        "description": "Add branch protection rules to prevent force pushes and require reviews.",
+        "tasks": [
+          { "title": "Go to Settings > Branches > Branch protection rules", "order-index": 1 },
+          { "title": "Add rule for the default branch requiring at least 1 approval", "order-index": 2 }
+        ]
+      },
+      "is-active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "mfa-not-required",
+      "title": "Multi-factor authentication is not enforced",
+      "statement": "Organisation members are not required to use MFA, increasing the risk of account takeover.",
+      "likelihood-hint": "medium",
+      "impact-hint": "high",
+      "violation-ids": ["mfa_not_required"],
+      "threat-ids": [],
+      "is-active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "name": "public-repo-with-sensitive-data",
+      "title": "Public repository may expose sensitive data",
+      "statement": "The repository is public and may inadvertently expose sensitive configuration or credentials.",
+      "likelihood-hint": "low",
+      "impact-hint": "high",
+      "violation-ids": ["public_repo_sensitive_data"],
+      "threat-ids": [],
+      "is-active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000006",
+      "name": "dependency-review-disabled",
+      "title": "Dependency review is not enabled",
+      "statement": "Dependency review is disabled, so vulnerable dependencies may be introduced via pull requests.",
+      "likelihood-hint": "medium",
+      "impact-hint": "medium",
+      "violation-ids": ["dependency_review_disabled"],
+      "threat-ids": [],
+      "remediation-template": {
+        "title": "Enable dependency review",
+        "description": "Enable the dependency review GitHub Action to block PRs introducing known vulnerabilities.",
+        "tasks": [
+          { "title": "Add the dependency-review-action workflow to .github/workflows/", "order-index": 1 }
+        ]
+      },
+      "is-active": true
+    }
+  ]
+}

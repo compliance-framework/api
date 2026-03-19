@@ -79,6 +79,7 @@ func init() {
 	rootCmd.AddCommand(users.RootCmd)
 	rootCmd.AddCommand(seed.RootCmd)
 	rootCmd.AddCommand(newMigrateCMD())
+	rootCmd.AddCommand(newBootstrapCMD())
 	rootCmd.AddCommand(dashboards.RootCmd)
 	rootCmd.AddCommand(DigestCmd)
 }

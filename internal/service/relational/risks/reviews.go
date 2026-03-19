@@ -14,13 +14,14 @@ import (
 type RiskReviewDecision string
 
 const (
-	RiskReviewDecisionExtend RiskReviewDecision = "extend"
-	RiskReviewDecisionReopen RiskReviewDecision = "reopen"
+	RiskReviewDecisionExtend   RiskReviewDecision = "extend"
+	RiskReviewDecisionReopen   RiskReviewDecision = "reopen"
+	RiskReviewDecisionReassess RiskReviewDecision = "reassess"
 )
 
 func (d RiskReviewDecision) IsValid() bool {
 	switch d {
-	case RiskReviewDecisionExtend, RiskReviewDecisionReopen:
+	case RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess:
 		return true
 	default:
 		return false
@@ -35,13 +36,15 @@ type RiskReview struct {
 	relational.UUIDModel
 	CreatedAt time.Time `json:"createdAt"`
 
-	RiskID              uuid.UUID         `json:"riskId" gorm:"type:uuid;not null;index"`
-	ReviewedByUserID    *uuid.UUID        `json:"reviewedByUserId" gorm:"type:uuid;index"`
-	ReviewedAt          time.Time         `json:"reviewedAt" gorm:"not null;index"`
-	Decision            string            `json:"decision" gorm:"type:varchar(64);not null"`
-	NextReviewDeadline  *time.Time        `json:"nextReviewDeadline"`
-	ReviewJustification *string           `json:"reviewJustification" gorm:"type:text"`
-	RiskSnapshot        datatypes.JSONMap `json:"riskSnapshot" gorm:"type:jsonb"`
+	RiskID               uuid.UUID         `json:"riskId" gorm:"type:uuid;not null;index"`
+	ReviewedByUserID     *uuid.UUID        `json:"reviewedByUserId" gorm:"type:uuid;index"`
+	ReviewedAt           time.Time         `json:"reviewedAt" gorm:"not null;index"`
+	Decision             string            `json:"decision" gorm:"type:varchar(64);not null"`
+	NextReviewDeadline   *time.Time        `json:"nextReviewDeadline"`
+	ReassessedLikelihood *string           `json:"reassessedLikelihood" gorm:"type:varchar(16)"`
+	ReassessedImpact     *string           `json:"reassessedImpact" gorm:"type:varchar(16)"`
+	ReviewJustification  *string           `json:"reviewJustification" gorm:"type:text"`
+	RiskSnapshot         datatypes.JSONMap `json:"riskSnapshot" gorm:"type:jsonb"`
 }
 
 func (RiskReview) TableName() string {

@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/api/handler"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 
 	"github.com/labstack/echo/v4"
@@ -35,16 +36,16 @@ type SystemComponentRequest struct {
 }
 
 type ApplySuggestionRequest struct {
-	ComponentDefinitionID *uuid.UUID `json:"componentDefinitionId" binding:"required" format:"uuid"`
-	DefinedComponentID    *uuid.UUID `json:"definedComponentId" binding:"required" format:"uuid"`
+	ComponentDefinitionID *uuid.UUID `json:"component-definition-id" binding:"required" format:"uuid"`
+	DefinedComponentID    *uuid.UUID `json:"defined-component-id" binding:"required" format:"uuid"`
 }
 
 func (r *ApplySuggestionRequest) Validate() error {
 	if r.ComponentDefinitionID == nil || *r.ComponentDefinitionID == uuid.Nil {
-		return fmt.Errorf("componentDefinitionId is required")
+		return fmt.Errorf("component-definition-id is required")
 	}
 	if r.DefinedComponentID == nil || *r.DefinedComponentID == uuid.Nil {
-		return fmt.Errorf("definedComponentId is required")
+		return fmt.Errorf("defined-component-id is required")
 	}
 	return nil
 }
@@ -2492,14 +2493,31 @@ func (h *SystemSecurityPlanHandler) DeleteSystemImplementationComponent(ctx echo
 		return ctx.JSON(http.StatusNotFound, api.NewError(err))
 	}
 
-	result := h.db.Where("id = ? AND system_implementation_id = ?", componentID, *systemImpl.ID).Delete(&relational.SystemComponent{})
-	if result.Error != nil {
-		h.sugar.Errorf("Failed to delete component: %v", result.Error)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(result.Error))
-	}
+	var componentNotFound bool
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&riskrel.RiskComponentLink{}, "component_id = ?", componentID).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&relational.ByComponent{}, "component_uuid = ?", componentID).Error; err != nil {
+			return err
+		}
 
-	if result.RowsAffected == 0 {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("component not found")))
+		result := tx.Where("id = ? AND system_implementation_id = ?", componentID, *systemImpl.ID).Delete(&relational.SystemComponent{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			componentNotFound = true
+			return gorm.ErrRecordNotFound
+		}
+
+		return nil
+	}); err != nil {
+		if componentNotFound || errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("component not found")))
+		}
+		h.sugar.Errorf("Failed to delete component: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	return ctx.NoContent(http.StatusNoContent)

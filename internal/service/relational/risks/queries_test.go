@@ -65,7 +65,7 @@ func TestFromOSCALSetsSourceType(t *testing.T) {
 
 func TestToOSCALIncludesFallbackStatementAndProps(t *testing.T) {
 	id := uuid.New()
-	level := string(RiskLevelMedium)
+	level := string(RiskLevelModerate)
 	ownerID := uuid.New()
 	reviewDeadline := time.Now().UTC().Truncate(time.Second)
 	justification := "accepted for 90 days"
@@ -129,7 +129,8 @@ func TestApplyRiskFilters(t *testing.T) {
 	evidenceID := uuid.New()
 	now := time.Now().UTC()
 
-	medium := string(RiskLevelMedium)
+	medium := string(RiskLevelModerate)
+	moderate := string(RiskLevelModerate)
 	high := string(RiskLevelHigh)
 	low := string(RiskLevelLow)
 
@@ -229,6 +230,22 @@ func TestApplyRiskFilters(t *testing.T) {
 		require.NoError(t, ApplyRiskFilters(db, ListFilters{OwnerRef: &ref}).Find(&out).Error)
 		require.Len(t, out, 1)
 		require.Equal(t, *riskC.ID, *out[0].ID)
+	})
+
+	t.Run("moderate filter matches legacy medium rows", func(t *testing.T) {
+		require.NoError(t, db.Model(&Risk{}).Where("id = ?", *riskA.ID).UpdateColumn("likelihood", string(RiskLevelMediumLegacy)).Error)
+
+		var out []Risk
+		require.NoError(t, ApplyRiskFilters(db, ListFilters{SSPID: &sspA, Likelihood: &moderate}).Find(&out).Error)
+		require.Len(t, out, 1)
+		require.Equal(t, *riskA.ID, *out[0].ID)
+	})
+
+	t.Run("whitespace likelihood filter does not broaden results", func(t *testing.T) {
+		whitespace := " "
+		var out []Risk
+		require.NoError(t, ApplyRiskFilters(db, ListFilters{Likelihood: &whitespace}).Find(&out).Error)
+		require.Empty(t, out)
 	})
 }
 
