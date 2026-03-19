@@ -180,8 +180,6 @@ type Remediation struct {
 
 type RiskTemplate struct {
 	ID             string `json:"id"`
-	PluginId       string `json:"plugin-id"`
-	PolicyPackage  string `json:"policy-package"`
 	Name           string `json:"name"`
 	Title          string `json:"title"`
 	Statement      string `json:"statement"`

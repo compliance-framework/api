@@ -7,37 +7,9 @@ import (
 	"github.com/compliance-framework/api/sdk/types"
 )
 
-func TestGroupRiskTemplatesByPluginAndPackage(t *testing.T) {
-	grouped := groupRiskTemplatesByPluginAndPackage([]types.RiskTemplate{
-		{PluginId: "plugin-a", PolicyPackage: "package-a", Name: "first"},
-		{PluginId: "plugin-a", PolicyPackage: " Package-A ", Name: "second"},
-		{PluginId: " plugin-b ", PolicyPackage: "package-b", Name: "third"},
-	})
-
-	if len(grouped) != 2 {
-		t.Fatalf("expected 2 groups, got %d", len(grouped))
-	}
-
-	firstKey := riskTemplateGroupKey{
-		pluginID:      "plugin-a",
-		policyPackage: "package-a",
-	}
-	if len(grouped[firstKey]) != 2 {
-		t.Fatalf("expected 2 templates in first group, got %d", len(grouped[firstKey]))
-	}
-
-	secondKey := riskTemplateGroupKey{
-		pluginID:      "plugin-b",
-		policyPackage: "package-b",
-	}
-	if len(grouped[secondKey]) != 1 {
-		t.Fatalf("expected 1 template in second group, got %d", len(grouped[secondKey]))
-	}
-}
-
 func TestUpsertRiskTemplatesRequestMarshalPreservesZeroOrderIndex(t *testing.T) {
 	reqData := upsertRiskTemplatesRequest{
-		PluginId:      "plugin-a",
+		PluginID:      "plugin-a",
 		PolicyPackage: "package-a",
 		Templates: []types.RiskTemplate{
 			{
@@ -95,7 +67,7 @@ func TestUpsertRiskTemplatesRequestMarshalPreservesZeroOrderIndex(t *testing.T) 
 
 func TestUpsertRiskTemplatesRequestMarshalIncludesDefaultFalseIsActive(t *testing.T) {
 	reqData := upsertRiskTemplatesRequest{
-		PluginId:      "plugin-a",
+		PluginID:      "plugin-a",
 		PolicyPackage: "package-a",
 		Templates: []types.RiskTemplate{
 			{
