@@ -158,3 +158,67 @@ type Evidence struct {
 	// Did we satisfy what was being tested for, or did we fail ?
 	Status ObjectiveStatus `json:"status"`
 }
+
+type ThreatRef struct {
+	System     string  `json:"system"`
+	ExternalID string  `json:"id"`
+	Title      string  `json:"title"`
+	URL        *string `json:"url,omitempty"`
+}
+
+type RemediationTask struct {
+	Title      string `json:"title"`
+	OrderIndex int    `json:"order-index"`
+}
+
+type Remediation struct {
+	Title       string  `json:"title"`
+	Description *string `json:"description,omitempty"`
+
+	Tasks []RemediationTask `json:"tasks"`
+}
+
+type RiskTemplate struct {
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	Title          string  `json:"title"`
+	Statement      string  `json:"statement"`
+	LikelihoodHint *string `json:"likelihood-hint,omitempty"`
+	ImpactHint     *string `json:"impact-hint,omitempty"`
+
+	ViolationIds []string `json:"violation-ids"`
+
+	ThreatRefs  []ThreatRef  `json:"threat-ids"`
+	Remediation *Remediation `json:"remediation-template"`
+	IsActive    *bool        `json:"is-active,omitempty"`
+}
+
+type SubjectTemplateSelectorLabel struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type SubjectTemplateLabelSchema struct {
+	Key         string  `json:"key"`
+	Description *string `json:"description,omitempty"`
+}
+
+type SubjectProp = Property
+
+type SubjectLink = Link
+
+type SubjectTemplate struct {
+	ID                  string                         `json:"id"`
+	Name                string                         `json:"name"`
+	Type                string                         `json:"type"`
+	TitleTemplate       *string                        `json:"title-template,omitempty"`
+	DescriptionTemplate *string                        `json:"description-template,omitempty"`
+	PurposeTemplate     *string                        `json:"purpose-template,omitempty"`
+	RemarksTemplate     *string                        `json:"remarks-template,omitempty"`
+	IdentityLabelKeys   []string                       `json:"identity-label-keys"`
+	Props               []SubjectProp                  `json:"props"`
+	Links               []SubjectLink                  `json:"links"`
+	SourceMode          string                         `json:"source-mode"`
+	SelectorLabels      []SubjectTemplateSelectorLabel `json:"selector-labels"`
+	LabelSchema         []SubjectTemplateLabelSchema   `json:"label-schema"`
+}
