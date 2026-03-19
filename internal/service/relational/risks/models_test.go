@@ -104,3 +104,27 @@ func TestRiskBeforeCreateValidationErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRiskBeforeCreateCanonicalizesLegacyMediumLevel(t *testing.T) {
+	medium := "medium"
+	r := &Risk{
+		Title:       "Legacy medium normalization",
+		Description: "desc",
+		SSPID:       uuid.New(),
+		Likelihood:  &medium,
+		Impact:      &medium,
+	}
+
+	err := r.BeforeCreate(nil)
+	require.NoError(t, err)
+	require.NotNil(t, r.Likelihood)
+	require.NotNil(t, r.Impact)
+	require.Equal(t, string(RiskLevelModerate), *r.Likelihood)
+	require.Equal(t, string(RiskLevelModerate), *r.Impact)
+}
+
+func TestNormalizeRiskLevel(t *testing.T) {
+	require.Equal(t, RiskLevelModerate, NormalizeRiskLevel(" medium "))
+	require.Equal(t, RiskLevelCritical, NormalizeRiskLevel("CRITICAL"))
+	require.Equal(t, RiskLevel("invalid"), NormalizeRiskLevel("invalid"))
+}

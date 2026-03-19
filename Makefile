@@ -167,8 +167,7 @@ swag: ## swag setup and lint
 .PHONY: generate-keys
 generate-keys:
 	@$(INFO) "Generating keys for the service"
-	@openssl genrsa -out private_key.pem 2048
-	@openssl rsa -in private_key.pem -pubout -out public_key.pem
+	@go run main.go bootstrap --private-key private_key.pem --public-key public_key.pem --force
 	@$(OK) keys generated
 
 tag:   ## Build and tag a production-based image of the service

@@ -46,6 +46,30 @@ func RunServer(cmd *cobra.Command, args []string) {
 		}
 	}()
 
+	bootstrapAction, privateKeyPath, publicKeyPath, bootstrapConfigured, err := bootstrapConfiguredJWTKeys(defaultJWTKeyBitSize, false)
+	if err != nil {
+		sugar.Fatalw(
+			"Failed to bootstrap JWT key files",
+			"error",
+			err,
+			"private_key_path",
+			privateKeyPath,
+			"public_key_path",
+			publicKeyPath,
+		)
+	}
+	if bootstrapConfigured {
+		sugar.Infow(
+			"JWT key bootstrap completed",
+			"action",
+			bootstrapAction,
+			"private_key_path",
+			privateKeyPath,
+			"public_key_path",
+			publicKeyPath,
+		)
+	}
+
 	cfg := config.NewConfig(sugar)
 
 	db, err := service.ConnectSQLDb(ctx, cfg, sugar)

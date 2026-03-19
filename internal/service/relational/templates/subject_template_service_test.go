@@ -552,7 +552,6 @@ func newSubjectTemplateTestDB(t *testing.T) *gorm.DB {
 		&SubjectTemplate{},
 		&SubjectTemplateSelectorLabel{},
 		&SubjectTemplateLabelSchemaField{},
-		&EvidenceTemplateSubjectTemplate{},
 		&AssessmentSubjectIdentity{},
 		&SystemComponentIdentity{},
 		&ComponentDefinitionIdentity{},
@@ -1142,57 +1141,6 @@ func TestSubjectTemplateService_BatchUpsertEmptyPayloadDeletesAll(t *testing.T) 
 	require.Equal(t, int64(0), remaining)
 }
 
-func TestSubjectTemplateService_BatchUpsertAlwaysDeletesEvenIfReferenced(t *testing.T) {
-	db := newSubjectTemplateTestDBWithEvidence(t)
-	svc := NewSubjectTemplateService(db)
-
-	pluginID := "always-delete-plugin"
-	keepID := uuid.New()
-	referencedID := uuid.New()
-
-	makeItem := func(id uuid.UUID, name string) BatchSubjectTemplateItem {
-		return BatchSubjectTemplateItem{
-			ID:                id,
-			Name:              name,
-			Type:              "component",
-			SourceMode:        "runtime-derived",
-			IdentityLabelKeys: []string{"asset_id"},
-			SelectorLabels: []SubjectTemplateSelectorLabelInput{
-				{Key: "_plugin", Value: pluginID},
-			},
-			LabelSchema: []SubjectTemplateLabelSchemaFieldInput{
-				{Key: "asset_id"},
-			},
-		}
-	}
-
-	_, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
-		makeItem(keepID, "Keep me"),
-		makeItem(referencedID, "Referenced but deleted"),
-	})
-	require.NoError(t, err)
-
-	// Simulate a reference to referencedID via evidence template.
-	require.NoError(t, db.Create(&EvidenceTemplateSubjectTemplate{
-		EvidenceTemplateID: uuid.New(),
-		SubjectTemplateID:  referencedID,
-	}).Error)
-
-	// Even though referencedID is referenced, it should be deleted (no in-use guard).
-	result, err := svc.BatchUpsert(pluginID, []BatchSubjectTemplateItem{
-		makeItem(keepID, "Keep me updated"),
-	})
-	require.NoError(t, err)
-	require.Len(t, result.Updated, 1)
-	require.Empty(t, result.Created)
-	require.Len(t, result.Deleted, 1)
-	require.Equal(t, referencedID, result.Deleted[0])
-
-	var count int64
-	require.NoError(t, db.Model(&SubjectTemplate{}).Where("id = ?", referencedID).Count(&count).Error)
-	require.Equal(t, int64(0), count)
-}
-
 func TestSubjectTemplateService_BatchUpsertSkipsUnchanged(t *testing.T) {
 	db := newSubjectTemplateTestDB(t)
 	svc := NewSubjectTemplateService(db)
@@ -1400,33 +1348,6 @@ func TestSubjectTemplateService_BatchUpsertDeleteCleansUpSelectorLabelsAndSchema
 	require.Equal(t, int64(0), selectorCount)
 	require.NoError(t, db.Model(&SubjectTemplateLabelSchemaField{}).Where("subject_template_id = ?", id).Count(&schemaCount).Error)
 	require.Equal(t, int64(0), schemaCount)
-}
-
-func newSubjectTemplateTestDBWithEvidence(t *testing.T) *gorm.DB {
-	t.Helper()
-
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(
-		&SubjectTemplate{},
-		&SubjectTemplateSelectorLabel{},
-		&SubjectTemplateLabelSchemaField{},
-		&AssessmentSubjectIdentity{},
-		&SystemComponentIdentity{},
-		&ComponentDefinitionIdentity{},
-		&subjectResolverAssessmentSubjectRow{},
-		&subjectResolverSystemComponentRow{},
-		&subjectResolverSystemImplementationRow{},
-		&relational.Metadata{},
-		&relational.ComponentDefinition{},
-		&relational.DefinedComponent{},
-		&riskrel.AssessmentSubjectLabel{},
-		&riskrel.SystemComponentLabel{},
-		&riskrel.ComponentDefinitionLabel{},
-		&EvidenceTemplateSubjectTemplate{},
-	))
-
-	return db
 }
 
 func validSubjectTemplatePayload() SubjectTemplatePayload {

@@ -3,6 +3,7 @@ package risks
 import (
 	"time"
 
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 )
 
@@ -67,4 +68,57 @@ type RiskOwnerAssignment struct {
 
 func (RiskOwnerAssignment) TableName() string {
 	return "risk_owner_assignments"
+}
+
+type RiskThreatRef struct {
+	relational.UUIDModel
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	RiskID uuid.UUID `json:"riskId" gorm:"type:uuid;not null;index;uniqueIndex:idx_risk_threat_refs_unique,priority:1"`
+
+	System     string  `json:"system" gorm:"type:text;not null;uniqueIndex:idx_risk_threat_refs_unique,priority:2"`
+	ExternalID string  `json:"externalId" gorm:"column:external_id;type:text;not null;uniqueIndex:idx_risk_threat_refs_unique,priority:3"`
+	Title      string  `json:"title" gorm:"type:text;not null"`
+	URL        *string `json:"url" gorm:"type:text"`
+
+	Risk *Risk `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (RiskThreatRef) TableName() string {
+	return "risk_threat_refs"
+}
+
+type RiskRemediationTemplate struct {
+	relational.UUIDModel
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	RiskID uuid.UUID `json:"riskId" gorm:"type:uuid;not null;uniqueIndex"`
+
+	Title       string  `json:"title" gorm:"type:text;not null"`
+	Description *string `json:"description" gorm:"type:text"`
+
+	Tasks []RiskRemediationTask `json:"tasks,omitempty" gorm:"foreignKey:RiskRemediationTemplateID;constraint:OnDelete:CASCADE"`
+	Risk  *Risk                 `json:"-" gorm:"foreignKey:RiskID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (RiskRemediationTemplate) TableName() string {
+	return "risk_remediation_templates"
+}
+
+type RiskRemediationTask struct {
+	relational.UUIDModel
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	RiskRemediationTemplateID uuid.UUID `json:"riskRemediationTemplateId" gorm:"type:uuid;not null;index;uniqueIndex:idx_risk_remediation_tasks_unique_order,priority:1"`
+	Title                     string    `json:"title" gorm:"type:text;not null"`
+	OrderIndex                int       `json:"orderIndex" gorm:"not null;uniqueIndex:idx_risk_remediation_tasks_unique_order,priority:2"`
+
+	RemediationTemplate *RiskRemediationTemplate `json:"-" gorm:"foreignKey:RiskRemediationTemplateID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (RiskRemediationTask) TableName() string {
+	return "risk_remediation_tasks"
 }

@@ -19,7 +19,7 @@ func TestRiskServiceCreateUpdateDeleteAndAuditRetention(t *testing.T) {
 
 	actorID := uuid.New()
 	sspID := uuid.New()
-	l := string(RiskLevelMedium)
+	l := string(RiskLevelModerate)
 	i := string(RiskLevelHigh)
 
 	created, err := svc.Create(CreateRiskParams{
@@ -46,6 +46,8 @@ func TestRiskServiceCreateUpdateDeleteAndAuditRetention(t *testing.T) {
 	require.Len(t, createdEvents, 1)
 	require.Equal(t, string(RiskEventTypeCreated), createdEvents[0].EventType)
 	require.NotEmpty(t, createdEvents[0].RiskSnapshot)
+	require.NotNil(t, createdEvents[0].Details)
+	require.NotEmpty(t, *createdEvents[0].Details)
 
 	reviewDeadline := time.Now().UTC().Add(14 * 24 * time.Hour)
 	acceptanceJustification := "accepted for limited period"
@@ -263,6 +265,96 @@ func TestRiskServiceGetAssociationsByRiskIDs(t *testing.T) {
 	emptyBatch, err := svc.GetAssociationsByRiskIDs(nil)
 	require.NoError(t, err)
 	require.Empty(t, emptyBatch)
+}
+
+func TestRiskServiceListEventsAndReviews(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "history-risk",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	olderEventTime := time.Now().UTC().Add(-2 * time.Hour)
+	newerEventTime := time.Now().UTC().Add(-time.Hour)
+	olderReviewTime := time.Now().UTC().Add(-90 * time.Minute)
+	newerReviewTime := time.Now().UTC().Add(-30 * time.Minute)
+
+	require.NoError(t, db.Create(&RiskEvent{
+		RiskID:      riskID,
+		EventType:   string(RiskEventTypeCreated),
+		ActorUserID: &actorID,
+		OccurredAt:  olderEventTime,
+		CreatedAt:   time.Now().UTC().Add(-10 * time.Minute),
+	}).Error)
+	require.NoError(t, db.Create(&RiskEvent{
+		RiskID:      riskID,
+		EventType:   string(RiskEventTypeReviewed),
+		ActorUserID: &actorID,
+		OccurredAt:  newerEventTime,
+		CreatedAt:   time.Now().UTC().Add(-3 * time.Hour),
+	}).Error)
+
+	require.NoError(t, db.Create(&RiskReview{
+		RiskID:           riskID,
+		ReviewedByUserID: &actorID,
+		ReviewedAt:       olderReviewTime,
+		Decision:         string(RiskReviewDecisionExtend),
+		CreatedAt:        time.Now().UTC().Add(-5 * time.Minute),
+	}).Error)
+	require.NoError(t, db.Create(&RiskReview{
+		RiskID:           riskID,
+		ReviewedByUserID: &actorID,
+		ReviewedAt:       newerReviewTime,
+		Decision:         string(RiskReviewDecisionReopen),
+		CreatedAt:        time.Now().UTC().Add(-4 * time.Hour),
+	}).Error)
+
+	events, eventTotal, err := svc.ListEvents(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), eventTotal)
+	require.Len(t, events, 2)
+	require.Equal(t, string(RiskEventTypeReviewed), events[0].EventType)
+	require.Equal(t, string(RiskEventTypeCreated), events[1].EventType)
+	require.True(t, events[0].OccurredAt.After(events[1].OccurredAt))
+
+	reviews, reviewTotal, err := svc.ListReviews(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), reviewTotal)
+	require.Len(t, reviews, 2)
+	require.Equal(t, string(RiskReviewDecisionReopen), reviews[0].Decision)
+	require.Equal(t, string(RiskReviewDecisionExtend), reviews[1].Decision)
+	require.True(t, reviews[0].ReviewedAt.After(reviews[1].ReviewedAt))
+
+	pagedEvents, pagedEventTotal, err := svc.ListEvents(riskID, 1, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), pagedEventTotal)
+	require.Len(t, pagedEvents, 1)
+
+	otherRiskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &otherRiskID},
+		Title:       "history-empty",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+	emptyReviews, emptyReviewTotal, err := svc.ListReviews(otherRiskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), emptyReviewTotal)
+	require.Empty(t, emptyReviews)
 }
 
 func TestRiskServiceUpdateStatusAndReviewUsesSingleRiskSnapshotLoad(t *testing.T) {
@@ -702,6 +794,379 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 	require.Equal(t, int64(1), statusChangeEventCount)
 }
 
+func TestRiskServiceReviewRiskReassess(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	actorID := uuid.New()
+	low := "low"
+	critical := "critical"
+	medium := "medium"
+
+	createRisk := func(status RiskStatus) uuid.UUID {
+		riskID := uuid.New()
+		require.NoError(t, db.Create(&Risk{
+			UUIDModel:   relational.UUIDModel{ID: &riskID},
+			Title:       "reassess-risk-" + string(status),
+			Description: "desc",
+			Status:      string(status),
+			SSPID:       uuid.New(),
+			SourceType:  string(RiskSourceTypeManual),
+			Likelihood:  &low,
+			Impact:      &low,
+			FirstSeenAt: time.Now().UTC(),
+			LastSeenAt:  time.Now().UTC(),
+		}).Error)
+		return riskID
+	}
+
+	openRiskID := createRisk(RiskStatusOpen)
+	nextDeadline := time.Now().Add(7 * 24 * time.Hour).UTC()
+
+	_, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      openRiskID,
+		ActorUserID: &actorID,
+		Decision:    RiskReviewDecisionReassess,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "likelihood is required and must be one of: negligible, low, moderate, high, critical")
+
+	_, err = svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             openRiskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionReassess,
+		Likelihood:         &medium,
+		Impact:             &critical,
+		NextReviewDeadline: &nextDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "nextReviewDeadline must not be provided when decision is reassess")
+
+	notes := "risk score changed after reassessment"
+	reassessed, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      openRiskID,
+		ActorUserID: &actorID,
+		Decision:    RiskReviewDecisionReassess,
+		Likelihood:  &medium,
+		Impact:      &critical,
+		Notes:       &notes,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusOpen), reassessed.Status)
+	require.NotNil(t, reassessed.Likelihood)
+	require.NotNil(t, reassessed.Impact)
+	require.Equal(t, string(RiskLevelModerate), *reassessed.Likelihood)
+	require.Equal(t, string(RiskLevelCritical), *reassessed.Impact)
+	require.NotNil(t, reassessed.LastReviewedAt)
+
+	var reviews []RiskReview
+	require.NoError(t, db.Where("risk_id = ?", openRiskID).Order("created_at asc").Find(&reviews).Error)
+	require.Len(t, reviews, 1)
+	require.Equal(t, string(RiskReviewDecisionReassess), reviews[0].Decision)
+	require.NotNil(t, reviews[0].ReassessedLikelihood)
+	require.NotNil(t, reviews[0].ReassessedImpact)
+	require.Equal(t, string(RiskLevelModerate), *reviews[0].ReassessedLikelihood)
+	require.Equal(t, string(RiskLevelCritical), *reviews[0].ReassessedImpact)
+	require.NotNil(t, reviews[0].ReviewJustification)
+	require.Equal(t, notes, *reviews[0].ReviewJustification)
+
+	var reassessEvents []RiskEvent
+	require.NoError(t, db.Where("risk_id = ? AND event_type = ?", openRiskID, string(RiskEventTypeScoreReassessed)).Find(&reassessEvents).Error)
+	require.Len(t, reassessEvents, 1)
+	require.NotNil(t, reassessEvents[0].Details)
+	require.NotEmpty(t, *reassessEvents[0].Details)
+	require.Equal(t, string(RiskReviewDecisionReassess), reassessEvents[0].Payload["decision"])
+	require.Equal(t, string(RiskStatusOpen), reassessEvents[0].Payload["status"])
+	require.Equal(t, string(RiskLevelLow), reassessEvents[0].Payload["fromLikelihood"])
+	require.Equal(t, string(RiskLevelLow), reassessEvents[0].Payload["fromImpact"])
+	require.Equal(t, string(RiskLevelModerate), reassessEvents[0].Payload["toLikelihood"])
+	require.Equal(t, string(RiskLevelCritical), reassessEvents[0].Payload["toImpact"])
+
+	var reviewedEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", openRiskID, string(RiskEventTypeReviewed)).
+		Count(&reviewedEventCount).Error)
+	require.Equal(t, int64(0), reviewedEventCount)
+
+	for _, status := range []RiskStatus{RiskStatusInvestigating, RiskStatusMitigatingImplemented} {
+		riskID := createRisk(status)
+		_, err := svc.ReviewRisk(ReviewRiskParams{
+			RiskID:      riskID,
+			ActorUserID: &actorID,
+			Decision:    RiskReviewDecisionReassess,
+			Likelihood:  &medium,
+			Impact:      &critical,
+		})
+		require.NoError(t, err)
+	}
+
+	for _, status := range []RiskStatus{RiskStatusRiskAccepted, RiskStatusMitigatingPlanned, RiskStatusClosed} {
+		riskID := createRisk(status)
+		_, err := svc.ReviewRisk(ReviewRiskParams{
+			RiskID:      riskID,
+			ActorUserID: &actorID,
+			Decision:    RiskReviewDecisionReassess,
+			Likelihood:  &medium,
+			Impact:      &critical,
+		})
+		require.Error(t, err)
+		require.True(t, IsValidationError(err))
+		require.EqualError(t, err, "reassess is only allowed for risks in status open, investigating, or mitigating-implemented")
+	}
+}
+
+func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk with threat/remediation",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	threat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Cross-site scripting",
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, threat.ID)
+
+	sameThreat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Cross-site scripting",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, *threat.ID, *sameThreat.ID)
+
+	loadedThreat, err := svc.GetThreatRef(riskID, *threat.ID)
+	require.NoError(t, err)
+	require.Equal(t, "CWE", loadedThreat.System)
+
+	updatedThreat, err := svc.UpdateThreatRef(riskID, *threat.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "XSS updated",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, "XSS updated", updatedThreat.Title)
+
+	secondThreat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "89",
+		Title:      "SQL injection",
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, secondThreat.ID)
+
+	_, err = svc.UpdateThreatRef(riskID, *secondThreat.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "79",
+		Title:      "Duplicate pair",
+	}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	threatRows, total, err := svc.ListThreatRefs(riskID, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Len(t, threatRows, 2)
+
+	desc := "Apply mitigations"
+	remediation, err := svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{
+		Title:       "Fix risk",
+		Description: &desc,
+		Tasks: []RiskRemediationTaskInput{
+			{Title: "Task A", OrderIndex: 1},
+		},
+	}, &actorID)
+	require.NoError(t, err)
+	require.NotNil(t, remediation.ID)
+	require.Len(t, remediation.Tasks, 1)
+
+	_, err = svc.CreateRemediationTemplate(riskID, &RiskRemediationTemplateInput{Title: "Duplicate"}, &actorID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrRemediationTemplateAlreadyExists)
+
+	remediation, err = svc.UpsertRemediationTemplate(riskID, &RiskRemediationTemplateInput{
+		Title: "Fix risk updated",
+		Tasks: []RiskRemediationTaskInput{
+			{Title: "Task B", OrderIndex: 1},
+			{Title: "Task C", OrderIndex: 2},
+		},
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, "Fix risk updated", remediation.Title)
+	require.Len(t, remediation.Tasks, 2)
+
+	loadedRemediation, err := svc.GetRemediationTemplate(riskID)
+	require.NoError(t, err)
+	require.Equal(t, "Fix risk updated", loadedRemediation.Title)
+	require.Len(t, loadedRemediation.Tasks, 2)
+
+	deletedThreat, err := svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedThreat)
+	deletedThreat, err = svc.DeleteThreatRef(riskID, *secondThreat.ID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedThreat)
+	deletedThreat, err = svc.DeleteThreatRef(riskID, *threat.ID, &actorID)
+	require.NoError(t, err)
+	require.False(t, deletedThreat)
+
+	deletedRemediation, err := svc.DeleteRemediationTemplate(riskID, &actorID)
+	require.NoError(t, err)
+	require.True(t, deletedRemediation)
+	deletedRemediation, err = svc.DeleteRemediationTemplate(riskID, &actorID)
+	require.NoError(t, err)
+	require.False(t, deletedRemediation)
+}
+
+func TestRiskServiceAddThreatRefEnforcesMaxPerRisk(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk threat cap",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	actorID := uuid.New()
+	var firstThreat *RiskThreatRef
+	for i := 1; i <= maxThreatRefsPerRisk; i++ {
+		threat, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+			System:     "CWE",
+			ExternalID: fmt.Sprintf("%d", i),
+			Title:      fmt.Sprintf("Threat %d", i),
+		}, &actorID)
+		require.NoError(t, err)
+		if i == 1 {
+			firstThreat = threat
+		}
+	}
+	require.NotNil(t, firstThreat)
+	require.NotNil(t, firstThreat.ID)
+
+	_, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "overflow",
+		Title:      "Overflow",
+	}, &actorID)
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+
+	duplicate, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "1",
+		Title:      "Threat 1",
+	}, &actorID)
+	require.NoError(t, err)
+	require.Equal(t, *firstThreat.ID, *duplicate.ID)
+}
+
+func TestRiskServiceThreatRefCRUDWithoutActorDoesNotLogEvents(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "risk threat no actor",
+		Description: "desc",
+		Status:      string(RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	created, err := svc.AddThreatRef(riskID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "352",
+		Title:      "Cross-site request forgery",
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, created.ID)
+
+	_, err = svc.UpdateThreatRef(riskID, *created.ID, RiskThreatRefInput{
+		System:     "CWE",
+		ExternalID: "352",
+		Title:      "CSRF updated",
+	}, nil)
+	require.NoError(t, err)
+
+	deleted, err := svc.DeleteThreatRef(riskID, *created.ID, nil)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	var events []RiskEvent
+	require.NoError(t, db.Where("risk_id = ?", riskID).Find(&events).Error)
+	require.Len(t, events, 0)
+}
+
+func TestRiskServiceCreateAndUpdateWithInlineThreatAndRemediation(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	actorID := uuid.New()
+	created, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:       "inline associations",
+			Description: "desc",
+			Status:      string(RiskStatusOpen),
+			SSPID:       uuid.New(),
+			SourceType:  string(RiskSourceTypeManual),
+			FirstSeenAt: time.Now().UTC(),
+			LastSeenAt:  time.Now().UTC(),
+		},
+		ThreatRefs: []RiskThreatRefInput{
+			{System: "CWE", ExternalID: "200", Title: "Data exposure"},
+		},
+		Remediation: &RiskRemediationTemplateInput{
+			Title: "Mitigate",
+			Tasks: []RiskRemediationTaskInput{{Title: "Task", OrderIndex: 1}},
+		},
+		ActorUserID: &actorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.ID)
+	require.Len(t, created.ThreatRefs, 1)
+	require.NotNil(t, created.Remediation)
+	require.Len(t, created.Remediation.Tasks, 1)
+
+	createdCopy := *created
+	updated, err := svc.Update(UpdateRiskParams{
+		Risk:               &createdCopy,
+		ActorUserID:        &actorID,
+		OldStatus:          created.Status,
+		ReplaceThreatRefs:  true,
+		ThreatRefs:         []RiskThreatRefInput{},
+		ReplaceRemediation: true,
+		Remediation:        nil,
+	})
+	require.NoError(t, err)
+	require.Len(t, updated.ThreatRefs, 0)
+	require.Nil(t, updated.Remediation)
+}
+
 func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -716,6 +1181,9 @@ func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 		&RiskComponentLink{},
 		&RiskSubjectLink{},
 		&RiskOwnerAssignment{},
+		&RiskThreatRef{},
+		&RiskRemediationTemplate{},
+		&RiskRemediationTask{},
 		&testUserRow{},
 		&testEvidenceRow{},
 		&testControlRow{},

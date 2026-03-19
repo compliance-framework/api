@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	svc "github.com/compliance-framework/api/internal/service"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -458,8 +459,8 @@ func mapRiskTemplateToResponse(row templaterel.RiskTemplate) riskTemplateRespons
 		Name:           row.Name,
 		Title:          row.Title,
 		Statement:      row.Statement,
-		LikelihoodHint: row.LikelihoodHint,
-		ImpactHint:     row.ImpactHint,
+		LikelihoodHint: riskrel.NormalizeRiskLevelPtr(row.LikelihoodHint),
+		ImpactHint:     riskrel.NormalizeRiskLevelPtr(row.ImpactHint),
 		ViolationIDs:   append([]string{}, row.ViolationIDs...),
 		ThreatIDs:      make([]threatIDResponse, 0, len(row.ThreatRefs)),
 		IsActive:       row.IsActive,

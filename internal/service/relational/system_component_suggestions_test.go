@@ -421,6 +421,56 @@ func TestSuggestForImplementedRequirement_NoEvidence(t *testing.T) {
 	assert.Empty(t, suggestions)
 }
 
+func TestSuggestForImplementedRequirement_RequiresAllComponentLabelsToMatch(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})
+
+	// Create a component definition with a defined component that has TWO identity labels
+	compDef := ComponentDefinition{}
+	require.NoError(t, db.Create(&compDef).Error)
+
+	dc := DefinedComponent{
+		Type:                  "software",
+		Title:                 "Multi-Label Component",
+		Description:           "Component with multiple identity labels",
+		Purpose:               "testing",
+		ComponentDefinitionID: compDef.ID,
+	}
+	require.NoError(t, db.Create(&dc).Error)
+
+	// Add TWO identity labels to the component
+	require.NoError(t, db.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		dc.ID, compDef.ID, "env", "prod",
+	).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO component_definition_labels (defined_component_id, component_definition_id, key, value) VALUES (?, ?, ?, ?)`,
+		dc.ID, compDef.ID, "region", "us-east",
+	).Error)
+
+	// Create evidence that only has ONE of the two labels (env=prod, but missing region=us-east)
+	seedFilterForControl(t, db, "ac-1", "env", "prod")
+	evidenceID := seedEvidenceWithLabel(t, db, "env", "prod")
+
+	// The evidence does NOT have the "region" label, so it should NOT match
+	sspID, implReqID := seedSSPWithImplReq(t, db, "ac-1")
+
+	suggestions, err := svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	assert.Empty(t, suggestions, "component with 2 labels should NOT match evidence with only 1 of those labels")
+
+	// Now add the second label to the evidence - it should match
+	require.NoError(t, db.Exec(
+		`INSERT INTO evidence_labels (evidence_id, labels_name, labels_value) VALUES (?, ?, ?)`,
+		evidenceID, "region", "us-east",
+	).Error)
+
+	suggestions, err = svc.SuggestForImplementedRequirement(sspID, implReqID)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1, "component with 2 labels should match evidence that has both labels")
+	assert.Equal(t, *dc.ID, suggestions[0].DefinedComponentID)
+}
+
 func TestSuggestForImplementedRequirement_ImplReqNotFound(t *testing.T) {
 	db := setupTestDB(t)
 	svc := NewSystemComponentSuggestionService(db, &mockEvidenceQuerier{db: db})

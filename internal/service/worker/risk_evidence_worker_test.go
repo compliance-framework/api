@@ -35,15 +35,18 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&relational.SystemImplementation{},
 		&relational.InventoryItem{},
 		&relational.SystemSecurityPlan{},
-		&templates.EvidenceTemplate{},
-		&templates.EvidenceTemplateSelectorLabel{},
-		&templates.EvidenceTemplateRiskTemplate{},
 		&templates.RiskTemplate{},
+		&templates.RiskTemplateThreatRef{},
+		&templates.RemediationTemplate{},
+		&templates.RemediationTask{},
 		&risks.Risk{},
 		&risks.RiskEvidenceLink{},
 		&risks.RiskSubjectLink{},
 		&risks.RiskComponentLink{},
 		&risks.RiskControlLink{},
+		&risks.RiskThreatRef{},
+		&risks.RiskRemediationTemplate{},
+		&risks.RiskRemediationTask{},
 		&risks.RiskEvent{},
 	))
 
@@ -770,6 +773,28 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 	// Create test data
 	ssp := createTestSSP(t, worker.db)
 	riskTemplate := createTestRiskTemplate(t, worker.db)
+	require.NoError(t, worker.db.Create(&templates.RiskTemplateThreatRef{
+		RiskTemplateID: *riskTemplate.ID,
+		System:         "CWE",
+		ExternalID:     "79",
+		Title:          "Cross-site scripting",
+	}).Error)
+	remediation := templates.RemediationTemplate{
+		Title:       "Fix template issue",
+		Description: stringPtr("Apply secure encoding"),
+	}
+	require.NoError(t, worker.db.Create(&remediation).Error)
+	require.NoError(t, worker.db.Create(&templates.RemediationTask{
+		RemediationTemplateID: *remediation.ID,
+		Title:                 "Patch code",
+		OrderIndex:            1,
+	}).Error)
+	require.NoError(t, worker.db.Model(&templates.RiskTemplate{}).Where("id = ?", riskTemplate.ID).Update("remediation_template_id", remediation.ID).Error)
+	require.NoError(t, worker.db.
+		Preload("ThreatRefs").
+		Preload("RemediationTemplate").
+		Preload("RemediationTemplate.Tasks").
+		First(riskTemplate, "id = ?", riskTemplate.ID).Error)
 
 	// Create system implementation linked to SSP
 	impl := &relational.SystemImplementation{
@@ -809,6 +834,22 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 	assert.Equal(t, riskTemplate.Statement, risk.Description)
 	assert.Equal(t, risks.RiskStatusOpen, risks.RiskStatus(risk.Status))
 	assert.Equal(t, *ssp.ID, risk.SSPID)
+
+	var threatRefs []risks.RiskThreatRef
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).Find(&threatRefs).Error)
+	require.Len(t, threatRefs, 1)
+	assert.Equal(t, "CWE", threatRefs[0].System)
+	assert.Equal(t, "79", threatRefs[0].ExternalID)
+
+	var remediationTemplates []risks.RiskRemediationTemplate
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).Find(&remediationTemplates).Error)
+	require.Len(t, remediationTemplates, 1)
+	assert.Equal(t, "Fix template issue", remediationTemplates[0].Title)
+	var remediationTasks []risks.RiskRemediationTask
+	require.NotNil(t, remediationTemplates[0].ID)
+	require.NoError(t, worker.db.Where("risk_remediation_template_id = ?", *remediationTemplates[0].ID).Find(&remediationTasks).Error)
+	require.Len(t, remediationTasks, 1)
+	assert.Equal(t, "Patch code", remediationTasks[0].Title)
 }
 
 func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
@@ -878,7 +919,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test evidence with subjects and components
+	// Create test evidence with components
 	evidence := createTestEvidence(t, worker.db)
 
 	// Create SSP and SystemImplementation for proper component linking
@@ -895,13 +936,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	}
 	require.NoError(t, worker.db.Create(systemImpl).Error)
 
-	// Add subjects and components to evidence
-	subject := &relational.AssessmentSubject{
-		UUIDModel: relational.UUIDModel{ID: &uuid.UUID{}},
-	}
-	*subject.ID = uuid.New()
-	require.NoError(t, worker.db.Create(subject).Error)
-
+	// Add component to evidence
 	componentID := uuid.New()
 	component := &relational.SystemComponent{
 		UUIDModel:              relational.UUIDModel{ID: &componentID},
@@ -909,8 +944,7 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	}
 	require.NoError(t, worker.db.Create(component).Error)
 
-	// Update evidence with subjects and components
-	require.NoError(t, worker.db.Model(evidence).Association("Subjects").Append(subject))
+	// Update evidence with components
 	require.NoError(t, worker.db.Model(evidence).Association("Components").Append(component))
 
 	// Reload evidence with associations
@@ -941,13 +975,6 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	err = worker.db.WithContext(ctx).
 		Where("risk_id = ? AND evidence_id = ?", riskID, evidence.UUID).
 		First(&evidenceLink).Error
-	assert.NoError(t, err)
-
-	// Verify subject link
-	var subjectLink risks.RiskSubjectLink
-	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND subject_id = ?", riskID, *subject.ID).
-		First(&subjectLink).Error
 	assert.NoError(t, err)
 
 	// Verify component link
@@ -1061,6 +1088,8 @@ func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {
 	assert.Equal(t, riskID, event.RiskID)
 	assert.Equal(t, eventType, event.EventType)
 	assert.NotZero(t, event.OccurredAt)
+	assert.NotNil(t, event.Details)
+	assert.NotEmpty(t, *event.Details)
 }
 
 func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
@@ -1116,6 +1145,8 @@ func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, riskID, event.RiskID)
 			assert.Equal(t, tc.eventType, event.EventType)
+			assert.NotNil(t, event.Details)
+			assert.NotEmpty(t, *event.Details)
 		})
 	}
 }

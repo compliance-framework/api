@@ -27,11 +27,41 @@ func ApplyRiskFilters(query *gorm.DB, filters ListFilters) *gorm.DB {
 	if filters.Status != nil && *filters.Status != "" {
 		q = q.Where("risk_register_risks.status = ?", *filters.Status)
 	}
-	if filters.Likelihood != nil && *filters.Likelihood != "" {
-		q = q.Where("risk_register_risks.likelihood = ?", *filters.Likelihood)
+	if filters.Likelihood != nil {
+		trimmedLikelihood := strings.TrimSpace(*filters.Likelihood)
+		if trimmedLikelihood == "" {
+			if *filters.Likelihood != "" {
+				// Non-empty whitespace input should not broaden query results.
+				q = q.Where("1 = 0")
+			}
+		} else {
+			values := RiskLevelFilterValues(trimmedLikelihood)
+			if len(values) == 0 {
+				q = q.Where("1 = 0")
+			} else if len(values) == 1 {
+				q = q.Where("risk_register_risks.likelihood = ?", values[0])
+			} else {
+				q = q.Where("risk_register_risks.likelihood IN ?", values)
+			}
+		}
 	}
-	if filters.Impact != nil && *filters.Impact != "" {
-		q = q.Where("risk_register_risks.impact = ?", *filters.Impact)
+	if filters.Impact != nil {
+		trimmedImpact := strings.TrimSpace(*filters.Impact)
+		if trimmedImpact == "" {
+			if *filters.Impact != "" {
+				// Non-empty whitespace input should not broaden query results.
+				q = q.Where("1 = 0")
+			}
+		} else {
+			values := RiskLevelFilterValues(trimmedImpact)
+			if len(values) == 0 {
+				q = q.Where("1 = 0")
+			} else if len(values) == 1 {
+				q = q.Where("risk_register_risks.impact = ?", values[0])
+			} else {
+				q = q.Where("risk_register_risks.impact IN ?", values)
+			}
+		}
 	}
 	if filters.SSPID != nil {
 		q = q.Where("risk_register_risks.ssp_id = ?", *filters.SSPID)

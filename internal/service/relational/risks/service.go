@@ -33,6 +33,8 @@ type ListParams struct {
 type CreateRiskParams struct {
 	Risk             Risk
 	OwnerAssignments []RiskOwnerAssignment
+	ThreatRefs       []RiskThreatRefInput
+	Remediation      *RiskRemediationTemplateInput
 	ActorUserID      *uuid.UUID
 }
 
@@ -47,6 +49,10 @@ type UpdateRiskParams struct {
 	RecordReview            bool
 	ReviewedAt              *time.Time
 	ReviewJustification     *string
+	ReplaceThreatRefs       bool
+	ThreatRefs              []RiskThreatRefInput
+	ReplaceRemediation      bool
+	Remediation             *RiskRemediationTemplateInput
 }
 
 type AcceptRiskParams struct {
@@ -62,6 +68,8 @@ type ReviewRiskParams struct {
 	ReviewedAt         *time.Time
 	Decision           RiskReviewDecision
 	Notes              *string
+	Likelihood         *string
+	Impact             *string
 	NextReviewDeadline *time.Time
 	// RequireCurrentReviewDeadlineBefore enforces, under lock, that the current review deadline
 	// is set and no later than this timestamp before applying the decision.
@@ -73,6 +81,8 @@ type Associations struct {
 	ControlLinks []RiskControlLink
 	ComponentIDs []uuid.UUID
 	SubjectIDs   []uuid.UUID
+	ThreatRefs   []RiskThreatRef
+	Remediation  *RiskRemediationTemplate
 }
 
 func (s *RiskService) ResolveUserIDByEmail(email string) (*uuid.UUID, error) {
@@ -106,6 +116,13 @@ func (s *RiskService) List(params ListParams) ([]Risk, int64, error) {
 
 func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 	risk := params.Risk
+	if err := validateRiskThreatRefs(params.ThreatRefs); err != nil {
+		return nil, err
+	}
+	if err := validateRiskRemediationTemplate(params.Remediation); err != nil {
+		return nil, err
+	}
+
 	tx, err := beginTx(s.db)
 	if err != nil {
 		return nil, err
@@ -120,6 +137,16 @@ func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 	if err := s.replaceOwnerAssignments(tx, *risk.ID, params.OwnerAssignments, risk.PrimaryOwnerUserID); err != nil {
 		tx.Rollback()
 		return nil, err
+	}
+	if err := s.replaceThreatRefs(tx, *risk.ID, params.ThreatRefs, params.ActorUserID); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if params.Remediation != nil {
+		if _, _, err := s.upsertRemediationTemplate(tx, *risk.ID, params.Remediation, params.ActorUserID); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	riskSnapshot, err := s.getRiskSnapshot(tx, *risk.ID)
@@ -148,7 +175,12 @@ func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 
 func (s *RiskService) GetByID(riskID uuid.UUID) (*Risk, error) {
 	var risk Risk
-	if err := s.db.Preload("OwnerAssignments").First(&risk, "id = ?", riskID).Error; err != nil {
+	if err := s.db.
+		Preload("OwnerAssignments").
+		Preload("ThreatRefs", func(db *gorm.DB) *gorm.DB { return db.Order("system ASC, external_id ASC") }).
+		Preload("Remediation").
+		Preload("Remediation.Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
+		First(&risk, "id = ?", riskID).Error; err != nil {
 		return nil, err
 	}
 	return &risk, nil
@@ -158,12 +190,32 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 	if params.Risk == nil || params.Risk.ID == nil {
 		return nil, fmt.Errorf("risk is required")
 	}
+	if params.ReplaceThreatRefs {
+		if err := validateRiskThreatRefs(params.ThreatRefs); err != nil {
+			return nil, err
+		}
+	}
+	if params.ReplaceRemediation {
+		if err := validateRiskRemediationTemplate(params.Remediation); err != nil {
+			return nil, err
+		}
+	}
+	params.Risk.Likelihood = NormalizeRiskLevelPtr(params.Risk.Likelihood)
+	params.Risk.Impact = NormalizeRiskLevelPtr(params.Risk.Impact)
 
 	tx, err := beginTx(s.db)
 	if err != nil {
 		return nil, err
 	}
 	defer rollbackTxOnPanic(tx)
+
+	if params.ReplaceThreatRefs || params.ReplaceRemediation {
+		var risk Risk
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&risk, "id = ?", *params.Risk.ID).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
 
 	if err := tx.Save(params.Risk).Error; err != nil {
 		tx.Rollback()
@@ -174,6 +226,25 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 		if err := s.replaceOwnerAssignments(tx, *params.Risk.ID, params.OwnerAssignments, params.PrimaryOwnerUserID); err != nil {
 			tx.Rollback()
 			return nil, err
+		}
+	}
+	if params.ReplaceThreatRefs {
+		if err := s.replaceThreatRefs(tx, *params.Risk.ID, params.ThreatRefs, params.ActorUserID); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	if params.ReplaceRemediation {
+		if params.Remediation == nil {
+			if _, err := s.deleteRemediationTemplate(tx, *params.Risk.ID, params.ActorUserID); err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+		} else {
+			if _, _, err := s.upsertRemediationTemplate(tx, *params.Risk.ID, params.Remediation, params.ActorUserID); err != nil {
+				tx.Rollback()
+				return nil, err
+			}
 		}
 	}
 
@@ -310,8 +381,12 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		return nil, newValidationError("decision is required")
 	}
 	if !decision.IsValid() {
-		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen))
+		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess))
 	}
+
+	reassessedLikelihood := NormalizeRiskLevelPtr(params.Likelihood)
+	reassessedImpact := NormalizeRiskLevelPtr(params.Impact)
+
 	nextReviewDeadline := params.NextReviewDeadline
 	if decision == RiskReviewDecisionExtend {
 		if nextReviewDeadline == nil {
@@ -326,6 +401,17 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	if decision == RiskReviewDecisionReopen && nextReviewDeadline != nil {
 		return nil, newValidationError("nextReviewDeadline must not be provided when decision is reopen")
 	}
+	if decision == RiskReviewDecisionReassess {
+		if nextReviewDeadline != nil {
+			return nil, newValidationError("nextReviewDeadline must not be provided when decision is reassess")
+		}
+		if reassessedLikelihood == nil || !RiskLevel(*reassessedLikelihood).IsValid() {
+			return nil, newValidationError("likelihood is required and must be one of: negligible, low, moderate, high, critical")
+		}
+		if reassessedImpact == nil || !RiskLevel(*reassessedImpact).IsValid() {
+			return nil, newValidationError("impact is required and must be one of: negligible, low, moderate, high, critical")
+		}
+	}
 
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -338,17 +424,26 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		tx.Rollback()
 		return nil, err
 	}
-	if risk.Status != string(RiskStatusRiskAccepted) {
-		tx.Rollback()
-		return nil, newValidationError("only risks in status risk-accepted can be reviewed")
-	}
-	if params.RequireCurrentReviewDeadlineBefore != nil {
-		cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
-		if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
+	if decision == RiskReviewDecisionReassess {
+		if !isReassessEligibleRiskStatus(risk.Status) {
 			tx.Rollback()
-			return nil, newValidationError("risk review deadline no longer eligible for requested decision")
+			return nil, newValidationError("reassess is only allowed for risks in status open, investigating, or mitigating-implemented")
+		}
+	} else {
+		if risk.Status != string(RiskStatusRiskAccepted) {
+			tx.Rollback()
+			return nil, newValidationError("only risks in status risk-accepted can be reviewed")
+		}
+		if params.RequireCurrentReviewDeadlineBefore != nil {
+			cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
+			if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
+				tx.Rollback()
+				return nil, newValidationError("risk review deadline no longer eligible for requested decision")
+			}
 		}
 	}
+	fromLikelihood := NormalizeRiskLevelPtr(risk.Likelihood)
+	fromImpact := NormalizeRiskLevelPtr(risk.Impact)
 
 	reviewedAt := time.Now().UTC()
 	if params.ReviewedAt != nil {
@@ -362,6 +457,10 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		risk.Status = string(RiskStatusInvestigating)
 		risk.ReviewDeadline = nil
 		risk.AcceptanceJustification = nil
+	}
+	if decision == RiskReviewDecisionReassess {
+		risk.Likelihood = reassessedLikelihood
+		risk.Impact = reassessedImpact
 	}
 
 	risk.LastReviewedAt = &reviewedAt
@@ -386,24 +485,65 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		}
 	}
 
+	var reviewReassessedLikelihood *string
+	var reviewReassessedImpact *string
+	if decision == RiskReviewDecisionReassess {
+		reviewReassessedLikelihood = reassessedLikelihood
+		reviewReassessedImpact = reassessedImpact
+	}
+
 	review := RiskReview{
-		RiskID:              *risk.ID,
-		ReviewedByUserID:    params.ActorUserID,
-		ReviewedAt:          reviewedAt,
-		Decision:            string(decision),
-		NextReviewDeadline:  nextReviewDeadline,
-		ReviewJustification: params.Notes,
-		RiskSnapshot:        riskSnapshot,
+		RiskID:               *risk.ID,
+		ReviewedByUserID:     params.ActorUserID,
+		ReviewedAt:           reviewedAt,
+		Decision:             string(decision),
+		NextReviewDeadline:   nextReviewDeadline,
+		ReassessedLikelihood: reviewReassessedLikelihood,
+		ReassessedImpact:     reviewReassessedImpact,
+		ReviewJustification:  params.Notes,
+		RiskSnapshot:         riskSnapshot,
 	}
 	if err := tx.Create(&review).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
-	if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
-		"decision": string(decision),
-	}, riskSnapshot); err != nil {
-		tx.Rollback()
-		return nil, err
+
+	if decision == RiskReviewDecisionReassess {
+		var toLikelihood any
+		var toImpact any
+		if reassessedLikelihood != nil {
+			toLikelihood = *reassessedLikelihood
+		}
+		if reassessedImpact != nil {
+			toImpact = *reassessedImpact
+		}
+		var fromLikelihoodValue any
+		var fromImpactValue any
+		if fromLikelihood != nil {
+			fromLikelihoodValue = *fromLikelihood
+		}
+		if fromImpact != nil {
+			fromImpactValue = *fromImpact
+		}
+
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeScoreReassessed, params.ActorUserID, datatypes.JSONMap{
+			"decision":       string(decision),
+			"status":         risk.Status,
+			"fromLikelihood": fromLikelihoodValue,
+			"fromImpact":     fromImpactValue,
+			"toLikelihood":   toLikelihood,
+			"toImpact":       toImpact,
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	} else {
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
+			"decision": string(decision),
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -411,6 +551,15 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	}
 
 	return s.GetByID(*risk.ID)
+}
+
+func isReassessEligibleRiskStatus(status string) bool {
+	switch status {
+	case string(RiskStatusOpen), string(RiskStatusInvestigating), string(RiskStatusMitigatingImplemented):
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *RiskService) Delete(riskID uuid.UUID) error {
@@ -437,6 +586,14 @@ func (s *RiskService) Delete(riskID uuid.UUID) error {
 		return err
 	}
 	if err := tx.Delete(&RiskOwnerAssignment{}, "risk_id = ?", riskID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Delete(&RiskThreatRef{}, "risk_id = ?", riskID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if _, err := s.deleteRemediationTemplate(tx, riskID, nil); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -471,6 +628,38 @@ func (s *RiskService) EnsureRiskInSSP(riskID, sspID uuid.UUID) error {
 func (s *RiskService) EnsureSSPExists(sspID uuid.UUID) error {
 	var ssp relational.SystemSecurityPlan
 	return s.db.Select("id").First(&ssp, "id = ?", sspID).Error
+}
+
+func (s *RiskService) ListEvents(riskID uuid.UUID, limit, offset int) ([]RiskEvent, int64, error) {
+	q := s.db.Model(&RiskEvent{}).Where("risk_id = ?", riskID)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var events []RiskEvent
+	if err := q.Order("occurred_at desc, created_at desc, id desc").Limit(limit).Offset(offset).Find(&events).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return events, total, nil
+}
+
+func (s *RiskService) ListReviews(riskID uuid.UUID, limit, offset int) ([]RiskReview, int64, error) {
+	q := s.db.Model(&RiskReview{}).Where("risk_id = ?", riskID)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var reviews []RiskReview
+	if err := q.Order("reviewed_at desc, created_at desc, id desc").Limit(limit).Offset(offset).Find(&reviews).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return reviews, total, nil
 }
 
 func (s *RiskService) ListEvidenceLinks(riskID uuid.UUID, limit, offset int) ([]uuid.UUID, int64, error) {
@@ -868,6 +1057,31 @@ func (s *RiskService) AddSubjectLink(riskID, subjectID uuid.UUID, actorUserID *u
 }
 
 func (s *RiskService) GetAssociations(riskID uuid.UUID) (Associations, error) {
+	associations, err := s.GetLinkAssociations(riskID)
+	if err != nil {
+		return associations, err
+	}
+
+	if err := s.db.Where("risk_id = ?", riskID).Order("system asc, external_id asc").Find(&associations.ThreatRefs).Error; err != nil {
+		return associations, err
+	}
+
+	var remediation RiskRemediationTemplate
+	if err := s.db.
+		Where("risk_id = ?", riskID).
+		Preload("Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
+		First(&remediation).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return associations, err
+		}
+	} else {
+		associations.Remediation = &remediation
+	}
+
+	return associations, nil
+}
+
+func (s *RiskService) GetLinkAssociations(riskID uuid.UUID) (Associations, error) {
 	associations := Associations{}
 
 	var evidenceLinks []RiskEvidenceLink
@@ -949,6 +1163,30 @@ func (s *RiskService) GetAssociationsByRiskIDs(riskIDs []uuid.UUID) (map[uuid.UU
 		assoc := byRiskID[link.RiskID]
 		assoc.SubjectIDs = append(assoc.SubjectIDs, link.SubjectID)
 		byRiskID[link.RiskID] = assoc
+	}
+
+	var threatRefs []RiskThreatRef
+	if err := s.db.Where("risk_id IN ?", riskIDs).Order("system asc, external_id asc").Find(&threatRefs).Error; err != nil {
+		return nil, err
+	}
+	for _, ref := range threatRefs {
+		assoc := byRiskID[ref.RiskID]
+		assoc.ThreatRefs = append(assoc.ThreatRefs, ref)
+		byRiskID[ref.RiskID] = assoc
+	}
+
+	var remediations []RiskRemediationTemplate
+	if err := s.db.
+		Where("risk_id IN ?", riskIDs).
+		Preload("Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
+		Find(&remediations).Error; err != nil {
+		return nil, err
+	}
+	for _, remediation := range remediations {
+		assoc := byRiskID[remediation.RiskID]
+		row := remediation
+		assoc.Remediation = &row
+		byRiskID[remediation.RiskID] = assoc
 	}
 
 	return byRiskID, nil
@@ -1042,12 +1280,19 @@ func (s *RiskService) logRiskEventWithSnapshot(tx *gorm.DB, riskID uuid.UUID, ev
 		Payload:      payload,
 		RiskSnapshot: riskSnapshot,
 	}
+	details := BuildRiskEventDetails(event.EventType, payload, event.OccurredAt)
+	event.Details = &details
 	return tx.Create(&event).Error
 }
 
 func (s *RiskService) getRiskSnapshot(tx *gorm.DB, riskID uuid.UUID) (datatypes.JSONMap, error) {
 	var risk Risk
-	if err := tx.Preload("OwnerAssignments").First(&risk, "id = ?", riskID).Error; err != nil {
+	if err := tx.
+		Preload("OwnerAssignments").
+		Preload("ThreatRefs", func(db *gorm.DB) *gorm.DB { return db.Order("system ASC, external_id ASC") }).
+		Preload("Remediation").
+		Preload("Remediation.Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
+		First(&risk, "id = ?", riskID).Error; err != nil {
 		return nil, err
 	}
 
