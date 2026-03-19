@@ -465,6 +465,14 @@ definitions:
           $ref: '#/definitions/handler.poamItemResponse'
         type: array
     type: object
+  handler.GenericDataListResponse-handler_selectableUserResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.selectableUserResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_InventoryItemWithSource:
     properties:
       data:
@@ -1897,6 +1905,13 @@ definitions:
       title:
         type: string
       updated-at:
+        type: string
+    type: object
+  handler.selectableUserResponse:
+    properties:
+      displayName:
+        type: string
+      id:
         type: string
     type: object
   handler.threatIDRequest:
@@ -23467,6 +23482,46 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update notification preferences
+      tags:
+      - Users
+  /users/select:
+    get:
+      description: Lists users with only id and display name for selection controls
+      parameters:
+      - description: Filter users by name
+        in: query
+        name: search
+        type: string
+      - description: Maximum users to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of users to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_selectableUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List selectable users
       tags:
       - Users
   /workflows/control-relationships:
