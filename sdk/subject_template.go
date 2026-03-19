@@ -16,17 +16,17 @@ type subjectTemplateClient struct {
 }
 
 type upsertSubjectTemplatesRequest struct {
-	PluginId  string                  `json:"plugin-id"`
+	PluginID  string                  `json:"plugin-id"`
 	Templates []types.SubjectTemplate `json:"templates"`
 }
 
-func (r *subjectTemplateClient) Upsert(ctx context.Context, pluginId string, subjectTemplates ...types.SubjectTemplate) error {
+func (r *subjectTemplateClient) Upsert(ctx context.Context, pluginID string, subjectTemplates ...types.SubjectTemplate) error {
 	if len(subjectTemplates) == 0 {
 		subjectTemplates = []types.SubjectTemplate{}
 	}
 
 	reqData := &upsertSubjectTemplatesRequest{
-		PluginId:  pluginId,
+		PluginID:  pluginID,
 		Templates: subjectTemplates,
 	}
 

@@ -11,12 +11,6 @@ import (
 	"github.com/compliance-framework/api/sdk/types"
 )
 
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}
-
 func newSubjectTemplateTestClient(handler roundTripFunc) *Client {
 	return NewClient(&http.Client{Transport: handler}, &Config{BaseURL: "http://example.test"})
 }
@@ -87,8 +81,8 @@ func TestSubjectTemplateUpsertPostsBatchPayload(t *testing.T) {
 	if gotContentType != "application/json" {
 		t.Fatalf("expected content type %q, got %q", "application/json", gotContentType)
 	}
-	if gotRequest.PluginId != "plugin-a" {
-		t.Fatalf("expected plugin-id %q, got %q", "plugin-a", gotRequest.PluginId)
+	if gotRequest.PluginID != "plugin-a" {
+		t.Fatalf("expected plugin-id %q, got %q", "plugin-a", gotRequest.PluginID)
 	}
 	if len(gotRequest.Templates) != 1 {
 		t.Fatalf("expected 1 template, got %d", len(gotRequest.Templates))
@@ -240,8 +234,8 @@ func TestSubjectTemplateUpsertSendsExplicitEmptyTemplateList(t *testing.T) {
 		t.Fatalf("upsert empty subject templates: %v", err)
 	}
 
-	if gotRequest.PluginId != "plugin-a" {
-		t.Fatalf("expected plugin-id %q, got %q", "plugin-a", gotRequest.PluginId)
+	if gotRequest.PluginID != "plugin-a" {
+		t.Fatalf("expected plugin-id %q, got %q", "plugin-a", gotRequest.PluginID)
 	}
 	if gotRequest.Templates == nil {
 		t.Fatal("expected templates to be encoded as an empty array, got nil")

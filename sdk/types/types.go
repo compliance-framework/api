@@ -163,7 +163,7 @@ type ThreatRef struct {
 	System     string  `json:"system"`
 	ExternalID string  `json:"id"`
 	Title      string  `json:"title"`
-	Url        *string `json:"url,omitempty"`
+	URL        *string `json:"url,omitempty"`
 }
 
 type RemediationTask struct {
@@ -172,8 +172,8 @@ type RemediationTask struct {
 }
 
 type Remediation struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	Title       string  `json:"title"`
+	Description *string `json:"description,omitempty"`
 
 	Tasks []RemediationTask `json:"tasks"`
 }

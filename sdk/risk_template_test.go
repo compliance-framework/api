@@ -376,7 +376,7 @@ func TestUpsertRiskTemplatesRequestMarshalIncludesExplicitOptionalFields(t *test
 						System:     "https://cwe.mitre.org",
 						ExternalID: "CWE-312",
 						Title:      "Cleartext Storage",
-						Url:        stringPtr("https://cwe.mitre.org/data/definitions/312.html"),
+						URL:        stringPtr("https://cwe.mitre.org/data/definitions/312.html"),
 					},
 				},
 			},
@@ -423,12 +423,4 @@ func TestUpsertRiskTemplatesRequestMarshalIncludesExplicitOptionalFields(t *test
 	if got, exists := threat["url"]; !exists || got != "https://cwe.mitre.org/data/definitions/312.html" {
 		t.Fatalf("expected threat url to be present and equal request value, got present=%t value=%#v", exists, got)
 	}
-}
-
-func boolPtr(v bool) *bool {
-	return &v
-}
-
-func stringPtr(v string) *string {
-	return &v
 }
