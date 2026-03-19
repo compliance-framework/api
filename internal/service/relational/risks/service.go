@@ -209,6 +209,14 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 	}
 	defer rollbackTxOnPanic(tx)
 
+	if params.ReplaceThreatRefs || params.ReplaceRemediation {
+		var risk Risk
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&risk, "id = ?", *params.Risk.ID).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
 	if err := tx.Save(params.Risk).Error; err != nil {
 		tx.Rollback()
 		return nil, err
