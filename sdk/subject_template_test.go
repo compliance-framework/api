@@ -71,7 +71,7 @@ func TestSubjectTemplateUpsertPostsBatchPayload(t *testing.T) {
 			{Key: "environment", Value: "prod"},
 		},
 		LabelSchema: []types.SubjectTemplateLabelSchema{
-			{Key: "asset_id", Description: "Unique asset ID"},
+			{Key: "asset_id", Description: stringPtr("Unique asset ID")},
 		},
 	})
 	if err != nil {
@@ -119,6 +119,9 @@ func TestSubjectTemplateUpsertPostsBatchPayload(t *testing.T) {
 	if len(template.LabelSchema) != 1 {
 		t.Fatalf("expected 1 label schema field, got %d", len(template.LabelSchema))
 	}
+	if template.LabelSchema[0].Description == nil || *template.LabelSchema[0].Description != "Unique asset ID" {
+		t.Fatalf("expected label schema description to round-trip, got %#v", template.LabelSchema[0].Description)
+	}
 	if len(template.Props) != 1 || template.Props[0].Name != "provider" || template.Props[0].Value != "aws" {
 		t.Fatalf("expected props to round-trip, got %#v", template.Props)
 	}
@@ -157,7 +160,7 @@ func TestSubjectTemplateUpsertOmitsUnsetTemplateFields(t *testing.T) {
 			{Key: "_plugin", Value: "plugin-a"},
 		},
 		LabelSchema: []types.SubjectTemplateLabelSchema{
-			{Key: "asset_id", Description: "Unique asset ID"},
+			{Key: "asset_id", Description: stringPtr("Unique asset ID")},
 		},
 	})
 	if err != nil {
@@ -183,6 +186,32 @@ func TestSubjectTemplateUpsertOmitsUnsetTemplateFields(t *testing.T) {
 		if got, exists := template[field]; exists {
 			t.Fatalf("expected %s to be omitted when unset, got value=%#v", field, got)
 		}
+	}
+}
+
+func TestSubjectTemplateAllowsNullLabelSchemaDescription(t *testing.T) {
+	var template types.SubjectTemplate
+
+	err := json.Unmarshal([]byte(`{
+		"id": "template-a",
+		"name": "Template A",
+		"type": "component",
+		"source-mode": "runtime-derived",
+		"identity-label-keys": ["asset_id"],
+		"props": [],
+		"links": [],
+		"selector-labels": [{"key":"_plugin","value":"plugin-a"}],
+		"label-schema": [{"key":"asset_id","description":null}]
+	}`), &template)
+	if err != nil {
+		t.Fatalf("unmarshal subject template: %v", err)
+	}
+
+	if len(template.LabelSchema) != 1 {
+		t.Fatalf("expected 1 label schema field, got %d", len(template.LabelSchema))
+	}
+	if template.LabelSchema[0].Description != nil {
+		t.Fatalf("expected nil label schema description, got %#v", template.LabelSchema[0].Description)
 	}
 }
 

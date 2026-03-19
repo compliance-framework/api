@@ -1,11 +1,163 @@
 package sdk
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/compliance-framework/api/sdk/types"
 )
+
+func newRiskTemplateTestClient(handler roundTripFunc) *Client {
+	return NewClient(&http.Client{Transport: handler}, &Config{BaseURL: "http://example.test"})
+}
+
+func TestRiskTemplateUpsertPostsBatchPayload(t *testing.T) {
+	var (
+		gotMethod      string
+		gotPath        string
+		gotContentType string
+		gotRequest     upsertRiskTemplatesRequest
+	)
+
+	client := newRiskTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotContentType = r.Header.Get("Content-Type")
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+
+		if err := json.Unmarshal(body, &gotRequest); err != nil {
+			t.Fatalf("unmarshal request body: %v", err)
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	err := client.RiskTemplate.Upsert(context.Background(), "plugin-a", "package-a", types.RiskTemplate{
+		ID:        "template-a",
+		Name:      "Template A",
+		Title:     "Template A",
+		Statement: "Template statement",
+	})
+	if err != nil {
+		t.Fatalf("upsert risk templates: %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Fatalf("expected method %q, got %q", http.MethodPost, gotMethod)
+	}
+	if gotPath != "/api/agent/risk-templates/batch" {
+		t.Fatalf("expected path %q, got %q", "/api/agent/risk-templates/batch", gotPath)
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("expected content type %q, got %q", "application/json", gotContentType)
+	}
+	if gotRequest.PluginID != "plugin-a" {
+		t.Fatalf("expected plugin-id %q, got %q", "plugin-a", gotRequest.PluginID)
+	}
+	if gotRequest.PolicyPackage != "package-a" {
+		t.Fatalf("expected policy-package %q, got %q", "package-a", gotRequest.PolicyPackage)
+	}
+	if len(gotRequest.Templates) != 1 {
+		t.Fatalf("expected 1 template, got %d", len(gotRequest.Templates))
+	}
+	if gotRequest.Templates[0].ID != "template-a" {
+		t.Fatalf("expected template id %q, got %q", "template-a", gotRequest.Templates[0].ID)
+	}
+}
+
+func TestRiskTemplateUpsertSendsExplicitEmptyTemplateList(t *testing.T) {
+	var gotRequest upsertRiskTemplatesRequest
+
+	client := newRiskTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+
+		if err := json.Unmarshal(body, &gotRequest); err != nil {
+			t.Fatalf("unmarshal request body: %v", err)
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	err := client.RiskTemplate.Upsert(context.Background(), "plugin-a", "package-a")
+	if err != nil {
+		t.Fatalf("upsert empty risk templates: %v", err)
+	}
+
+	if gotRequest.PluginID != "plugin-a" {
+		t.Fatalf("expected plugin-id %q, got %q", "plugin-a", gotRequest.PluginID)
+	}
+	if gotRequest.PolicyPackage != "package-a" {
+		t.Fatalf("expected policy-package %q, got %q", "package-a", gotRequest.PolicyPackage)
+	}
+	if gotRequest.Templates == nil {
+		t.Fatal("expected templates to be encoded as an empty array, got nil")
+	}
+	if len(gotRequest.Templates) != 0 {
+		t.Fatalf("expected 0 templates, got %d", len(gotRequest.Templates))
+	}
+}
+
+func TestRiskTemplateUpsertAcceptsCreatedStatus(t *testing.T) {
+	client := newRiskTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	err := client.RiskTemplate.Upsert(context.Background(), "plugin-a", "package-a", types.RiskTemplate{
+		ID:        "template-a",
+		Name:      "Template A",
+		Title:     "Template A",
+		Statement: "Template statement",
+	})
+	if err != nil {
+		t.Fatalf("expected http 201 to succeed, got %v", err)
+	}
+}
+
+func TestRiskTemplateUpsertReturnsErrorOnUnexpectedStatus(t *testing.T) {
+	client := newRiskTemplateTestClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusTeapot,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	err := client.RiskTemplate.Upsert(context.Background(), "plugin-a", "package-a", types.RiskTemplate{
+		ID:        "template-a",
+		Name:      "Template A",
+		Title:     "Template A",
+		Statement: "Template statement",
+	})
+	if err == nil {
+		t.Fatal("expected error for unexpected status code")
+	}
+	if !strings.Contains(err.Error(), "418") {
+		t.Fatalf("expected error to mention status code 418, got %q", err.Error())
+	}
+}
 
 func TestUpsertRiskTemplatesRequestMarshalPreservesZeroOrderIndex(t *testing.T) {
 	reqData := upsertRiskTemplatesRequest{
@@ -154,7 +306,7 @@ func TestUpsertRiskTemplatesRequestMarshalOmitsUnsetOptionalFields(t *testing.T)
 				Name:      "template-a",
 				Title:     "Template A",
 				Statement: "Template statement",
-				Threats: []types.Threat{
+				ThreatRefs: []types.ThreatRef{
 					{
 						System:     "https://cwe.mitre.org",
 						ExternalID: "CWE-312",
@@ -219,7 +371,7 @@ func TestUpsertRiskTemplatesRequestMarshalIncludesExplicitOptionalFields(t *test
 				Statement:      "Template statement",
 				LikelihoodHint: stringPtr("medium"),
 				ImpactHint:     stringPtr("high"),
-				Threats: []types.Threat{
+				ThreatRefs: []types.ThreatRef{
 					{
 						System:     "https://cwe.mitre.org",
 						ExternalID: "CWE-312",

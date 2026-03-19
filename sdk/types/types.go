@@ -159,7 +159,7 @@ type Evidence struct {
 	Status ObjectiveStatus `json:"status"`
 }
 
-type Threat struct {
+type ThreatRef struct {
 	System     string  `json:"system"`
 	ExternalID string  `json:"id"`
 	Title      string  `json:"title"`
@@ -188,7 +188,7 @@ type RiskTemplate struct {
 
 	ViolationIds []string `json:"violation-ids"`
 
-	Threats     []Threat     `json:"threat-ids"`
+	ThreatRefs  []ThreatRef  `json:"threat-ids"`
 	Remediation *Remediation `json:"remediation-template"`
 	IsActive    *bool        `json:"is-active,omitempty"`
 }
@@ -199,18 +199,13 @@ type SubjectTemplateSelectorLabel struct {
 }
 
 type SubjectTemplateLabelSchema struct {
-	Key         string `json:"key"`
-	Description string `json:"description"`
+	Key         string  `json:"key"`
+	Description *string `json:"description,omitempty"`
 }
 
-type SubjectProp struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
+type SubjectProp = Property
 
-type SubjectLink struct {
-	Href string `json:"href"`
-}
+type SubjectLink = Link
 
 type SubjectTemplate struct {
 	ID                  string                         `json:"id"`
