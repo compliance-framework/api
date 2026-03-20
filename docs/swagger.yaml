@@ -881,6 +881,13 @@ definitions:
         - $ref: '#/definitions/handler.poamItemResponse'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_publicUserResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.publicUserResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_remediationTemplateResponse:
     properties:
       data:
@@ -1751,6 +1758,13 @@ definitions:
       title:
         type: string
       updatedAt:
+        type: string
+    type: object
+  handler.publicUserResponse:
+    properties:
+      id:
+        type: string
+      name:
         type: string
     type: object
   handler.remediationTaskRequest:
@@ -23312,6 +23326,43 @@ paths:
       summary: Update risk threat reference
       tags:
       - Risks
+  /users/{id}:
+    get:
+      description: Get minimal user details by user ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_publicUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get public user details by ID
+      tags:
+      - Users
   /users/{id}/change-password:
     post:
       consumes:
