@@ -251,7 +251,7 @@ func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
 
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		h.sugar.Errorw("Invalid user ID", "error", err)
+		h.sugar.Warnw("Invalid user ID", "error", err, "user_id", userID)
 		return ctx.JSON(400, api.NewError(err))
 	}
 
@@ -266,7 +266,7 @@ func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
 
 	return ctx.JSON(200, GenericDataResponse[publicUserResponse]{
 		Data: publicUserResponse{
-			ID:   userUUID.String(),
+			ID:   user.ID.String(),
 			Name: userDisplayName(user),
 		},
 	})
