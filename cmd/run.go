@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
@@ -153,6 +155,15 @@ func RunServer(cmd *cobra.Command, args []string) {
 	if cfg.MetricsEnabled {
 		sugar.Infow("Starting metrics server", "port", cfg.MetricsPort)
 		metrics.StartMetricsServer(cfg.MetricsPort)
+	}
+
+	if cfg.PprofEnabled {
+		sugar.Infow("Starting pprof server", "port", cfg.PprofPort)
+		go func() {
+			if err := http.ListenAndServe(cfg.PprofPort, nil); err != nil {
+				sugar.Errorw("Failed to start pprof server", "error", err)
+			}
+		}()
 	}
 
 	if err := server.Start(cfg.AppPort); err != nil {

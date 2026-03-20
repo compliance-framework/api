@@ -29,6 +29,8 @@ func setDefaultEnvironmentVariables() {
 	viper.SetDefault("evidence_default_expiry_months", "1")
 	viper.SetDefault("digest_enabled", "true")
 	viper.SetDefault("digest_schedule", "@weekly")
+	viper.SetDefault("pprof_enabled", "false")
+	viper.SetDefault("pprof_port", ":6060")
 }
 
 func bindEnvironmentVariables() {
@@ -53,6 +55,8 @@ func bindEnvironmentVariables() {
 	viper.MustBindEnv("evidence_default_expiry_months")
 	viper.MustBindEnv("digest_enabled")
 	viper.MustBindEnv("digest_schedule")
+	viper.MustBindEnv("pprof_enabled")
+	viper.MustBindEnv("pprof_port")
 }
 
 func init() {
