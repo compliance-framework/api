@@ -4,7 +4,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// mustMatch is a test helper that calls MatchLabels and requires no error.
+func mustMatch(t *testing.T, scope *Scope, labels map[string][]string) bool {
+	t.Helper()
+	match, err := MatchLabels(scope, labels)
+	require.NoError(t, err)
+	return match
+}
 
 func TestNormalizeLabels(t *testing.T) {
 	t.Parallel()
@@ -28,8 +37,8 @@ func TestMatchLabels_NilScope(t *testing.T) {
 	t.Parallel()
 
 	// Nil scope matches everything.
-	assert.True(t, MatchLabels(nil, map[string][]string{}))
-	assert.True(t, MatchLabels(nil, map[string][]string{"a": {"b"}}))
+	assert.True(t, mustMatch(t, nil, map[string][]string{}))
+	assert.True(t, mustMatch(t, nil, map[string][]string{"a": {"b"}}))
 }
 
 func TestMatchLabels_SimpleEquals(t *testing.T) {
@@ -39,9 +48,9 @@ func TestMatchLabels_SimpleEquals(t *testing.T) {
 		Condition: &Condition{Label: "env", Operator: "=", Value: "prod"},
 	}
 
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"prod"}}))
-	assert.False(t, MatchLabels(scope, map[string][]string{"env": {"staging"}}))
-	assert.False(t, MatchLabels(scope, map[string][]string{}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"prod"}}))
+	assert.False(t, mustMatch(t, scope, map[string][]string{"env": {"staging"}}))
+	assert.False(t, mustMatch(t, scope, map[string][]string{}))
 }
 
 func TestMatchLabels_CaseInsensitive(t *testing.T) {
@@ -52,7 +61,7 @@ func TestMatchLabels_CaseInsensitive(t *testing.T) {
 	}
 
 	// Labels are pre-normalized to lowercase by NormalizeLabels.
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"prod"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"prod"}}))
 }
 
 func TestMatchLabels_NotEquals(t *testing.T) {
@@ -62,9 +71,9 @@ func TestMatchLabels_NotEquals(t *testing.T) {
 		Condition: &Condition{Label: "env", Operator: "!=", Value: "prod"},
 	}
 
-	assert.False(t, MatchLabels(scope, map[string][]string{"env": {"prod"}}))
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"staging"}}))
-	assert.True(t, MatchLabels(scope, map[string][]string{})) // label absent = not equal
+	assert.False(t, mustMatch(t, scope, map[string][]string{"env": {"prod"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"staging"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{})) // label absent = not equal
 }
 
 func TestMatchLabels_MultipleValues(t *testing.T) {
@@ -75,7 +84,7 @@ func TestMatchLabels_MultipleValues(t *testing.T) {
 	}
 
 	// If the label has multiple values, match if any equals.
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"staging", "prod"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"staging", "prod"}}))
 }
 
 func TestMatchLabels_ANDQuery(t *testing.T) {
@@ -91,12 +100,12 @@ func TestMatchLabels_ANDQuery(t *testing.T) {
 		},
 	}
 
-	assert.True(t, MatchLabels(scope, map[string][]string{
+	assert.True(t, mustMatch(t, scope, map[string][]string{
 		"env": {"prod"},
 		"app": {"web"},
 	}))
 
-	assert.False(t, MatchLabels(scope, map[string][]string{
+	assert.False(t, mustMatch(t, scope, map[string][]string{
 		"env": {"prod"},
 	}))
 }
@@ -114,9 +123,9 @@ func TestMatchLabels_ORQuery(t *testing.T) {
 		},
 	}
 
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"prod"}}))
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"staging"}}))
-	assert.False(t, MatchLabels(scope, map[string][]string{"env": {"dev"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"prod"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"staging"}}))
+	assert.False(t, mustMatch(t, scope, map[string][]string{"env": {"dev"}}))
 }
 
 func TestMatchLabels_NestedQuery(t *testing.T) {
@@ -139,22 +148,22 @@ func TestMatchLabels_NestedQuery(t *testing.T) {
 		},
 	}
 
-	assert.True(t, MatchLabels(scope, map[string][]string{
+	assert.True(t, mustMatch(t, scope, map[string][]string{
 		"env": {"prod"},
 		"app": {"web"},
 	}))
 
-	assert.True(t, MatchLabels(scope, map[string][]string{
+	assert.True(t, mustMatch(t, scope, map[string][]string{
 		"env": {"prod"},
 		"app": {"api"},
 	}))
 
-	assert.False(t, MatchLabels(scope, map[string][]string{
+	assert.False(t, mustMatch(t, scope, map[string][]string{
 		"env": {"prod"},
 		"app": {"cli"},
 	}))
 
-	assert.False(t, MatchLabels(scope, map[string][]string{
+	assert.False(t, mustMatch(t, scope, map[string][]string{
 		"env": {"staging"},
 		"app": {"web"},
 	}))
@@ -165,7 +174,7 @@ func TestMatchLabels_EmptyScope(t *testing.T) {
 
 	// Scope with neither condition nor query.
 	scope := &Scope{}
-	assert.True(t, MatchLabels(scope, map[string][]string{"a": {"b"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"a": {"b"}}))
 }
 
 func TestMatchLabels_EmptyANDScopes(t *testing.T) {
@@ -173,7 +182,7 @@ func TestMatchLabels_EmptyANDScopes(t *testing.T) {
 
 	// AND with no sub-scopes → vacuously true.
 	scope := &Scope{Query: &Query{Operator: "AND", Scopes: []Scope{}}}
-	assert.True(t, MatchLabels(scope, map[string][]string{}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{}))
 }
 
 func TestMatchLabels_EmptyORScopes(t *testing.T) {
@@ -181,14 +190,16 @@ func TestMatchLabels_EmptyORScopes(t *testing.T) {
 
 	// OR with no sub-scopes → vacuously true (no disjuncts).
 	scope := &Scope{Query: &Query{Operator: "OR", Scopes: []Scope{}}}
-	assert.True(t, MatchLabels(scope, map[string][]string{}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{}))
 }
 
 func TestMatchLabels_UnknownOperator(t *testing.T) {
 	t.Parallel()
 
 	scope := &Scope{Query: &Query{Operator: "XOR", Scopes: []Scope{}}}
-	assert.False(t, MatchLabels(scope, map[string][]string{"a": {"b"}}))
+	_, err := MatchLabels(scope, map[string][]string{"a": {"b"}})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unrecognised query operator")
 }
 
 func TestMatchLabels_DefaultOperatorIsEquals(t *testing.T) {
@@ -198,6 +209,6 @@ func TestMatchLabels_DefaultOperatorIsEquals(t *testing.T) {
 	scope := &Scope{
 		Condition: &Condition{Label: "env", Operator: "", Value: "prod"},
 	}
-	assert.True(t, MatchLabels(scope, map[string][]string{"env": {"prod"}}))
-	assert.False(t, MatchLabels(scope, map[string][]string{"env": {"staging"}}))
+	assert.True(t, mustMatch(t, scope, map[string][]string{"env": {"prod"}}))
+	assert.False(t, mustMatch(t, scope, map[string][]string{"env": {"staging"}}))
 }

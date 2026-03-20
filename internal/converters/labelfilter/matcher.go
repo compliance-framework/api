@@ -1,6 +1,7 @@
 package labelfilter
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -25,22 +26,23 @@ func NormalizeLabels(labels []struct{ Name, Value string }) map[string][]string 
 // MatchLabels evaluates a filter Scope against a normalized label map.
 // A nil scope matches everything (empty filter = match all).
 // Semantics mirror the SQL evaluator in evidence.go (case-insensitive via pre-normalized map).
-func MatchLabels(scope *Scope, labels map[string][]string) bool {
+// Returns an error if an unknown query operator is encountered.
+func MatchLabels(scope *Scope, labels map[string][]string) (bool, error) {
 	if scope == nil {
-		return true
+		return true, nil
 	}
 	return matchScope(*scope, labels)
 }
 
-func matchScope(scope Scope, labels map[string][]string) bool {
+func matchScope(scope Scope, labels map[string][]string) (bool, error) {
 	if scope.IsCondition() {
-		return matchCondition(*scope.Condition, labels)
+		return matchCondition(*scope.Condition, labels), nil
 	}
 	if scope.IsQuery() {
 		return matchQuery(*scope.Query, labels)
 	}
 	// Empty scope (neither condition nor query) matches everything.
-	return true
+	return true, nil
 }
 
 func matchCondition(cond Condition, labels map[string][]string) bool {
@@ -68,24 +70,32 @@ func matchCondition(cond Condition, labels map[string][]string) bool {
 	}
 }
 
-func matchQuery(query Query, labels map[string][]string) bool {
+func matchQuery(query Query, labels map[string][]string) (bool, error) {
 	op := strings.ToLower(query.Operator)
 	switch op {
 	case "and":
 		for _, scope := range query.Scopes {
-			if !matchScope(scope, labels) {
-				return false
+			match, err := matchScope(scope, labels)
+			if err != nil {
+				return false, err
+			}
+			if !match {
+				return false, nil
 			}
 		}
-		return true
+		return true, nil
 	case "or":
 		for _, scope := range query.Scopes {
-			if matchScope(scope, labels) {
-				return true
+			match, err := matchScope(scope, labels)
+			if err != nil {
+				return false, err
+			}
+			if match {
+				return true, nil
 			}
 		}
-		return len(query.Scopes) == 0
+		return len(query.Scopes) == 0, nil
 	default:
-		return false
+		return false, fmt.Errorf("unrecognised query operator: %s", query.Operator)
 	}
 }

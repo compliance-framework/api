@@ -164,7 +164,15 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 	var matchingFilterIDs []uuid.UUID
 	for _, f := range filters {
 		filterData := f.Filter.Data()
-		if labelfilter.MatchLabels(filterData.Scope, normalizedLabels) {
+		matches, err := labelfilter.MatchLabels(filterData.Scope, normalizedLabels)
+		if err != nil {
+			w.logger.Errorw("Invalid filter query operator",
+				"error", err,
+				"filter_id", f.ID,
+			)
+			continue
+		}
+		if matches {
 			matchingFilterIDs = append(matchingFilterIDs, *f.ID)
 		}
 	}
@@ -236,10 +244,7 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 
 	err := w.db.WithContext(ctx).
 		Preload("Labels").
-		Preload("Subjects").
-		Preload("Subjects.IncludeSubjects").
 		Preload("Components").
-		Preload("InventoryItems").
 		Where("id = ?", evidenceID).
 		First(&evidence).Error
 
@@ -718,6 +723,35 @@ func (w *RiskEvidenceWorker) handleEvidenceResolution(ctx context.Context, evide
 		riskByID[*linkedRisks[i].ID] = &linkedRisks[i]
 	}
 
+	// Collect unique template IDs to batch-load.
+	templateIDs := make(map[uuid.UUID]struct{})
+	for i := range linkedRisks {
+		if linkedRisks[i].RiskTemplateID != nil {
+			templateIDs[*linkedRisks[i].RiskTemplateID] = struct{}{}
+		}
+	}
+
+	// Batch-load risk templates.
+	templateByID := make(map[uuid.UUID]*templates.RiskTemplate)
+	if len(templateIDs) > 0 {
+		templateIDList := make([]uuid.UUID, 0, len(templateIDs))
+		for id := range templateIDs {
+			templateIDList = append(templateIDList, id)
+		}
+
+		var riskTemplates []templates.RiskTemplate
+		if err := w.db.WithContext(ctx).
+			Select("id", "violation_ids").
+			Where("id IN ?", templateIDList).
+			Find(&riskTemplates).Error; err != nil {
+			return fmt.Errorf("failed to batch-load risk templates: %w", err)
+		}
+
+		for i := range riskTemplates {
+			templateByID[*riskTemplates[i].ID] = &riskTemplates[i]
+		}
+	}
+
 	var errs []error
 	for _, link := range links {
 		risk, ok := riskByID[link.RiskID]
@@ -729,7 +763,7 @@ func (w *RiskEvidenceWorker) handleEvidenceResolution(ctx context.Context, evide
 			continue
 		}
 
-		remove := w.shouldRemoveEvidenceLink(risk, evidenceSatisfied, evidenceViolationIDs)
+		remove := w.shouldRemoveEvidenceLink(risk, evidenceSatisfied, evidenceViolationIDs, templateByID)
 		if !remove {
 			continue
 		}
@@ -745,7 +779,7 @@ func (w *RiskEvidenceWorker) handleEvidenceResolution(ctx context.Context, evide
 }
 
 // shouldRemoveEvidenceLink decides whether a risk's evidence link should be removed.
-func (w *RiskEvidenceWorker) shouldRemoveEvidenceLink(risk *risks.Risk, evidenceSatisfied bool, evidenceViolationIDs []string) bool {
+func (w *RiskEvidenceWorker) shouldRemoveEvidenceLink(risk *risks.Risk, evidenceSatisfied bool, evidenceViolationIDs []string, templateByID map[uuid.UUID]*templates.RiskTemplate) bool {
 	// Satisfied evidence means the underlying condition is fixed — always remove.
 	if evidenceSatisfied {
 		return true
@@ -757,9 +791,8 @@ func (w *RiskEvidenceWorker) shouldRemoveEvidenceLink(risk *risks.Risk, evidence
 		return false
 	}
 
-	var tmpl templates.RiskTemplate
-	if err := w.db.Select("id", "violation_ids").
-		First(&tmpl, "id = ?", *risk.RiskTemplateID).Error; err != nil {
+	tmpl, ok := templateByID[*risk.RiskTemplateID]
+	if !ok {
 		// If the template is gone we can't determine relevance — keep the link.
 		return false
 	}
