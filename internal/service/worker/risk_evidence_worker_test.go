@@ -420,18 +420,23 @@ func TestRiskEvidenceWorker_Work_SatisfiedEvidence_NoRisks(t *testing.T) {
 
 	// Create evidence with "satisfied" status
 	evidenceID := uuid.New()
+	status := oscalTypes_1_1_3.ObjectiveStatus{
+		State: "satisfied",
+	}
 	evidence := &relational.Evidence{
 		UUIDModel: relational.UUIDModel{ID: &evidenceID},
 		UUID:      evidenceID,
 		Title:     "Satisfied Evidence",
 		Start:     time.Now().Add(-1 * time.Hour),
 		End:       time.Now(),
+		Status:    datatypes.NewJSONType(status),
 		Labels: []relational.Labels{
 			{Name: "environment", Value: "production"},
 			{Name: "_policy", Value: "test-policy"},
 		},
 	}
 	require.NoError(t, worker.db.Create(evidence).Error)
+	require.Equal(t, "satisfied", evidence.Status.Data().State)
 
 	args := RiskProcessEvidenceArgs{
 		EvidenceID:  evidenceID,

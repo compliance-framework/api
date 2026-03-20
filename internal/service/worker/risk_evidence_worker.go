@@ -70,19 +70,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		// Continue to creation flow — resolution errors should not block risk creation.
 	}
 
-	// 3. Resolve SSPs via filter matching (replaces component-based resolution)
-	sspInfos, err := w.resolveSSPsViaFilters(ctx, evidence.Labels)
-	if err != nil {
-		w.logger.Errorw("Failed to resolve SSPs via filters", "error", err, "evidence_id", args.EvidenceID)
-		return err
-	}
-
-	if len(sspInfos) == 0 {
-		w.logger.Infow("No SSPs resolved via filters for evidence", "evidence_id", args.EvidenceID)
-		return nil
-	}
-
-	// 4. Only create/update risks for not-satisfied evidence.
+	// 3. Check evidence status early to avoid unnecessary work for satisfied evidence.
 	statusData := evidence.Status.Data()
 	if statusData.State != relational.EvidenceStatusNotSatisfied {
 		w.logger.Infow("Evidence is not 'not-satisfied', skipping risk creation",
@@ -92,7 +80,8 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return nil
 	}
 
-	// 5. Load risk templates based on _policy label
+	// 4. Load risk templates based on _policy label before resolving SSPs.
+	// If there are no matching templates, we can skip SSP resolution entirely.
 	riskTemplates, err := w.loadRiskTemplates(ctx, evidence.Labels, args.EvidenceID)
 	if err != nil {
 		w.logger.Errorw("Failed to load risk templates", "error", err, "evidence_id", args.EvidenceID)
@@ -101,6 +90,18 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 
 	if len(riskTemplates) == 0 {
 		w.logger.Infow("No matching risk templates found for evidence", "evidence_id", args.EvidenceID)
+		return nil
+	}
+
+	// 5. Resolve SSPs via filter matching (replaces component-based resolution)
+	sspInfos, err := w.resolveSSPsViaFilters(ctx, evidence.Labels)
+	if err != nil {
+		w.logger.Errorw("Failed to resolve SSPs via filters", "error", err, "evidence_id", args.EvidenceID)
+		return err
+	}
+
+	if len(sspInfos) == 0 {
+		w.logger.Infow("No SSPs resolved via filters for evidence", "evidence_id", args.EvidenceID)
 		return nil
 	}
 
@@ -192,10 +193,10 @@ func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidence
 	if err := w.db.WithContext(ctx).
 		Table("filter_controls fc").
 		Select("DISTINCT ssp.id AS system_security_plan_id, fc.control_catalog_id, fc.control_id").
-		Joins("JOIN profile_controls pc ON CAST(pc.control_catalog_id AS TEXT) = CAST(fc.control_catalog_id AS TEXT) AND UPPER(pc.control_id) = UPPER(fc.control_id)").
-		Joins("JOIN system_security_plans ssp ON CAST(ssp.profile_id AS TEXT) = CAST(pc.profile_id AS TEXT)").
-		Joins("JOIN control_implementations ci ON CAST(ci.system_security_plan_id AS TEXT) = CAST(ssp.id AS TEXT)").
-		Joins("JOIN implemented_requirements ir ON CAST(ir.control_implementation_id AS TEXT) = CAST(ci.id AS TEXT) AND UPPER(ir.control_id) = UPPER(fc.control_id)").
+		Joins("JOIN profile_controls pc ON CAST(pc.control_catalog_id AS uuid) = CAST(fc.control_catalog_id AS uuid) AND UPPER(pc.control_id) = UPPER(fc.control_id)").
+		Joins("JOIN system_security_plans ssp ON CAST(ssp.profile_id AS uuid) = CAST(pc.profile_id AS uuid)").
+		Joins("JOIN control_implementations ci ON CAST(ci.system_security_plan_id AS uuid) = CAST(ssp.id AS uuid)").
+		Joins("JOIN implemented_requirements ir ON CAST(ir.control_implementation_id AS uuid) = CAST(ci.id AS uuid) AND UPPER(ir.control_id) = UPPER(fc.control_id)").
 		Where("fc.filter_id IN ?", matchingFilterIDs).
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to query SSPs via filter controls: %w", err)

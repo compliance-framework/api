@@ -204,7 +204,9 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	if pprofPort == "" {
 		pprofPort = "6060"
 	}
-	if !strings.HasPrefix(pprofPort, ":") {
+	// Normalize pprofPort: if it's a bare port like "6060", prefix with ":" to form ":6060".
+	// If it already contains a colon (e.g. "127.0.0.1:6060"), leave it unchanged.
+	if !strings.Contains(pprofPort, ":") {
 		pprofPort = ":" + pprofPort
 	}
 
