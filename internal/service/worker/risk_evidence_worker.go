@@ -63,7 +63,14 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return err
 	}
 
-	// 2. Resolve SSPs via filter matching (replaces component-based resolution)
+	// 2. Resolution flow — always runs regardless of evidence status.
+	// Removes stale evidence→risk links and transitions fully-resolved risks to "remediated".
+	if err := w.handleEvidenceResolution(ctx, evidence); err != nil {
+		w.logger.Errorw("Evidence resolution completed with errors", "error", err, "evidence_id", args.EvidenceID)
+		// Continue to creation flow — resolution errors should not block risk creation.
+	}
+
+	// 3. Resolve SSPs via filter matching (replaces component-based resolution)
 	sspInfos, err := w.resolveSSPsViaFilters(ctx, evidence.Labels)
 	if err != nil {
 		w.logger.Errorw("Failed to resolve SSPs via filters", "error", err, "evidence_id", args.EvidenceID)
@@ -75,8 +82,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return nil
 	}
 
-	// 3. For now, only create risks for not-satisfied evidence.
-	// Future: handle risk resolution for satisfied evidence.
+	// 4. Only create/update risks for not-satisfied evidence.
 	statusData := evidence.Status.Data()
 	if statusData.State != relational.EvidenceStatusNotSatisfied {
 		w.logger.Infow("Evidence is not 'not-satisfied', skipping risk creation",
@@ -86,7 +92,7 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return nil
 	}
 
-	// 4. Load risk templates based on _policy label
+	// 5. Load risk templates based on _policy label
 	riskTemplates, err := w.loadRiskTemplates(ctx, evidence.Labels, args.EvidenceID)
 	if err != nil {
 		w.logger.Errorw("Failed to load risk templates", "error", err, "evidence_id", args.EvidenceID)
@@ -98,14 +104,14 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return nil
 	}
 
-	// 5. Filter risk templates by violation IDs
+	// 6. Filter risk templates by violation IDs
 	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(riskTemplates, evidence.Props)
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
 	}
 
-	// 6. Create/update risks for each template × SSP
+	// 7. Create/update risks for each template × SSP
 	var errs []error
 	for _, riskTemplate := range filteredRiskTemplates {
 		if err := w.createOrUpdateRisksForSSPs(ctx, riskTemplate, evidence, sspInfos); err != nil {
@@ -412,6 +418,14 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 	// Capture previous value before mutation so the event payload is accurate.
 	previousLastSeen := existingRisk.LastSeenAt
 
+	// If the risk was remediated and new failing evidence arrives, re-open it.
+	reopened := false
+	oldStatus := existingRisk.Status
+	if existingRisk.Status == string(risks.RiskStatusRemediated) {
+		existingRisk.Status = string(risks.RiskStatusOpen)
+		reopened = true
+	}
+
 	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		existingRisk.LastSeenAt = now
 		if err := tx.Save(existingRisk).Error; err != nil {
@@ -422,6 +436,17 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 		// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks.
 		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, existingRisk.SSPID, evidence, controlLinks); err != nil {
 			return fmt.Errorf("failed to create risk links: %w", err)
+		}
+
+		if reopened {
+			if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+				"from":        oldStatus,
+				"to":          string(risks.RiskStatusOpen),
+				"evidence_id": evidence.UUID,
+				"reason":      "new_failing_evidence",
+			}); err != nil {
+				return fmt.Errorf("failed to emit reopen status change event: %w", err)
+			}
 		}
 
 		// Emit a risk_event(last_seen) using the typed constant.
@@ -646,6 +671,172 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 	}
 
 	return nil
+}
+
+// handleEvidenceResolution evaluates all active risks linked to this evidence stream and
+// removes links that are no longer justified (evidence satisfied or violations no longer match).
+// When a risk loses its last evidence link it is transitioned to "remediated" (or an audit
+// event is emitted if the risk is in "risk-accepted" status).
+func (w *RiskEvidenceWorker) handleEvidenceResolution(ctx context.Context, evidence *relational.Evidence) error {
+	if evidence.UUID == uuid.Nil {
+		return nil
+	}
+
+	statusData := evidence.Status.Data()
+	evidenceSatisfied := statusData.State == relational.EvidenceStatusSatisfied
+	evidenceViolationIDs := w.extractViolationIDs(evidence.Props)
+
+	// Load all evidence links for this stream.
+	var links []risks.RiskEvidenceLink
+	if err := w.db.WithContext(ctx).
+		Where("evidence_id = ?", evidence.UUID).
+		Find(&links).Error; err != nil {
+		return fmt.Errorf("failed to load evidence links: %w", err)
+	}
+
+	if len(links) == 0 {
+		return nil
+	}
+
+	// Collect unique risk IDs from the links.
+	riskIDs := make([]uuid.UUID, 0, len(links))
+	for _, link := range links {
+		riskIDs = append(riskIDs, link.RiskID)
+	}
+
+	// Batch-load the linked risks.
+	var linkedRisks []risks.Risk
+	if err := w.db.WithContext(ctx).
+		Where("id IN ?", riskIDs).
+		Find(&linkedRisks).Error; err != nil {
+		return fmt.Errorf("failed to load linked risks: %w", err)
+	}
+
+	riskByID := make(map[uuid.UUID]*risks.Risk, len(linkedRisks))
+	for i := range linkedRisks {
+		riskByID[*linkedRisks[i].ID] = &linkedRisks[i]
+	}
+
+	var errs []error
+	for _, link := range links {
+		risk, ok := riskByID[link.RiskID]
+		if !ok {
+			continue
+		}
+		// Skip risks that are already closed or remediated — nothing to resolve.
+		if risk.Status == string(risks.RiskStatusClosed) || risk.Status == string(risks.RiskStatusRemediated) {
+			continue
+		}
+
+		remove := w.shouldRemoveEvidenceLink(risk, evidenceSatisfied, evidenceViolationIDs)
+		if !remove {
+			continue
+		}
+
+		if err := w.resolveRiskEvidenceLink(ctx, risk, evidence.UUID); err != nil {
+			w.logger.Errorw("Failed to resolve risk evidence link",
+				"error", err, "risk_id", risk.ID, "evidence_id", evidence.UUID)
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// shouldRemoveEvidenceLink decides whether a risk's evidence link should be removed.
+func (w *RiskEvidenceWorker) shouldRemoveEvidenceLink(risk *risks.Risk, evidenceSatisfied bool, evidenceViolationIDs []string) bool {
+	// Satisfied evidence means the underlying condition is fixed — always remove.
+	if evidenceSatisfied {
+		return true
+	}
+
+	// Evidence is still not-satisfied. Check whether the risk template's violation IDs
+	// still intersect with the evidence's current violations.
+	if risk.RiskTemplateID == nil {
+		return false
+	}
+
+	var tmpl templates.RiskTemplate
+	if err := w.db.Select("id", "violation_ids").
+		First(&tmpl, "id = ?", *risk.RiskTemplateID).Error; err != nil {
+		// If the template is gone we can't determine relevance — keep the link.
+		return false
+	}
+
+	// Template with empty ViolationIDs matches any not-satisfied evidence — keep link.
+	if len(tmpl.ViolationIDs) == 0 {
+		return false
+	}
+
+	// If none of the template's violations appear in the current evidence → remove.
+	return !w.violationMatches(tmpl.ViolationIDs, evidenceViolationIDs)
+}
+
+// resolveRiskEvidenceLink removes a single evidence link from a risk and, if no links remain,
+// transitions the risk to "remediated" (or emits an audit event for "risk-accepted" risks).
+func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *risks.Risk, evidenceStreamID uuid.UUID) error {
+	return w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete the evidence link.
+		result := tx.Delete(&risks.RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", *risk.ID, evidenceStreamID)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete evidence link: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil // already removed
+		}
+
+		// Emit evidence_unlinked event.
+		if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeEvidenceUnlink), map[string]interface{}{
+			"evidence_id": evidenceStreamID.String(),
+			"reason":      "auto_resolution",
+		}); err != nil {
+			return fmt.Errorf("failed to emit evidence unlink event: %w", err)
+		}
+
+		// Count remaining evidence links for this risk.
+		var remaining int64
+		if err := tx.Model(&risks.RiskEvidenceLink{}).
+			Where("risk_id = ?", *risk.ID).
+			Count(&remaining).Error; err != nil {
+			return fmt.Errorf("failed to count remaining evidence links: %w", err)
+		}
+
+		if remaining > 0 {
+			w.logger.Infow("Evidence link removed but risk still has remaining links",
+				"risk_id", risk.ID, "evidence_id", evidenceStreamID, "remaining", remaining)
+			return nil
+		}
+
+		// No evidence links remain — decide based on risk status.
+		if risk.Status == string(risks.RiskStatusRiskAccepted) {
+			// Do NOT auto-close; emit audit event only.
+			if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeEvidenceRecovered), map[string]interface{}{
+				"evidence_id": evidenceStreamID.String(),
+			}); err != nil {
+				return fmt.Errorf("failed to emit evidence_recovered event: %w", err)
+			}
+			w.logger.Infow("Risk is risk-accepted; emitted evidence_recovered event without status change",
+				"risk_id", risk.ID, "evidence_id", evidenceStreamID)
+			return nil
+		}
+
+		// Transition to remediated.
+		oldStatus := risk.Status
+		if err := tx.Model(risk).Update("status", string(risks.RiskStatusRemediated)).Error; err != nil {
+			return fmt.Errorf("failed to transition risk to remediated: %w", err)
+		}
+		if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+			"from":   oldStatus,
+			"to":     string(risks.RiskStatusRemediated),
+			"reason": "all_evidence_resolved",
+		}); err != nil {
+			return fmt.Errorf("failed to emit status change event: %w", err)
+		}
+
+		w.logger.Infow("Risk transitioned to remediated",
+			"risk_id", risk.ID, "evidence_id", evidenceStreamID, "from_status", oldStatus)
+		return nil
+	})
 }
 
 // emitRiskEvent creates a risk event record using the provided DB handle.

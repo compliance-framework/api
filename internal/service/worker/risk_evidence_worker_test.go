@@ -1256,6 +1256,398 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoFilters(t *testing.T) {
 	assert.Nil(t, sspInfos)
 }
 
+// --- Resolution flow tests ---
+
+// createRiskWithEvidenceLink creates a risk in the given status, linked to the given evidence stream.
+func createRiskWithEvidenceLink(t *testing.T, db *gorm.DB, status string, evidenceStreamID uuid.UUID, templateID *uuid.UUID) *risks.Risk {
+	t.Helper()
+	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:      relational.UUIDModel{ID: &riskID},
+		Title:          "Test Risk",
+		Description:    "Test Description",
+		Status:         status,
+		SSPID:          uuid.New(),
+		RiskTemplateID: templateID,
+		SourceType:     string(risks.RiskSourceTypeEvidenceAuto),
+		DedupeKey:      fmt.Sprintf("dedupe-%s", riskID),
+		FirstSeenAt:    time.Now().Add(-1 * time.Hour),
+		LastSeenAt:     time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, db.Create(risk).Error)
+
+	link := &risks.RiskEvidenceLink{
+		RiskID:     riskID,
+		EvidenceID: evidenceStreamID,
+		CreatedAt:  time.Now(),
+	}
+	require.NoError(t, db.Create(link).Error)
+
+	return risk
+}
+
+func TestRiskEvidenceWorker_Resolution_SatisfiedRemovesLinks(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a satisfied evidence.
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	templateID := uuid.New()
+	tmpl := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &templateID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Test Template",
+		Title:         "Test Template",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(tmpl).Error)
+
+	// Create two risks linked to this evidence.
+	risk1 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &templateID)
+	risk2 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusInvestigating), evidenceID, &templateID)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// Both evidence links should be removed.
+	var linkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).Where("evidence_id = ?", evidenceID).Count(&linkCount).Error)
+	assert.Equal(t, int64(0), linkCount)
+
+	// Both risks should be remediated.
+	var r1, r2 risks.Risk
+	require.NoError(t, worker.db.First(&r1, "id = ?", risk1.ID).Error)
+	require.NoError(t, worker.db.First(&r2, "id = ?", risk2.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), r1.Status)
+	assert.Equal(t, string(risks.RiskStatusRemediated), r2.Status)
+
+	// Verify status_changed events were emitted.
+	var events []risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id IN ? AND event_type = ?",
+		[]uuid.UUID{*risk1.ID, *risk2.ID}, string(risks.RiskEventTypeStatusChange)).Find(&events).Error)
+	assert.Len(t, events, 2)
+}
+
+func TestRiskEvidenceWorker_Resolution_ViolationsReduced(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	// Evidence is still not-satisfied but with reduced violations (only VIOL-002 now).
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Reduced Violations Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: "violation_id", Value: "VIOL-002"},
+		}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	// Template 1 matches VIOL-001 — no longer in evidence → link should be removed.
+	tmpl1ID := uuid.New()
+	tmpl1 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &tmpl1ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Template VIOL-001",
+		Title:         "Template VIOL-001",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(tmpl1).Error)
+
+	// Template 2 matches VIOL-002 — still in evidence → link should be kept.
+	tmpl2ID := uuid.New()
+	tmpl2 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &tmpl2ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Template VIOL-002",
+		Title:         "Template VIOL-002",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-002"},
+	}
+	require.NoError(t, worker.db.Create(tmpl2).Error)
+
+	// Template 3 has empty ViolationIDs — matches any not-satisfied → link should be kept.
+	tmpl3ID := uuid.New()
+	tmpl3 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &tmpl3ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Template Wildcard",
+		Title:         "Template Wildcard",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{},
+	}
+	require.NoError(t, worker.db.Create(tmpl3).Error)
+
+	risk1 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &tmpl1ID)
+	risk2 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &tmpl2ID)
+	risk3 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &tmpl3ID)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// risk1 link removed (VIOL-001 no longer in evidence) → remediated.
+	var r1 risks.Risk
+	require.NoError(t, worker.db.First(&r1, "id = ?", risk1.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), r1.Status)
+
+	// risk2 link kept (VIOL-002 still present).
+	var link2Count int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ? AND evidence_id = ?", risk2.ID, evidenceID).Count(&link2Count).Error)
+	assert.Equal(t, int64(1), link2Count)
+	var r2 risks.Risk
+	require.NoError(t, worker.db.First(&r2, "id = ?", risk2.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), r2.Status)
+
+	// risk3 link kept (empty ViolationIDs = wildcard for not-satisfied).
+	var link3Count int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ? AND evidence_id = ?", risk3.ID, evidenceID).Count(&link3Count).Error)
+	assert.Equal(t, int64(1), link3Count)
+	var r3 risks.Risk
+	require.NoError(t, worker.db.First(&r3, "id = ?", risk3.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), r3.Status)
+}
+
+func TestRiskEvidenceWorker_Resolution_TransitionToRemediated(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	risk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, nil)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), updated.Status)
+
+	// Verify events: evidence_unlinked + status_changed.
+	var events []risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).Order("occurred_at asc").Find(&events).Error)
+	require.Len(t, events, 2)
+	assert.Equal(t, string(risks.RiskEventTypeEvidenceUnlink), events[0].EventType)
+	assert.Equal(t, string(risks.RiskEventTypeStatusChange), events[1].EventType)
+}
+
+func TestRiskEvidenceWorker_Resolution_RiskAcceptedNoTransition(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	risk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusRiskAccepted), evidenceID, nil)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// Risk should remain risk-accepted.
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRiskAccepted), updated.Status)
+
+	// Evidence link should still be removed.
+	var linkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidenceID).Count(&linkCount).Error)
+	assert.Equal(t, int64(0), linkCount)
+
+	// Verify evidence_recovered event was emitted.
+	var event risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id = ? AND event_type = ?",
+		risk.ID, string(risks.RiskEventTypeEvidenceRecovered)).First(&event).Error)
+}
+
+func TestRiskEvidenceWorker_Resolution_MultipleEvidencePartialResolve(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceA := uuid.New()
+	evidenceB := uuid.New()
+
+	// Create the risk with TWO evidence links.
+	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "Risk with two evidence streams",
+		Description: "desc",
+		Status:      string(risks.RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(risks.RiskSourceTypeEvidenceAuto),
+		DedupeKey:   fmt.Sprintf("dedupe-%s", riskID),
+		FirstSeenAt: time.Now().Add(-1 * time.Hour),
+		LastSeenAt:  time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+	require.NoError(t, worker.db.Create(&risks.RiskEvidenceLink{
+		RiskID: riskID, EvidenceID: evidenceA, CreatedAt: time.Now(),
+	}).Error)
+	require.NoError(t, worker.db.Create(&risks.RiskEvidenceLink{
+		RiskID: riskID, EvidenceID: evidenceB, CreatedAt: time.Now(),
+	}).Error)
+
+	// Evidence A becomes satisfied.
+	evA := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceA},
+		UUID:      evidenceA,
+		Title:     "Evidence A",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evA).Error)
+
+	err := worker.handleEvidenceResolution(ctx, evA)
+	require.NoError(t, err)
+
+	// Risk should NOT be remediated — evidence B link still exists.
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", riskID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), updated.Status)
+
+	// Evidence A link removed, B remains.
+	var remaining int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", riskID).Count(&remaining).Error)
+	assert.Equal(t, int64(1), remaining)
+}
+
+func TestRiskEvidenceWorker_Reopen_FromRemediated(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	ssp := createTestSSP(t, worker.db)
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+	evidence := createTestEvidence(t, worker.db)
+
+	dedupeKey := fmt.Sprintf("%s:%s", ssp.ID.String(), riskTemplate.ID.String())
+	riskID := uuid.New()
+	remediatedRisk := &risks.Risk{
+		UUIDModel:      relational.UUIDModel{ID: &riskID},
+		Title:          "Remediated Risk",
+		Description:    "desc",
+		Status:         string(risks.RiskStatusRemediated),
+		SSPID:          *ssp.ID,
+		RiskTemplateID: riskTemplate.ID,
+		SourceType:     string(risks.RiskSourceTypeEvidenceAuto),
+		DedupeKey:      dedupeKey,
+		FirstSeenAt:    time.Now().Add(-1 * time.Hour),
+		LastSeenAt:     time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, worker.db.Create(remediatedRisk).Error)
+
+	catalogID := uuid.New()
+	sspInfos := []resolvedSSPInfo{
+		{
+			SSPID:        *ssp.ID,
+			ControlLinks: []controlLinkInfo{{CatalogID: catalogID, ControlID: "AC-1"}},
+		},
+	}
+
+	err := worker.createOrUpdateRisksForSSPs(ctx, *riskTemplate, evidence, sspInfos)
+	require.NoError(t, err)
+
+	// Risk should be re-opened.
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", riskID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), updated.Status)
+
+	// Verify status_changed event was emitted.
+	var event risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id = ? AND event_type = ?",
+		riskID, string(risks.RiskEventTypeStatusChange)).First(&event).Error)
+}
+
+func TestRiskEvidenceWorker_Resolution_SkipsClosedAndRemediated(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	// Create risks in closed and remediated status — should be skipped.
+	closedRisk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusClosed), evidenceID, nil)
+	remediatedRisk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusRemediated), evidenceID, nil)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// Links should NOT be removed for closed/remediated risks.
+	var closedLinkCount, remediatedLinkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", closedRisk.ID).Count(&closedLinkCount).Error)
+	assert.Equal(t, int64(1), closedLinkCount)
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", remediatedRisk.ID).Count(&remediatedLinkCount).Error)
+	assert.Equal(t, int64(1), remediatedLinkCount)
+}
+
 func TestRiskEvidenceWorker_resolveSSPsViaFilters_MultipleSSPs(t *testing.T) {
 	t.Parallel()
 

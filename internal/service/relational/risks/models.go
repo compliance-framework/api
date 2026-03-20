@@ -18,6 +18,7 @@ const (
 	RiskStatusMitigatingPlanned     RiskStatus = "mitigating-planned"
 	RiskStatusMitigatingImplemented RiskStatus = "mitigating-implemented"
 	RiskStatusRiskAccepted          RiskStatus = "risk-accepted"
+	RiskStatusRemediated            RiskStatus = "remediated"
 	RiskStatusClosed                RiskStatus = "closed"
 )
 
@@ -28,6 +29,7 @@ func (s RiskStatus) IsValid() bool {
 		RiskStatusMitigatingPlanned,
 		RiskStatusMitigatingImplemented,
 		RiskStatusRiskAccepted,
+		RiskStatusRemediated,
 		RiskStatusClosed:
 		return true
 	default:
