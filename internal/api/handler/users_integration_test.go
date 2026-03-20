@@ -86,6 +86,52 @@ func (suite *UserApiIntegrationSuite) TestGetUser() {
 	suite.Require().Equal(existingUser.UUIDModel.ID, response.Data.UUIDModel.ID, "Expected matching user ID in response for GetUser")
 }
 
+func (suite *UserApiIntegrationSuite) TestGetPublicUser() {
+	var existingUser relational.User
+	err := suite.DB.First(&existingUser).Error
+	suite.Require().NoError(err, "Failed to retrieve existing user for GetPublicUser test")
+
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/users/"+existingUser.UUIDModel.ID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for GetPublicUser")
+	suite.NotEmpty(rec.Body.String(), "Expected non-empty response body for GetPublicUser")
+
+	var response GenericDataResponse[publicUserResponse]
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for GetPublicUser")
+	suite.Require().Equal(existingUser.UUIDModel.ID.String(), response.Data.ID, "Expected matching user ID in response for GetPublicUser")
+	suite.Require().Equal(userDisplayName(existingUser), response.Data.Name, "Expected public user name to match the user's display name")
+
+	blankNameUser := relational.User{
+		Email:      "blank-name-user@example.com",
+		FirstName:  "",
+		LastName:   "",
+		AuthMethod: "password",
+		IsActive:   true,
+		IsLocked:   false,
+	}
+	suite.Require().NoError(blankNameUser.SetPassword("Pa55w0rd"))
+	suite.Require().NoError(suite.DB.Create(&blankNameUser).Error)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/api/users/"+blankNameUser.UUIDModel.ID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+*token)
+
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(200, rec.Code, "Expected OK response for GetPublicUser fallback name test")
+
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	suite.Require().NoError(err, "Expected valid JSON response for GetPublicUser fallback name test")
+	suite.Require().Equal(blankNameUser.UUIDModel.ID.String(), response.Data.ID, "Expected matching user ID in fallback response")
+	suite.Require().Equal(blankNameUser.UUIDModel.ID.String(), response.Data.Name, "Expected public user name to fall back to the user ID when first and last names are empty")
+}
+
 func (suite *UserApiIntegrationSuite) TestGetMe() {
 	token, err := suite.GetAuthToken()
 	suite.Require().NoError(err)
