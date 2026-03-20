@@ -72,15 +72,15 @@ func (h *UserHandler) Register(api *echo.Group) {
 }
 
 func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
-	api.GET("/me", h.GetMe)
-	api.POST("/me/change-password", h.ChangeLoggedInUserPassword)
-	api.GET("/me/subscriptions", h.GetSubscriptions)
-	api.PUT("/me/subscriptions", h.UpdateSubscriptions)
-	api.GET("/:id", h.GetPublicUser)
+	api.GET("", h.GetMe)
+	api.POST("/change-password", h.ChangeLoggedInUserPassword)
+	api.GET("/subscriptions", h.GetSubscriptions)
+	api.PUT("/subscriptions", h.UpdateSubscriptions)
 }
 
-func (h *UserHandler) RegisterSelectableRoutes(api *echo.Group) {
+func (h *UserHandler) RegisterPublicRoutes(api *echo.Group) {
 	api.GET("/select", h.ListSelectableUsers)
+	api.GET("/:id", h.GetPublicUser)
 }
 
 // ListUsers godoc
