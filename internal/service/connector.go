@@ -35,6 +35,7 @@ func ConnectSQLDb(ctx context.Context, config *config.Config, sugar *zap.Sugared
 			DisableAutomaticPing:                     true,
 			DisableForeignKeyConstraintWhenMigrating: true,
 			Logger:                                   logging.NewZapGormLogger(sugar, gormLogLevel),
+			PrepareStmt:                              true,
 		})
 
 		pdb, err := db.DB()
@@ -43,6 +44,13 @@ func ConnectSQLDb(ctx context.Context, config *config.Config, sugar *zap.Sugared
 		}
 
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+		// Connection pool tuning — the defaults (MaxIdleConns=2) are far too
+		// conservative and become the throughput bottleneck under load because
+		// Go constantly creates/destroys TCP connections to Postgres.
+		pdb.SetMaxOpenConns(50)
+		pdb.SetMaxIdleConns(25)
+		pdb.SetConnMaxLifetime(5 * time.Minute)
+		pdb.SetConnMaxIdleTime(3 * time.Minute)
 		defer cancel()
 
 		for {

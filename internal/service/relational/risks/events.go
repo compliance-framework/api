@@ -33,6 +33,7 @@ const (
 	RiskEventTypeRemediationCreated RiskEventType = "remediation_created"
 	RiskEventTypeRemediationUpdated RiskEventType = "remediation_updated"
 	RiskEventTypeRemediationDeleted RiskEventType = "remediation_deleted"
+	RiskEventTypeEvidenceRecovered  RiskEventType = "evidence_recovered"
 )
 
 type RiskEvent struct {
@@ -181,6 +182,11 @@ func BuildRiskEventDetails(eventType string, payload datatypes.JSONMap, occurred
 		return "The remediation template for this risk was updated."
 	case string(RiskEventTypeRemediationDeleted):
 		return "The remediation template was removed from this risk."
+	case string(RiskEventTypeEvidenceRecovered):
+		if evidenceID := payloadString(payload, "evidenceId", "evidence_id"); evidenceID != "" {
+			return fmt.Sprintf("Evidence %s recovered; risk is accepted so no automatic status change was applied.", evidenceID)
+		}
+		return "Evidence recovered; risk is accepted so no automatic status change was applied."
 	default:
 		return fmt.Sprintf("Risk event recorded: %s.", eventType)
 	}

@@ -16,7 +16,7 @@ import (
 
 // RiskJobEnqueuer interface to avoid circular imports
 type RiskJobEnqueuer interface {
-	EnqueueRiskProcessEvidenceFailure(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error
+	EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error
 }
 
 // ComponentDefinitionResolver resolves or creates ComponentDefinition + DefinedComponent records
@@ -121,7 +121,7 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			params.Evidence.Expires = &expiryDate
 		}
 
-		// Detect if evidence status is "not-satisfied" so we can enqueue a risk job after commit.
+		// Capture evidence status so we can enqueue a risk job after commit.
 		statusData := params.Evidence.Status.Data()
 
 		// Create the evidence record — BeforeCreate sets params.Evidence.ID here.
@@ -130,13 +130,12 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 		}
 		evidence = &params.Evidence
 
-		// Capture job args after Create so that params.Evidence.ID is guaranteed non-nil.
-		if statusData.State == relational.EvidenceStatusNotSatisfied {
-			shouldEnqueueRiskJob = true
-			riskJobArgs.evidenceID = *params.Evidence.ID
-			riskJobArgs.evidenceEnd = params.Evidence.End.Format(time.RFC3339)
-			riskJobArgs.status = statusData.State
-		}
+		// Always enqueue the risk job for all evidence (not just failures).
+		// The worker decides whether to create/resolve risks based on the status.
+		shouldEnqueueRiskJob = true
+		riskJobArgs.evidenceID = *params.Evidence.ID
+		riskJobArgs.evidenceEnd = params.Evidence.End.Format(time.RFC3339)
+		riskJobArgs.status = statusData.State
 
 		// Create associations
 		if len(params.Activities) > 0 {
@@ -182,10 +181,10 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 	// evidence is re-submitted. For true atomicity, river.InsertTx with a pgx.Tx would be required,
 	// but that is not directly accessible from within a GORM transaction.
 	if shouldEnqueueRiskJob && s.riskEnqueuer != nil {
-		if err := s.riskEnqueuer.EnqueueRiskProcessEvidenceFailure(ctx,
+		if err := s.riskEnqueuer.EnqueueRiskProcessEvidence(ctx,
 			riskJobArgs.evidenceID, riskJobArgs.evidenceEnd, riskJobArgs.status); err != nil {
 			if s.logger != nil {
-				s.logger.Errorw("Failed to enqueue risk process evidence failure",
+				s.logger.Errorw("Failed to enqueue risk process evidence job",
 					"error", err, "evidence_id", riskJobArgs.evidenceID)
 			}
 		}
