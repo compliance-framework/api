@@ -382,10 +382,13 @@ func TestPeriodicJobsFromConfig_RiskJobsFromDedicatedConfig(t *testing.T) {
 			StaleRiskScannerSchedule:        "0 0 10 * * 1",
 			EvidenceReconciliationEnabled:   true,
 			EvidenceReconciliationSchedule:  "0 30 10 * * *",
+			OpenDigestEnabled:               true,
+			OpenDigestSchedule:              "0 0 11 * * *",
+			OpenDigestWindow:                "daily",
 		},
 	}, logger)
 
-	assert.Len(t, jobs, 4)
+	assert.Len(t, jobs, 5)
 }
 
 func TestWorkflowSchedulerPeriodicJobConstructor_InsertOpts(t *testing.T) {
@@ -403,4 +406,13 @@ func TestJobInsertOptionsWithRetry(t *testing.T) {
 
 	assert.Equal(t, "custom-queue", opts.Queue)
 	assert.Equal(t, 10, opts.MaxAttempts)
+}
+
+func TestJobInsertOptionsForRiskDigest(t *testing.T) {
+	opts := JobInsertOptionsForRiskDigest(24 * time.Hour)
+
+	assert.Equal(t, "digest", opts.Queue)
+	assert.Equal(t, 3, opts.MaxAttempts)
+	assert.True(t, opts.UniqueOpts.ByArgs)
+	assert.Equal(t, 24*time.Hour, opts.UniqueOpts.ByPeriod)
 }

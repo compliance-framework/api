@@ -279,6 +279,89 @@ func TestTemplateService_RiskTemplates(t *testing.T) {
 	}
 }
 
+func TestTemplateService_RiskOpenDigest(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName": "Alice Smith",
+		"PeriodLabel":   "Daily digest — 22/mar/2026",
+		"NewSinceLastDigest": []map[string]interface{}{
+			{
+				"Title":          "Fresh risk",
+				"SSPName":        "GoodRead SSP",
+				"Status":         "open",
+				"Severity":       "moderate x high",
+				"OwnerName":      "Alice Smith",
+				"ReviewDeadline": "",
+				"RiskURL":        "https://app.example.com/risks/1",
+			},
+		},
+		"OverdueForAction": []map[string]interface{}{
+			{
+				"Title":          "Aged risk",
+				"SSPName":        "GoodRead SSP",
+				"Status":         "investigating",
+				"Severity":       "high x critical",
+				"OwnerName":      "Alice Smith",
+				"ReviewDeadline": "",
+				"RiskURL":        "https://app.example.com/risks/2",
+			},
+		},
+		"StaleRisks": []map[string]interface{}{
+			{
+				"Title":          "Stale risk",
+				"SSPName":        "GoodRead SSP",
+				"Status":         "mitigating-planned",
+				"Severity":       "low x moderate",
+				"OwnerName":      "Alice Smith",
+				"ReviewDeadline": "",
+				"RiskURL":        "https://app.example.com/risks/3",
+			},
+		},
+		"OverdueReview": []map[string]interface{}{
+			{
+				"Title":          "Overdue accepted risk",
+				"SSPName":        "GoodRead SSP",
+				"Status":         "risk-accepted",
+				"Severity":       "high x high",
+				"OwnerName":      "Alice Smith",
+				"ReviewDeadline": "20/mar/2026",
+				"RiskURL":        "https://app.example.com/risks/4",
+			},
+		},
+		"DueForReview": []map[string]interface{}{
+			{
+				"Title":          "Accepted risk",
+				"SSPName":        "GoodRead SSP",
+				"Status":         "risk-accepted",
+				"Severity":       "moderate x high",
+				"OwnerName":      "Alice Smith",
+				"ReviewDeadline": "30/mar/2026",
+				"RiskURL":        "https://app.example.com/risks/5",
+			},
+		},
+		"RisksURL": "https://app.example.com/risks",
+	}
+
+	html, text, err := service.Use("risk-open-digest", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "Risk Digest")
+	require.Contains(t, html, "New Since Last Digest")
+	require.Contains(t, html, "Overdue For Action")
+	require.Contains(t, html, "Stale")
+	require.Contains(t, html, "Overdue Review")
+	require.Contains(t, html, "Due For Review")
+	require.Contains(t, text, "NEW SINCE LAST DIGEST")
+	require.Contains(t, text, "OVERDUE FOR ACTION")
+	require.Contains(t, text, "OVERDUE REVIEW")
+	require.Contains(t, text, "DUE FOR REVIEW")
+	require.Contains(t, text, "https://app.example.com/risks/5")
+}
+
 func TestTemplateService_ListTemplates(t *testing.T) {
 	service, err := NewTemplateService()
 	require.NoError(t, err, "Failed to create template service")

@@ -19,6 +19,9 @@ func TestDefaultRiskConfig(t *testing.T) {
 	assert.Equal(t, "0 0 10 * * 1", cfg.StaleRiskScannerSchedule)
 	assert.False(t, cfg.EvidenceReconciliationEnabled)
 	assert.Equal(t, "0 30 10 * * *", cfg.EvidenceReconciliationSchedule)
+	assert.False(t, cfg.OpenDigestEnabled)
+	assert.Equal(t, "0 0 11 * * *", cfg.OpenDigestSchedule)
+	assert.Equal(t, "daily", cfg.OpenDigestWindow)
 	assert.False(t, cfg.AutoReopenEnabled)
 	assert.Equal(t, 30, cfg.AutoReopenThresholdDays)
 }
@@ -32,6 +35,9 @@ func TestLoadRiskConfigDefaults(t *testing.T) {
 	require.NoError(t, os.Unsetenv("CCF_RISK_STALE_RISK_SCANNER_SCHEDULE"))
 	require.NoError(t, os.Unsetenv("CCF_RISK_EVIDENCE_RECONCILIATION_ENABLED"))
 	require.NoError(t, os.Unsetenv("CCF_RISK_EVIDENCE_RECONCILIATION_SCHEDULE"))
+	require.NoError(t, os.Unsetenv("CCF_RISK_OPEN_DIGEST_ENABLED"))
+	require.NoError(t, os.Unsetenv("CCF_RISK_OPEN_DIGEST_SCHEDULE"))
+	require.NoError(t, os.Unsetenv("CCF_RISK_OPEN_DIGEST_WINDOW"))
 	require.NoError(t, os.Unsetenv("CCF_RISK_AUTO_REOPEN_ENABLED"))
 	require.NoError(t, os.Unsetenv("CCF_RISK_AUTO_REOPEN_THRESHOLD_DAYS"))
 
@@ -41,6 +47,8 @@ func TestLoadRiskConfigDefaults(t *testing.T) {
 	assert.False(t, cfg.ReviewOverdueEscalationEnabled)
 	assert.False(t, cfg.StaleRiskScannerEnabled)
 	assert.False(t, cfg.EvidenceReconciliationEnabled)
+	assert.False(t, cfg.OpenDigestEnabled)
+	assert.Equal(t, "daily", cfg.OpenDigestWindow)
 	assert.False(t, cfg.AutoReopenEnabled)
 	assert.Equal(t, 30, cfg.AutoReopenThresholdDays)
 }
@@ -146,6 +154,35 @@ func TestRiskConfigValidate(t *testing.T) {
 				ReviewDeadlineReminderEnabled:  false,
 				ReviewDeadlineReminderSchedule: "not-cron",
 				AutoReopenThresholdDays:        0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "disabled open digest may omit window",
+			cfg: &RiskConfig{
+				OpenDigestEnabled:       false,
+				OpenDigestWindow:        "",
+				AutoReopenThresholdDays: 30,
+			},
+			wantErr: false,
+		},
+		{
+			name: "enabled open digest requires supported window",
+			cfg: &RiskConfig{
+				OpenDigestEnabled:       true,
+				OpenDigestSchedule:      "0 0 11 * * *",
+				OpenDigestWindow:        "monthly",
+				AutoReopenThresholdDays: 30,
+			},
+			wantErr: true,
+		},
+		{
+			name: "enabled open digest allows empty window as daily",
+			cfg: &RiskConfig{
+				OpenDigestEnabled:       true,
+				OpenDigestSchedule:      "0 0 11 * * *",
+				OpenDigestWindow:        "",
+				AutoReopenThresholdDays: 30,
 			},
 			wantErr: false,
 		},
