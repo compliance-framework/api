@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <p>Hello {{.RecipientName}},</p>
+  <p><strong>{{.PeriodLabel}}</strong></p>
+
+  {{if .NewSinceLastDigest}}
+  <h3>New Since Last Digest</h3>
+  <ul>
+    {{range .NewSinceLastDigest}}
+    <li>
+      <strong>{{.Title}}</strong><br />
+      SSP: {{.SSPName}}<br />
+      Status: {{.Status}}<br />
+      Severity: {{.Severity}}<br />
+      Owner: {{.OwnerName}}<br />
+      {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}<br />{{end}}
+      <a href="{{.RiskURL}}">Open risk</a>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .OverdueForAction}}
+  <h3>Overdue For Action</h3>
+  <ul>
+    {{range .OverdueForAction}}
+    <li>
+      <strong>{{.Title}}</strong><br />
+      SSP: {{.SSPName}}<br />
+      Status: {{.Status}}<br />
+      Severity: {{.Severity}}<br />
+      Owner: {{.OwnerName}}<br />
+      {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}<br />{{end}}
+      <a href="{{.RiskURL}}">Open risk</a>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .StaleRisks}}
+  <h3>Stale</h3>
+  <ul>
+    {{range .StaleRisks}}
+    <li>
+      <strong>{{.Title}}</strong><br />
+      SSP: {{.SSPName}}<br />
+      Status: {{.Status}}<br />
+      Severity: {{.Severity}}<br />
+      Owner: {{.OwnerName}}<br />
+      {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}<br />{{end}}
+      <a href="{{.RiskURL}}">Open risk</a>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  {{if .DueForReview}}
+  <h3>Due For Review</h3>
+  <ul>
+    {{range .DueForReview}}
+    <li>
+      <strong>{{.Title}}</strong><br />
+      SSP: {{.SSPName}}<br />
+      Status: {{.Status}}<br />
+      Severity: {{.Severity}}<br />
+      Owner: {{.OwnerName}}<br />
+      {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}<br />{{end}}
+      <a href="{{.RiskURL}}">Open risk</a>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
+  <p><a href="{{.RisksURL}}">View all risks</a></p>
+  <p>This is an automated digest from Compliance Framework.</p>
+</body>
+</html>

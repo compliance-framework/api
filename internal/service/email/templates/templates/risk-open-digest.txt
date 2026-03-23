@@ -1,0 +1,44 @@
+Hello {{.RecipientName}},
+
+{{.PeriodLabel}}
+
+{{if .NewSinceLastDigest}}NEW SINCE LAST DIGEST
+{{range .NewSinceLastDigest}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  Severity: {{.Severity}}
+  Owner: {{.OwnerName}}
+  {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}
+  {{end}}Open risk: {{.RiskURL}}
+{{end}}
+{{end}}{{if .OverdueForAction}}OVERDUE FOR ACTION
+{{range .OverdueForAction}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  Severity: {{.Severity}}
+  Owner: {{.OwnerName}}
+  {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}
+  {{end}}Open risk: {{.RiskURL}}
+{{end}}
+{{end}}{{if .StaleRisks}}STALE
+{{range .StaleRisks}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  Severity: {{.Severity}}
+  Owner: {{.OwnerName}}
+  {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}
+  {{end}}Open risk: {{.RiskURL}}
+{{end}}
+{{end}}{{if .DueForReview}}DUE FOR REVIEW
+{{range .DueForReview}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  Severity: {{.Severity}}
+  Owner: {{.OwnerName}}
+  {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}
+  {{end}}Open risk: {{.RiskURL}}
+{{end}}
+{{end}}
+View all risks: {{.RisksURL}}
+
+This is an automated digest from Compliance Framework.

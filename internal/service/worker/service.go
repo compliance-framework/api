@@ -248,6 +248,9 @@ func NewServiceWithDigest(
 	riskReconciliationScannerWorker := NewRiskEvidenceReconciliationScannerWorker(db, clientProxy, logger)
 	river.AddWorker(workers, river.WorkFunc(riskReconciliationScannerWorker.Work))
 
+	riskOpenDigestSchedulerWorker := NewRiskOpenDigestSchedulerWorker(db, clientProxy, riskCfg.OpenDigestWindow, logger)
+	river.AddWorker(workers, river.WorkFunc(riskOpenDigestSchedulerWorker.Work))
+
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
 
@@ -551,6 +554,37 @@ func NewRiskEvidenceReconciliationPeriodicJob(schedule string, logger *zap.Sugar
 	)
 }
 
+func NewRiskOpenDigestPeriodicJob(schedule string, windowKind string, logger *zap.SugaredLogger) *river.PeriodicJob {
+	window := normalizeRiskDigestWindow(windowKind)
+	fallback := riskDigestPeriodicDailyFallback
+	if window == riskDigestWindowWeekly {
+		fallback = "@weekly"
+	}
+	sched := parseCronScheduleWithFallback(schedule, fallback, "risk open digest scheduler", logger)
+	windowCfg, err := computeRiskDigestWindow(time.Now().UTC(), window)
+	if err != nil {
+		logger.Errorw("Invalid risk open digest window, defaulting to daily", "window", window, "error", err)
+		windowCfg, _ = computeRiskDigestWindow(time.Now().UTC(), riskDigestWindowDaily)
+	}
+
+	return river.NewPeriodicJob(
+		sched,
+		func() (river.JobArgs, *river.InsertOpts) {
+			return &RiskOpenDigestSchedulerArgs{}, &river.InsertOpts{
+				Queue:       "risk",
+				MaxAttempts: 3,
+				UniqueOpts: river.UniqueOpts{
+					ByArgs:   true,
+					ByPeriod: windowCfg.ByPeriod,
+				},
+			}
+		},
+		&river.PeriodicJobOpts{
+			RunOnStart: false,
+		},
+	)
+}
+
 func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*river.PeriodicJob {
 	var periodicJobs []*river.PeriodicJob
 	if cfg == nil {
@@ -579,6 +613,9 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	}
 	if cfg.Risk != nil && cfg.Risk.EvidenceReconciliationEnabled {
 		periodicJobs = append(periodicJobs, NewRiskEvidenceReconciliationPeriodicJob(cfg.Risk.EvidenceReconciliationSchedule, logger))
+	}
+	if cfg.Risk != nil && cfg.Risk.OpenDigestEnabled {
+		periodicJobs = append(periodicJobs, NewRiskOpenDigestPeriodicJob(cfg.Risk.OpenDigestSchedule, cfg.Risk.OpenDigestWindow, logger))
 	}
 	return periodicJobs
 }

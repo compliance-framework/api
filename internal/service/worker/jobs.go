@@ -692,6 +692,9 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(riskStaleOpenReminderWorker.Work))
+
+			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
 		}
 	}
 

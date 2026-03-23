@@ -24,6 +24,10 @@ type RiskConfig struct {
 	EvidenceReconciliationEnabled  bool   `mapstructure:"evidence_reconciliation_enabled" yaml:"evidence_reconciliation_enabled" json:"evidenceReconciliationEnabled"`
 	EvidenceReconciliationSchedule string `mapstructure:"evidence_reconciliation_schedule" yaml:"evidence_reconciliation_schedule" json:"evidenceReconciliationSchedule"`
 
+	OpenDigestEnabled  bool   `mapstructure:"open_digest_enabled" yaml:"open_digest_enabled" json:"openDigestEnabled"`
+	OpenDigestSchedule string `mapstructure:"open_digest_schedule" yaml:"open_digest_schedule" json:"openDigestSchedule"`
+	OpenDigestWindow   string `mapstructure:"open_digest_window" yaml:"open_digest_window" json:"openDigestWindow"`
+
 	AutoReopenEnabled       bool `mapstructure:"auto_reopen_enabled" yaml:"auto_reopen_enabled" json:"autoReopenEnabled"`
 	AutoReopenThresholdDays int  `mapstructure:"auto_reopen_threshold_days" yaml:"auto_reopen_threshold_days" json:"autoReopenThresholdDays"`
 }
@@ -38,6 +42,9 @@ func DefaultRiskConfig() *RiskConfig {
 		StaleRiskScannerSchedule:        "0 0 10 * * 1",
 		EvidenceReconciliationEnabled:   false,
 		EvidenceReconciliationSchedule:  "0 30 10 * * *",
+		OpenDigestEnabled:               false,
+		OpenDigestSchedule:              "0 0 11 * * *",
+		OpenDigestWindow:                "daily",
 		AutoReopenEnabled:               false,
 		AutoReopenThresholdDays:         30,
 	}
@@ -55,6 +62,9 @@ func LoadRiskConfig(path string) (*RiskConfig, error) {
 	v.SetDefault("stale_risk_scanner_schedule", def.StaleRiskScannerSchedule)
 	v.SetDefault("evidence_reconciliation_enabled", def.EvidenceReconciliationEnabled)
 	v.SetDefault("evidence_reconciliation_schedule", def.EvidenceReconciliationSchedule)
+	v.SetDefault("open_digest_enabled", def.OpenDigestEnabled)
+	v.SetDefault("open_digest_schedule", def.OpenDigestSchedule)
+	v.SetDefault("open_digest_window", def.OpenDigestWindow)
 	v.SetDefault("auto_reopen_enabled", def.AutoReopenEnabled)
 	v.SetDefault("auto_reopen_threshold_days", def.AutoReopenThresholdDays)
 
@@ -106,6 +116,16 @@ func (c *RiskConfig) Validate() error {
 		if _, err := parser.Parse(c.EvidenceReconciliationSchedule); err != nil {
 			return fmt.Errorf("invalid evidence_reconciliation_schedule: %w", err)
 		}
+	}
+	if c.OpenDigestEnabled {
+		if _, err := parser.Parse(c.OpenDigestSchedule); err != nil {
+			return fmt.Errorf("invalid open_digest_schedule: %w", err)
+		}
+	}
+	switch strings.ToLower(strings.TrimSpace(c.OpenDigestWindow)) {
+	case "", "daily", "weekly":
+	default:
+		return fmt.Errorf("risk open digest window must be one of daily or weekly")
 	}
 	if c.AutoReopenThresholdDays < 0 {
 		return fmt.Errorf("risk auto reopen threshold days must be non-negative")
