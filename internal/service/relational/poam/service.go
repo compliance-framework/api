@@ -68,21 +68,25 @@ type UpdatePoamItemParams struct {
 
 // CreateMilestoneParams carries all data required to create a single milestone.
 type CreateMilestoneParams struct {
-	Title                   string
-	Description             string
-	Status                  string
-	ScheduledCompletionDate *time.Time
-	OrderIndex              int
+	Title                 string
+	Description           string
+	Status                string
+	PlannedCompletionDate *time.Time
+	ResponsibleParty      *string
+	Remarks               *string
+	OrderIndex            int
 }
 
 // UpdateMilestoneParams carries the fields that may be patched on an existing
 // milestone. Only non-nil pointer fields are applied.
 type UpdateMilestoneParams struct {
-	Title                   *string
-	Description             *string
-	Status                  *string
-	ScheduledCompletionDate *time.Time
-	OrderIndex              *int
+	Title                 *string
+	Description           *string
+	Status                *string
+	PlannedCompletionDate *time.Time
+	ResponsibleParty      *string
+	Remarks               *string
+	OrderIndex            *int
 }
 
 // ---------------------------------------------------------------------------
@@ -131,12 +135,14 @@ func (s *PoamService) Create(params CreatePoamItemParams) (*PoamItem, error) {
 			orderIdx = i
 		}
 		ms := PoamItemMilestone{
-			PoamItemID:              item.ID,
-			Title:                   mp.Title,
-			Description:             mp.Description,
-			Status:                  mp.Status,
-			ScheduledCompletionDate: mp.ScheduledCompletionDate,
-			OrderIndex:              orderIdx,
+			PoamItemID:            item.ID,
+			Title:                 mp.Title,
+			Description:           mp.Description,
+			Status:                mp.Status,
+			PlannedCompletionDate: mp.PlannedCompletionDate,
+			ResponsibleParty:      mp.ResponsibleParty,
+			Remarks:               mp.Remarks,
+			OrderIndex:            orderIdx,
 		}
 		if err := tx.Create(&ms).Error; err != nil {
 			tx.Rollback()
@@ -429,12 +435,14 @@ func (s *PoamService) ListMilestones(poamItemID uuid.UUID) ([]PoamItemMilestone,
 // AddMilestone inserts a new milestone for the given POAM item.
 func (s *PoamService) AddMilestone(poamItemID uuid.UUID, params CreateMilestoneParams) (*PoamItemMilestone, error) {
 	m := PoamItemMilestone{
-		PoamItemID:              poamItemID,
-		Title:                   params.Title,
-		Description:             params.Description,
-		Status:                  params.Status,
-		ScheduledCompletionDate: params.ScheduledCompletionDate,
-		OrderIndex:              params.OrderIndex,
+		PoamItemID:            poamItemID,
+		Title:                 params.Title,
+		Description:           params.Description,
+		Status:                params.Status,
+		PlannedCompletionDate: params.PlannedCompletionDate,
+		ResponsibleParty:      params.ResponsibleParty,
+		Remarks:               params.Remarks,
+		OrderIndex:            params.OrderIndex,
 	}
 	if err := s.db.Create(&m).Error; err != nil {
 		return nil, err
@@ -470,8 +478,14 @@ func (s *PoamService) UpdateMilestone(poamItemID, milestoneID uuid.UUID, params 
 			m.CompletionDate = &now
 		}
 	}
-	if params.ScheduledCompletionDate != nil {
-		m.ScheduledCompletionDate = params.ScheduledCompletionDate
+	if params.PlannedCompletionDate != nil {
+		m.PlannedCompletionDate = params.PlannedCompletionDate
+	}
+	if params.ResponsibleParty != nil {
+		m.ResponsibleParty = params.ResponsibleParty
+	}
+	if params.Remarks != nil {
+		m.Remarks = params.Remarks
 	}
 	if params.OrderIndex != nil {
 		m.OrderIndex = *params.OrderIndex

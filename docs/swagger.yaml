@@ -1570,7 +1570,11 @@ definitions:
           OrderIndex is a pointer so that clients can explicitly set 0 without it
           being indistinguishable from an omitted field.
         type: integer
-      scheduledCompletionDate:
+      plannedCompletionDate:
+        type: string
+      remarks:
+        type: string
+      responsibleParty:
         type: string
       status:
         type: string
@@ -1688,9 +1692,13 @@ definitions:
         type: string
       orderIndex:
         type: integer
+      plannedCompletionDate:
+        type: string
       poamItemId:
         type: string
-      scheduledCompletionDate:
+      remarks:
+        type: string
+      responsibleParty:
         type: string
       status:
         type: string
@@ -1958,7 +1966,11 @@ definitions:
         type: string
       orderIndex:
         type: integer
-      scheduledCompletionDate:
+      plannedCompletionDate:
+        type: string
+      remarks:
+        type: string
+      responsibleParty:
         type: string
       status:
         type: string
