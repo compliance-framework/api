@@ -32,6 +32,29 @@ func TestComputeRiskDigestWindow(t *testing.T) {
 	assert.Equal(t, time.Date(2026, 3, 16, 0, 0, 0, 0, time.UTC), weekly.Start)
 	assert.Equal(t, time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC), weekly.End)
 	assert.Equal(t, riskDigestWeeklyPeriod, weekly.ByPeriod)
+	assert.Equal(t, "16/mar/2026", weekly.PeriodTag)
+}
+
+func TestIsRiskOverdueForAction(t *testing.T) {
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	risk := &riskrel.Risk{
+		Status:    string(riskrel.RiskStatusOpen),
+		CreatedAt: now.Add(-40 * 24 * time.Hour),
+	}
+
+	assert.True(t, isRiskOverdueForAction(risk, now, time.Time{}))
+	assert.True(t, isRiskOverdueForAction(risk, now, risk.CreatedAt.Add(30*time.Second)))
+	assert.False(t, isRiskOverdueForAction(risk, now, risk.CreatedAt.Add(2*time.Hour)))
+}
+
+func TestBuildRiskDigestEmailItem_SkipsNilRiskID(t *testing.T) {
+	item, ok := buildRiskDigestEmailItem(&riskrel.Risk{
+		Title:  "No ID risk",
+		Status: string(riskrel.RiskStatusOpen),
+	}, map[uuid.UUID]string{}, nil, nil, "https://app.example.com")
+
+	assert.False(t, ok)
+	assert.Empty(t, item)
 }
 
 func TestRiskOpenDigestSchedulerWorker_EnqueuesUniqueRecipients(t *testing.T) {
@@ -165,6 +188,20 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 		ReviewDeadline:     &reviewDeadline,
 		Assignments:        []uuid.UUID{recipientID},
 	})
+	overdueReviewDeadline := now.Add(-2 * 24 * time.Hour)
+	createDigestRisk(t, db, digestRiskSeed{
+		ID:                 uuid.New(),
+		SSPID:              sspID,
+		PrimaryOwnerUserID: &recipientID,
+		Title:              "Overdue accepted risk",
+		Status:             string(riskrel.RiskStatusRiskAccepted),
+		Likelihood:         strPtr("high"),
+		Impact:             strPtr("high"),
+		CreatedAt:          now.Add(-90 * 24 * time.Hour),
+		LastSeenAt:         now.Add(-6 * 24 * time.Hour),
+		ReviewDeadline:     &overdueReviewDeadline,
+		Assignments:        []uuid.UUID{recipientID},
+	})
 
 	mockEmail := &MockEmailService{}
 	mockRepo := &MockUserRepository{}
@@ -190,6 +227,10 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 		}
 		staleItems, ok := data["StaleRisks"].([]RiskDigestEmailItem)
 		if !ok || len(staleItems) != 1 || staleItems[0].Title != "Stale risk" {
+			return false
+		}
+		overdueReviewItems, ok := data["OverdueReview"].([]RiskDigestEmailItem)
+		if !ok || len(overdueReviewItems) != 1 || overdueReviewItems[0].Title != "Overdue accepted risk" {
 			return false
 		}
 		dueItems, ok := data["DueForReview"].([]RiskDigestEmailItem)

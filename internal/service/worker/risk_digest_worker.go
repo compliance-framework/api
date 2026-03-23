@@ -24,6 +24,7 @@ const (
 	riskDigestDailyPeriod           = 24 * time.Hour
 	riskDigestWeeklyPeriod          = 7 * 24 * time.Hour
 	riskDigestOverdueActionAge      = 30 * 24 * time.Hour
+	riskDigestStatusChangeGrace     = time.Minute
 	riskDigestStaleAge              = 30 * 24 * time.Hour
 	riskDigestDueReviewHorizon      = 30 * 24 * time.Hour
 	riskDigestPeriodicDailyFallback = "0 0 11 * * *"
@@ -64,6 +65,7 @@ type riskDigestClassification struct {
 	NewSinceLastDigest []RiskDigestEmailItem
 	OverdueForAction   []RiskDigestEmailItem
 	Stale              []RiskDigestEmailItem
+	OverdueReview      []RiskDigestEmailItem
 	DueForReview       []RiskDigestEmailItem
 }
 
@@ -71,6 +73,7 @@ func (c riskDigestClassification) Empty() bool {
 	return len(c.NewSinceLastDigest) == 0 &&
 		len(c.OverdueForAction) == 0 &&
 		len(c.Stale) == 0 &&
+		len(c.OverdueReview) == 0 &&
 		len(c.DueForReview) == 0
 }
 
@@ -201,11 +204,13 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		"NewSinceLastDigest":  classification.NewSinceLastDigest,
 		"OverdueForAction":    classification.OverdueForAction,
 		"StaleRisks":          classification.Stale,
+		"OverdueReview":       classification.OverdueReview,
 		"DueForReview":        classification.DueForReview,
 		"RisksURL":            strings.TrimRight(w.webBaseURL, "/") + "/risks",
 		"HasNewSinceLast":     len(classification.NewSinceLastDigest) > 0,
 		"HasOverdueForAction": len(classification.OverdueForAction) > 0,
 		"HasStaleRisks":       len(classification.Stale) > 0,
+		"HasOverdueReview":    len(classification.OverdueReview) > 0,
 		"HasDueForReview":     len(classification.DueForReview) > 0,
 	}
 
@@ -235,6 +240,7 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		"new_count", len(classification.NewSinceLastDigest),
 		"overdue_count", len(classification.OverdueForAction),
 		"stale_count", len(classification.Stale),
+		"overdue_review_count", len(classification.OverdueReview),
 		"due_review_count", len(classification.DueForReview),
 		"message_id", result.MessageID,
 	)
@@ -243,6 +249,15 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 
 func computeRiskDigestWindow(now time.Time, windowKind string) (riskDigestWindow, error) {
 	switch normalizeRiskDigestWindow(windowKind) {
+	case "none":
+		end := startOfDayUTC(now.Add(24 * time.Hour)) // include day of the digest
+		return riskDigestWindow{
+			Kind:      "none",
+			Start:     end.Add(-riskDigestDailyPeriod),
+			End:       end,
+			ByPeriod:  time.Minute,
+			PeriodTag: formatDate(end.Add(-time.Minute)),
+		}, nil
 	case riskDigestWindowDaily:
 		end := startOfDayUTC(now)
 		return riskDigestWindow{
@@ -259,7 +274,7 @@ func computeRiskDigestWindow(now time.Time, windowKind string) (riskDigestWindow
 			Start:     end.Add(-riskDigestWeeklyPeriod),
 			End:       end,
 			ByPeriod:  riskDigestWeeklyPeriod,
-			PeriodTag: formatDate(end.Add(-riskDigestDailyPeriod)),
+			PeriodTag: formatDate(end.Add(-riskDigestWeeklyPeriod)),
 		}, nil
 	default:
 		return riskDigestWindow{}, fmt.Errorf("unsupported risk digest window %q", windowKind)
@@ -288,44 +303,37 @@ func parseRiskDigestWindowFromArgs(args RiskOpenDigestArgs) (riskDigestWindow, e
 }
 
 func resolveRiskDigestRecipientUserIDs(ctx context.Context, db *gorm.DB) ([]uuid.UUID, error) {
-	var risks []riskrel.Risk
-	if err := db.WithContext(ctx).
-		Select("id", "primary_owner_user_id").
-		Where("status IN ?", riskDigestRecipientStatuses).
-		Find(&risks).Error; err != nil {
+	type row struct {
+		UserID string `gorm:"column:user_id"`
+	}
+
+	var rows []row
+	query := `
+		SELECT recipients.user_id
+		FROM (
+			SELECT DISTINCT CAST(r.primary_owner_user_id AS TEXT) AS user_id
+			FROM risk_register_risks r
+			WHERE r.status IN ? AND r.primary_owner_user_id IS NOT NULL
+			UNION
+			SELECT DISTINCT roa.owner_ref AS user_id
+			FROM risk_owner_assignments roa
+			JOIN risk_register_risks r ON r.id = roa.risk_id
+			WHERE r.status IN ? AND roa.owner_kind = ?
+		) AS recipients
+		ORDER BY recipients.user_id
+	`
+	if err := db.WithContext(ctx).Raw(query, riskDigestRecipientStatuses, riskDigestRecipientStatuses, "user").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	recipientSet := make(map[uuid.UUID]struct{}, len(risks))
-	for i := range risks {
-		if risks[i].PrimaryOwnerUserID != nil {
-			recipientSet[*risks[i].PrimaryOwnerUserID] = struct{}{}
-		}
-	}
-
-	var assignments []riskrel.RiskOwnerAssignment
-	if err := db.WithContext(ctx).
-		Table("risk_owner_assignments roa").
-		Select("roa.risk_id, roa.owner_kind, roa.owner_ref, roa.is_primary, roa.created_at").
-		Joins("JOIN risk_register_risks r ON r.id = roa.risk_id").
-		Where("r.status IN ? AND roa.owner_kind = ?", riskDigestRecipientStatuses, "user").
-		Find(&assignments).Error; err != nil {
-		return nil, err
-	}
-
-	for _, assignment := range assignments {
-		ownerID, err := uuid.Parse(assignment.OwnerRef)
+	recipients := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		recipientID, err := uuid.Parse(strings.TrimSpace(row.UserID))
 		if err != nil {
 			continue
 		}
-		recipientSet[ownerID] = struct{}{}
-	}
-
-	recipients := make([]uuid.UUID, 0, len(recipientSet))
-	for recipientID := range recipientSet {
 		recipients = append(recipients, recipientID)
 	}
-	sort.Slice(recipients, func(i, j int) bool { return recipients[i].String() < recipients[j].String() })
 	return recipients, nil
 }
 
@@ -364,6 +372,10 @@ func classifyRiskDigest(
 	if err != nil {
 		return classification, fmt.Errorf("load owner names failed: %w", err)
 	}
+	sspNamesByID, err := loadRiskDigestSSPNames(ctx, db, risks)
+	if err != nil {
+		return classification, fmt.Errorf("load SSP names failed: %w", err)
+	}
 	lastStatusChangeByRiskID, err := loadRiskDigestLastStatusChangeMap(ctx, db, risks)
 	if err != nil {
 		return classification, fmt.Errorf("load last status changes failed: %w", err)
@@ -371,7 +383,13 @@ func classifyRiskDigest(
 
 	for i := range risks {
 		risk := &risks[i]
-		item := buildRiskDigestEmailItem(ctx, db, risk, ownersByRiskID[*risk.ID], ownerNamesByUserID, webBaseURL)
+		if risk.ID == nil {
+			continue
+		}
+		item, ok := buildRiskDigestEmailItem(risk, sspNamesByID, ownersByRiskID[*risk.ID], ownerNamesByUserID, webBaseURL)
+		if !ok {
+			continue
+		}
 
 		if isRiskNewSinceWindow(risk, window) {
 			classification.NewSinceLastDigest = append(classification.NewSinceLastDigest, item)
@@ -381,6 +399,9 @@ func classifyRiskDigest(
 		}
 		if isRiskStale(risk, now) {
 			classification.Stale = append(classification.Stale, item)
+		}
+		if isRiskReviewOverdue(risk, now) {
+			classification.OverdueReview = append(classification.OverdueReview, item)
 		}
 		if isRiskDueForReview(risk, now) {
 			classification.DueForReview = append(classification.DueForReview, item)
@@ -394,6 +415,9 @@ func classifyRiskDigest(
 		return classification.OverdueForAction[i].Title < classification.OverdueForAction[j].Title
 	})
 	sort.Slice(classification.Stale, func(i, j int) bool { return classification.Stale[i].Title < classification.Stale[j].Title })
+	sort.Slice(classification.OverdueReview, func(i, j int) bool {
+		return classification.OverdueReview[i].Title < classification.OverdueReview[j].Title
+	})
 	sort.Slice(classification.DueForReview, func(i, j int) bool {
 		return classification.DueForReview[i].Title < classification.DueForReview[j].Title
 	})
@@ -402,16 +426,24 @@ func classifyRiskDigest(
 }
 
 func buildRiskDigestEmailItem(
-	ctx context.Context,
-	db *gorm.DB,
 	risk *riskrel.Risk,
+	sspNamesByID map[uuid.UUID]string,
 	ownerIDs []uuid.UUID,
 	ownerNamesByUserID map[uuid.UUID]string,
 	webBaseURL string,
-) RiskDigestEmailItem {
+) (RiskDigestEmailItem, bool) {
+	if risk == nil || risk.ID == nil {
+		return RiskDigestEmailItem{}, false
+	}
+
+	sspName := strings.TrimSpace(sspNamesByID[risk.SSPID])
+	if sspName == "" {
+		sspName = risk.SSPID.String()
+	}
+
 	item := RiskDigestEmailItem{
 		Title:    strings.TrimSpace(risk.Title),
-		SSPName:  resolveSSPDisplayName(ctx, db, risk.SSPID),
+		SSPName:  sspName,
 		Status:   risk.Status,
 		Severity: formatRiskDigestSeverity(risk.Likelihood, risk.Impact),
 		RiskURL:  resolveRiskURL(webBaseURL, *risk.ID),
@@ -423,7 +455,7 @@ func buildRiskDigestEmailItem(
 		item.ReviewDeadline = formatDate(*risk.ReviewDeadline)
 	}
 	item.OwnerName = formatRiskDigestOwnerNames(ownerIDs, ownerNamesByUserID)
-	return item
+	return item, true
 }
 
 func loadRiskDigestOwnerNames(ctx context.Context, db *gorm.DB, ownersByRiskID map[uuid.UUID][]uuid.UUID) (map[uuid.UUID]string, error) {
@@ -466,6 +498,46 @@ func loadRiskDigestOwnerNames(ctx context.Context, db *gorm.DB, ownersByRiskID m
 	return names, nil
 }
 
+func loadRiskDigestSSPNames(ctx context.Context, db *gorm.DB, risks []riskrel.Risk) (map[uuid.UUID]string, error) {
+	sspIDs := make([]uuid.UUID, 0)
+	sspSet := make(map[uuid.UUID]struct{})
+	for i := range risks {
+		sspID := risks[i].SSPID
+		if _, ok := sspSet[sspID]; ok {
+			continue
+		}
+		sspSet[sspID] = struct{}{}
+		sspIDs = append(sspIDs, sspID)
+	}
+	if len(sspIDs) == 0 {
+		return map[uuid.UUID]string{}, nil
+	}
+
+	var characteristics []relational.SystemCharacteristics
+	if err := db.WithContext(ctx).
+		Select("system_security_plan_id", "system_name_short", "system_name").
+		Where("system_security_plan_id IN ?", sspIDs).
+		Find(&characteristics).Error; err != nil {
+		return nil, err
+	}
+
+	names := make(map[uuid.UUID]string, len(sspIDs))
+	for _, sspID := range sspIDs {
+		names[sspID] = sspID.String()
+	}
+	for _, characteristic := range characteristics {
+		name := strings.TrimSpace(characteristic.SystemNameShort)
+		if name == "" {
+			name = strings.TrimSpace(characteristic.SystemName)
+		}
+		if name == "" {
+			continue
+		}
+		names[characteristic.SystemSecurityPlanId] = name
+	}
+	return names, nil
+}
+
 func loadRiskDigestLastStatusChangeMap(ctx context.Context, db *gorm.DB, risks []riskrel.Risk) (map[uuid.UUID]time.Time, error) {
 	riskIDs := make([]uuid.UUID, 0, len(risks))
 	for i := range risks {
@@ -501,7 +573,7 @@ func loadRiskDigestLastStatusChangeMap(ctx context.Context, db *gorm.DB, risks [
 
 func isRiskNewSinceWindow(risk *riskrel.Risk, window riskDigestWindow) bool {
 	return containsString(riskDigestUnaddressedStatuses, risk.Status) &&
-		!risk.CreatedAt.Before(window.Start) &&
+		risk.CreatedAt.After(window.Start) &&
 		risk.CreatedAt.Before(window.End)
 }
 
@@ -512,12 +584,21 @@ func isRiskOverdueForAction(risk *riskrel.Risk, now time.Time, lastStatusChanged
 	if now.Sub(risk.CreatedAt.UTC()) < riskDigestOverdueActionAge {
 		return false
 	}
-	return lastStatusChangedAt.IsZero()
+	if lastStatusChangedAt.IsZero() {
+		return true
+	}
+	return !lastStatusChangedAt.UTC().After(risk.CreatedAt.UTC().Add(riskDigestStatusChangeGrace))
 }
 
 func isRiskStale(risk *riskrel.Risk, now time.Time) bool {
 	return containsString(riskDigestUnaddressedStatuses, risk.Status) &&
 		!risk.LastSeenAt.UTC().After(now.Add(-riskDigestStaleAge))
+}
+
+func isRiskReviewOverdue(risk *riskrel.Risk, now time.Time) bool {
+	return risk.Status == string(riskrel.RiskStatusRiskAccepted) &&
+		risk.ReviewDeadline != nil &&
+		!risk.ReviewDeadline.UTC().After(now)
 }
 
 func isRiskDueForReview(risk *riskrel.Risk, now time.Time) bool {

@@ -100,6 +100,20 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 		ReviewDeadline:     &reviewDeadline,
 		Assignments:        []uuid.UUID{recipientID},
 	})
+	overdueReviewDeadline := now.Add(-3 * 24 * time.Hour)
+	createDigestRisk(suite.T(), suite.DB, digestRiskSeed{
+		ID:                 uuid.New(),
+		SSPID:              sspID,
+		PrimaryOwnerUserID: &recipientID,
+		Title:              "Overdue accepted risk",
+		Status:             string(riskrel.RiskStatusRiskAccepted),
+		Likelihood:         strPtr("high"),
+		Impact:             strPtr("high"),
+		CreatedAt:          now.Add(-90 * 24 * time.Hour),
+		LastSeenAt:         now.Add(-6 * 24 * time.Hour),
+		ReviewDeadline:     &overdueReviewDeadline,
+		Assignments:        []uuid.UUID{recipientID},
+	})
 
 	client := &stubRiverClient{}
 	scheduler := NewRiskOpenDigestSchedulerWorker(suite.DB, client, riskDigestWindowDaily, suite.logger)
@@ -121,6 +135,10 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 		}
 		overdueItems, ok := data["OverdueForAction"].([]RiskDigestEmailItem)
 		if !ok || len(overdueItems) != 1 || overdueItems[0].Title != "Overdue risk" {
+			return false
+		}
+		overdueReviewItems, ok := data["OverdueReview"].([]RiskDigestEmailItem)
+		if !ok || len(overdueReviewItems) != 1 || overdueReviewItems[0].Title != "Overdue accepted risk" {
 			return false
 		}
 		dueItems, ok := data["DueForReview"].([]RiskDigestEmailItem)

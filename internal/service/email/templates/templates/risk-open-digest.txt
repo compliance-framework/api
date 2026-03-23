@@ -29,6 +29,15 @@ Hello {{.RecipientName}},
   {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}
   {{end}}Open risk: {{.RiskURL}}
 {{end}}
+{{end}}{{if .OverdueReview}}OVERDUE REVIEW
+{{range .OverdueReview}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  Severity: {{.Severity}}
+  Owner: {{.OwnerName}}
+  {{if .ReviewDeadline}}Review deadline: {{.ReviewDeadline}}
+  {{end}}Open risk: {{.RiskURL}}
+{{end}}
 {{end}}{{if .DueForReview}}DUE FOR REVIEW
 {{range .DueForReview}}- {{.Title}}
   SSP: {{.SSPName}}

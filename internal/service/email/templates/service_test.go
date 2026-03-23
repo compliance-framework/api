@@ -319,6 +319,17 @@ func TestTemplateService_RiskOpenDigest(t *testing.T) {
 				"RiskURL":        "https://app.example.com/risks/3",
 			},
 		},
+		"OverdueReview": []map[string]interface{}{
+			{
+				"Title":          "Overdue accepted risk",
+				"SSPName":        "GoodRead SSP",
+				"Status":         "risk-accepted",
+				"Severity":       "high x high",
+				"OwnerName":      "Alice Smith",
+				"ReviewDeadline": "20/mar/2026",
+				"RiskURL":        "https://app.example.com/risks/4",
+			},
+		},
 		"DueForReview": []map[string]interface{}{
 			{
 				"Title":          "Accepted risk",
@@ -327,7 +338,7 @@ func TestTemplateService_RiskOpenDigest(t *testing.T) {
 				"Severity":       "moderate x high",
 				"OwnerName":      "Alice Smith",
 				"ReviewDeadline": "30/mar/2026",
-				"RiskURL":        "https://app.example.com/risks/4",
+				"RiskURL":        "https://app.example.com/risks/5",
 			},
 		},
 		"RisksURL": "https://app.example.com/risks",
@@ -338,14 +349,17 @@ func TestTemplateService_RiskOpenDigest(t *testing.T) {
 	require.NotEmpty(t, html)
 	require.NotEmpty(t, text)
 	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "Risk Digest")
 	require.Contains(t, html, "New Since Last Digest")
 	require.Contains(t, html, "Overdue For Action")
 	require.Contains(t, html, "Stale")
+	require.Contains(t, html, "Overdue Review")
 	require.Contains(t, html, "Due For Review")
 	require.Contains(t, text, "NEW SINCE LAST DIGEST")
 	require.Contains(t, text, "OVERDUE FOR ACTION")
+	require.Contains(t, text, "OVERDUE REVIEW")
 	require.Contains(t, text, "DUE FOR REVIEW")
-	require.Contains(t, text, "https://app.example.com/risks/4")
+	require.Contains(t, text, "https://app.example.com/risks/5")
 }
 
 func TestTemplateService_ListTemplates(t *testing.T) {

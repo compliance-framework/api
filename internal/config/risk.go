@@ -122,10 +122,13 @@ func (c *RiskConfig) Validate() error {
 			return fmt.Errorf("invalid open_digest_schedule: %w", err)
 		}
 	}
-	switch strings.ToLower(strings.TrimSpace(c.OpenDigestWindow)) {
-	case "", "daily", "weekly":
-	default:
-		return fmt.Errorf("risk open digest window must be one of daily or weekly")
+	openDigestWindow := strings.ToLower(strings.TrimSpace(c.OpenDigestWindow))
+	if c.OpenDigestEnabled || openDigestWindow != "" {
+		switch openDigestWindow {
+		case "none", "daily", "weekly":
+		default:
+			return fmt.Errorf("risk open digest window must be one of none, daily or weekly")
+		}
 	}
 	if c.AutoReopenThresholdDays < 0 {
 		return fmt.Errorf("risk auto reopen threshold days must be non-negative")

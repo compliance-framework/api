@@ -557,15 +557,12 @@ func NewRiskEvidenceReconciliationPeriodicJob(schedule string, logger *zap.Sugar
 func NewRiskOpenDigestPeriodicJob(schedule string, windowKind string, logger *zap.SugaredLogger) *river.PeriodicJob {
 	window := normalizeRiskDigestWindow(windowKind)
 	fallback := riskDigestPeriodicDailyFallback
+	byPeriod := riskDigestDailyPeriod
 	if window == riskDigestWindowWeekly {
-		fallback = "@weekly"
+		fallback = "0 0 0 * * 1"
+		byPeriod = riskDigestWeeklyPeriod
 	}
 	sched := parseCronScheduleWithFallback(schedule, fallback, "risk open digest scheduler", logger)
-	windowCfg, err := computeRiskDigestWindow(time.Now().UTC(), window)
-	if err != nil {
-		logger.Errorw("Invalid risk open digest window, defaulting to daily", "window", window, "error", err)
-		windowCfg, _ = computeRiskDigestWindow(time.Now().UTC(), riskDigestWindowDaily)
-	}
 
 	return river.NewPeriodicJob(
 		sched,
@@ -575,7 +572,7 @@ func NewRiskOpenDigestPeriodicJob(schedule string, windowKind string, logger *za
 				MaxAttempts: 3,
 				UniqueOpts: river.UniqueOpts{
 					ByArgs:   true,
-					ByPeriod: windowCfg.ByPeriod,
+					ByPeriod: byPeriod,
 				},
 			}
 		},
