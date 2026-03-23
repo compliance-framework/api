@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"gorm.io/gorm"
 )
 
@@ -55,6 +56,21 @@ func TestBuildRiskDigestEmailItem_SkipsNilRiskID(t *testing.T) {
 
 	assert.False(t, ok)
 	assert.Empty(t, item)
+}
+
+func TestIsRiskNewSinceWindow_IncludesStartBoundary(t *testing.T) {
+	window := riskDigestWindow{
+		Start: time.Date(2026, 3, 22, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC),
+	}
+	risk := &riskrel.Risk{
+		Status:    string(riskrel.RiskStatusOpen),
+		CreatedAt: window.Start,
+	}
+
+	assert.True(t, isRiskNewSinceWindow(risk, window))
+	risk.CreatedAt = window.End
+	assert.False(t, isRiskNewSinceWindow(risk, window))
 }
 
 func TestRiskOpenDigestSchedulerWorker_EnqueuesUniqueRecipients(t *testing.T) {
@@ -115,6 +131,51 @@ func TestRiskOpenDigestSchedulerWorker_EnqueuesUniqueRecipients(t *testing.T) {
 		client.params[1].Args.(RiskOpenDigestArgs).RecipientUserID,
 	}
 	assert.ElementsMatch(t, []uuid.UUID{ownerA, ownerB}, gotRecipients)
+}
+
+func TestRiskOpenDigestSchedulerWorker_WarnsOnInvalidRecipientUserID(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	client := &stubRiverClient{}
+	now := time.Date(2026, 3, 23, 15, 0, 0, 0, time.UTC)
+	core, observed := observer.New(zap.WarnLevel)
+	logger := zap.New(core).Sugar()
+
+	sspID := uuid.New()
+	require.NoError(t, db.Create(&relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+	}).Error)
+
+	ownerID := uuid.New()
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&riskrel.Risk{
+		UUIDModel:          relational.UUIDModel{ID: &riskID},
+		Title:              "Digest candidate",
+		Description:        "Scheduler coverage",
+		Status:             string(riskrel.RiskStatusOpen),
+		SSPID:              sspID,
+		PrimaryOwnerUserID: &ownerID,
+		SourceType:         string(riskrel.RiskSourceTypeManual),
+		FirstSeenAt:        now.Add(-2 * time.Hour),
+		LastSeenAt:         now.Add(-2 * time.Hour),
+	}).Error)
+	require.NoError(t, db.Create(&riskrel.RiskOwnerAssignment{
+		RiskID:    riskID,
+		OwnerKind: "user",
+		OwnerRef:  "not-a-uuid",
+		IsPrimary: false,
+	}).Error)
+
+	worker := NewRiskOpenDigestSchedulerWorker(db, client, riskDigestWindowDaily, logger)
+	worker.now = func() time.Time { return now }
+
+	err := worker.Work(context.Background(), &river.Job[RiskOpenDigestSchedulerArgs]{})
+	require.NoError(t, err)
+	require.Len(t, client.params, 1)
+	require.Equal(t, ownerID, client.params[0].Args.(RiskOpenDigestArgs).RecipientUserID)
+
+	logs := observed.FilterMessage("RiskOpenDigestSchedulerWorker: skipping invalid recipient user ID").All()
+	require.Len(t, logs, 1)
+	assert.Equal(t, "not-a-uuid", logs[0].ContextMap()["user_id"])
 }
 
 func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {

@@ -176,6 +176,16 @@ func TestRiskConfigValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "enabled open digest allows empty window as daily",
+			cfg: &RiskConfig{
+				OpenDigestEnabled:       true,
+				OpenDigestSchedule:      "0 0 11 * * *",
+				OpenDigestWindow:        "",
+				AutoReopenThresholdDays: 30,
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

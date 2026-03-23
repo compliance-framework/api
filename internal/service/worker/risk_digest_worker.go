@@ -101,7 +101,7 @@ func (w *RiskOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[R
 		return fmt.Errorf("risk open digest scheduler: invalid window: %w", err)
 	}
 
-	recipientIDs, err := resolveRiskDigestRecipientUserIDs(ctx, w.db)
+	recipientIDs, err := resolveRiskDigestRecipientUserIDs(ctx, w.db, w.logger)
 	if err != nil {
 		return fmt.Errorf("risk open digest scheduler: resolve recipients failed: %w", err)
 	}
@@ -302,7 +302,7 @@ func parseRiskDigestWindowFromArgs(args RiskOpenDigestArgs) (riskDigestWindow, e
 	return window, nil
 }
 
-func resolveRiskDigestRecipientUserIDs(ctx context.Context, db *gorm.DB) ([]uuid.UUID, error) {
+func resolveRiskDigestRecipientUserIDs(ctx context.Context, db *gorm.DB, logger *zap.SugaredLogger) ([]uuid.UUID, error) {
 	type row struct {
 		UserID string `gorm:"column:user_id"`
 	}
@@ -330,6 +330,12 @@ func resolveRiskDigestRecipientUserIDs(ctx context.Context, db *gorm.DB) ([]uuid
 	for _, row := range rows {
 		recipientID, err := uuid.Parse(strings.TrimSpace(row.UserID))
 		if err != nil {
+			if logger != nil {
+				logger.Warnw("RiskOpenDigestSchedulerWorker: skipping invalid recipient user ID",
+					"user_id", row.UserID,
+					"error", err,
+				)
+			}
 			continue
 		}
 		recipients = append(recipients, recipientID)
@@ -573,7 +579,7 @@ func loadRiskDigestLastStatusChangeMap(ctx context.Context, db *gorm.DB, risks [
 
 func isRiskNewSinceWindow(risk *riskrel.Risk, window riskDigestWindow) bool {
 	return containsString(riskDigestUnaddressedStatuses, risk.Status) &&
-		risk.CreatedAt.After(window.Start) &&
+		!risk.CreatedAt.Before(window.Start) &&
 		risk.CreatedAt.Before(window.End)
 }
 

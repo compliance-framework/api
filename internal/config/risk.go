@@ -124,10 +124,13 @@ func (c *RiskConfig) Validate() error {
 	}
 	openDigestWindow := strings.ToLower(strings.TrimSpace(c.OpenDigestWindow))
 	if c.OpenDigestEnabled || openDigestWindow != "" {
+		if openDigestWindow == "" {
+			openDigestWindow = "daily"
+		}
 		switch openDigestWindow {
-		case "none", "daily", "weekly":
+		case "daily", "weekly":
 		default:
-			return fmt.Errorf("risk open digest window must be one of none, daily or weekly")
+			return fmt.Errorf("risk open digest window must be one of daily or weekly")
 		}
 	}
 	if c.AutoReopenThresholdDays < 0 {
