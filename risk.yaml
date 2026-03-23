@@ -13,6 +13,6 @@ evidence_reconciliation_schedule: "0 30 10 * * *"
 auto_reopen_enabled: false
 auto_reopen_threshold_days: 30
 
-open_digest_enabled: true
-open_digest_schedule: "0 0 9 * * *"
-open_digest_window: none
+open_digest_enabled: false
+open_digest_schedule: "0 0 11 * * *"
+open_digest_window: daily
