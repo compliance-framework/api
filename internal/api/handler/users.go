@@ -2,6 +2,9 @@ package handler
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
@@ -23,6 +26,16 @@ type userResponse struct {
 	AuthProvider *string `json:"authProvider,omitempty"`
 }
 
+type selectableUserResponse struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+}
+
+type publicUserResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type SubscriptionsResponse struct {
 	Subscribed                   bool `json:"subscribed"`
 	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
@@ -36,6 +49,11 @@ type UpdateSubscriptionsRequest struct {
 	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
 	RiskNotificationsSubscribed  *bool `json:"riskNotificationsSubscribed"`
 }
+
+const (
+	defaultSelectableUsersLimit = 100
+	maxSelectableUsersLimit     = 1000
+)
 
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 	return &UserHandler{
@@ -54,10 +72,15 @@ func (h *UserHandler) Register(api *echo.Group) {
 }
 
 func (h *UserHandler) RegisterSelfRoutes(api *echo.Group) {
-	api.GET("/me", h.GetMe)
-	api.POST("/me/change-password", h.ChangeLoggedInUserPassword)
-	api.GET("/me/subscriptions", h.GetSubscriptions)
-	api.PUT("/me/subscriptions", h.UpdateSubscriptions)
+	api.GET("", h.GetMe)
+	api.POST("/change-password", h.ChangeLoggedInUserPassword)
+	api.GET("/subscriptions", h.GetSubscriptions)
+	api.PUT("/subscriptions", h.UpdateSubscriptions)
+}
+
+func (h *UserHandler) RegisterPublicRoutes(api *echo.Group) {
+	api.GET("/select", h.ListSelectableUsers)
+	api.GET("/:id", h.GetPublicUser)
 }
 
 // ListUsers godoc
@@ -87,6 +110,81 @@ func (h *UserHandler) ListUsers(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(200, GenericDataListResponse[userResponse]{
+		Data: responses,
+	})
+}
+
+// ListSelectableUsers godoc
+//
+//	@Summary		List selectable users
+//	@Description	Lists users with only id and display name for selection controls
+//	@Tags			Users
+//	@Produce		json
+//	@Param			search	query		string	false	"Filter users by name"
+//	@Param			limit	query		int		false	"Maximum users to return"
+//	@Param			offset	query		int		false	"Number of users to skip"
+//	@Success		200		{object}	handler.GenericDataListResponse[handler.selectableUserResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		401		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/select [get]
+func (h *UserHandler) ListSelectableUsers(ctx echo.Context) error {
+	search := strings.TrimSpace(ctx.QueryParam("search"))
+	query := h.db.Model(&relational.User{}).
+		Select("id", "first_name", "last_name").
+		Where("is_active = ? AND is_locked = ?", true, false)
+
+	limit := defaultSelectableUsersLimit
+	if rawLimit := strings.TrimSpace(ctx.QueryParam("limit")); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil || parsedLimit < 1 {
+			return ctx.JSON(400, api.NewError(fmt.Errorf("invalid limit parameter")))
+		}
+		if parsedLimit > maxSelectableUsersLimit {
+			parsedLimit = maxSelectableUsersLimit
+		}
+		limit = parsedLimit
+	}
+
+	offset := 0
+	if rawOffset := strings.TrimSpace(ctx.QueryParam("offset")); rawOffset != "" {
+		parsedOffset, err := strconv.Atoi(rawOffset)
+		if err != nil || parsedOffset < 0 {
+			return ctx.JSON(400, api.NewError(fmt.Errorf("invalid offset parameter")))
+		}
+		offset = parsedOffset
+	}
+
+	if search != "" {
+		pattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where(
+			"LOWER(COALESCE(first_name, '')) LIKE ? OR LOWER(COALESCE(last_name, '')) LIKE ? OR LOWER(COALESCE(first_name, '')) || ' ' || LOWER(COALESCE(last_name, '')) LIKE ?",
+			pattern,
+			pattern,
+			pattern,
+		)
+	}
+
+	var users []relational.User
+	if err := query.Order("first_name ASC, last_name ASC, id ASC").Limit(limit).Offset(offset).Find(&users).Error; err != nil {
+		h.sugar.Errorw("Failed to list selectable users", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	responses := make([]selectableUserResponse, 0, len(users))
+	for _, user := range users {
+		if user.ID == nil {
+			continue
+		}
+
+		responses = append(responses, selectableUserResponse{
+			ID:          user.ID.String(),
+			DisplayName: userDisplayName(user),
+		})
+	}
+
+	return ctx.JSON(200, GenericDataListResponse[selectableUserResponse]{
 		Data: responses,
 	})
 }
@@ -134,6 +232,46 @@ func (h *UserHandler) GetUser(ctx echo.Context) error {
 	})
 }
 
+// GetPublicUser godoc
+//
+//	@Summary		Get public user details by ID
+//	@Description	Get minimal user details by user ID
+//	@Tags			Users
+//	@Produce		json
+//	@Param			id	path		string	true	"User ID"
+//	@Success		200	{object}	handler.GenericDataResponse[handler.publicUserResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/users/{id} [get]
+func (h *UserHandler) GetPublicUser(ctx echo.Context) error {
+	userID := ctx.Param("id")
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		h.sugar.Warnw("Invalid user ID", "error", err, "user_id", userID)
+		return ctx.JSON(400, api.NewError(err))
+	}
+
+	var user relational.User
+	if err := h.db.First(&user, userUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(404, api.NewError(err))
+		}
+		h.sugar.Errorw("Failed to get public user", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
+	return ctx.JSON(200, GenericDataResponse[publicUserResponse]{
+		Data: publicUserResponse{
+			ID:   user.ID.String(),
+			Name: userDisplayName(user),
+		},
+	})
+}
+
 func (h *UserHandler) attachAuthProvider(resp *userResponse) {
 	if resp == nil || resp.ID == nil {
 		return
@@ -155,6 +293,18 @@ func (h *UserHandler) attachAuthProvider(resp *userResponse) {
 	}
 
 	resp.AuthProvider = &link.Provider
+}
+
+func userDisplayName(user relational.User) string {
+	if user.ID == nil {
+		return ""
+	}
+
+	if displayName := strings.TrimSpace(strings.TrimSpace(user.FirstName) + " " + strings.TrimSpace(user.LastName)); displayName != "" {
+		return displayName
+	}
+
+	return user.ID.String()
 }
 
 // GetMe godoc

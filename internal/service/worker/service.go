@@ -602,7 +602,7 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 				MaxWorkers: 10,
 			},
 			"risk": {
-				MaxWorkers: 2,
+				MaxWorkers: 20,
 			},
 		},
 		Workers:      workers,
@@ -750,23 +750,23 @@ func (s *Service) EnqueueSendEmailFrom(ctx context.Context, args *SendEmailFromA
 	return nil
 }
 
-// EnqueueRiskProcessEvidenceFailure enqueues a risk process evidence failure job
-func (s *Service) EnqueueRiskProcessEvidenceFailure(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error {
+// EnqueueRiskProcessEvidence enqueues a risk process evidence job
+func (s *Service) EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uuid.UUID, evidenceEnd, status string) error {
 	if !s.config.Enabled || s.client == nil {
 		return nil
 	}
 
-	args := &RiskProcessEvidenceFailureArgs{
+	args := &RiskProcessEvidenceArgs{
 		EvidenceID:  evidenceID,
 		EvidenceEnd: evidenceEnd,
 		Status:      status,
 	}
 
 	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptionsForRiskProcessEvidenceFailure()},
+		{Args: args, InsertOpts: JobInsertOptionsForRiskProcessEvidence()},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to enqueue risk process evidence failure job: %w", err)
+		return fmt.Errorf("failed to enqueue risk process evidence job: %w", err)
 	}
 
 	return nil

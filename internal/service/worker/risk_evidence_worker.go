@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
@@ -19,7 +20,19 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// RiskEvidenceWorker handles processing evidence failure and creating risks
+// resolvedSSPInfo groups a resolved SSP ID with the control links that matched.
+type resolvedSSPInfo struct {
+	SSPID        uuid.UUID
+	ControlLinks []controlLinkInfo
+}
+
+// controlLinkInfo holds a catalog+control pair from a matching filter.
+type controlLinkInfo struct {
+	CatalogID uuid.UUID
+	ControlID string
+}
+
+// RiskEvidenceWorker handles processing evidence and creating risks
 type RiskEvidenceWorker struct {
 	db     *gorm.DB
 	logger *zap.SugaredLogger
@@ -33,26 +46,42 @@ func NewRiskEvidenceWorker(db *gorm.DB, logger *zap.SugaredLogger) *RiskEvidence
 	}
 }
 
-// Work is the River work function for processing evidence failure and creating risks
-func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProcessEvidenceFailureArgs]) error {
+// Work is the River work function for processing evidence and creating risks
+func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProcessEvidenceArgs]) error {
 	args := job.Args
 
-	w.logger.Infow("Processing risk evidence failure job",
+	w.logger.Infow("Processing risk evidence job",
 		"evidence_id", args.EvidenceID,
 		"evidence_end", args.EvidenceEnd,
 		"status", args.Status,
 	)
 
-	// Step 4: Implement Risk Resolver Algorithm
-
-	// 1. Load Data: Load the Evidence by ID (including labels, violations/props, and linked subjects)
+	// 1. Load evidence with relations
 	evidence, err := w.loadEvidenceWithRelations(ctx, args.EvidenceID)
 	if err != nil {
 		w.logger.Errorw("Failed to load evidence", "error", err, "evidence_id", args.EvidenceID)
 		return err
 	}
 
-	// 2. Risk Templates: Load RiskTemplates based on `_policy` label from evidence
+	// 2. Resolution flow — always runs regardless of evidence status.
+	// Removes stale evidence→risk links and transitions fully-resolved risks to "remediated".
+	if err := w.handleEvidenceResolution(ctx, evidence); err != nil {
+		w.logger.Errorw("Evidence resolution completed with errors", "error", err, "evidence_id", args.EvidenceID)
+		// Continue to creation flow — resolution errors should not block risk creation.
+	}
+
+	// 3. Check evidence status early to avoid unnecessary work for satisfied evidence.
+	statusData := evidence.Status.Data()
+	if statusData.State != relational.EvidenceStatusNotSatisfied {
+		w.logger.Infow("Evidence is not 'not-satisfied', skipping risk creation",
+			"evidence_id", args.EvidenceID,
+			"status", statusData.State,
+		)
+		return nil
+	}
+
+	// 4. Load risk templates based on _policy label before resolving SSPs.
+	// If there are no matching templates, we can skip SSP resolution entirely.
 	riskTemplates, err := w.loadRiskTemplates(ctx, evidence.Labels, args.EvidenceID)
 	if err != nil {
 		w.logger.Errorw("Failed to load risk templates", "error", err, "evidence_id", args.EvidenceID)
@@ -64,18 +93,29 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return nil
 	}
 
-	// 3. Violation Filtering: Filter the risk templates by checking the fired violation.id against risk_template.violation_ids
+	// 5. Resolve SSPs via filter matching (replaces component-based resolution)
+	sspInfos, err := w.resolveSSPsViaFilters(ctx, evidence.Labels)
+	if err != nil {
+		w.logger.Errorw("Failed to resolve SSPs via filters", "error", err, "evidence_id", args.EvidenceID)
+		return err
+	}
+
+	if len(sspInfos) == 0 {
+		w.logger.Infow("No SSPs resolved via filters for evidence", "evidence_id", args.EvidenceID)
+		return nil
+	}
+
+	// 6. Filter risk templates by violation IDs
 	filteredRiskTemplates, err := w.filterRiskTemplatesByViolations(riskTemplates, evidence.Props)
 	if err != nil {
 		w.logger.Errorw("Failed to filter risk templates by violations", "error", err, "evidence_id", args.EvidenceID)
 		return err
 	}
 
-	// 4. Risk Creation/Update: For each candidate RiskTemplate, create one risk per SSP.
-	// Collect per-template errors so River can retry the whole job if any template fails.
+	// 7. Create/update risks for each template × SSP
 	var errs []error
 	for _, riskTemplate := range filteredRiskTemplates {
-		if err := w.createOrUpdateRisksForSSPs(ctx, riskTemplate, evidence); err != nil {
+		if err := w.createOrUpdateRisksForSSPs(ctx, riskTemplate, evidence, sspInfos); err != nil {
 			w.logger.Errorw("Failed to create or update risks for SSPs",
 				"error", err,
 				"evidence_id", args.EvidenceID,
@@ -88,12 +128,112 @@ func (w *RiskEvidenceWorker) Work(ctx context.Context, job *river.Job[RiskProces
 		return errors.Join(errs...)
 	}
 
-	w.logger.Infow("Risk evidence failure job processed successfully",
+	w.logger.Infow("Risk evidence job processed successfully",
 		"evidence_id", args.EvidenceID,
 		"risk_templates", len(filteredRiskTemplates),
+		"ssps", len(sspInfos),
 	)
 
 	return nil
+}
+
+// resolveSSPsViaFilters resolves SSPs by evaluating evidence labels against all filters in-memory,
+// then querying the DB for the filter→control→SSP path.
+func (w *RiskEvidenceWorker) resolveSSPsViaFilters(ctx context.Context, evidenceLabels []relational.Labels) ([]resolvedSSPInfo, error) {
+	// 1. Load only filters that have at least one control linked (via filter_controls).
+	// Filters without controls can never resolve to an SSP, so loading them is wasteful.
+	var filters []relational.Filter
+	if err := w.db.WithContext(ctx).
+		Where("id IN (SELECT DISTINCT filter_id FROM filter_controls)").
+		Find(&filters).Error; err != nil {
+		return nil, fmt.Errorf("failed to load filters: %w", err)
+	}
+
+	if len(filters) == 0 {
+		return nil, nil
+	}
+
+	// 2. Normalize evidence labels into map[string][]string
+	labelPairs := make([]struct{ Name, Value string }, len(evidenceLabels))
+	for i, l := range evidenceLabels {
+		labelPairs[i] = struct{ Name, Value string }{Name: l.Name, Value: l.Value}
+	}
+	normalizedLabels := labelfilter.NormalizeLabels(labelPairs)
+
+	// 3. Evaluate each filter
+	var matchingFilterIDs []uuid.UUID
+	for _, f := range filters {
+		filterData := f.Filter.Data()
+		matches, err := labelfilter.MatchLabels(filterData.Scope, normalizedLabels)
+		if err != nil {
+			w.logger.Errorw("Invalid filter query operator",
+				"error", err,
+				"filter_id", f.ID,
+			)
+			continue
+		}
+		if matches {
+			matchingFilterIDs = append(matchingFilterIDs, *f.ID)
+		}
+	}
+
+	if len(matchingFilterIDs) == 0 {
+		return nil, nil
+	}
+
+	w.logger.Debugw("Filters matched evidence labels",
+		"matching_filter_count", len(matchingFilterIDs),
+		"total_filters", len(filters),
+	)
+
+	// 4. Query filter_controls → SSPs via profile_controls to ensure catalog-scoped matching.
+	// We join through profile_controls to guarantee that the catalog ID from the filter
+	// matches the catalog the SSP's profile actually references. Without this, two controls
+	// from different catalogs sharing the same control ID string (e.g. "AC-1") would
+	// incorrectly cross-match.
+	type filterControlRow struct {
+		SystemSecurityPlanID uuid.UUID `gorm:"column:system_security_plan_id"`
+		ControlCatalogID     uuid.UUID `gorm:"column:control_catalog_id"`
+		ControlID            string    `gorm:"column:control_id"`
+	}
+
+	var rows []filterControlRow
+	if err := w.db.WithContext(ctx).
+		Table("filter_controls fc").
+		Select("DISTINCT ssp.id AS system_security_plan_id, fc.control_catalog_id, fc.control_id").
+		Joins("JOIN profile_controls pc ON CAST(pc.control_catalog_id AS uuid) = CAST(fc.control_catalog_id AS uuid) AND UPPER(pc.control_id) = UPPER(fc.control_id)").
+		Joins("JOIN system_security_plans ssp ON CAST(ssp.profile_id AS uuid) = CAST(pc.profile_id AS uuid)").
+		Joins("JOIN control_implementations ci ON CAST(ci.system_security_plan_id AS uuid) = CAST(ssp.id AS uuid)").
+		Joins("JOIN implemented_requirements ir ON CAST(ir.control_implementation_id AS uuid) = CAST(ci.id AS uuid) AND UPPER(ir.control_id) = UPPER(fc.control_id)").
+		Where("fc.filter_id IN ?", matchingFilterIDs).
+		Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to query SSPs via filter controls: %w", err)
+	}
+
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	// 5. Group by SSP ID
+	sspMap := make(map[uuid.UUID]*resolvedSSPInfo)
+	for _, row := range rows {
+		info, exists := sspMap[row.SystemSecurityPlanID]
+		if !exists {
+			info = &resolvedSSPInfo{SSPID: row.SystemSecurityPlanID}
+			sspMap[row.SystemSecurityPlanID] = info
+		}
+		info.ControlLinks = append(info.ControlLinks, controlLinkInfo{
+			CatalogID: row.ControlCatalogID,
+			ControlID: row.ControlID,
+		})
+	}
+
+	result := make([]resolvedSSPInfo, 0, len(sspMap))
+	for _, info := range sspMap {
+		result = append(result, *info)
+	}
+
+	return result, nil
 }
 
 // RiskEvidenceWorker helper methods
@@ -104,10 +244,7 @@ func (w *RiskEvidenceWorker) loadEvidenceWithRelations(ctx context.Context, evid
 
 	err := w.db.WithContext(ctx).
 		Preload("Labels").
-		Preload("Subjects").
-		Preload("Subjects.IncludeSubjects").
 		Preload("Components").
-		Preload("InventoryItems").
 		Where("id = ?", evidenceID).
 		First(&evidence).Error
 
@@ -233,20 +370,12 @@ func (w *RiskEvidenceWorker) violationMatches(templateViolationIDs, evidenceViol
 	return false
 }
 
-// createOrUpdateRisksForSSPs creates or updates risks for each SSP associated with the evidence
-func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence) error {
-
-	// Get unique SSP IDs from evidence components
-	sspIDs, err := w.extractSSPIDsFromComponents(ctx, evidence.Components)
-	if err != nil {
-		return fmt.Errorf("failed to extract SSP IDs from components: %w", err)
-	}
-	// Create/update one risk per SSP
-	// If no SSPIDs are valid, no risks are needed
+// createOrUpdateRisksForSSPs creates or updates risks for each resolved SSP
+func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspInfos []resolvedSSPInfo) error {
 	var errs []error
-	for _, sspID := range sspIDs {
+	for _, sspInfo := range sspInfos {
 		// Compute dedupe key: ssp_id + risk_template_id
-		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, evidence, sspID)
+		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, sspInfo.SSPID)
 
 		// Look for existing active risk with this dedupe key
 		var existingRisk risks.Risk
@@ -261,10 +390,10 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 
 		if err == nil {
 			// Existing risk found - update it
-			err = w.updateExistingRisk(ctx, &existingRisk, riskTemplate, evidence)
+			err = w.updateExistingRisk(ctx, &existingRisk, evidence, sspInfo.ControlLinks)
 		} else {
 			// No existing risk - create new one
-			err = w.createNewRiskForSSP(ctx, riskTemplate, evidence, sspID, dedupeKey)
+			err = w.createNewRiskForSSP(ctx, riskTemplate, evidence, sspInfo.SSPID, dedupeKey, sspInfo.ControlLinks)
 		}
 
 		if err != nil {
@@ -272,7 +401,7 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 				"error", err,
 				"evidence_id", evidence.UUID,
 				"risk_template_id", riskTemplate.ID,
-				"ssp_id", sspID)
+				"ssp_id", sspInfo.SSPID)
 			errs = append(errs, err)
 		}
 	}
@@ -280,65 +409,28 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 	return errors.Join(errs...)
 }
 
-// extractSSPIDsFromComponents extracts unique SSP IDs from evidence components.
-// Returns an error on DB failure so the caller (and River job) can retry rather than
-// silently producing no risks.
-func (w *RiskEvidenceWorker) extractSSPIDsFromComponents(ctx context.Context, components []relational.SystemComponent) ([]uuid.UUID, error) {
-	if len(components) == 0 {
-		return []uuid.UUID{}, nil
-	}
-
-	// Extract unique SystemImplementation IDs from components
-	implIDs := make([]uuid.UUID, 0, len(components))
-	seenImplIDs := make(map[uuid.UUID]bool)
-
-	for _, component := range components {
-		if component.SystemImplementationId != uuid.Nil && !seenImplIDs[component.SystemImplementationId] {
-			implIDs = append(implIDs, component.SystemImplementationId)
-			seenImplIDs[component.SystemImplementationId] = true
-		}
-	}
-
-	if len(implIDs) == 0 {
-		return []uuid.UUID{}, nil
-	}
-
-	// Load SystemImplementations to get SSP IDs
-	var implementations []relational.SystemImplementation
-	if err := w.db.WithContext(ctx).
-		Where("id IN ?", implIDs).
-		Find(&implementations).Error; err != nil {
-		return nil, fmt.Errorf("failed to load system implementations for impl IDs %v: %w", implIDs, err)
-	}
-
-	// Extract unique SSP IDs
-	sspIDs := make([]uuid.UUID, 0, len(implementations))
-	seenSSPIDs := make(map[uuid.UUID]bool)
-
-	for _, impl := range implementations {
-		if impl.SystemSecurityPlanId != uuid.Nil && !seenSSPIDs[impl.SystemSecurityPlanId] {
-			sspIDs = append(sspIDs, impl.SystemSecurityPlanId)
-			seenSSPIDs[impl.SystemSecurityPlanId] = true
-		}
-	}
-
-	return sspIDs, nil
-}
-
 // computeDedupeKeyForSSP computes the dedupe key for a risk.
 // Format: ssp_id:risk_template_id
-func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID) string {
+func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, sspID uuid.UUID) string {
 	return fmt.Sprintf("%s:%s", sspID.String(), riskTemplate.ID.String())
 }
 
 // updateExistingRisk updates an existing risk with new evidence.
 // The save, link upserts, and event insertion run in a single transaction so that
 // a partial failure cannot leave the risk with a bumped LastSeenAt but missing links/events.
-func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRisk *risks.Risk, riskTemplate templates.RiskTemplate, evidence *relational.Evidence) error {
+func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRisk *risks.Risk, evidence *relational.Evidence, controlLinks []controlLinkInfo) error {
 	now := time.Now().UTC()
 
 	// Capture previous value before mutation so the event payload is accurate.
 	previousLastSeen := existingRisk.LastSeenAt
+
+	// If the risk was remediated and new failing evidence arrives, re-open it.
+	reopened := false
+	oldStatus := existingRisk.Status
+	if existingRisk.Status == string(risks.RiskStatusRemediated) {
+		existingRisk.Status = string(risks.RiskStatusOpen)
+		reopened = true
+	}
 
 	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		existingRisk.LastSeenAt = now
@@ -346,11 +438,21 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 			return fmt.Errorf("failed to update existing risk: %w", err)
 		}
 
-		// Re-create all risk links (evidence, components) for this new piece of evidence.
-		// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks
-		// and also keeps component associations up to date as new evidence arrives.
-		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, existingRisk.SSPID, evidence); err != nil {
+		// Re-create all risk links (evidence, controls) for this new piece of evidence.
+		// createRiskLinks is idempotent via OnConflict{DoNothing}, so this is safe for existing risks.
+		if err := w.createRiskLinks(ctx, tx, *existingRisk.ID, existingRisk.SSPID, evidence, controlLinks); err != nil {
 			return fmt.Errorf("failed to create risk links: %w", err)
+		}
+
+		if reopened {
+			if err := w.emitRiskEvent(ctx, tx, *existingRisk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+				"from":        oldStatus,
+				"to":          string(risks.RiskStatusOpen),
+				"evidence_id": evidence.UUID,
+				"reason":      "new_failing_evidence",
+			}); err != nil {
+				return fmt.Errorf("failed to emit reopen status change event: %w", err)
+			}
 		}
 
 		// Emit a risk_event(last_seen) using the typed constant.
@@ -380,7 +482,7 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 // createNewRiskForSSP creates a new risk based on the template, evidence, and SSP.
 // The risk row and all its links are created inside a single transaction so that a
 // link failure cannot leave an orphaned risk with no evidence.
-func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID, dedupeKey string) error {
+func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID, dedupeKey string, controlLinks []controlLinkInfo) error {
 	now := time.Now().UTC()
 
 	newRisk := risks.Risk{
@@ -410,7 +512,7 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		if err := w.copyTemplateAssociationsToRisk(tx, *newRisk.ID, riskTemplate); err != nil {
 			return fmt.Errorf("failed to copy risk template associations: %w", err)
 		}
-		if err := w.createRiskLinks(ctx, tx, *newRisk.ID, sspID, evidence); err != nil {
+		if err := w.createRiskLinks(ctx, tx, *newRisk.ID, sspID, evidence, controlLinks); err != nil {
 			return err
 		}
 		// Emit a risk_event(created) using the typed constant
@@ -484,10 +586,10 @@ func (w *RiskEvidenceWorker) copyTemplateAssociationsToRisk(tx *gorm.DB, riskID 
 	return nil
 }
 
-// createRiskLinks creates the currently supported links for a risk (evidence and component).
+// createRiskLinks creates the currently supported links for a risk (evidence, controls, and components).
 // Accepts a *gorm.DB so the caller can pass a transaction.
 // Uses OnConflict{DoNothing} throughout so retries are idempotent.
-func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, riskSSPID uuid.UUID, evidence *relational.Evidence) error {
+func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, riskID uuid.UUID, riskSSPID uuid.UUID, evidence *relational.Evidence, controlLinks []controlLinkInfo) error {
 	now := time.Now().UTC()
 	if evidence.UUID == uuid.Nil {
 		evidenceID := uuid.Nil
@@ -507,73 +609,268 @@ func (w *RiskEvidenceWorker) createRiskLinks(ctx context.Context, db *gorm.DB, r
 		return fmt.Errorf("failed to create evidence link: %w", err)
 	}
 
-	// Prefetch SystemImplementations for all evidence components to avoid an N+1 query pattern.
-	systemImplIDs := make([]uuid.UUID, 0, len(evidence.Components))
-	seenSystemImplIDs := make(map[uuid.UUID]struct{}, len(evidence.Components))
-	for _, component := range evidence.Components {
-		systemImplID := component.SystemImplementationId
-		if systemImplID == uuid.Nil {
-			continue
+	// Link controls
+	for _, cl := range controlLinks {
+		link := &risks.RiskControlLink{
+			RiskID:    riskID,
+			CatalogID: cl.CatalogID,
+			ControlID: cl.ControlID,
+			CreatedAt: now,
 		}
-		if _, seen := seenSystemImplIDs[systemImplID]; seen {
-			continue
+		if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(link).Error; err != nil {
+			return fmt.Errorf("failed to create control link: %w", err)
 		}
-		seenSystemImplIDs[systemImplID] = struct{}{}
-		systemImplIDs = append(systemImplIDs, systemImplID)
 	}
 
-	systemImplToSSPID := make(map[uuid.UUID]uuid.UUID, len(systemImplIDs))
-	if len(systemImplIDs) > 0 {
-		var systemImpls []relational.SystemImplementation
-		if err := db.WithContext(ctx).
-			Select("id", "system_security_plan_id").
-			Where("id IN ?", systemImplIDs).
-			Find(&systemImpls).Error; err != nil {
-			return fmt.Errorf("failed to prefetch components' system implementations: %w", err)
-		}
-		for _, systemImpl := range systemImpls {
-			if systemImpl.ID == nil {
+	// Link components — if the evidence has system components belonging to the same SSP, bind them.
+	if len(evidence.Components) > 0 {
+		// Prefetch SystemImplementations to map component → SSP, avoiding N+1.
+		systemImplIDs := make([]uuid.UUID, 0, len(evidence.Components))
+		seenSystemImplIDs := make(map[uuid.UUID]struct{}, len(evidence.Components))
+		for _, component := range evidence.Components {
+			systemImplID := component.SystemImplementationId
+			if systemImplID == uuid.Nil {
 				continue
 			}
-			systemImplToSSPID[*systemImpl.ID] = systemImpl.SystemSecurityPlanId
+			if _, seen := seenSystemImplIDs[systemImplID]; seen {
+				continue
+			}
+			seenSystemImplIDs[systemImplID] = struct{}{}
+			systemImplIDs = append(systemImplIDs, systemImplID)
+		}
+
+		systemImplToSSPID := make(map[uuid.UUID]uuid.UUID, len(systemImplIDs))
+		if len(systemImplIDs) > 0 {
+			var systemImpls []relational.SystemImplementation
+			if err := db.WithContext(ctx).
+				Select("id", "system_security_plan_id").
+				Where("id IN ?", systemImplIDs).
+				Find(&systemImpls).Error; err != nil {
+				return fmt.Errorf("failed to prefetch components' system implementations: %w", err)
+			}
+			for _, systemImpl := range systemImpls {
+				if systemImpl.ID == nil {
+					continue
+				}
+				systemImplToSSPID[*systemImpl.ID] = systemImpl.SystemSecurityPlanId
+			}
+		}
+
+		for _, component := range evidence.Components {
+			componentSSPID, ok := systemImplToSSPID[component.SystemImplementationId]
+			if !ok {
+				continue
+			}
+			// Only link components belonging to the same SSP as the risk.
+			if componentSSPID != riskSSPID {
+				continue
+			}
+			componentLink := &risks.RiskComponentLink{
+				RiskID:      riskID,
+				ComponentID: *component.ID,
+				CreatedAt:   now,
+			}
+			if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(componentLink).Error; err != nil {
+				return fmt.Errorf("failed to create component link: %w", err)
+			}
 		}
 	}
-
-	// Link components
-	for _, component := range evidence.Components {
-		componentSSPID, ok := systemImplToSSPID[component.SystemImplementationId]
-		if !ok {
-			w.logger.Warnw("Component's SystemImplementation not found, skipping component link",
-				"component_id", component.ID,
-				"system_implementation_id", component.SystemImplementationId,
-				"risk_id", riskID)
-			continue
-		}
-
-		// Skip if component belongs to a different SSP
-		if componentSSPID != riskSSPID {
-			w.logger.Warnw("Component belongs to different SSP than risk, skipping component link",
-				"component_id", component.ID,
-				"component_ssp_id", componentSSPID,
-				"risk_ssp_id", riskSSPID,
-				"risk_id", riskID)
-			continue
-		}
-
-		componentLink := &risks.RiskComponentLink{
-			RiskID:      riskID,
-			ComponentID: *component.ID,
-			CreatedAt:   now,
-		}
-		if err := db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(componentLink).Error; err != nil {
-			return fmt.Errorf("failed to create component link: %w", err)
-		}
-	}
-
-	// TODO: Link controls - derive from the RiskTemplate or from the evidence's subject → control
-	// mapping once that relationship is established in the data model.
 
 	return nil
+}
+
+// handleEvidenceResolution evaluates all active risks linked to this evidence stream and
+// removes links that are no longer justified (evidence satisfied or violations no longer match).
+// When a risk loses its last evidence link it is transitioned to "remediated" (or an audit
+// event is emitted if the risk is in "risk-accepted" status).
+func (w *RiskEvidenceWorker) handleEvidenceResolution(ctx context.Context, evidence *relational.Evidence) error {
+	if evidence.UUID == uuid.Nil {
+		return nil
+	}
+
+	statusData := evidence.Status.Data()
+	evidenceSatisfied := statusData.State == relational.EvidenceStatusSatisfied
+	evidenceViolationIDs := w.extractViolationIDs(evidence.Props)
+
+	// Load all evidence links for this stream.
+	var links []risks.RiskEvidenceLink
+	if err := w.db.WithContext(ctx).
+		Where("evidence_id = ?", evidence.UUID).
+		Find(&links).Error; err != nil {
+		return fmt.Errorf("failed to load evidence links: %w", err)
+	}
+
+	if len(links) == 0 {
+		return nil
+	}
+
+	// Collect unique risk IDs from the links.
+	riskIDs := make([]uuid.UUID, 0, len(links))
+	for _, link := range links {
+		riskIDs = append(riskIDs, link.RiskID)
+	}
+
+	// Batch-load the linked risks.
+	var linkedRisks []risks.Risk
+	if err := w.db.WithContext(ctx).
+		Where("id IN ?", riskIDs).
+		Find(&linkedRisks).Error; err != nil {
+		return fmt.Errorf("failed to load linked risks: %w", err)
+	}
+
+	riskByID := make(map[uuid.UUID]*risks.Risk, len(linkedRisks))
+	for i := range linkedRisks {
+		riskByID[*linkedRisks[i].ID] = &linkedRisks[i]
+	}
+
+	// Collect unique template IDs to batch-load.
+	templateIDs := make(map[uuid.UUID]struct{})
+	for i := range linkedRisks {
+		if linkedRisks[i].RiskTemplateID != nil {
+			templateIDs[*linkedRisks[i].RiskTemplateID] = struct{}{}
+		}
+	}
+
+	// Batch-load risk templates.
+	templateByID := make(map[uuid.UUID]*templates.RiskTemplate)
+	if len(templateIDs) > 0 {
+		templateIDList := make([]uuid.UUID, 0, len(templateIDs))
+		for id := range templateIDs {
+			templateIDList = append(templateIDList, id)
+		}
+
+		var riskTemplates []templates.RiskTemplate
+		if err := w.db.WithContext(ctx).
+			Select("id", "violation_ids").
+			Where("id IN ?", templateIDList).
+			Find(&riskTemplates).Error; err != nil {
+			return fmt.Errorf("failed to batch-load risk templates: %w", err)
+		}
+
+		for i := range riskTemplates {
+			templateByID[*riskTemplates[i].ID] = &riskTemplates[i]
+		}
+	}
+
+	var errs []error
+	for _, link := range links {
+		risk, ok := riskByID[link.RiskID]
+		if !ok {
+			continue
+		}
+		// Skip risks that are already closed or remediated — nothing to resolve.
+		if risk.Status == string(risks.RiskStatusClosed) || risk.Status == string(risks.RiskStatusRemediated) {
+			continue
+		}
+
+		remove := w.shouldRemoveEvidenceLink(risk, evidenceSatisfied, evidenceViolationIDs, templateByID)
+		if !remove {
+			continue
+		}
+
+		if err := w.resolveRiskEvidenceLink(ctx, risk, evidence.UUID); err != nil {
+			w.logger.Errorw("Failed to resolve risk evidence link",
+				"error", err, "risk_id", risk.ID, "evidence_id", evidence.UUID)
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// shouldRemoveEvidenceLink decides whether a risk's evidence link should be removed.
+func (w *RiskEvidenceWorker) shouldRemoveEvidenceLink(risk *risks.Risk, evidenceSatisfied bool, evidenceViolationIDs []string, templateByID map[uuid.UUID]*templates.RiskTemplate) bool {
+	// Satisfied evidence means the underlying condition is fixed — always remove.
+	if evidenceSatisfied {
+		return true
+	}
+
+	// Evidence is still not-satisfied. Check whether the risk template's violation IDs
+	// still intersect with the evidence's current violations.
+	if risk.RiskTemplateID == nil {
+		return false
+	}
+
+	tmpl, ok := templateByID[*risk.RiskTemplateID]
+	if !ok {
+		// If the template is gone we can't determine relevance — keep the link.
+		return false
+	}
+
+	// Template with empty ViolationIDs matches any not-satisfied evidence — keep link.
+	if len(tmpl.ViolationIDs) == 0 {
+		return false
+	}
+
+	// If none of the template's violations appear in the current evidence → remove.
+	return !w.violationMatches(tmpl.ViolationIDs, evidenceViolationIDs)
+}
+
+// resolveRiskEvidenceLink removes a single evidence link from a risk and, if no links remain,
+// transitions the risk to "remediated" (or emits an audit event for "risk-accepted" risks).
+func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *risks.Risk, evidenceStreamID uuid.UUID) error {
+	return w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete the evidence link.
+		result := tx.Delete(&risks.RiskEvidenceLink{}, "risk_id = ? AND evidence_id = ?", *risk.ID, evidenceStreamID)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete evidence link: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil // already removed
+		}
+
+		// Emit evidence_unlinked event.
+		if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeEvidenceUnlink), map[string]interface{}{
+			"evidence_id": evidenceStreamID.String(),
+			"reason":      "auto_resolution",
+		}); err != nil {
+			return fmt.Errorf("failed to emit evidence unlink event: %w", err)
+		}
+
+		// Count remaining evidence links for this risk.
+		var remaining int64
+		if err := tx.Model(&risks.RiskEvidenceLink{}).
+			Where("risk_id = ?", *risk.ID).
+			Count(&remaining).Error; err != nil {
+			return fmt.Errorf("failed to count remaining evidence links: %w", err)
+		}
+
+		if remaining > 0 {
+			w.logger.Infow("Evidence link removed but risk still has remaining links",
+				"risk_id", risk.ID, "evidence_id", evidenceStreamID, "remaining", remaining)
+			return nil
+		}
+
+		// No evidence links remain — decide based on risk status.
+		if risk.Status == string(risks.RiskStatusRiskAccepted) {
+			// Do NOT auto-close; emit audit event only.
+			if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeEvidenceRecovered), map[string]interface{}{
+				"evidence_id": evidenceStreamID.String(),
+			}); err != nil {
+				return fmt.Errorf("failed to emit evidence_recovered event: %w", err)
+			}
+			w.logger.Infow("Risk is risk-accepted; emitted evidence_recovered event without status change",
+				"risk_id", risk.ID, "evidence_id", evidenceStreamID)
+			return nil
+		}
+
+		// Transition to remediated.
+		oldStatus := risk.Status
+		if err := tx.Model(risk).Update("status", string(risks.RiskStatusRemediated)).Error; err != nil {
+			return fmt.Errorf("failed to transition risk to remediated: %w", err)
+		}
+		if err := w.emitRiskEvent(ctx, tx, *risk.ID, string(risks.RiskEventTypeStatusChange), map[string]interface{}{
+			"from":   oldStatus,
+			"to":     string(risks.RiskStatusRemediated),
+			"reason": "all_evidence_resolved",
+		}); err != nil {
+			return fmt.Errorf("failed to emit status change event: %w", err)
+		}
+
+		w.logger.Infow("Risk transitioned to remediated",
+			"risk_id", risk.ID, "evidence_id", evidenceStreamID, "from_status", oldStatus)
+		return nil
+	})
 }
 
 // emitRiskEvent creates a risk event record using the provided DB handle.

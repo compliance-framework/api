@@ -22586,6 +22586,127 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/select": {
+            "get": {
+                "description": "Lists users with only id and display name for selection controls",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List selectable users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter users by name",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum users to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of users to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_selectableUserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "description": "Get minimal user details by user ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get public user details by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_publicUserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/users/{id}/change-password": {
             "post": {
                 "description": "Changes the password for a user by ID",
@@ -26140,6 +26261,18 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_selectableUserResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.selectableUserResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-oscalTypes_1_1_3_AssessmentPlan": {
             "type": "object",
             "properties": {
@@ -26767,6 +26900,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/handler.poamItemResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.GenericDataResponse-handler_publicUserResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.publicUserResponse"
                         }
                     ]
                 }
@@ -28265,6 +28411,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.publicUserResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.remediationTaskRequest": {
             "type": "object",
             "properties": {
@@ -28497,6 +28654,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated-at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.selectableUserResponse": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "string"
                 }
             }

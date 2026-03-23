@@ -465,6 +465,14 @@ definitions:
           $ref: '#/definitions/handler.poamItemResponse'
         type: array
     type: object
+  handler.GenericDataListResponse-handler_selectableUserResponse:
+    properties:
+      data:
+        description: Items from the list response
+        items:
+          $ref: '#/definitions/handler.selectableUserResponse'
+        type: array
+    type: object
   handler.GenericDataListResponse-oscal_InventoryItemWithSource:
     properties:
       data:
@@ -871,6 +879,13 @@ definitions:
       data:
         allOf:
         - $ref: '#/definitions/handler.poamItemResponse'
+        description: Items from the list response
+    type: object
+  handler.GenericDataResponse-handler_publicUserResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.publicUserResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_remediationTemplateResponse:
@@ -1753,6 +1768,13 @@ definitions:
       updatedAt:
         type: string
     type: object
+  handler.publicUserResponse:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   handler.remediationTaskRequest:
     properties:
       order-index:
@@ -1905,6 +1927,13 @@ definitions:
       title:
         type: string
       updated-at:
+        type: string
+    type: object
+  handler.selectableUserResponse:
+    properties:
+      displayName:
+        type: string
+      id:
         type: string
     type: object
   handler.threatIDRequest:
@@ -23309,6 +23338,43 @@ paths:
       summary: Update risk threat reference
       tags:
       - Risks
+  /users/{id}:
+    get:
+      description: Get minimal user details by user ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataResponse-handler_publicUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get public user details by ID
+      tags:
+      - Users
   /users/{id}/change-password:
     post:
       consumes:
@@ -23479,6 +23545,46 @@ paths:
       security:
       - OAuth2Password: []
       summary: Update notification preferences
+      tags:
+      - Users
+  /users/select:
+    get:
+      description: Lists users with only id and display name for selection controls
+      parameters:
+      - description: Filter users by name
+        in: query
+        name: search
+        type: string
+      - description: Maximum users to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of users to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GenericDataListResponse-handler_selectableUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: List selectable users
       tags:
       - Users
   /workflows/control-relationships:

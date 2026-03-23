@@ -2,13 +2,16 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
+	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +38,8 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&relational.SystemImplementation{},
 		&relational.InventoryItem{},
 		&relational.SystemSecurityPlan{},
+		&relational.ControlImplementation{},
+		&relational.ImplementedRequirement{},
 		&templates.RiskTemplate{},
 		&templates.RiskTemplateThreatRef{},
 		&templates.RemediationTemplate{},
@@ -50,6 +55,36 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&risks.RiskEvent{},
 	))
 
+	// Manually create filter-related tables (avoid full AutoMigrate of Filter model which may
+	// pull in complex dependencies)
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS filters (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME,
+		name TEXT,
+		filter JSON
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS filter_controls (
+		filter_id TEXT,
+		control_catalog_id TEXT,
+		control_id TEXT
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS profiles (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME
+	)`).Error)
+
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS profile_controls (
+		profile_id TEXT,
+		control_catalog_id TEXT,
+		control_id TEXT
+	)`).Error)
+
 	return db
 }
 
@@ -61,7 +96,7 @@ func createTestRiskEvidenceWorker(t *testing.T) *RiskEvidenceWorker {
 	return NewRiskEvidenceWorker(db, logger)
 }
 
-// createTestEvidence creates a test evidence record
+// createTestEvidence creates a test evidence record with not-satisfied status
 func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 	t.Helper()
 	evidenceID := uuid.New()
@@ -71,6 +106,7 @@ func createTestEvidence(t *testing.T, db *gorm.DB) *relational.Evidence {
 		Title:     "Test Evidence",
 		Start:     time.Now().Add(-1 * time.Hour),
 		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
 		Labels: []relational.Labels{
 			{Name: "environment", Value: "production"},
 			{Name: "category", Value: "security"},
@@ -122,32 +158,99 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-// createTestEvidenceWithSSP creates test evidence linked to an SSP via a component + implementation.
-// Returns evidence and the SSP.
-func createTestEvidenceWithSSP(t *testing.T, db *gorm.DB) (*relational.Evidence, *relational.SystemSecurityPlan) {
+// seedFilterForControl creates a Filter with a simple label condition and links it to a control.
+// Returns the filter ID.
+func seedFilterForControl(t *testing.T, db *gorm.DB, controlCatalogID uuid.UUID, controlID, labelKey, labelValue string) uuid.UUID {
 	t.Helper()
-	ssp := createTestSSP(t, db)
+	filterID := uuid.New()
 
-	implID := uuid.New()
-	impl := &relational.SystemImplementation{
-		UUIDModel:            relational.UUIDModel{ID: &implID},
+	filterScope := labelfilter.Filter{
+		Scope: &labelfilter.Scope{
+			Condition: &labelfilter.Condition{
+				Label:    labelKey,
+				Operator: "=",
+				Value:    labelValue,
+			},
+		},
+	}
+	filterJSON, err := json.Marshal(filterScope)
+	require.NoError(t, err)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO filters (id, name, filter) VALUES (?, ?, ?)`,
+		filterID.String(), "test-filter", string(filterJSON),
+	).Error)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO filter_controls (filter_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+		filterID.String(), controlCatalogID.String(), controlID,
+	).Error)
+
+	return filterID
+}
+
+// createTestSSPWithControl creates an SSP with a Profile (linked via profile_controls to the
+// given catalog+control), a ControlImplementation, and an ImplementedRequirement. Returns the SSP.
+func createTestSSPWithControl(t *testing.T, db *gorm.DB, catalogID uuid.UUID, controlID string) *relational.SystemSecurityPlan {
+	t.Helper()
+
+	// Create a profile and link it to the control via profile_controls.
+	profileID := uuid.New()
+	require.NoError(t, db.Exec(
+		`INSERT INTO profiles (id) VALUES (?)`, profileID.String(),
+	).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO profile_controls (profile_id, control_catalog_id, control_id) VALUES (?, ?, ?)`,
+		profileID.String(), catalogID.String(), controlID,
+	).Error)
+
+	// Create SSP linked to the profile.
+	sspID := uuid.New()
+	ssp := &relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+		ProfileID: &profileID,
+	}
+	require.NoError(t, db.Create(ssp).Error)
+
+	ciID := uuid.New()
+	ci := &relational.ControlImplementation{
+		UUIDModel:            relational.UUIDModel{ID: &ciID},
 		SystemSecurityPlanId: *ssp.ID,
+		Description:          "Test control implementation",
 	}
-	require.NoError(t, db.Create(impl).Error)
+	require.NoError(t, db.Create(ci).Error)
 
-	compID := uuid.New()
-	component := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &compID},
-		SystemImplementationId: *impl.ID,
+	irID := uuid.New()
+	ir := &relational.ImplementedRequirement{
+		UUIDModel:               relational.UUIDModel{ID: &irID},
+		ControlImplementationId: ciID,
+		ControlId:               controlID,
 	}
-	require.NoError(t, db.Create(component).Error)
+	require.NoError(t, db.Create(ir).Error)
 
+	return ssp
+}
+
+// createTestEvidenceWithFilterPath creates evidence with labels matching a filter that links to an SSP.
+// Returns the evidence and SSP.
+func createTestEvidenceWithFilterPath(t *testing.T, db *gorm.DB) (*relational.Evidence, *relational.SystemSecurityPlan) {
+	t.Helper()
+
+	catalogID := uuid.New()
+	controlID := "AC-1"
+
+	// Create filter matching evidence labels
+	seedFilterForControl(t, db, catalogID, controlID, "environment", "production")
+
+	// Create SSP with Profile + ControlImplementation + ImplementedRequirement for the same control
+	ssp := createTestSSPWithControl(t, db, catalogID, controlID)
+
+	// Create evidence with matching labels
 	evidence := createTestEvidence(t, db)
-	require.NoError(t, db.Model(evidence).Association("Components").Append(component))
 
-	// Reload to include associations (Props is a JSON column, not a relation — don't Preload it)
+	// Reload with relations
 	var loaded relational.Evidence
-	require.NoError(t, db.Preload("Labels").Preload("Subjects").Preload("Components").First(&loaded, "id = ?", evidence.ID).Error)
+	require.NoError(t, db.Preload("Labels").Preload("Subjects").First(&loaded, "id = ?", evidence.ID).Error)
 	return &loaded, ssp
 }
 
@@ -170,17 +273,17 @@ func TestRiskEvidenceWorker_Work_Success(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test data: risk template and evidence with a component linked to an SSP
+	// Create test data: risk template, evidence with filter path to SSP
 	riskTemplate := createTestRiskTemplate(t, worker.db)
-	evidence, ssp := createTestEvidenceWithSSP(t, worker.db)
+	evidence, ssp := createTestEvidenceWithFilterPath(t, worker.db)
 
-	args := RiskProcessEvidenceFailureArgs{
+	args := RiskProcessEvidenceArgs{
 		EvidenceID:  *evidence.ID,
 		EvidenceEnd: "2023-01-01T00:00:00Z",
 		Status:      "not-satisfied",
 	}
 
-	job := &river.Job[RiskProcessEvidenceFailureArgs]{Args: args}
+	job := &river.Job[RiskProcessEvidenceArgs]{Args: args}
 	err := worker.Work(ctx, job)
 	assert.NoError(t, err)
 
@@ -198,6 +301,13 @@ func TestRiskEvidenceWorker_Work_Success(t *testing.T) {
 		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidence.UUID).
 		First(&link).Error)
 
+	// Verify control link was created
+	var controlLink risks.RiskControlLink
+	require.NoError(t, worker.db.WithContext(ctx).
+		Where("risk_id = ?", risk.ID).
+		First(&controlLink).Error)
+	assert.Equal(t, "AC-1", controlLink.ControlID)
+
 	// Verify a created event was emitted
 	var event risks.RiskEvent
 	require.NoError(t, worker.db.WithContext(ctx).
@@ -211,16 +321,13 @@ func TestRiskEvidenceWorker_Work_EvidenceNotFound(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create job args with non-existent evidence ID
-	args := RiskProcessEvidenceFailureArgs{
+	args := RiskProcessEvidenceArgs{
 		EvidenceID:  uuid.New(),
 		EvidenceEnd: "2023-01-01T00:00:00Z",
 		Status:      "not-satisfied",
 	}
 
-	job := &river.Job[RiskProcessEvidenceFailureArgs]{Args: args}
-
-	// Execute the worker
+	job := &river.Job[RiskProcessEvidenceArgs]{Args: args}
 	err := worker.Work(ctx, job)
 
 	assert.Error(t, err)
@@ -233,7 +340,11 @@ func TestRiskEvidenceWorker_Work_NoMatchingTemplates(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create evidence with _policy label that won't match any risk templates
+	// Create evidence with filter path but _policy label that won't match any templates
+	catalogID := uuid.New()
+	seedFilterForControl(t, worker.db, catalogID, "AC-1", "environment", "production")
+	createTestSSPWithControl(t, worker.db, catalogID, "AC-1")
+
 	evidence := &relational.Evidence{
 		UUIDModel: relational.UUIDModel{},
 		UUID:      uuid.New(),
@@ -241,43 +352,30 @@ func TestRiskEvidenceWorker_Work_NoMatchingTemplates(t *testing.T) {
 		Start:     time.Now().Add(-1 * time.Hour),
 		End:       time.Now(),
 		Labels: []relational.Labels{
+			{Name: "environment", Value: "production"},
 			{Name: "_policy", Value: "non-existent-policy"},
 		},
 	}
-
 	require.NoError(t, worker.db.Create(evidence).Error)
 
-	// Create job args
-	args := RiskProcessEvidenceFailureArgs{
+	args := RiskProcessEvidenceArgs{
 		EvidenceID:  *evidence.ID,
 		EvidenceEnd: "2023-01-01T00:00:00Z",
 		Status:      "not-satisfied",
 	}
 
-	job := &river.Job[RiskProcessEvidenceFailureArgs]{Args: args}
-
-	// Execute the worker
+	job := &river.Job[RiskProcessEvidenceArgs]{Args: args}
 	err := worker.Work(ctx, job)
 
-	assert.NoError(t, err) // Should not error, just log and return
+	assert.NoError(t, err)
 
 	// Verify no risks were created
 	var riskCount int64
 	require.NoError(t, worker.db.Model(&risks.Risk{}).Count(&riskCount).Error)
-	assert.Equal(t, int64(0), riskCount, "no risks should be created when no templates match")
-
-	// Verify no risk links were created
-	var linkCount int64
-	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).Count(&linkCount).Error)
-	assert.Equal(t, int64(0), linkCount, "no risk links should be created when no templates match")
-
-	// Verify no risk events were created
-	var eventCount int64
-	require.NoError(t, worker.db.Model(&risks.RiskEvent{}).Count(&eventCount).Error)
-	assert.Equal(t, int64(0), eventCount, "no risk events should be created when no templates match")
+	assert.Equal(t, int64(0), riskCount)
 }
 
-func TestRiskEvidenceWorker_Work_NoComponents_NoRisks(t *testing.T) {
+func TestRiskEvidenceWorker_Work_NoFiltersMatch(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
@@ -286,21 +384,72 @@ func TestRiskEvidenceWorker_Work_NoComponents_NoRisks(t *testing.T) {
 	// Create risk template
 	_ = createTestRiskTemplate(t, worker.db)
 
-	// Evidence with matching _policy label but NO components — no SSPs can be resolved
+	// Evidence with labels that don't match any filter — no SSPs resolved
 	evidence := createTestEvidence(t, worker.db)
 
-	args := RiskProcessEvidenceFailureArgs{
+	args := RiskProcessEvidenceArgs{
 		EvidenceID:  *evidence.ID,
 		EvidenceEnd: "2023-01-01T00:00:00Z",
 		Status:      "not-satisfied",
 	}
 
-	job := &river.Job[RiskProcessEvidenceFailureArgs]{Args: args}
+	job := &river.Job[RiskProcessEvidenceArgs]{Args: args}
 	err := worker.Work(ctx, job)
 
 	assert.NoError(t, err)
 
 	// No risks should have been created
+	var count int64
+	require.NoError(t, worker.db.Model(&risks.Risk{}).Count(&count).Error)
+	assert.Equal(t, int64(0), count)
+}
+
+func TestRiskEvidenceWorker_Work_SatisfiedEvidence_NoRisks(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create SSP with filter path
+	catalogID := uuid.New()
+	seedFilterForControl(t, worker.db, catalogID, "AC-1", "environment", "production")
+	createTestSSPWithControl(t, worker.db, catalogID, "AC-1")
+
+	// Create risk template
+	_ = createTestRiskTemplate(t, worker.db)
+
+	// Create evidence with "satisfied" status
+	evidenceID := uuid.New()
+	status := oscalTypes_1_1_3.ObjectiveStatus{
+		State: "satisfied",
+	}
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(status),
+		Labels: []relational.Labels{
+			{Name: "environment", Value: "production"},
+			{Name: "_policy", Value: "test-policy"},
+		},
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+	require.Equal(t, "satisfied", evidence.Status.Data().State)
+
+	args := RiskProcessEvidenceArgs{
+		EvidenceID:  evidenceID,
+		EvidenceEnd: "2023-01-01T00:00:00Z",
+		Status:      "satisfied",
+	}
+
+	job := &river.Job[RiskProcessEvidenceArgs]{Args: args}
+	err := worker.Work(ctx, job)
+
+	assert.NoError(t, err)
+
+	// No risks should be created for satisfied evidence
 	var count int64
 	require.NoError(t, worker.db.Model(&risks.Risk{}).Count(&count).Error)
 	assert.Equal(t, int64(0), count)
@@ -312,19 +461,16 @@ func TestRiskEvidenceWorker_Work_PolicyLabelMatch(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template with a specific policy package
 	riskTemplate := createTestRiskTemplate(t, worker.db)
+	evidence, ssp := createTestEvidenceWithFilterPath(t, worker.db)
 
-	// Evidence with matching _policy label
-	evidence, ssp := createTestEvidenceWithSSP(t, worker.db)
-
-	args := RiskProcessEvidenceFailureArgs{
+	args := RiskProcessEvidenceArgs{
 		EvidenceID:  *evidence.ID,
 		EvidenceEnd: "2023-01-01T00:00:00Z",
 		Status:      "not-satisfied",
 	}
 
-	job := &river.Job[RiskProcessEvidenceFailureArgs]{Args: args}
+	job := &river.Job[RiskProcessEvidenceArgs]{Args: args}
 	err := worker.Work(ctx, job)
 	assert.NoError(t, err)
 
@@ -333,7 +479,7 @@ func TestRiskEvidenceWorker_Work_PolicyLabelMatch(t *testing.T) {
 	require.NoError(t, worker.db.Model(&risks.Risk{}).
 		Where("ssp_id = ? AND risk_template_id = ?", ssp.ID, riskTemplate.ID).
 		Count(&count).Error)
-	assert.Equal(t, int64(1), count, "risk template with matching policy package should have created a risk")
+	assert.Equal(t, int64(1), count)
 }
 
 func TestRiskEvidenceWorker_loadEvidenceWithRelations(t *testing.T) {
@@ -361,7 +507,6 @@ func TestRiskEvidenceWorker_loadEvidenceWithRelations_NotFound(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Try to load non-existent evidence
 	nonExistentID := uuid.New()
 	_, err := worker.loadEvidenceWithRelations(ctx, nonExistentID)
 
@@ -375,15 +520,12 @@ func TestRiskEvidenceWorker_loadRiskTemplates(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test risk template with policy package "test-policy"
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	// Create evidence labels with matching _policy label
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "test-policy"},
 	}
 
-	// Load risk templates
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -398,12 +540,10 @@ func TestRiskEvidenceWorker_loadRiskTemplates_NoPolicyLabel(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create evidence labels without _policy label
 	evidenceLabels := []relational.Labels{
 		{Name: "environment", Value: "production"},
 	}
 
-	// Load risk templates
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -417,15 +557,12 @@ func TestRiskEvidenceWorker_loadRiskTemplates_NoMatchingPolicyPackage(t *testing
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template with policy package "test-policy"
 	_ = createTestRiskTemplate(t, worker.db)
 
-	// Create evidence labels with different _policy label
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "different-policy"},
 	}
 
-	// Load risk templates
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -439,7 +576,6 @@ func TestRiskEvidenceWorker_loadRiskTemplates_MultipleMatchingTemplates(t *testi
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create multiple risk templates with the same policy package
 	template1ID := uuid.New()
 	template1 := &templates.RiskTemplate{
 		UUIDModel:     relational.UUIDModel{ID: &template1ID},
@@ -466,12 +602,10 @@ func TestRiskEvidenceWorker_loadRiskTemplates_MultipleMatchingTemplates(t *testi
 	}
 	require.NoError(t, worker.db.Create(template2).Error)
 
-	// Create evidence labels with matching _policy label
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "shared-policy"},
 	}
 
-	// Load risk templates
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -485,7 +619,6 @@ func TestRiskEvidenceWorker_loadRiskTemplates_MultiplePolicyLabels(t *testing.T)
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create two risk templates with different policy packages
 	template1ID := uuid.New()
 	template1 := &templates.RiskTemplate{
 		UUIDModel:     relational.UUIDModel{ID: &template1ID},
@@ -512,13 +645,11 @@ func TestRiskEvidenceWorker_loadRiskTemplates_MultiplePolicyLabels(t *testing.T)
 	}
 	require.NoError(t, worker.db.Create(template2).Error)
 
-	// Create evidence labels with multiple _policy labels
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "policy-one"},
 		{Name: "_policy", Value: "policy-two"},
 	}
 
-	// Load risk templates - should match both
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -532,15 +663,12 @@ func TestRiskEvidenceWorker_loadRiskTemplates_CaseInsensitiveLabelName(t *testin
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	// Create evidence labels with different case for _policy label name
 	evidenceLabels := []relational.Labels{
 		{Name: "_POLICY", Value: "test-policy"},
 	}
 
-	// Load risk templates - should match despite case difference
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -555,15 +683,12 @@ func TestRiskEvidenceWorker_loadRiskTemplates_WhitespaceTrimming(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	// Create evidence labels with whitespace around value
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "  test-policy  "},
 	}
 
-	// Load risk templates - should match after trimming
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -578,17 +703,14 @@ func TestRiskEvidenceWorker_loadRiskTemplates_DuplicatePolicyLabels(t *testing.T
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	// Create evidence labels with duplicate _policy labels (same value)
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "test-policy"},
 		{Name: "_policy", Value: "test-policy"},
-		{Name: "_policy", Value: "  test-policy  "}, // With whitespace
+		{Name: "_policy", Value: "  test-policy  "},
 	}
 
-	// Load risk templates - should deduplicate and match once
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -603,13 +725,11 @@ func TestRiskEvidenceWorker_loadRiskTemplates_EmptyPolicyValue(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create evidence labels with empty _policy value
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: ""},
-		{Name: "_policy", Value: "   "}, // Only whitespace
+		{Name: "_policy", Value: "   "},
 	}
 
-	// Load risk templates - should return empty as values are empty/whitespace
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -623,15 +743,12 @@ func TestRiskEvidenceWorker_loadRiskTemplates_CaseInsensitivePolicyValue(t *test
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create a risk template with policy package "test-policy"
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	// Create evidence labels with different case for _policy value
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "TEST-POLICY"},
 	}
 
-	// Load risk templates - should match despite case difference in value
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -646,7 +763,6 @@ func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testi
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create an active risk template
 	activeTemplateID := uuid.New()
 	activeTemplate := &templates.RiskTemplate{
 		UUIDModel:     relational.UUIDModel{ID: &activeTemplateID},
@@ -660,7 +776,6 @@ func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testi
 	}
 	require.NoError(t, worker.db.Create(activeTemplate).Error)
 
-	// Create an inactive risk template with same policy package
 	inactiveTemplateID := uuid.New()
 	inactiveTemplate := &templates.RiskTemplate{
 		UUIDModel:     relational.UUIDModel{ID: &inactiveTemplateID},
@@ -673,15 +788,12 @@ func TestRiskEvidenceWorker_loadRiskTemplates_InactiveTemplatesExcluded(t *testi
 		ViolationIDs:  []string{"VIOL-001"},
 	}
 	require.NoError(t, worker.db.Create(inactiveTemplate).Error)
-	// Explicitly update to ensure IsActive is set to false (SQLite may have default behavior)
 	require.NoError(t, worker.db.Model(inactiveTemplate).Update("is_active", false).Error)
 
-	// Create evidence labels with matching _policy label
 	evidenceLabels := []relational.Labels{
 		{Name: "_policy", Value: "test-policy"},
 	}
 
-	// Load risk templates
 	evidenceID := uuid.New()
 	loaded, err := worker.loadRiskTemplates(ctx, evidenceLabels, evidenceID)
 
@@ -695,7 +807,6 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 
 	worker := createTestRiskEvidenceWorker(t)
 
-	// Create risk templates
 	template1 := &templates.RiskTemplate{
 		UUIDModel:    relational.UUIDModel{ID: &uuid.UUID{}},
 		ViolationIDs: []string{"VIOL-001"},
@@ -710,18 +821,16 @@ func TestRiskEvidenceWorker_filterRiskTemplatesByViolations(t *testing.T) {
 
 	template3 := &templates.RiskTemplate{
 		UUIDModel:    relational.UUIDModel{ID: &uuid.UUID{}},
-		ViolationIDs: []string{}, // Empty means match any violation
+		ViolationIDs: []string{},
 		IsActive:     true,
 	}
 
 	riskTemplates := []templates.RiskTemplate{*template1, *template2, *template3}
 
-	// Create evidence props with violation ID
 	evidenceProps := datatypes.NewJSONSlice([]relational.Prop{
 		{Name: "violation_id", Value: "VIOL-001"},
 	})
 
-	// Filter templates
 	filtered, err := worker.filterRiskTemplatesByViolations(riskTemplates, evidenceProps)
 
 	assert.NoError(t, err)
@@ -759,7 +868,6 @@ func TestRiskEvidenceWorker_violationMatches(t *testing.T) {
 
 	assert.True(t, worker.violationMatches(templateViolationIDs, evidenceViolationIDs))
 
-	// Test no match
 	evidenceViolationIDs = []string{"VIOL-003", "VIOL-004"}
 	assert.False(t, worker.violationMatches(templateViolationIDs, evidenceViolationIDs))
 }
@@ -770,7 +878,6 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test data
 	ssp := createTestSSP(t, worker.db)
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 	require.NoError(t, worker.db.Create(&templates.RiskTemplateThreatRef{
@@ -796,37 +903,22 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 		Preload("RemediationTemplate.Tasks").
 		First(riskTemplate, "id = ?", riskTemplate.ID).Error)
 
-	// Create system implementation linked to SSP
-	impl := &relational.SystemImplementation{
-		UUIDModel:            relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemSecurityPlanId: *ssp.ID,
-	}
-	*impl.ID = uuid.New()
-	require.NoError(t, worker.db.Create(impl).Error)
-
-	// Create component linked to implementation
-	component := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: *impl.ID,
-	}
-	*component.ID = uuid.New()
-	require.NoError(t, worker.db.Create(component).Error)
-
 	evidence := createTestEvidence(t, worker.db)
 
-	// Link component to evidence
-	require.NoError(t, worker.db.Model(evidence).Association("Components").Append(component))
+	catalogID := uuid.New()
+	sspInfos := []resolvedSSPInfo{
+		{
+			SSPID: *ssp.ID,
+			ControlLinks: []controlLinkInfo{
+				{CatalogID: catalogID, ControlID: "AC-1"},
+			},
+		},
+	}
 
-	// Reload evidence with associations
-	var loaded relational.Evidence
-	require.NoError(t, worker.db.Preload("Labels").Preload("Subjects").Preload("Components").First(&loaded, "id = ?", evidence.ID).Error)
-
-	// Create new risk
-	err := worker.createOrUpdateRisksForSSPs(ctx, *riskTemplate, &loaded)
-
+	err := worker.createOrUpdateRisksForSSPs(ctx, *riskTemplate, evidence, sspInfos)
 	assert.NoError(t, err)
 
-	// Verify risk was created with proper SSP (query by ssp+template, dedupe key no longer includes evidence.UUID)
+	// Verify risk was created
 	var risk risks.Risk
 	err = worker.db.WithContext(ctx).Where("ssp_id = ? AND risk_template_id = ?", ssp.ID, riskTemplate.ID).First(&risk).Error
 	assert.NoError(t, err)
@@ -850,6 +942,12 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_CreateNew(t *testing.T) {
 	require.NoError(t, worker.db.Where("risk_remediation_template_id = ?", *remediationTemplates[0].ID).Find(&remediationTasks).Error)
 	require.Len(t, remediationTasks, 1)
 	assert.Equal(t, "Patch code", remediationTasks[0].Title)
+
+	// Verify control link
+	var controlLink risks.RiskControlLink
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).First(&controlLink).Error)
+	assert.Equal(t, catalogID, controlLink.CatalogID)
+	assert.Equal(t, "AC-1", controlLink.ControlID)
 }
 
 func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
@@ -858,37 +956,11 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test data
 	ssp := createTestSSP(t, worker.db)
 	riskTemplate := createTestRiskTemplate(t, worker.db)
 
-	// Create system implementation linked to SSP
-	impl := &relational.SystemImplementation{
-		UUIDModel:            relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemSecurityPlanId: *ssp.ID,
-	}
-	*impl.ID = uuid.New()
-	require.NoError(t, worker.db.Create(impl).Error)
-
-	// Create component linked to implementation
-	component := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: *impl.ID,
-	}
-	*component.ID = uuid.New()
-	require.NoError(t, worker.db.Create(component).Error)
-
 	evidence := createTestEvidence(t, worker.db)
 
-	// Link component to evidence
-	require.NoError(t, worker.db.Model(evidence).Association("Components").Append(component))
-
-	// Reload evidence with associations
-	var loaded relational.Evidence
-	require.NoError(t, worker.db.Preload("Labels").Preload("Subjects").Preload("Components").First(&loaded, "id = ?", evidence.ID).Error)
-
-	// Create existing risk using the new dedupe key format:
-	// ssp_id:risk_template_id (no subject IDs appended anymore)
 	dedupeKey := fmt.Sprintf("%s:%s", ssp.ID.String(), riskTemplate.ID.String())
 	existingRisk := &risks.Risk{
 		Title:          "Existing Risk",
@@ -902,9 +974,17 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
 	}
 	require.NoError(t, worker.db.Create(existingRisk).Error)
 
-	// Update risk (should update last_seen_at)
-	err := worker.createOrUpdateRisksForSSPs(ctx, *riskTemplate, &loaded)
+	catalogID := uuid.New()
+	sspInfos := []resolvedSSPInfo{
+		{
+			SSPID: *ssp.ID,
+			ControlLinks: []controlLinkInfo{
+				{CatalogID: catalogID, ControlID: "AC-1"},
+			},
+		},
+	}
 
+	err := worker.createOrUpdateRisksForSSPs(ctx, *riskTemplate, evidence, sspInfos)
 	assert.NoError(t, err)
 
 	// Verify risk was updated
@@ -913,45 +993,16 @@ func TestRiskEvidenceWorker_createOrUpdateRisk_UpdateExisting(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, updatedRisk.LastSeenAt.After(existingRisk.LastSeenAt))
 }
+
 func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test evidence with components
 	evidence := createTestEvidence(t, worker.db)
 
-	// Create SSP and SystemImplementation for proper component linking
 	sspID := uuid.New()
-	ssp := &relational.SystemSecurityPlan{
-		UUIDModel: relational.UUIDModel{ID: &sspID},
-	}
-	require.NoError(t, worker.db.Create(ssp).Error)
-
-	systemImplID := uuid.New()
-	systemImpl := &relational.SystemImplementation{
-		UUIDModel:            relational.UUIDModel{ID: &systemImplID},
-		SystemSecurityPlanId: sspID,
-	}
-	require.NoError(t, worker.db.Create(systemImpl).Error)
-
-	// Add component to evidence
-	componentID := uuid.New()
-	component := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &componentID},
-		SystemImplementationId: systemImplID,
-	}
-	require.NoError(t, worker.db.Create(component).Error)
-
-	// Update evidence with components
-	require.NoError(t, worker.db.Model(evidence).Association("Components").Append(component))
-
-	// Reload evidence with associations
-	evidence, err := worker.loadEvidenceWithRelations(ctx, *evidence.ID)
-	require.NoError(t, err)
-
-	// Create a risk record so FK-backed links can be inserted.
 	riskID := uuid.New()
 	risk := &risks.Risk{
 		UUIDModel:   relational.UUIDModel{ID: &riskID},
@@ -965,9 +1016,13 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 	}
 	require.NoError(t, worker.db.Create(risk).Error)
 
-	// Create risk links
-	err = worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence)
+	catalogID := uuid.New()
+	controlLinks := []controlLinkInfo{
+		{CatalogID: catalogID, ControlID: "AC-1"},
+		{CatalogID: catalogID, ControlID: "AC-2"},
+	}
 
+	err := worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence, controlLinks)
 	assert.NoError(t, err)
 
 	// Verify evidence link
@@ -977,24 +1032,23 @@ func TestRiskEvidenceWorker_createRiskLinks(t *testing.T) {
 		First(&evidenceLink).Error
 	assert.NoError(t, err)
 
-	// Verify component link
-	var componentLink risks.RiskComponentLink
+	// Verify control links
+	var controlLinkRows []risks.RiskControlLink
 	err = worker.db.WithContext(ctx).
-		Where("risk_id = ? AND component_id = ?", riskID, *component.ID).
-		First(&componentLink).Error
+		Where("risk_id = ?", riskID).
+		Find(&controlLinkRows).Error
 	assert.NoError(t, err)
+	assert.Len(t, controlLinkRows, 2)
 }
 
-func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T) {
+func TestRiskEvidenceWorker_createRiskLinks_NoControlLinks(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test evidence without subjects or components
 	evidence := createTestEvidence(t, worker.db)
 
-	// Create a risk record so FK-backed links can be inserted.
 	sspID := uuid.New()
 	riskID := uuid.New()
 	risk := &risks.Risk{
@@ -1009,9 +1063,7 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 	}
 	require.NoError(t, worker.db.Create(risk).Error)
 
-	// Create risk links
-	err := worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence)
-
+	err := worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence, nil)
 	assert.NoError(t, err)
 
 	// Verify only evidence link was created
@@ -1021,14 +1073,14 @@ func TestRiskEvidenceWorker_createRiskLinks_NoSubjectsOrComponents(t *testing.T)
 		First(&evidenceLink).Error
 	assert.NoError(t, err)
 
-	// Verify no subject links
-	var subjectLinkCount int64
+	// Verify no control links
+	var controlLinkCount int64
 	err = worker.db.WithContext(ctx).
-		Model(&risks.RiskSubjectLink{}).
+		Model(&risks.RiskControlLink{}).
 		Where("risk_id = ?", riskID).
-		Count(&subjectLinkCount).Error
+		Count(&controlLinkCount).Error
 	assert.NoError(t, err)
-	assert.Equal(t, int64(0), subjectLinkCount)
+	assert.Equal(t, int64(0), controlLinkCount)
 }
 
 func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing.T) {
@@ -1048,7 +1100,8 @@ func TestRiskEvidenceWorker_createRiskLinks_MissingEvidenceStreamUUID(t *testing
 	require.NoError(t, worker.db.Create(evidence).Error)
 
 	riskID := uuid.New()
-	err := worker.createRiskLinks(ctx, worker.db, riskID, uuid.New(), evidence)
+	sspID := uuid.New()
+	err := worker.createRiskLinks(ctx, worker.db, riskID, sspID, evidence, nil)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "missing stream uuid")
 
@@ -1066,7 +1119,6 @@ func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test risk
 	riskID := uuid.New()
 	eventType := string(risks.RiskEventTypeCreated)
 	payload := map[string]interface{}{
@@ -1074,12 +1126,9 @@ func TestRiskEvidenceWorker_emitRiskEvent(t *testing.T) {
 		"template_id": uuid.New(),
 	}
 
-	// Emit risk event
 	err := worker.emitRiskEvent(ctx, worker.db, riskID, eventType, payload)
-
 	assert.NoError(t, err)
 
-	// Verify the event was created
 	var event risks.RiskEvent
 	err = worker.db.WithContext(ctx).
 		Where("risk_id = ? AND event_type = ?", riskID, eventType).
@@ -1137,7 +1186,6 @@ func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
 			err := worker.emitRiskEvent(ctx, worker.db, riskID, tc.eventType, tc.payload)
 			assert.NoError(t, err)
 
-			// Verify the event was created
 			var event risks.RiskEvent
 			err = worker.db.WithContext(ctx).
 				Where("risk_id = ? AND event_type = ?", riskID, tc.eventType).
@@ -1151,95 +1199,490 @@ func TestRiskEvidenceWorker_emitRiskEvent_DifferentEventTypes(t *testing.T) {
 	}
 }
 
-func TestRiskEvidenceWorker_extractSSPIDsFromComponents(t *testing.T) {
+func TestRiskEvidenceWorker_resolveSSPsViaFilters(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create test SSP
+	catalogID := uuid.New()
+	controlID := "AC-1"
+
+	// Create filter matching "environment=production"
+	seedFilterForControl(t, worker.db, catalogID, controlID, "environment", "production")
+
+	// Create SSP with the control
+	ssp := createTestSSPWithControl(t, worker.db, catalogID, controlID)
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+		{Name: "category", Value: "security"},
+	}
+
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	require.NoError(t, err)
+	require.Len(t, sspInfos, 1)
+	assert.Equal(t, *ssp.ID, sspInfos[0].SSPID)
+	require.Len(t, sspInfos[0].ControlLinks, 1)
+	assert.Equal(t, catalogID, sspInfos[0].ControlLinks[0].CatalogID)
+	assert.Equal(t, controlID, sspInfos[0].ControlLinks[0].ControlID)
+}
+
+func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoMatch(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	catalogID := uuid.New()
+	seedFilterForControl(t, worker.db, catalogID, "AC-1", "environment", "staging")
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+	}
+
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	require.NoError(t, err)
+	assert.Nil(t, sspInfos)
+}
+
+func TestRiskEvidenceWorker_resolveSSPsViaFilters_NoFilters(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
+	}
+
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
+	require.NoError(t, err)
+	assert.Nil(t, sspInfos)
+}
+
+// --- Resolution flow tests ---
+
+// createRiskWithEvidenceLink creates a risk in the given status, linked to the given evidence stream.
+func createRiskWithEvidenceLink(t *testing.T, db *gorm.DB, status string, evidenceStreamID uuid.UUID, templateID *uuid.UUID) *risks.Risk {
+	t.Helper()
+	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:      relational.UUIDModel{ID: &riskID},
+		Title:          "Test Risk",
+		Description:    "Test Description",
+		Status:         status,
+		SSPID:          uuid.New(),
+		RiskTemplateID: templateID,
+		SourceType:     string(risks.RiskSourceTypeEvidenceAuto),
+		DedupeKey:      fmt.Sprintf("dedupe-%s", riskID),
+		FirstSeenAt:    time.Now().Add(-1 * time.Hour),
+		LastSeenAt:     time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, db.Create(risk).Error)
+
+	link := &risks.RiskEvidenceLink{
+		RiskID:     riskID,
+		EvidenceID: evidenceStreamID,
+		CreatedAt:  time.Now(),
+	}
+	require.NoError(t, db.Create(link).Error)
+
+	return risk
+}
+
+func TestRiskEvidenceWorker_Resolution_SatisfiedRemovesLinks(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	// Create a satisfied evidence.
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	templateID := uuid.New()
+	tmpl := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &templateID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Test Template",
+		Title:         "Test Template",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(tmpl).Error)
+
+	// Create two risks linked to this evidence.
+	risk1 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &templateID)
+	risk2 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusInvestigating), evidenceID, &templateID)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// Both evidence links should be removed.
+	var linkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).Where("evidence_id = ?", evidenceID).Count(&linkCount).Error)
+	assert.Equal(t, int64(0), linkCount)
+
+	// Both risks should be remediated.
+	var r1, r2 risks.Risk
+	require.NoError(t, worker.db.First(&r1, "id = ?", risk1.ID).Error)
+	require.NoError(t, worker.db.First(&r2, "id = ?", risk2.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), r1.Status)
+	assert.Equal(t, string(risks.RiskStatusRemediated), r2.Status)
+
+	// Verify status_changed events were emitted.
+	var events []risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id IN ? AND event_type = ?",
+		[]uuid.UUID{*risk1.ID, *risk2.ID}, string(risks.RiskEventTypeStatusChange)).Find(&events).Error)
+	assert.Len(t, events, 2)
+}
+
+func TestRiskEvidenceWorker_Resolution_ViolationsReduced(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	// Evidence is still not-satisfied but with reduced violations (only VIOL-002 now).
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Reduced Violations Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: "violation_id", Value: "VIOL-002"},
+		}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	// Template 1 matches VIOL-001 — no longer in evidence → link should be removed.
+	tmpl1ID := uuid.New()
+	tmpl1 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &tmpl1ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Template VIOL-001",
+		Title:         "Template VIOL-001",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-001"},
+	}
+	require.NoError(t, worker.db.Create(tmpl1).Error)
+
+	// Template 2 matches VIOL-002 — still in evidence → link should be kept.
+	tmpl2ID := uuid.New()
+	tmpl2 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &tmpl2ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Template VIOL-002",
+		Title:         "Template VIOL-002",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{"VIOL-002"},
+	}
+	require.NoError(t, worker.db.Create(tmpl2).Error)
+
+	// Template 3 has empty ViolationIDs — matches any not-satisfied → link should be kept.
+	tmpl3ID := uuid.New()
+	tmpl3 := &templates.RiskTemplate{
+		UUIDModel:     relational.UUIDModel{ID: &tmpl3ID},
+		PluginID:      "test-plugin",
+		PolicyPackage: "test-policy",
+		Name:          "Template Wildcard",
+		Title:         "Template Wildcard",
+		Statement:     "statement",
+		IsActive:      true,
+		ViolationIDs:  []string{},
+	}
+	require.NoError(t, worker.db.Create(tmpl3).Error)
+
+	risk1 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &tmpl1ID)
+	risk2 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &tmpl2ID)
+	risk3 := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, &tmpl3ID)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// risk1 link removed (VIOL-001 no longer in evidence) → remediated.
+	var r1 risks.Risk
+	require.NoError(t, worker.db.First(&r1, "id = ?", risk1.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), r1.Status)
+
+	// risk2 link kept (VIOL-002 still present).
+	var link2Count int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ? AND evidence_id = ?", risk2.ID, evidenceID).Count(&link2Count).Error)
+	assert.Equal(t, int64(1), link2Count)
+	var r2 risks.Risk
+	require.NoError(t, worker.db.First(&r2, "id = ?", risk2.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), r2.Status)
+
+	// risk3 link kept (empty ViolationIDs = wildcard for not-satisfied).
+	var link3Count int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ? AND evidence_id = ?", risk3.ID, evidenceID).Count(&link3Count).Error)
+	assert.Equal(t, int64(1), link3Count)
+	var r3 risks.Risk
+	require.NoError(t, worker.db.First(&r3, "id = ?", risk3.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), r3.Status)
+}
+
+func TestRiskEvidenceWorker_Resolution_TransitionToRemediated(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	risk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusOpen), evidenceID, nil)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRemediated), updated.Status)
+
+	// Verify events: evidence_unlinked + status_changed.
+	var events []risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id = ?", risk.ID).Order("occurred_at asc").Find(&events).Error)
+	require.Len(t, events, 2)
+	assert.Equal(t, string(risks.RiskEventTypeEvidenceUnlink), events[0].EventType)
+	assert.Equal(t, string(risks.RiskEventTypeStatusChange), events[1].EventType)
+}
+
+func TestRiskEvidenceWorker_Resolution_RiskAcceptedNoTransition(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	risk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusRiskAccepted), evidenceID, nil)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
+	require.NoError(t, err)
+
+	// Risk should remain risk-accepted.
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(risks.RiskStatusRiskAccepted), updated.Status)
+
+	// Evidence link should still be removed.
+	var linkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ? AND evidence_id = ?", risk.ID, evidenceID).Count(&linkCount).Error)
+	assert.Equal(t, int64(0), linkCount)
+
+	// Verify evidence_recovered event was emitted.
+	var event risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id = ? AND event_type = ?",
+		risk.ID, string(risks.RiskEventTypeEvidenceRecovered)).First(&event).Error)
+}
+
+func TestRiskEvidenceWorker_Resolution_MultipleEvidencePartialResolve(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
+	evidenceA := uuid.New()
+	evidenceB := uuid.New()
+
+	// Create the risk with TWO evidence links.
+	riskID := uuid.New()
+	risk := &risks.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "Risk with two evidence streams",
+		Description: "desc",
+		Status:      string(risks.RiskStatusOpen),
+		SSPID:       uuid.New(),
+		SourceType:  string(risks.RiskSourceTypeEvidenceAuto),
+		DedupeKey:   fmt.Sprintf("dedupe-%s", riskID),
+		FirstSeenAt: time.Now().Add(-1 * time.Hour),
+		LastSeenAt:  time.Now().Add(-1 * time.Hour),
+	}
+	require.NoError(t, worker.db.Create(risk).Error)
+	require.NoError(t, worker.db.Create(&risks.RiskEvidenceLink{
+		RiskID: riskID, EvidenceID: evidenceA, CreatedAt: time.Now(),
+	}).Error)
+	require.NoError(t, worker.db.Create(&risks.RiskEvidenceLink{
+		RiskID: riskID, EvidenceID: evidenceB, CreatedAt: time.Now(),
+	}).Error)
+
+	// Evidence A becomes satisfied.
+	evA := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceA},
+		UUID:      evidenceA,
+		Title:     "Evidence A",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evA).Error)
+
+	err := worker.handleEvidenceResolution(ctx, evA)
+	require.NoError(t, err)
+
+	// Risk should NOT be remediated — evidence B link still exists.
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", riskID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), updated.Status)
+
+	// Evidence A link removed, B remains.
+	var remaining int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", riskID).Count(&remaining).Error)
+	assert.Equal(t, int64(1), remaining)
+}
+
+func TestRiskEvidenceWorker_Reopen_FromRemediated(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	ctx := context.Background()
+
 	ssp := createTestSSP(t, worker.db)
+	riskTemplate := createTestRiskTemplate(t, worker.db)
+	evidence := createTestEvidence(t, worker.db)
 
-	// Create test system implementation
-	impl := &relational.SystemImplementation{
-		UUIDModel:            relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemSecurityPlanId: *ssp.ID,
+	dedupeKey := fmt.Sprintf("%s:%s", ssp.ID.String(), riskTemplate.ID.String())
+	riskID := uuid.New()
+	remediatedRisk := &risks.Risk{
+		UUIDModel:      relational.UUIDModel{ID: &riskID},
+		Title:          "Remediated Risk",
+		Description:    "desc",
+		Status:         string(risks.RiskStatusRemediated),
+		SSPID:          *ssp.ID,
+		RiskTemplateID: riskTemplate.ID,
+		SourceType:     string(risks.RiskSourceTypeEvidenceAuto),
+		DedupeKey:      dedupeKey,
+		FirstSeenAt:    time.Now().Add(-1 * time.Hour),
+		LastSeenAt:     time.Now().Add(-1 * time.Hour),
 	}
-	*impl.ID = uuid.New()
-	require.NoError(t, worker.db.Create(impl).Error)
+	require.NoError(t, worker.db.Create(remediatedRisk).Error)
 
-	// Create test components with the system implementation ID
-	component1 := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: *impl.ID,
+	catalogID := uuid.New()
+	sspInfos := []resolvedSSPInfo{
+		{
+			SSPID:        *ssp.ID,
+			ControlLinks: []controlLinkInfo{{CatalogID: catalogID, ControlID: "AC-1"}},
+		},
 	}
-	*component1.ID = uuid.New()
 
-	component2 := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: *impl.ID, // Same implementation
-	}
-	*component2.ID = uuid.New()
-
-	component3 := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: uuid.Nil, // No implementation
-	}
-	*component3.ID = uuid.New()
-
-	require.NoError(t, worker.db.Create(component1).Error)
-	require.NoError(t, worker.db.Create(component2).Error)
-	require.NoError(t, worker.db.Create(component3).Error)
-
-	components := []relational.SystemComponent{*component1, *component2, *component3}
-
-	// Extract SSP IDs
-	sspIDs, err := worker.extractSSPIDsFromComponents(ctx, components)
+	err := worker.createOrUpdateRisksForSSPs(ctx, *riskTemplate, evidence, sspInfos)
 	require.NoError(t, err)
 
-	// Should return only one unique SSP ID (from components 1 & 2)
-	assert.Len(t, sspIDs, 1)
-	assert.Equal(t, *ssp.ID, sspIDs[0])
+	// Risk should be re-opened.
+	var updated risks.Risk
+	require.NoError(t, worker.db.First(&updated, "id = ?", riskID).Error)
+	assert.Equal(t, string(risks.RiskStatusOpen), updated.Status)
+
+	// Verify status_changed event was emitted.
+	var event risks.RiskEvent
+	require.NoError(t, worker.db.Where("risk_id = ? AND event_type = ?",
+		riskID, string(risks.RiskEventTypeStatusChange)).First(&event).Error)
 }
 
-func TestRiskEvidenceWorker_extractSSPIDsFromComponents_NoComponents(t *testing.T) {
+func TestRiskEvidenceWorker_Resolution_SkipsClosedAndRemediated(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Empty components list
-	sspIDs, err := worker.extractSSPIDsFromComponents(ctx, []relational.SystemComponent{})
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Satisfied Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "satisfied"}),
+	}
+	require.NoError(t, worker.db.Create(evidence).Error)
+
+	// Create risks in closed and remediated status — should be skipped.
+	closedRisk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusClosed), evidenceID, nil)
+	remediatedRisk := createRiskWithEvidenceLink(t, worker.db, string(risks.RiskStatusRemediated), evidenceID, nil)
+
+	err := worker.handleEvidenceResolution(ctx, evidence)
 	require.NoError(t, err)
-	assert.Empty(t, sspIDs)
+
+	// Links should NOT be removed for closed/remediated risks.
+	var closedLinkCount, remediatedLinkCount int64
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", closedRisk.ID).Count(&closedLinkCount).Error)
+	assert.Equal(t, int64(1), closedLinkCount)
+	require.NoError(t, worker.db.Model(&risks.RiskEvidenceLink{}).
+		Where("risk_id = ?", remediatedRisk.ID).Count(&remediatedLinkCount).Error)
+	assert.Equal(t, int64(1), remediatedLinkCount)
 }
 
-func TestRiskEvidenceWorker_extractSSPIDsFromComponents_NoImplementations(t *testing.T) {
+func TestRiskEvidenceWorker_resolveSSPsViaFilters_MultipleSSPs(t *testing.T) {
 	t.Parallel()
 
 	worker := createTestRiskEvidenceWorker(t)
 	ctx := context.Background()
 
-	// Create components without system implementations
-	component1 := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: uuid.Nil,
+	catalogID := uuid.New()
+
+	// One filter matching "environment=production", linked to two different controls
+	seedFilterForControl(t, worker.db, catalogID, "AC-1", "environment", "production")
+
+	// Two SSPs each implementing a different control
+	ssp1 := createTestSSPWithControl(t, worker.db, catalogID, "AC-1")
+
+	// Create a second filter for a different control
+	seedFilterForControl(t, worker.db, catalogID, "SC-7", "environment", "production")
+	ssp2 := createTestSSPWithControl(t, worker.db, catalogID, "SC-7")
+
+	labels := []relational.Labels{
+		{Name: "environment", Value: "production"},
 	}
-	*component1.ID = uuid.New()
 
-	component2 := &relational.SystemComponent{
-		UUIDModel:              relational.UUIDModel{ID: &uuid.UUID{}},
-		SystemImplementationId: uuid.Nil,
-	}
-	*component2.ID = uuid.New()
-
-	require.NoError(t, worker.db.Create(component1).Error)
-	require.NoError(t, worker.db.Create(component2).Error)
-
-	components := []relational.SystemComponent{*component1, *component2}
-
-	// Extract SSP IDs
-	sspIDs, err := worker.extractSSPIDsFromComponents(ctx, components)
+	sspInfos, err := worker.resolveSSPsViaFilters(ctx, labels)
 	require.NoError(t, err)
-	assert.Empty(t, sspIDs)
+	require.Len(t, sspInfos, 2)
+
+	sspIDs := make(map[uuid.UUID]bool)
+	for _, info := range sspInfos {
+		sspIDs[info.SSPID] = true
+	}
+	assert.True(t, sspIDs[*ssp1.ID])
+	assert.True(t, sspIDs[*ssp2.ID])
 }

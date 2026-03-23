@@ -1993,6 +1993,10 @@ func validateStatusTransition(oldStatus, newStatus string) error {
 		string(riskrel.RiskStatusRiskAccepted): {
 			string(riskrel.RiskStatusClosed): {},
 		},
+		string(riskrel.RiskStatusRemediated): {
+			string(riskrel.RiskStatusOpen):   {},
+			string(riskrel.RiskStatusClosed): {},
+		},
 		string(riskrel.RiskStatusClosed): {},
 	}
 

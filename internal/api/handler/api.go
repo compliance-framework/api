@@ -96,9 +96,13 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	adminGroup.Use(middleware.RequireAdminGroups(db, config, logger))
 	userHandler.Register(adminGroup)
 
+	selfGroup := server.API().Group("/users/me")
+	selfGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	userHandler.RegisterSelfRoutes(selfGroup)
+
 	userGroup := server.API().Group("/users")
 	userGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
-	userHandler.RegisterSelfRoutes(userGroup)
+	userHandler.RegisterPublicRoutes(userGroup)
 
 	// Digest handler (admin only)
 	if services.DigestService != nil {

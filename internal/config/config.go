@@ -39,6 +39,8 @@ type Config struct {
 	DigestSchedule              string // Cron schedule for digest emails
 	Workflow                    *WorkflowConfig
 	Risk                        *RiskConfig
+	PprofEnabled                bool   // Enable or disable pprof debugging server
+	PprofPort                   string // Port for pprof debugging server
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -197,6 +199,17 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		workerConfig.Queue = viper.GetString("worker_queue")
 	}
 
+	pprofEnabled := viper.GetBool("pprof_enabled")
+	pprofPort := viper.GetString("pprof_port")
+	if pprofPort == "" {
+		pprofPort = "6060"
+	}
+	// Normalize pprofPort: if it's a bare port like "6060", prefix with ":" to form ":6060".
+	// If it already contains a colon (e.g. "127.0.0.1:6060"), leave it unchanged.
+	if !strings.Contains(pprofPort, ":") {
+		pprofPort = ":" + pprofPort
+	}
+
 	return &Config{
 		AppPort:                     appPort,
 		Environment:                 environment,
@@ -218,6 +231,8 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		DigestSchedule:              digestSchedule,
 		Workflow:                    workflowConfig,
 		Risk:                        riskConfig,
+		PprofEnabled:                pprofEnabled,
+		PprofPort:                   pprofPort,
 	}
 
 }
