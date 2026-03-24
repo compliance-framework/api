@@ -79,12 +79,12 @@ type PoamItem struct {
 	CreatedFromRiskID     *uuid.UUID `gorm:"type:uuid"                                 json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string    `                                                 json:"acceptanceRationale,omitempty"`
 	// Point-of-contact and resource fields — populated on risk-promotion or manual entry.
-	PocName          *string `gorm:"type:text"                                 json:"pocName,omitempty"`
-	PocEmail         *string `gorm:"type:text"                                 json:"pocEmail,omitempty"`
-	ResourceRequired *string `gorm:"type:text"                                 json:"resourceRequired,omitempty"`
-	LastStatusChangeAt    time.Time  `gorm:"not null"                                  json:"lastStatusChangeAt"`
-	CreatedAt             time.Time  `                                                 json:"createdAt"`
-	UpdatedAt             time.Time  `                                                 json:"updatedAt"`
+	PocName            *string   `gorm:"type:text"                                 json:"pocName,omitempty"`
+	PocEmail           *string   `gorm:"type:text"                                 json:"pocEmail,omitempty"`
+	ResourceRequired   *string   `gorm:"type:text"                                 json:"resourceRequired,omitempty"`
+	LastStatusChangeAt time.Time `gorm:"not null"                                  json:"lastStatusChangeAt"`
+	CreatedAt          time.Time `                                                 json:"createdAt"`
+	UpdatedAt          time.Time `                                                 json:"updatedAt"`
 
 	// Associations — loaded on demand via Preload.
 	Milestones    []PoamItemMilestone    `gorm:"foreignKey:PoamItemID;constraint:OnDelete:CASCADE" json:"milestones,omitempty"`

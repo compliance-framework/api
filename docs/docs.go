@@ -18666,6 +18666,82 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/promote-to-poam": {
+            "post": {
+                "description": "Promotes a risk-accepted risk to a POAM item, scoped to a specific SSP. The risk must belong to the given SSP and be in risk-accepted status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Promote risk to POAM item (SSP-scoped)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Promotion payload",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handler.promoteToPoamRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_poamItemResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{sspId}/risks/{id}/remediation-template": {
             "get": {
                 "description": "Gets the remediation template linked to a risk scoped to an SSP.",
@@ -21576,6 +21652,75 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/risks/{id}/promote-to-poam": {
+            "post": {
+                "description": "Promotes a risk-accepted risk to a POAM item. The risk must be in risk-accepted status. The POAM item is pre-populated from the risk's data and any RemediationTemplate tasks. The entire operation is transactional.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Promote risk to POAM item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Promotion payload",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handler.promoteToPoamRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_poamItemResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -28174,7 +28319,16 @@ const docTemplate = `{
                 "plannedCompletionDate": {
                     "type": "string"
                 },
+                "pocEmail": {
+                    "type": "string"
+                },
+                "pocName": {
+                    "type": "string"
+                },
                 "primaryOwnerUserId": {
+                    "type": "string"
+                },
+                "resourceRequired": {
                     "type": "string"
                 },
                 "riskIds": {
@@ -28385,7 +28539,16 @@ const docTemplate = `{
                 "plannedCompletionDate": {
                     "type": "string"
                 },
+                "pocEmail": {
+                    "type": "string"
+                },
+                "pocName": {
+                    "type": "string"
+                },
                 "primaryOwnerUserId": {
+                    "type": "string"
+                },
+                "resourceRequired": {
                     "type": "string"
                 },
                 "riskLinks": {
@@ -28407,6 +28570,38 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.promoteToPoamRequest": {
+            "type": "object",
+            "properties": {
+                "deadline": {
+                    "description": "Deadline maps to PoamItem.PlannedCompletionDate.",
+                    "type": "string"
+                },
+                "milestones": {
+                    "description": "Milestones are additional milestones to append after any copied from the\nrisk's RemediationTemplate.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.createMilestoneRequest"
+                    }
+                },
+                "pocEmail": {
+                    "description": "PocEmail is the point-of-contact email.",
+                    "type": "string"
+                },
+                "pocName": {
+                    "description": "PocName is the point-of-contact name.",
+                    "type": "string"
+                },
+                "resourceRequired": {
+                    "description": "ResourceRequired is a free-text description of resources needed.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title overrides the risk's title as the POAM item title.\nIf omitted, the risk's own title is used.",
                     "type": "string"
                 }
             }

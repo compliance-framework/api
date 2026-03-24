@@ -266,8 +266,8 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_WithRemediationTemplate(
 	remRec, remReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{
 		"title": "Standard remediation plan",
 		"tasks": []map[string]any{
-			{"title": "Template task 1", "order-index": 0},
-			{"title": "Template task 2", "order-index": 1},
+			{"title": "Template task 1", "order-index": 1},
+			{"title": "Template task 2", "order-index": 2},
 		},
 	})
 	suite.server.E().ServeHTTP(remRec, remReq)
