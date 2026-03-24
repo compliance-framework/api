@@ -61,7 +61,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	sspPoamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	poamHandler.RegisterSSPScoped(sspPoamGroup)
 
-	riskHandler := NewRiskHandler(logger, db)
+	riskHandler := NewRiskHandler(logger, db, poamService)
 	riskGroup := server.API().Group("/risks")
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup)

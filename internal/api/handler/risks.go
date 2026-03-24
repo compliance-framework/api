@@ -14,6 +14,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	svc "github.com/compliance-framework/api/internal/service"
+	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -23,6 +24,7 @@ import (
 
 type RiskHandler struct {
 	riskService *riskrel.RiskService
+	poamService *poamsvc.PoamService
 	sugar       *zap.SugaredLogger
 	pagination  *svc.PaginationConfig
 }
@@ -32,9 +34,10 @@ const (
 	maxRiskDescriptionLength = 1000
 )
 
-func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB) *RiskHandler {
+func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.PoamService) *RiskHandler {
 	return &RiskHandler{
 		riskService: riskrel.NewRiskService(db),
+		poamService: poamSvc,
 		sugar:       sugar,
 		pagination:  svc.NewPaginationConfig(),
 	}
@@ -47,6 +50,7 @@ func (h *RiskHandler) Register(api *echo.Group) {
 	api.PUT("/:id", h.Update)
 	api.POST("/:id/accept", h.Accept)
 	api.POST("/:id/review", h.Review)
+	api.POST("/:id/promote-to-poam", h.PromoteToPoam)
 	api.DELETE("/:id", h.Delete)
 	api.GET("/:id/events", h.GetEvents)
 	api.GET("/:id/reviews", h.GetReviews)
@@ -83,6 +87,7 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.PUT("/:id", h.UpdateForSSP)
 	api.POST("/:id/accept", h.AcceptForSSP)
 	api.POST("/:id/review", h.ReviewForSSP)
+	api.POST("/:id/promote-to-poam", h.PromoteToPoamForSSP)
 	api.DELETE("/:id", h.DeleteForSSP)
 	api.GET("/:id/events", h.GetEventsForSSP)
 	api.GET("/:id/reviews", h.GetReviewsForSSP)
@@ -2236,4 +2241,129 @@ func (h *RiskHandler) mapRiskToResponseWithAssociations(risk *riskrel.Risk, asso
 	}
 
 	return response
+}
+
+// promoteToPoamRequest is the request body for POST /risks/:id/promote-to-poam.
+type promoteToPoamRequest struct {
+	// Title overrides the risk's title as the POAM item title.
+	// If omitted, the risk's own title is used.
+	Title *string `json:"title"`
+	// Deadline maps to PoamItem.PlannedCompletionDate.
+	Deadline *time.Time `json:"deadline"`
+	// ResourceRequired is a free-text description of resources needed.
+	ResourceRequired *string `json:"resourceRequired"`
+	// PocName is the point-of-contact name.
+	PocName *string `json:"pocName"`
+	// PocEmail is the point-of-contact email.
+	PocEmail *string `json:"pocEmail"`
+	// Milestones are additional milestones to append after any copied from the
+	// risk's RemediationTemplate.
+	Milestones []createMilestoneRequest `json:"milestones"`
+}
+
+// PromoteToPoam godoc
+//
+//	@Summary		Promote risk to POAM item
+//	@Description	Promotes a risk-accepted risk to a POAM item. The risk must be in risk-accepted status. The POAM item is pre-populated from the risk's data and any RemediationTemplate tasks. The entire operation is transactional.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"Risk ID"
+//	@Param			body	body		promoteToPoamRequest	false	"Promotion payload"
+//	@Success		201		{object}	GenericDataResponse[poamItemResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/promote-to-poam [post]
+func (h *RiskHandler) PromoteToPoam(ctx echo.Context) error {
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	var req promoteToPoamRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	// Map request milestones to service params.
+	var milestones []poamsvc.CreateMilestoneParams
+	for i, m := range req.Milestones {
+		orderIdx := 0
+		if m.OrderIndex != nil {
+			orderIdx = *m.OrderIndex
+		} else {
+			orderIdx = i
+		}
+		milestones = append(milestones, poamsvc.CreateMilestoneParams{
+			Title:                 m.Title,
+			Description:           m.Description,
+			Status:                m.Status,
+			PlannedCompletionDate: m.PlannedCompletionDate,
+			ResponsibleParty:      m.ResponsibleParty,
+			Remarks:               m.Remarks,
+			OrderIndex:            orderIdx,
+		})
+	}
+
+	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
+		poamItem, err := h.riskService.PromoteToPoam(h.poamService, riskrel.PromoteToPoamParams{
+			RiskID:           riskID,
+			ActorUserID:      actorID,
+			Title:            req.Title,
+			Deadline:         req.Deadline,
+			ResourceRequired: req.ResourceRequired,
+			PocName:          req.PocName,
+			PocEmail:         req.PocEmail,
+			ExtraMilestones:  milestones,
+		})
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+			}
+			if riskrel.IsValidationError(err) {
+				return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
+			}
+			return h.internalServerError(ctx, "failed to promote risk to POAM item", err)
+		}
+
+		return ctx.JSON(http.StatusCreated, GenericDataResponse[poamItemResponse]{Data: toPoamItemResponse(poamItem)})
+	})
+}
+
+// PromoteToPoamForSSP godoc
+//
+//	@Summary		Promote risk to POAM item (SSP-scoped)
+//	@Description	Promotes a risk-accepted risk to a POAM item, scoped to a specific SSP. The risk must belong to the given SSP and be in risk-accepted status.
+//	@Tags			Risks
+//	@Accept			json
+//	@Produce		json
+//	@Param			sspId	path		string					true	"SSP ID"
+//	@Param			id		path		string					true	"Risk ID"
+//	@Param			body	body		promoteToPoamRequest	false	"Promotion payload"
+//	@Success		201		{object}	GenericDataResponse[poamItemResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		422		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/promote-to-poam [post]
+func (h *RiskHandler) PromoteToPoamForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.PromoteToPoam(ctx)
 }

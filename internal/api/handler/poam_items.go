@@ -83,6 +83,9 @@ type createPoamItemRequest struct {
 	PlannedCompletionDate *time.Time               `json:"plannedCompletionDate"`
 	CreatedFromRiskID     *string                  `json:"createdFromRiskId"`
 	AcceptanceRationale   *string                  `json:"acceptanceRationale"`
+	PocName               *string                  `json:"pocName"`
+	PocEmail              *string                  `json:"pocEmail"`
+	ResourceRequired      *string                  `json:"resourceRequired"`
 	RiskIDs               []string                 `json:"riskIds"`
 	EvidenceIDs           []string                 `json:"evidenceIds"`
 	ControlRefs           []poamControlRefRequest  `json:"controlRefs"`
@@ -178,6 +181,9 @@ type poamItemResponse struct {
 	CompletedAt           *time.Time             `json:"completedAt,omitempty"`
 	CreatedFromRiskID     *uuid.UUID             `json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string                `json:"acceptanceRationale,omitempty"`
+	PocName               *string                `json:"pocName,omitempty"`
+	PocEmail              *string                `json:"pocEmail,omitempty"`
+	ResourceRequired      *string                `json:"resourceRequired,omitempty"`
 	LastStatusChangeAt    time.Time              `json:"lastStatusChangeAt"`
 	CreatedAt             time.Time              `json:"createdAt"`
 	UpdatedAt             time.Time              `json:"updatedAt"`
@@ -216,6 +222,9 @@ func toPoamItemResponse(item *poamsvc.PoamItem) poamItemResponse {
 		CompletedAt:           item.CompletedAt,
 		CreatedFromRiskID:     item.CreatedFromRiskID,
 		AcceptanceRationale:   item.AcceptanceRationale,
+		PocName:               item.PocName,
+		PocEmail:              item.PocEmail,
+		ResourceRequired:      item.ResourceRequired,
 		LastStatusChangeAt:    item.LastStatusChangeAt,
 		CreatedAt:             item.CreatedAt,
 		UpdatedAt:             item.UpdatedAt,
@@ -369,6 +378,9 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 		SourceType:            in.SourceType,
 		PlannedCompletionDate: in.PlannedCompletionDate,
 		AcceptanceRationale:   in.AcceptanceRationale,
+		PocName:               in.PocName,
+		PocEmail:              in.PocEmail,
+		ResourceRequired:      in.ResourceRequired,
 	}
 
 	if in.PrimaryOwnerUserID != nil {
