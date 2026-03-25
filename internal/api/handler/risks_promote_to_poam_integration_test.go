@@ -24,14 +24,18 @@ import (
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 	sspID := suite.newSSPID()
 
-	// Create a risk directly in investigating status.
+	// Use a deterministic owner UUID so we can assert inheritance.
+	ownerID := uuid.New()
+
+	// Create a risk directly in investigating status with an explicit owner.
 	created := suite.createRisk(map[string]any{
-		"title":       "Unencrypted data at rest",
-		"description": "Sensitive data stored without encryption",
-		"ssp-id":      sspID,
-		"status":      "investigating",
-		"likelihood":  "high",
-		"impact":      "critical",
+		"title":                "Unencrypted data at rest",
+		"description":          "Sensitive data stored without encryption",
+		"ssp-id":               sspID,
+		"status":               "investigating",
+		"likelihood":           "high",
+		"impact":               "critical",
+		"primary-owner-user-id": ownerID.String(),
 	})
 
 	// Promote to POAM with full payload.
@@ -60,8 +64,9 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 	require.Equal(suite.T(), created.ID.String(), poamResp.Data.CreatedFromRiskID.String())
 	require.NotNil(suite.T(), poamResp.Data.PlannedCompletionDate)
 	require.WithinDuration(suite.T(), deadline, *poamResp.Data.PlannedCompletionDate, time.Second)
-	// PrimaryOwnerUserID should be inherited from the risk's owner (the authenticated actor).
+	// PrimaryOwnerUserID should be inherited from the risk's explicit owner.
 	require.NotNil(suite.T(), poamResp.Data.PrimaryOwnerUserID)
+	require.Equal(suite.T(), ownerID, *poamResp.Data.PrimaryOwnerUserID)
 	require.NotNil(suite.T(), poamResp.Data.ResourceRequired)
 	require.Equal(suite.T(), "3 engineer days", *poamResp.Data.ResourceRequired)
 
@@ -193,11 +198,15 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsNotFound() {
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	sspID := suite.newSSPID()
 
+	// Use a deterministic owner UUID so we can assert inheritance.
+	sspOwnerID := uuid.New()
+
 	created := suite.createRisk(map[string]any{
-		"title":       "SSP-scoped promotion risk",
-		"description": "Testing SSP-scoped promote endpoint",
-		"ssp-id":      sspID,
-		"status":      "investigating",
+		"title":                "SSP-scoped promotion risk",
+		"description":          "Testing SSP-scoped promote endpoint",
+		"ssp-id":               sspID,
+		"status":               "investigating",
+		"primary-owner-user-id": sspOwnerID.String(),
 	})
 
 	// Promote via SSP-scoped endpoint.
@@ -212,8 +221,9 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	var poamResp GenericDataResponse[poamItemResponse]
 	require.NoError(suite.T(), json.Unmarshal(sspPromoteRec.Body.Bytes(), &poamResp))
 	require.Equal(suite.T(), "SSP-scoped promotion risk", poamResp.Data.Title)
-	// PrimaryOwnerUserID should be inherited from the risk's owner.
+	// PrimaryOwnerUserID should be inherited from the risk's explicit owner.
 	require.NotNil(suite.T(), poamResp.Data.PrimaryOwnerUserID)
+	require.Equal(suite.T(), sspOwnerID, *poamResp.Data.PrimaryOwnerUserID)
 }
 
 // TestPromoteToPoam_SSPScoped_RejectsWrongSSP verifies that promoting via a

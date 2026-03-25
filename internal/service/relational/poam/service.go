@@ -38,7 +38,7 @@ type CreatePoamItemParams struct {
 	PlannedCompletionDate *time.Time
 	CreatedFromRiskID     *uuid.UUID
 	AcceptanceRationale   *string
-	ResourceRequired *string
+	ResourceRequired      *string
 	RiskIDs               []uuid.UUID
 	EvidenceIDs           []uuid.UUID
 	ControlRefs           []ControlRef

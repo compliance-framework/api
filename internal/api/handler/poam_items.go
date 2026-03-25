@@ -86,7 +86,7 @@ type createPoamItemRequest struct {
 	PlannedCompletionDate *time.Time               `json:"plannedCompletionDate"`
 	CreatedFromRiskID     *string                  `json:"createdFromRiskId"`
 	AcceptanceRationale   *string                  `json:"acceptanceRationale"`
-	ResourceRequired *string `json:"resourceRequired"`
+	ResourceRequired      *string                  `json:"resourceRequired"`
 	RiskIDs               []string                 `json:"riskIds"`
 	EvidenceIDs           []string                 `json:"evidenceIds"`
 	ControlRefs           []poamControlRefRequest  `json:"controlRefs"`
@@ -182,7 +182,7 @@ type poamItemResponse struct {
 	CompletedAt           *time.Time             `json:"completedAt,omitempty"`
 	CreatedFromRiskID     *uuid.UUID             `json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string                `json:"acceptanceRationale,omitempty"`
-	ResourceRequired *string `json:"resourceRequired,omitempty"`
+	ResourceRequired      *string                `json:"resourceRequired,omitempty"`
 	LastStatusChangeAt    time.Time              `json:"lastStatusChangeAt"`
 	CreatedAt             time.Time              `json:"createdAt"`
 	UpdatedAt             time.Time              `json:"updatedAt"`
