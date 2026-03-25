@@ -1609,10 +1609,6 @@ definitions:
         type: array
       plannedCompletionDate:
         type: string
-      pocEmail:
-        type: string
-      pocName:
-        type: string
       primaryOwnerUserId:
         type: string
       resourceRequired:
@@ -1757,10 +1753,6 @@ definitions:
         type: array
       plannedCompletionDate:
         type: string
-      pocEmail:
-        type: string
-      pocName:
-        type: string
       primaryOwnerUserId:
         type: string
       resourceRequired:
@@ -1792,14 +1784,14 @@ definitions:
         items:
           $ref: '#/definitions/handler.createMilestoneRequest'
         type: array
-      pocEmail:
-        description: PocEmail is the point-of-contact email.
-        type: string
-      pocName:
-        description: PocName is the point-of-contact name.
+      primaryOwnerUserId:
+        description: |-
+          PrimaryOwnerUserID optionally overrides the POAM item owner.
+          If omitted, the risk's own PrimaryOwnerUserID is inherited automatically.
         type: string
       resourceRequired:
-        description: ResourceRequired is a free-text description of resources needed.
+        description: ResourceRequired is a free-text planning field describing effort
+          or budget needed.
         type: string
       title:
         description: |-

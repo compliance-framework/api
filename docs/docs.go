@@ -28319,12 +28319,6 @@ const docTemplate = `{
                 "plannedCompletionDate": {
                     "type": "string"
                 },
-                "pocEmail": {
-                    "type": "string"
-                },
-                "pocName": {
-                    "type": "string"
-                },
                 "primaryOwnerUserId": {
                     "type": "string"
                 },
@@ -28539,12 +28533,6 @@ const docTemplate = `{
                 "plannedCompletionDate": {
                     "type": "string"
                 },
-                "pocEmail": {
-                    "type": "string"
-                },
-                "pocName": {
-                    "type": "string"
-                },
                 "primaryOwnerUserId": {
                     "type": "string"
                 },
@@ -28588,16 +28576,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/handler.createMilestoneRequest"
                     }
                 },
-                "pocEmail": {
-                    "description": "PocEmail is the point-of-contact email.",
-                    "type": "string"
-                },
-                "pocName": {
-                    "description": "PocName is the point-of-contact name.",
+                "primaryOwnerUserId": {
+                    "description": "PrimaryOwnerUserID optionally overrides the POAM item owner.\nIf omitted, the risk's own PrimaryOwnerUserID is inherited automatically.",
                     "type": "string"
                 },
                 "resourceRequired": {
-                    "description": "ResourceRequired is a free-text description of resources needed.",
+                    "description": "ResourceRequired is a free-text planning field describing effort or budget needed.",
                     "type": "string"
                 },
                 "title": {

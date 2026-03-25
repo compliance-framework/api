@@ -2257,12 +2257,11 @@ type promoteToPoamRequest struct {
 	Title *string `json:"title"`
 	// Deadline maps to PoamItem.PlannedCompletionDate.
 	Deadline *time.Time `json:"deadline"`
-	// ResourceRequired is a free-text description of resources needed.
+	// ResourceRequired is a free-text planning field describing effort or budget needed.
 	ResourceRequired *string `json:"resourceRequired"`
-	// PocName is the point-of-contact name.
-	PocName *string `json:"pocName"`
-	// PocEmail is the point-of-contact email.
-	PocEmail *string `json:"pocEmail"`
+	// PrimaryOwnerUserID optionally overrides the POAM item owner.
+	// If omitted, the risk's own PrimaryOwnerUserID is inherited automatically.
+	PrimaryOwnerUserID *uuid.UUID `json:"primaryOwnerUserId"`
 	// Milestones are additional milestones to append after any copied from the
 	// risk's RemediationTemplate.
 	Milestones []createMilestoneRequest `json:"milestones"`
@@ -2317,14 +2316,13 @@ func (h *RiskHandler) PromoteToPoam(ctx echo.Context) error {
 
 	return h.withActorUserID(ctx, func(actorID *uuid.UUID) error {
 		poamItem, err := h.riskService.PromoteToPoam(h.poamService, riskrel.PromoteToPoamParams{
-			RiskID:           riskID,
-			ActorUserID:      actorID,
-			Title:            req.Title,
-			Deadline:         req.Deadline,
-			ResourceRequired: req.ResourceRequired,
-			PocName:          req.PocName,
-			PocEmail:         req.PocEmail,
-			ExtraMilestones:  milestones,
+			RiskID:             riskID,
+			ActorUserID:        actorID,
+			Title:              req.Title,
+			Deadline:           req.Deadline,
+			ResourceRequired:   req.ResourceRequired,
+			PrimaryOwnerUserID: req.PrimaryOwnerUserID,
+			ExtraMilestones:    milestones,
 		})
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

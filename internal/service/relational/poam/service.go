@@ -38,9 +38,7 @@ type CreatePoamItemParams struct {
 	PlannedCompletionDate *time.Time
 	CreatedFromRiskID     *uuid.UUID
 	AcceptanceRationale   *string
-	PocName               *string
-	PocEmail              *string
-	ResourceRequired      *string
+	ResourceRequired *string
 	RiskIDs               []uuid.UUID
 	EvidenceIDs           []uuid.UUID
 	ControlRefs           []ControlRef
@@ -119,8 +117,6 @@ func (s *PoamService) Create(params CreatePoamItemParams) (*PoamItem, error) {
 		PlannedCompletionDate: params.PlannedCompletionDate,
 		CreatedFromRiskID:     params.CreatedFromRiskID,
 		AcceptanceRationale:   params.AcceptanceRationale,
-		PocName:               params.PocName,
-		PocEmail:              params.PocEmail,
 		ResourceRequired:      params.ResourceRequired,
 	}
 
@@ -710,8 +706,6 @@ func (s *PoamService) CreateWithTx(tx *gorm.DB, params CreatePoamItemParams) (*P
 		PlannedCompletionDate: params.PlannedCompletionDate,
 		CreatedFromRiskID:     params.CreatedFromRiskID,
 		AcceptanceRationale:   params.AcceptanceRationale,
-		PocName:               params.PocName,
-		PocEmail:              params.PocEmail,
 		ResourceRequired:      params.ResourceRequired,
 	}
 

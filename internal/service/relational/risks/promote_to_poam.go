@@ -24,12 +24,11 @@ type PromoteToPoamParams struct {
 	Title *string
 	// Deadline maps to PoamItem.PlannedCompletionDate.
 	Deadline *time.Time
-	// ResourceRequired is a free-text field describing resources needed.
+	// ResourceRequired is a free-text planning field describing effort or budget needed.
 	ResourceRequired *string
-	// PocName is the point-of-contact name.
-	PocName *string
-	// PocEmail is the point-of-contact email.
-	PocEmail *string
+	// PrimaryOwnerUserID optionally overrides the POAM item owner.
+	// If nil, the risk's own PrimaryOwnerUserID is inherited automatically.
+	PrimaryOwnerUserID *uuid.UUID
 	// ExtraMilestones are additional milestones supplied in the request body.
 	// They are appended after any milestones copied from the risk's
 	// RemediationTemplate, with order_index offset accordingly.
@@ -140,10 +139,9 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 		Description:           risk.Description,
 		Status:                string(poamsvc.PoamItemStatusOpen),
 		SourceType:            string(poamsvc.PoamItemSourceTypeRiskPromotion),
+		PrimaryOwnerUserID:    coalesceUUID(params.PrimaryOwnerUserID, risk.PrimaryOwnerUserID),
 		PlannedCompletionDate: params.Deadline,
 		CreatedFromRiskID:     &riskID,
-		PocName:               params.PocName,
-		PocEmail:              params.PocEmail,
 		ResourceRequired:      params.ResourceRequired,
 		RiskIDs:               []uuid.UUID{params.RiskID},
 		Milestones:            templateMilestones,
@@ -192,4 +190,16 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 
 	// 12. Return the fully-loaded POAM item (with milestones and links).
 	return poamSvc.GetByID(poamItem.ID)
+}
+
+// coalesceUUID returns the first non-nil UUID pointer from the provided
+// arguments, mirroring the SQL COALESCE semantics. Used to allow an optional
+// caller-supplied override to fall back to a model-derived default.
+func coalesceUUID(vals ...*uuid.UUID) *uuid.UUID {
+	for _, v := range vals {
+		if v != nil {
+			return v
+		}
+	}
+	return nil
 }

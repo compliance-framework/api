@@ -40,8 +40,6 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 		"title":            "Encrypt data at rest — remediation plan",
 		"deadline":         deadline.Format(time.RFC3339),
 		"resourceRequired": "3 engineer days",
-		"pocName":          "Jane Smith",
-		"pocEmail":         "jane@example.com",
 		"milestones": []map[string]any{
 			{"title": "Identify all unencrypted data stores", "orderIndex": 1},
 			{"title": "Apply AES-256 encryption to all stores", "orderIndex": 2},
@@ -62,10 +60,8 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 	require.Equal(suite.T(), created.ID.String(), poamResp.Data.CreatedFromRiskID.String())
 	require.NotNil(suite.T(), poamResp.Data.PlannedCompletionDate)
 	require.WithinDuration(suite.T(), deadline, *poamResp.Data.PlannedCompletionDate, time.Second)
-	require.NotNil(suite.T(), poamResp.Data.PocName)
-	require.Equal(suite.T(), "Jane Smith", *poamResp.Data.PocName)
-	require.NotNil(suite.T(), poamResp.Data.PocEmail)
-	require.Equal(suite.T(), "jane@example.com", *poamResp.Data.PocEmail)
+	// PrimaryOwnerUserID should be inherited from the risk's owner (the authenticated actor).
+	require.NotNil(suite.T(), poamResp.Data.PrimaryOwnerUserID)
 	require.NotNil(suite.T(), poamResp.Data.ResourceRequired)
 	require.Equal(suite.T(), "3 engineer days", *poamResp.Data.ResourceRequired)
 
@@ -208,7 +204,7 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	sspPromoteRec, sspPromoteReq := suite.authedRequest(
 		http.MethodPost,
 		fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/promote-to-poam", sspID, created.ID),
-		map[string]any{"pocName": "SSP Owner"},
+		map[string]any{},
 	)
 	suite.server.E().ServeHTTP(sspPromoteRec, sspPromoteReq)
 	require.Equal(suite.T(), http.StatusCreated, sspPromoteRec.Code, "SSP-scoped promote should return 201: %s", sspPromoteRec.Body.String())
@@ -216,8 +212,8 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	var poamResp GenericDataResponse[poamItemResponse]
 	require.NoError(suite.T(), json.Unmarshal(sspPromoteRec.Body.Bytes(), &poamResp))
 	require.Equal(suite.T(), "SSP-scoped promotion risk", poamResp.Data.Title)
-	require.NotNil(suite.T(), poamResp.Data.PocName)
-	require.Equal(suite.T(), "SSP Owner", *poamResp.Data.PocName)
+	// PrimaryOwnerUserID should be inherited from the risk's owner.
+	require.NotNil(suite.T(), poamResp.Data.PrimaryOwnerUserID)
 }
 
 // TestPromoteToPoam_SSPScoped_RejectsWrongSSP verifies that promoting via a
