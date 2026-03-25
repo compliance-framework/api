@@ -11,11 +11,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// PromoteToPoamParams carries all inputs required to promote a risk-accepted
+// PromoteToPoamParams carries all inputs required to promote an investigating
 // risk to a POAM item.
 type PromoteToPoamParams struct {
 	// RiskID is the UUID of the risk to promote. The risk must be in
-	// risk-accepted status; any other status returns a 422 ValidationError.
+	// investigating status; any other status returns a 422 ValidationError.
 	RiskID uuid.UUID
 	// ActorUserID is the authenticated user performing the promotion.
 	ActorUserID *uuid.UUID
@@ -36,8 +36,9 @@ type PromoteToPoamParams struct {
 	ExtraMilestones []poamsvc.CreateMilestoneParams
 }
 
-// PromoteToPoam promotes a risk-accepted risk to a POAM item. The entire
-// operation — POAM item creation, milestone creation, risk link creation, and
+// PromoteToPoam promotes an investigating risk to a POAM item and transitions
+// the risk status to mitigating-planned. The entire operation — POAM item
+// creation, milestone creation, risk link creation, risk status transition, and
 // risk event emission — is executed inside a single database transaction so
 // that no partial state is persisted on failure.
 //
@@ -63,10 +64,13 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 		return nil, err
 	}
 
-	// 2. Guard: risk must be in risk-accepted status.
-	if risk.Status != string(RiskStatusRiskAccepted) {
+	// 2. Guard: risk must be in investigating status.
+	//    A risk that is accepted (risk-accepted) has been formally accepted as
+	//    tolerable — it should not receive a remediation plan. POAM promotion
+	//    is only valid while the risk is actively being investigated.
+	if risk.Status != string(RiskStatusInvestigating) {
 		tx.Rollback()
-		return nil, newValidationError("only risks in status risk-accepted can be promoted to a POAM item")
+		return nil, newValidationError("only risks in status investigating can be promoted to a POAM item")
 	}
 
 	// 3. Re-promotion guard: reject if an active (non-completed) POAM item
@@ -152,9 +156,25 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 		return nil, err
 	}
 
-	// 9. Emit the risk event.
+	// 9. Transition the risk status: investigating → mitigating-planned.
+	//    This records that a formal remediation plan now exists for the risk.
+	oldStatus := risk.Status
+	risk.Status = string(RiskStatusMitigatingPlanned)
+	if err := tx.Save(&risk).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// 10. Emit risk events: status_changed + poam_promoted.
 	riskSnapshot, err := s.getRiskSnapshot(tx, params.RiskID)
 	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := s.logRiskEventWithSnapshot(tx, params.RiskID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
+		"from": oldStatus,
+		"to":   risk.Status,
+	}, riskSnapshot); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -165,11 +185,11 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 		return nil, err
 	}
 
-	// 10. Commit the transaction.
+	// 11. Commit the transaction.
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
-	// 11. Return the fully-loaded POAM item (with milestones and links).
+	// 12. Return the fully-loaded POAM item (with milestones and links).
 	return poamSvc.GetByID(poamItem.ID)
 }

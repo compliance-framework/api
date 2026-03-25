@@ -34,9 +34,15 @@ const (
 	maxRiskDescriptionLength = 1000
 )
 
-func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.PoamService) *RiskHandler {
+func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.PoamService, riskSvc ...*riskrel.RiskService) *RiskHandler {
+	var rs *riskrel.RiskService
+	if len(riskSvc) > 0 && riskSvc[0] != nil {
+		rs = riskSvc[0]
+	} else {
+		rs = riskrel.NewRiskService(db)
+	}
 	return &RiskHandler{
-		riskService: riskrel.NewRiskService(db),
+		riskService: rs,
 		poamService: poamSvc,
 		sugar:       sugar,
 		pagination:  svc.NewPaginationConfig(),
@@ -1996,7 +2002,8 @@ func validateStatusTransition(oldStatus, newStatus string) error {
 			string(riskrel.RiskStatusClosed): {},
 		},
 		string(riskrel.RiskStatusRiskAccepted): {
-			string(riskrel.RiskStatusClosed): {},
+			string(riskrel.RiskStatusClosed):            {},
+			string(riskrel.RiskStatusMitigatingPlanned): {},
 		},
 		string(riskrel.RiskStatusRemediated): {
 			string(riskrel.RiskStatusOpen):   {},
@@ -2264,7 +2271,7 @@ type promoteToPoamRequest struct {
 // PromoteToPoam godoc
 //
 //	@Summary		Promote risk to POAM item
-//	@Description	Promotes a risk-accepted risk to a POAM item. The risk must be in risk-accepted status. The POAM item is pre-populated from the risk's data and any RemediationTemplate tasks. The entire operation is transactional.
+//	@Description	Promotes an investigating risk to a POAM item and transitions the risk to mitigating-planned. The risk must be in investigating status (risk-accepted risks cannot be promoted — they have been formally accepted as tolerable). The POAM item is pre-populated from the risk's data and any RemediationTemplate tasks. The entire operation is transactional.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json
@@ -2336,7 +2343,7 @@ func (h *RiskHandler) PromoteToPoam(ctx echo.Context) error {
 // PromoteToPoamForSSP godoc
 //
 //	@Summary		Promote risk to POAM item (SSP-scoped)
-//	@Description	Promotes a risk-accepted risk to a POAM item, scoped to a specific SSP. The risk must belong to the given SSP and be in risk-accepted status.
+//	@Description	Promotes an investigating risk to a POAM item, scoped to a specific SSP. The risk must belong to the given SSP and be in investigating status. On success, the risk transitions to mitigating-planned.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json

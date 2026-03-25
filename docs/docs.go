@@ -18668,7 +18668,7 @@ const docTemplate = `{
         },
         "/oscal/system-security-plans/{sspId}/risks/{id}/promote-to-poam": {
             "post": {
-                "description": "Promotes a risk-accepted risk to a POAM item, scoped to a specific SSP. The risk must belong to the given SSP and be in risk-accepted status.",
+                "description": "Promotes an investigating risk to a POAM item, scoped to a specific SSP. The risk must belong to the given SSP and be in investigating status. On success, the risk transitions to mitigating-planned.",
                 "consumes": [
                     "application/json"
                 ],
@@ -21672,7 +21672,7 @@ const docTemplate = `{
         },
         "/risks/{id}/promote-to-poam": {
             "post": {
-                "description": "Promotes a risk-accepted risk to a POAM item. The risk must be in risk-accepted status. The POAM item is pre-populated from the risk's data and any RemediationTemplate tasks. The entire operation is transactional.",
+                "description": "Promotes an investigating risk to a POAM item and transitions the risk to mitigating-planned. The risk must be in investigating status (risk-accepted risks cannot be promoted — they have been formally accepted as tolerable). The POAM item is pre-populated from the risk's data and any RemediationTemplate tasks. The entire operation is transactional.",
                 "consumes": [
                     "application/json"
                 ],

@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/digest"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	workflowsvc "github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/labstack/echo/v4"
@@ -50,7 +51,8 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	evidenceHandler.Register(server.API().Group("/evidence"))
 
 	poamService := poamsvc.NewPoamService(db)
-	poamHandler := NewPoamItemsHandler(poamService, logger)
+	riskService := riskrel.NewRiskService(db)
+	poamHandler := NewPoamItemsHandler(poamService, riskService, logger)
 	// Flat route: /api/poam-items (supports ?sspId= query filter)
 	poamGroup := server.API().Group("/poam-items")
 	poamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
@@ -61,7 +63,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	sspPoamGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	poamHandler.RegisterSSPScoped(sspPoamGroup)
 
-	riskHandler := NewRiskHandler(logger, db, poamService)
+	riskHandler := NewRiskHandler(logger, db, poamService, riskService)
 	riskGroup := server.API().Group("/risks")
 	riskGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 	riskHandler.Register(riskGroup)

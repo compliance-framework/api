@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -19,12 +21,13 @@ import (
 // imports gorm directly for data access.
 type PoamItemsHandler struct {
 	poamService *poamsvc.PoamService
+	riskService *riskrel.RiskService
 	sugar       *zap.SugaredLogger
 }
 
 // NewPoamItemsHandler constructs a PoamItemsHandler.
-func NewPoamItemsHandler(svc *poamsvc.PoamService, sugar *zap.SugaredLogger) *PoamItemsHandler {
-	return &PoamItemsHandler{poamService: svc, sugar: sugar}
+func NewPoamItemsHandler(svc *poamsvc.PoamService, riskSvc *riskrel.RiskService, sugar *zap.SugaredLogger) *PoamItemsHandler {
+	return &PoamItemsHandler{poamService: svc, riskService: riskSvc, sugar: sugar}
 }
 
 // Register mounts all POAM routes onto the given Echo group. JWT middleware
@@ -572,6 +575,16 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 	}
 	params.RemoveFindingIDs = removeFindingIDs
 
+	// Capture the current status before the update to detect a completion transition.
+	currentItem, err := h.poamService.GetByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return h.internalError(c, "failed to fetch poam item", err)
+	}
+	wasCompleted := currentItem.Status == string(poamsvc.PoamItemStatusCompleted)
+
 	item, err := h.poamService.Update(id, params)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -579,6 +592,26 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to update poam item", err)
 	}
+
+	// When a POAM item transitions to completed, advance all linked risks from
+	// mitigating-planned → mitigating-implemented.
+	nowCompleted := item.Status == string(poamsvc.PoamItemStatusCompleted)
+	if !wasCompleted && nowCompleted {
+		var actorUserID *uuid.UUID
+		if claims, ok := c.Get("user").(*authn.UserClaims); ok && claims != nil {
+			if uid, err := h.riskService.ResolveUserIDByEmail(claims.Subject); err == nil {
+				actorUserID = uid
+			}
+		}
+		if err := h.riskService.OnPoamItemCompleted(id, actorUserID); err != nil {
+			// Log but do not fail the POAM update — the item is already saved.
+			h.sugar.Warnw("failed to advance linked risk statuses on POAM completion",
+				"poamItemId", id,
+				"error", err,
+			)
+		}
+	}
+
 	return c.JSON(http.StatusOK, GenericDataResponse[poamItemResponse]{Data: toPoamItemResponse(item)})
 }
 

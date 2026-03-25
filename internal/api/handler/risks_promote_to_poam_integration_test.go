@@ -18,10 +18,13 @@ import (
 // BCH-1186: POST /risks/:id/promote-to-poam integration tests
 // ---------------------------------------------------------------------------
 
+// TestPromoteToPoam_HappyPath verifies the full happy-path: a risk in
+// investigating status is promoted to a POAM item, the POAM fields are
+// populated correctly, and the risk status advances to mitigating-planned.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 	sspID := suite.newSSPID()
 
-	// Create a risk in investigating status, then accept it.
+	// Create a risk directly in investigating status.
 	created := suite.createRisk(map[string]any{
 		"title":       "Unencrypted data at rest",
 		"description": "Sensitive data stored without encryption",
@@ -30,14 +33,6 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 		"likelihood":  "high",
 		"impact":      "critical",
 	})
-
-	acceptDeadline := time.Now().Add(30 * 24 * time.Hour).UTC()
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":   "accepted pending encryption rollout",
-		"review-deadline": acceptDeadline.Format(time.RFC3339),
-	})
-	suite.server.E().ServeHTTP(acceptRec, acceptReq)
-	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
 
 	// Promote to POAM with full payload.
 	deadline := time.Now().Add(90 * 24 * time.Hour).UTC().Truncate(time.Second)
@@ -48,12 +43,12 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 		"pocName":          "Jane Smith",
 		"pocEmail":         "jane@example.com",
 		"milestones": []map[string]any{
-			{"title": "Identify all unencrypted data stores", "orderIndex": 0},
-			{"title": "Apply AES-256 encryption to all stores", "orderIndex": 1},
+			{"title": "Identify all unencrypted data stores", "orderIndex": 1},
+			{"title": "Apply AES-256 encryption to all stores", "orderIndex": 2},
 		},
 	})
 	suite.server.E().ServeHTTP(promoteRec, promoteReq)
-	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code, "promote-to-poam should return 201")
+	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code, "promote-to-poam should return 201: %s", promoteRec.Body.String())
 
 	var poamResp GenericDataResponse[poamItemResponse]
 	require.NoError(suite.T(), json.Unmarshal(promoteRec.Body.Bytes(), &poamResp))
@@ -89,8 +84,18 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 		Where("risk_id = ? AND event_type = ?", created.ID, string(riskrel.RiskEventTypePoamPromoted)).
 		Count(&promotedEvents).Error)
 	require.Equal(suite.T(), int64(1), promotedEvents)
+
+	// Verify risk status was transitioned to mitigating-planned.
+	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+	var riskResp GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec.Body.Bytes(), &riskResp))
+	require.Equal(suite.T(), "mitigating-planned", riskResp.Data.Status, "risk status should be mitigating-planned after promotion")
 }
 
+// TestPromoteToPoam_DefaultsFromRisk verifies that when no title/description
+// are provided, the POAM item inherits them from the risk.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_DefaultsFromRisk() {
 	sspID := suite.newSSPID()
 
@@ -101,18 +106,10 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_DefaultsFromRisk() {
 		"status":      "investigating",
 	})
 
-	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC()
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":   "accepted pending policy update",
-		"review-deadline": acceptDeadline.Format(time.RFC3339),
-	})
-	suite.server.E().ServeHTTP(acceptRec, acceptReq)
-	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
-
 	// Promote with empty body — title and description should default from risk.
 	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{})
 	suite.server.E().ServeHTTP(promoteRec, promoteReq)
-	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code)
+	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code, "promote-to-poam should return 201: %s", promoteRec.Body.String())
 
 	var poamResp GenericDataResponse[poamItemResponse]
 	require.NoError(suite.T(), json.Unmarshal(promoteRec.Body.Bytes(), &poamResp))
@@ -124,34 +121,45 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_DefaultsFromRisk() {
 	require.Equal(suite.T(), "risk-promotion", poamResp.Data.SourceType)
 }
 
-func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsNonAcceptedRisk() {
+// TestPromoteToPoam_RejectsNonInvestigatingRisk verifies that only risks in
+// investigating status can be promoted; open and risk-accepted are rejected.
+func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsNonInvestigatingRisk() {
 	sspID := suite.newSSPID()
 
-	// Risk in "open" status — not risk-accepted.
-	created := suite.createRisk(map[string]any{
+	// Risk in "open" status — cannot be promoted.
+	openRisk := suite.createRisk(map[string]any{
 		"title":       "Open risk",
-		"description": "Not yet accepted",
+		"description": "Not yet under investigation",
 		"ssp-id":      sspID,
 		"status":      "open",
 	})
 
-	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{})
+	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", openRisk.ID), map[string]any{})
 	suite.server.E().ServeHTTP(promoteRec, promoteReq)
-	require.Equal(suite.T(), http.StatusUnprocessableEntity, promoteRec.Code, "should return 422 for non-accepted risk")
+	require.Equal(suite.T(), http.StatusUnprocessableEntity, promoteRec.Code, "should return 422 for open risk")
 
-	// Risk in "investigating" status — also not risk-accepted.
-	investigating := suite.createRisk(map[string]any{
-		"title":       "Investigating risk",
-		"description": "Still being investigated",
+	// Risk in "risk-accepted" status — accepted risks are not remediated.
+	acceptedRisk := suite.createRisk(map[string]any{
+		"title":       "Accepted risk",
+		"description": "Formally accepted, not being remediated",
 		"ssp-id":      sspID,
 		"status":      "investigating",
 	})
+	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC()
+	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", acceptedRisk.ID), map[string]any{
+		"justification":   "accepted pending policy review",
+		"review-deadline": acceptDeadline.Format(time.RFC3339),
+	})
+	suite.server.E().ServeHTTP(acceptRec, acceptReq)
+	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
 
-	promoteRec2, promoteReq2 := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", investigating.ID), map[string]any{})
+	promoteRec2, promoteReq2 := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", acceptedRisk.ID), map[string]any{})
 	suite.server.E().ServeHTTP(promoteRec2, promoteReq2)
-	require.Equal(suite.T(), http.StatusUnprocessableEntity, promoteRec2.Code, "should return 422 for investigating risk")
+	require.Equal(suite.T(), http.StatusUnprocessableEntity, promoteRec2.Code, "should return 422 for risk-accepted risk")
 }
 
+// TestPromoteToPoam_RejectsActivePoamAlreadyLinked verifies that a second
+// promotion is rejected when an active (non-completed) POAM item already exists.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsActivePoamAlreadyLinked() {
 	sspID := suite.newSSPID()
 
@@ -162,25 +170,21 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsActivePoamAlready
 		"status":      "investigating",
 	})
 
-	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC()
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":   "accepted",
-		"review-deadline": acceptDeadline.Format(time.RFC3339),
-	})
-	suite.server.E().ServeHTTP(acceptRec, acceptReq)
-	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
-
 	// First promotion should succeed.
 	firstRec, firstReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{})
 	suite.server.E().ServeHTTP(firstRec, firstReq)
-	require.Equal(suite.T(), http.StatusCreated, firstRec.Code)
+	require.Equal(suite.T(), http.StatusCreated, firstRec.Code, "first promotion should succeed: %s", firstRec.Body.String())
 
 	// Second promotion should fail — active POAM item already linked.
+	// Risk is now mitigating-planned, which is also not investigating, so we
+	// expect 422 from the status guard.
 	secondRec, secondReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{})
 	suite.server.E().ServeHTTP(secondRec, secondReq)
 	require.Equal(suite.T(), http.StatusUnprocessableEntity, secondRec.Code, "should return 422 when active POAM already linked")
 }
 
+// TestPromoteToPoam_RejectsNotFound verifies that promoting a non-existent
+// risk returns 404.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsNotFound() {
 	nonExistentID := uuid.New()
 	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", nonExistentID), map[string]any{})
@@ -188,6 +192,8 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_RejectsNotFound() {
 	require.Equal(suite.T(), http.StatusNotFound, promoteRec.Code)
 }
 
+// TestPromoteToPoam_SSPScoped_HappyPath verifies the SSP-scoped endpoint
+// returns 201 with correct data for a risk belonging to the given SSP.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	sspID := suite.newSSPID()
 
@@ -198,14 +204,6 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 		"status":      "investigating",
 	})
 
-	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC()
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":   "accepted for SSP-scoped test",
-		"review-deadline": acceptDeadline.Format(time.RFC3339),
-	})
-	suite.server.E().ServeHTTP(acceptRec, acceptReq)
-	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
-
 	// Promote via SSP-scoped endpoint.
 	sspPromoteRec, sspPromoteReq := suite.authedRequest(
 		http.MethodPost,
@@ -213,7 +211,7 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 		map[string]any{"pocName": "SSP Owner"},
 	)
 	suite.server.E().ServeHTTP(sspPromoteRec, sspPromoteReq)
-	require.Equal(suite.T(), http.StatusCreated, sspPromoteRec.Code)
+	require.Equal(suite.T(), http.StatusCreated, sspPromoteRec.Code, "SSP-scoped promote should return 201: %s", sspPromoteRec.Body.String())
 
 	var poamResp GenericDataResponse[poamItemResponse]
 	require.NoError(suite.T(), json.Unmarshal(sspPromoteRec.Body.Bytes(), &poamResp))
@@ -222,6 +220,8 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	require.Equal(suite.T(), "SSP Owner", *poamResp.Data.PocName)
 }
 
+// TestPromoteToPoam_SSPScoped_RejectsWrongSSP verifies that promoting via a
+// different SSP's scoped endpoint returns 404.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_RejectsWrongSSP() {
 	sspID := suite.newSSPID()
 	wrongSSPID := suite.newSSPID()
@@ -233,14 +233,6 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_RejectsWrongSS
 		"status":      "investigating",
 	})
 
-	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC()
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":   "accepted",
-		"review-deadline": acceptDeadline.Format(time.RFC3339),
-	})
-	suite.server.E().ServeHTTP(acceptRec, acceptReq)
-	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
-
 	// Attempt to promote via wrong SSP — should return 404.
 	wrongSSPRec, wrongSSPReq := suite.authedRequest(
 		http.MethodPost,
@@ -251,6 +243,9 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_RejectsWrongSS
 	require.Equal(suite.T(), http.StatusNotFound, wrongSSPRec.Code)
 }
 
+// TestPromoteToPoam_WithRemediationTemplate verifies that milestones from the
+// risk's RemediationTemplate are copied first, followed by any extra milestones
+// from the request body.
 func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_WithRemediationTemplate() {
 	sspID := suite.newSSPID()
 
@@ -262,7 +257,7 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_WithRemediationTemplate(
 	})
 
 	// Create a remediation template with 2 tasks.
-	// Note: the remediationTaskRequest uses "order-index" (kebab-case) as its JSON tag.
+	// Note: remediationTaskRequest uses "order-index" (kebab-case) as its JSON tag.
 	remRec, remReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/remediation-template", created.ID), map[string]any{
 		"title": "Standard remediation plan",
 		"tasks": []map[string]any{
@@ -271,25 +266,16 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_WithRemediationTemplate(
 		},
 	})
 	suite.server.E().ServeHTTP(remRec, remReq)
-	require.Equal(suite.T(), http.StatusCreated, remRec.Code)
-
-	// Accept the risk.
-	acceptDeadline := time.Now().Add(14 * 24 * time.Hour).UTC()
-	acceptRec, acceptReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/accept", created.ID), map[string]any{
-		"justification":   "accepted",
-		"review-deadline": acceptDeadline.Format(time.RFC3339),
-	})
-	suite.server.E().ServeHTTP(acceptRec, acceptReq)
-	require.Equal(suite.T(), http.StatusOK, acceptRec.Code)
+	require.Equal(suite.T(), http.StatusCreated, remRec.Code, "remediation template creation should return 201: %s", remRec.Body.String())
 
 	// Promote with 1 extra milestone — should have 3 total (2 template + 1 extra).
 	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{
 		"milestones": []map[string]any{
-			{"title": "Extra milestone from request", "orderIndex": 2},
+			{"title": "Extra milestone from request", "orderIndex": 3},
 		},
 	})
 	suite.server.E().ServeHTTP(promoteRec, promoteReq)
-	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code)
+	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code, "promote-to-poam should return 201: %s", promoteRec.Body.String())
 
 	var poamResp GenericDataResponse[poamItemResponse]
 	require.NoError(suite.T(), json.Unmarshal(promoteRec.Body.Bytes(), &poamResp))
@@ -299,6 +285,59 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_WithRemediationTemplate(
 	require.Equal(suite.T(), "Template task 1", poamResp.Data.Milestones[0].Title)
 	require.Equal(suite.T(), "Template task 2", poamResp.Data.Milestones[1].Title)
 	require.Equal(suite.T(), "Extra milestone from request", poamResp.Data.Milestones[2].Title)
+}
+
+// TestPromoteToPoam_CompletionAdvancesRiskStatus verifies the full lifecycle:
+// promote (investigating → mitigating-planned), then complete the POAM item
+// (mitigating-planned → mitigating-implemented).
+func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_CompletionAdvancesRiskStatus() {
+	sspID := suite.newSSPID()
+
+	created := suite.createRisk(map[string]any{
+		"title":       "Lifecycle risk",
+		"description": "Testing full POAM lifecycle",
+		"ssp-id":      sspID,
+		"status":      "investigating",
+	})
+
+	// Promote to POAM.
+	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{})
+	suite.server.E().ServeHTTP(promoteRec, promoteReq)
+	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code, "promote should succeed: %s", promoteRec.Body.String())
+
+	var poamResp GenericDataResponse[poamItemResponse]
+	require.NoError(suite.T(), json.Unmarshal(promoteRec.Body.Bytes(), &poamResp))
+	poamID := poamResp.Data.ID
+
+	// Verify risk is now mitigating-planned.
+	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+	var riskResp GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec.Body.Bytes(), &riskResp))
+	require.Equal(suite.T(), "mitigating-planned", riskResp.Data.Status)
+
+	// Complete the POAM item.
+	completeRec, completeReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", poamID), map[string]any{
+		"status": "completed",
+	})
+	suite.server.E().ServeHTTP(completeRec, completeReq)
+	require.Equal(suite.T(), http.StatusOK, completeRec.Code, "POAM completion should succeed: %s", completeRec.Body.String())
+
+	// Verify risk has advanced to mitigating-implemented.
+	getRec2, getReq2 := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(getRec2, getReq2)
+	require.Equal(suite.T(), http.StatusOK, getRec2.Code)
+	var riskResp2 GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec2.Body.Bytes(), &riskResp2))
+	require.Equal(suite.T(), "mitigating-implemented", riskResp2.Data.Status, "risk should advance to mitigating-implemented after POAM completion")
+
+	// Verify poam_completed event was emitted on the risk.
+	var completedEvents int64
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", created.ID, string(riskrel.RiskEventTypePoamCompleted)).
+		Count(&completedEvents).Error)
+	require.Equal(suite.T(), int64(1), completedEvents)
 }
 
 // Ensure the testing import is used.
