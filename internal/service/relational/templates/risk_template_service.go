@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	maxRiskTemplateFieldLength = 1000
-	maxThreatRefsPerTemplate   = 50
-	maxViolationIDsPerTemplate = 100
-	maxRemediationTasks        = 100
+	maxRiskTemplateFieldLength      = 1000
+	maxThreatRefsPerTemplate        = 50
+	maxViolationIDsPerTemplate      = 100
+	maxRemediationTasks             = 100
+	maxRiskTemplateLabelSchemaItems = 100
+	maxRiskTemplateDedupeLabelKeys  = 20
 )
 
 type ValidationError struct {
@@ -76,6 +78,11 @@ type RemediationTemplateInput struct {
 	Tasks       []RemediationTaskInput
 }
 
+type RiskTemplateLabelSchemaFieldInput struct {
+	Key         string
+	Description *string
+}
+
 type RiskTemplatePayload struct {
 	PluginID       string
 	PolicyPackage  string
@@ -87,6 +94,13 @@ type RiskTemplatePayload struct {
 	ViolationIDs   []string
 	IsActive       *bool
 	ThreatRefs     []ThreatRefInput
+
+	TitleTemplate          *string
+	StatementTemplate      *string
+	LikelihoodHintTemplate *string
+	ImpactHintTemplate     *string
+	DedupeLabelKeys        []string
+	LabelSchema            []RiskTemplateLabelSchemaFieldInput
 
 	// Optional: nil means "no remediation template".
 	RemediationTemplate *RemediationTemplateInput
@@ -119,6 +133,7 @@ func (s *RiskTemplateService) List(params RiskTemplateListParams) ([]RiskTemplat
 	var rows []RiskTemplate
 	if err := query.
 		Preload("ThreatRefs", preloadThreatRefs).
+		Preload("LabelSchema", preloadRiskTemplateLabelSchema).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		Order("created_at desc").
@@ -157,15 +172,20 @@ func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate
 	}
 
 	row := RiskTemplate{
-		PluginID:       payload.PluginID,
-		PolicyPackage:  payload.PolicyPackage,
-		Name:           payload.Name,
-		Title:          payload.Title,
-		Statement:      payload.Statement,
-		LikelihoodHint: payload.LikelihoodHint,
-		ImpactHint:     payload.ImpactHint,
-		ViolationIDs:   datatypes.NewJSONSlice(payload.ViolationIDs),
-		IsActive:       true,
+		PluginID:               payload.PluginID,
+		PolicyPackage:          payload.PolicyPackage,
+		Name:                   payload.Name,
+		Title:                  payload.Title,
+		Statement:              payload.Statement,
+		LikelihoodHint:         payload.LikelihoodHint,
+		ImpactHint:             payload.ImpactHint,
+		TitleTemplate:          payload.TitleTemplate,
+		StatementTemplate:      payload.StatementTemplate,
+		LikelihoodHintTemplate: payload.LikelihoodHintTemplate,
+		ImpactHintTemplate:     payload.ImpactHintTemplate,
+		DedupeLabelKeys:        datatypes.NewJSONSlice(payload.DedupeLabelKeys),
+		ViolationIDs:           datatypes.NewJSONSlice(payload.ViolationIDs),
+		IsActive:               true,
 	}
 	if payload.IsActive != nil {
 		row.IsActive = *payload.IsActive
@@ -185,6 +205,11 @@ func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate
 		"Statement",
 		"LikelihoodHint",
 		"ImpactHint",
+		"TitleTemplate",
+		"StatementTemplate",
+		"LikelihoodHintTemplate",
+		"ImpactHintTemplate",
+		"DedupeLabelKeys",
 		"ViolationIDs",
 		"IsActive",
 		"RemediationTemplateID",
@@ -202,6 +227,11 @@ func (s *RiskTemplateService) Create(payload RiskTemplatePayload) (*RiskTemplate
 	}
 
 	if err := replaceThreatRefs(tx, *row.ID, payload.ThreatRefs); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := replaceRiskTemplateLabelSchema(tx, *row.ID, payload.LabelSchema); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -243,6 +273,11 @@ func (s *RiskTemplateService) Update(id uuid.UUID, payload RiskTemplatePayload) 
 	existing.Statement = payload.Statement
 	existing.LikelihoodHint = payload.LikelihoodHint
 	existing.ImpactHint = payload.ImpactHint
+	existing.TitleTemplate = payload.TitleTemplate
+	existing.StatementTemplate = payload.StatementTemplate
+	existing.LikelihoodHintTemplate = payload.LikelihoodHintTemplate
+	existing.ImpactHintTemplate = payload.ImpactHintTemplate
+	existing.DedupeLabelKeys = datatypes.NewJSONSlice(payload.DedupeLabelKeys)
 	existing.ViolationIDs = datatypes.NewJSONSlice(payload.ViolationIDs)
 	if payload.IsActive != nil {
 		existing.IsActive = *payload.IsActive
@@ -264,12 +299,17 @@ func (s *RiskTemplateService) Update(id uuid.UUID, payload RiskTemplatePayload) 
 		existing.RemediationTemplate = nil
 	}
 
-	if err := tx.Omit("ThreatRefs", "RemediationTemplate").Save(&existing).Error; err != nil {
+	if err := tx.Omit("ThreatRefs", "LabelSchema", "RemediationTemplate").Save(&existing).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
 	if err := replaceThreatRefs(tx, *existing.ID, payload.ThreatRefs); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := replaceRiskTemplateLabelSchema(tx, *existing.ID, payload.LabelSchema); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -301,6 +341,11 @@ func (s *RiskTemplateService) Delete(id uuid.UUID) error {
 	}
 
 	if err := tx.Delete(&RiskTemplateThreatRef{}, "risk_template_id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Delete(&RiskTemplateLabelSchemaField{}, "risk_template_id = ?", id).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -348,6 +393,27 @@ func replaceThreatRefs(tx *gorm.DB, riskTemplateID uuid.UUID, refs []ThreatRefIn
 			ExternalID:     ref.ExternalID,
 			Title:          ref.Title,
 			URL:            ref.URL,
+		})
+	}
+
+	if len(rows) == 0 {
+		return nil
+	}
+
+	return tx.Create(&rows).Error
+}
+
+func replaceRiskTemplateLabelSchema(tx *gorm.DB, riskTemplateID uuid.UUID, fields []RiskTemplateLabelSchemaFieldInput) error {
+	if err := tx.Delete(&RiskTemplateLabelSchemaField{}, "risk_template_id = ?", riskTemplateID).Error; err != nil {
+		return err
+	}
+
+	rows := make([]RiskTemplateLabelSchemaField, 0, len(fields))
+	for _, f := range fields {
+		rows = append(rows, RiskTemplateLabelSchemaField{
+			RiskTemplateID: riskTemplateID,
+			Key:            f.Key,
+			Description:    f.Description,
 		})
 	}
 
@@ -430,6 +496,126 @@ func validateRiskTemplatePayload(payload *RiskTemplatePayload) error {
 	if err := validateRemediationTemplate(payload.RemediationTemplate); err != nil {
 		return err
 	}
+	if err := validateRiskTemplateLabelSchema(payload.LabelSchema); err != nil {
+		return err
+	}
+	if err := validateRiskTemplateDedupeLabelKeys(payload.DedupeLabelKeys, payload.LabelSchema); err != nil {
+		return err
+	}
+	if err := validateRiskTemplateTemplateFields(payload); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateRiskTemplateLabelSchema(schema []RiskTemplateLabelSchemaFieldInput) error {
+	if err := validateMaxItems("labelSchema", len(schema), maxRiskTemplateLabelSchemaItems); err != nil {
+		return err
+	}
+
+	seen := make(map[string]struct{}, len(schema))
+	for i, field := range schema {
+		key := strings.TrimSpace(field.Key)
+		if key == "" {
+			return newValidationError(fmt.Sprintf("labelSchema[%d].key must not be empty", i))
+		}
+		if err := validateTextLength(fmt.Sprintf("labelSchema[%d].key", i), key); err != nil {
+			return err
+		}
+		if _, exists := seen[key]; exists {
+			return newValidationError(fmt.Sprintf("labelSchema has duplicate key %q", key))
+		}
+		seen[key] = struct{}{}
+		if err := validateOptionalText(fmt.Sprintf("labelSchema[%d].description", i), field.Description); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateRiskTemplateDedupeLabelKeys(keys []string, schema []RiskTemplateLabelSchemaFieldInput) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	if err := validateMaxItems("dedupeLabelKeys", len(keys), maxRiskTemplateDedupeLabelKeys); err != nil {
+		return err
+	}
+
+	if len(schema) == 0 {
+		return newValidationError("dedupeLabelKeys requires a non-empty labelSchema")
+	}
+
+	schemaKeys := make(map[string]struct{}, len(schema))
+	for _, f := range schema {
+		schemaKeys[strings.TrimSpace(f.Key)] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(keys))
+	for i, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return newValidationError(fmt.Sprintf("dedupeLabelKeys[%d] must not be empty", i))
+		}
+		if _, exists := seen[trimmed]; exists {
+			return newValidationError(fmt.Sprintf("dedupeLabelKeys has duplicate key %q", trimmed))
+		}
+		seen[trimmed] = struct{}{}
+
+		if _, inSchema := schemaKeys[trimmed]; !inSchema {
+			return newValidationError(fmt.Sprintf("dedupeLabelKeys key %q is not defined in labelSchema", trimmed))
+		}
+	}
+
+	return nil
+}
+
+func validateRiskTemplateTemplateFields(payload *RiskTemplatePayload) error {
+	if len(payload.LabelSchema) == 0 {
+		// No label schema means no template fields should be set.
+		if payload.TitleTemplate != nil || payload.StatementTemplate != nil ||
+			payload.LikelihoodHintTemplate != nil || payload.ImpactHintTemplate != nil {
+			return newValidationError("template fields require a non-empty labelSchema")
+		}
+		return nil
+	}
+
+	if err := validateOptionalText("titleTemplate", payload.TitleTemplate); err != nil {
+		return err
+	}
+	if err := validateOptionalText("statementTemplate", payload.StatementTemplate); err != nil {
+		return err
+	}
+	if err := validateOptionalText("likelihoodHintTemplate", payload.LikelihoodHintTemplate); err != nil {
+		return err
+	}
+	if err := validateOptionalText("impactHintTemplate", payload.ImpactHintTemplate); err != nil {
+		return err
+	}
+
+	// Build SubjectTemplateLabelSchemaField slice for reuse of validateTemplateAgainstSchema.
+	schemaFields := make([]SubjectTemplateLabelSchemaField, 0, len(payload.LabelSchema))
+	for _, f := range payload.LabelSchema {
+		schemaFields = append(schemaFields, SubjectTemplateLabelSchemaField{
+			Key:         f.Key,
+			Description: f.Description,
+		})
+	}
+
+	if err := validateTemplateAgainstSchema(payload.TitleTemplate, schemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("titleTemplate: %s", err.Error()))
+	}
+	if err := validateTemplateAgainstSchema(payload.StatementTemplate, schemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("statementTemplate: %s", err.Error()))
+	}
+	if err := validateTemplateAgainstSchema(payload.LikelihoodHintTemplate, schemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("likelihoodHintTemplate: %s", err.Error()))
+	}
+	if err := validateTemplateAgainstSchema(payload.ImpactHintTemplate, schemaFields); err != nil {
+		return newValidationError(fmt.Sprintf("impactHintTemplate: %s", err.Error()))
+	}
 
 	return nil
 }
@@ -460,6 +646,33 @@ func normalizeRiskTemplatePayload(payload *RiskTemplatePayload) {
 			normalizedURL := strings.TrimSpace(*payload.ThreatRefs[i].URL)
 			payload.ThreatRefs[i].URL = &normalizedURL
 		}
+	}
+
+	for i := range payload.LabelSchema {
+		payload.LabelSchema[i].Key = strings.TrimSpace(payload.LabelSchema[i].Key)
+		if payload.LabelSchema[i].Description != nil {
+			normalizedDescription := strings.TrimSpace(*payload.LabelSchema[i].Description)
+			payload.LabelSchema[i].Description = &normalizedDescription
+		}
+	}
+	for i := range payload.DedupeLabelKeys {
+		payload.DedupeLabelKeys[i] = strings.TrimSpace(payload.DedupeLabelKeys[i])
+	}
+	if payload.TitleTemplate != nil {
+		normalizedTitleTemplate := strings.TrimSpace(*payload.TitleTemplate)
+		payload.TitleTemplate = &normalizedTitleTemplate
+	}
+	if payload.StatementTemplate != nil {
+		normalizedStatementTemplate := strings.TrimSpace(*payload.StatementTemplate)
+		payload.StatementTemplate = &normalizedStatementTemplate
+	}
+	if payload.LikelihoodHintTemplate != nil {
+		normalizedLikelihoodHintTemplate := strings.TrimSpace(*payload.LikelihoodHintTemplate)
+		payload.LikelihoodHintTemplate = &normalizedLikelihoodHintTemplate
+	}
+	if payload.ImpactHintTemplate != nil {
+		normalizedImpactHintTemplate := strings.TrimSpace(*payload.ImpactHintTemplate)
+		payload.ImpactHintTemplate = &normalizedImpactHintTemplate
 	}
 
 	if payload.RemediationTemplate == nil {
@@ -654,6 +867,7 @@ func fetchRiskTemplateByID(db *gorm.DB, id uuid.UUID) (*RiskTemplate, error) {
 	var row RiskTemplate
 	if err := db.
 		Preload("ThreatRefs", preloadThreatRefs).
+		Preload("LabelSchema", preloadRiskTemplateLabelSchema).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		First(&row, "id = ?", id).Error; err != nil {
@@ -666,6 +880,10 @@ func preloadThreatRefs(db *gorm.DB) *gorm.DB {
 	return db.Order("system ASC, external_id ASC")
 }
 
+func preloadRiskTemplateLabelSchema(db *gorm.DB) *gorm.DB {
+	return db.Order("key ASC")
+}
+
 func preloadRemediationTasks(db *gorm.DB) *gorm.DB {
 	return db.Order("order_index ASC")
 }
@@ -674,16 +892,22 @@ func preloadRemediationTasks(db *gorm.DB) *gorm.DB {
 // PluginID and PolicyPackage are inherited from the batch-level scope and must not be set here.
 // ID is mandatory and must be provided by the caller (agent-side UUID generation).
 type BatchRiskTemplateItem struct {
-	ID                  uuid.UUID
-	Name                string
-	Title               string
-	Statement           string
-	LikelihoodHint      *string
-	ImpactHint          *string
-	ViolationIDs        []string
-	IsActive            *bool
-	ThreatRefs          []ThreatRefInput
-	RemediationTemplate *RemediationTemplateInput
+	ID                     uuid.UUID
+	Name                   string
+	Title                  string
+	Statement              string
+	LikelihoodHint         *string
+	ImpactHint             *string
+	ViolationIDs           []string
+	IsActive               *bool
+	ThreatRefs             []ThreatRefInput
+	RemediationTemplate    *RemediationTemplateInput
+	TitleTemplate          *string
+	StatementTemplate      *string
+	LikelihoodHintTemplate *string
+	ImpactHintTemplate     *string
+	DedupeLabelKeys        []string
+	LabelSchema            []RiskTemplateLabelSchemaFieldInput
 }
 
 // BatchUpsertRiskTemplatesResult is the result of a RiskTemplateService.BatchUpsert call.
@@ -753,6 +977,7 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 	if err := tx.
 		Where("plugin_id = ? AND policy_package = ?", pluginID, policyPackage).
 		Preload("ThreatRefs", preloadThreatRefs).
+		Preload("LabelSchema", preloadRiskTemplateLabelSchema).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", preloadRemediationTasks).
 		Find(&existingRows).Error; err != nil {
@@ -826,6 +1051,10 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 			tx.Rollback()
 			return nil, fmt.Errorf("delete threat refs for risk template %s: %w", id, err)
 		}
+		if err := tx.Delete(&RiskTemplateLabelSchemaField{}, "risk_template_id = ?", id).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("delete label schema for risk template %s: %w", id, err)
+		}
 		if err := tx.Delete(&RiskTemplate{}, "id = ?", id).Error; err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("delete risk template %s: %w", id, err)
@@ -850,17 +1079,23 @@ func (s *RiskTemplateService) BatchUpsert(pluginID, policyPackage string, items 
 // The returned payload is NOT yet validated or normalised; call validateRiskTemplatePayload first.
 func batchItemToPayload(pluginID, policyPackage string, item BatchRiskTemplateItem) RiskTemplatePayload {
 	return RiskTemplatePayload{
-		PluginID:            pluginID,
-		PolicyPackage:       policyPackage,
-		Name:                item.Name,
-		Title:               item.Title,
-		Statement:           item.Statement,
-		LikelihoodHint:      item.LikelihoodHint,
-		ImpactHint:          item.ImpactHint,
-		ViolationIDs:        append([]string{}, item.ViolationIDs...),
-		IsActive:            item.IsActive,
-		ThreatRefs:          append([]ThreatRefInput{}, item.ThreatRefs...),
-		RemediationTemplate: item.RemediationTemplate,
+		PluginID:               pluginID,
+		PolicyPackage:          policyPackage,
+		Name:                   item.Name,
+		Title:                  item.Title,
+		Statement:              item.Statement,
+		LikelihoodHint:         item.LikelihoodHint,
+		ImpactHint:             item.ImpactHint,
+		ViolationIDs:           append([]string{}, item.ViolationIDs...),
+		IsActive:               item.IsActive,
+		ThreatRefs:             append([]ThreatRefInput{}, item.ThreatRefs...),
+		RemediationTemplate:    item.RemediationTemplate,
+		TitleTemplate:          item.TitleTemplate,
+		StatementTemplate:      item.StatementTemplate,
+		LikelihoodHintTemplate: item.LikelihoodHintTemplate,
+		ImpactHintTemplate:     item.ImpactHintTemplate,
+		DedupeLabelKeys:        append([]string{}, item.DedupeLabelKeys...),
+		LabelSchema:            append([]RiskTemplateLabelSchemaFieldInput{}, item.LabelSchema...),
 	}
 }
 
@@ -876,6 +1111,12 @@ func batchItemFromPayload(item BatchRiskTemplateItem, payload RiskTemplatePayloa
 	item.IsActive = payload.IsActive
 	item.ThreatRefs = payload.ThreatRefs
 	item.RemediationTemplate = payload.RemediationTemplate
+	item.TitleTemplate = payload.TitleTemplate
+	item.StatementTemplate = payload.StatementTemplate
+	item.LikelihoodHintTemplate = payload.LikelihoodHintTemplate
+	item.ImpactHintTemplate = payload.ImpactHintTemplate
+	item.DedupeLabelKeys = payload.DedupeLabelKeys
+	item.LabelSchema = payload.LabelSchema
 	return item
 }
 
@@ -891,15 +1132,20 @@ func createRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 	}
 
 	row := RiskTemplate{
-		PluginID:       payload.PluginID,
-		PolicyPackage:  payload.PolicyPackage,
-		Name:           payload.Name,
-		Title:          payload.Title,
-		Statement:      payload.Statement,
-		LikelihoodHint: payload.LikelihoodHint,
-		ImpactHint:     payload.ImpactHint,
-		ViolationIDs:   datatypes.NewJSONSlice(payload.ViolationIDs),
-		IsActive:       true,
+		PluginID:               payload.PluginID,
+		PolicyPackage:          payload.PolicyPackage,
+		Name:                   payload.Name,
+		Title:                  payload.Title,
+		Statement:              payload.Statement,
+		LikelihoodHint:         payload.LikelihoodHint,
+		ImpactHint:             payload.ImpactHint,
+		TitleTemplate:          payload.TitleTemplate,
+		StatementTemplate:      payload.StatementTemplate,
+		LikelihoodHintTemplate: payload.LikelihoodHintTemplate,
+		ImpactHintTemplate:     payload.ImpactHintTemplate,
+		DedupeLabelKeys:        datatypes.NewJSONSlice(payload.DedupeLabelKeys),
+		ViolationIDs:           datatypes.NewJSONSlice(payload.ViolationIDs),
+		IsActive:               true,
 	}
 	row.ID = &id
 	if payload.IsActive != nil {
@@ -920,6 +1166,11 @@ func createRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 		"Statement",
 		"LikelihoodHint",
 		"ImpactHint",
+		"TitleTemplate",
+		"StatementTemplate",
+		"LikelihoodHintTemplate",
+		"ImpactHintTemplate",
+		"DedupeLabelKeys",
 		"ViolationIDs",
 		"IsActive",
 		"RemediationTemplateID",
@@ -927,6 +1178,9 @@ func createRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 		return nil, err
 	}
 	if err := replaceThreatRefs(tx, id, payload.ThreatRefs); err != nil {
+		return nil, err
+	}
+	if err := replaceRiskTemplateLabelSchema(tx, id, payload.LabelSchema); err != nil {
 		return nil, err
 	}
 
@@ -947,6 +1201,11 @@ func updateRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 	existing.Statement = payload.Statement
 	existing.LikelihoodHint = payload.LikelihoodHint
 	existing.ImpactHint = payload.ImpactHint
+	existing.TitleTemplate = payload.TitleTemplate
+	existing.StatementTemplate = payload.StatementTemplate
+	existing.LikelihoodHintTemplate = payload.LikelihoodHintTemplate
+	existing.ImpactHintTemplate = payload.ImpactHintTemplate
+	existing.DedupeLabelKeys = datatypes.NewJSONSlice(payload.DedupeLabelKeys)
 	existing.ViolationIDs = datatypes.NewJSONSlice(payload.ViolationIDs)
 	if payload.IsActive != nil {
 		existing.IsActive = *payload.IsActive
@@ -966,11 +1225,14 @@ func updateRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 		existing.RemediationTemplate = nil
 	}
 
-	if err := tx.Omit("ThreatRefs", "RemediationTemplate").Save(&existing).Error; err != nil {
+	if err := tx.Omit("ThreatRefs", "LabelSchema", "RemediationTemplate").Save(&existing).Error; err != nil {
 		return nil, err
 	}
 
 	if err := replaceThreatRefs(tx, *existing.ID, payload.ThreatRefs); err != nil {
+		return nil, err
+	}
+	if err := replaceRiskTemplateLabelSchema(tx, *existing.ID, payload.LabelSchema); err != nil {
 		return nil, err
 	}
 
@@ -980,15 +1242,26 @@ func updateRiskTemplateInTx(tx *gorm.DB, id uuid.UUID, payload RiskTemplatePaylo
 // riskTemplateFP is an unexported fingerprint struct used to detect whether a batch
 // payload differs from a stored template, avoiding unnecessary UPDATE statements.
 type riskTemplateFP struct {
-	Name           string     `json:"n"`
-	Title          string     `json:"t"`
-	Statement      string     `json:"s"`
-	LikelihoodHint *string    `json:"lh,omitempty"`
-	ImpactHint     *string    `json:"ih,omitempty"`
-	IsActive       bool       `json:"ia"`
-	ViolationIDs   []string   `json:"v"`
-	ThreatRefs     []threatFP `json:"tr"`
-	Remediation    *remFP     `json:"r,omitempty"`
+	Name                   string          `json:"n"`
+	Title                  string          `json:"t"`
+	Statement              string          `json:"s"`
+	LikelihoodHint         *string         `json:"lh,omitempty"`
+	ImpactHint             *string         `json:"ih,omitempty"`
+	TitleTemplate          *string         `json:"tt,omitempty"`
+	StatementTemplate      *string         `json:"st,omitempty"`
+	LikelihoodHintTemplate *string         `json:"lht,omitempty"`
+	ImpactHintTemplate     *string         `json:"iht,omitempty"`
+	DedupeLabelKeys        []string        `json:"dlk,omitempty"`
+	IsActive               bool            `json:"ia"`
+	ViolationIDs           []string        `json:"v"`
+	ThreatRefs             []threatFP      `json:"tr"`
+	LabelSchema            []labelSchemaFP `json:"ls,omitempty"`
+	Remediation            *remFP          `json:"r,omitempty"`
+}
+
+type labelSchemaFP struct {
+	Key         string  `json:"k"`
+	Description *string `json:"d,omitempty"`
 }
 
 type threatFP struct {
@@ -1041,15 +1314,31 @@ func riskTemplateFPFromExisting(t RiskTemplate) riskTemplateFP {
 		return refs[i].ExternalID < refs[j].ExternalID
 	})
 
+	dedupeLabelKeys := make([]string, len(t.DedupeLabelKeys))
+	copy(dedupeLabelKeys, t.DedupeLabelKeys)
+	sort.Strings(dedupeLabelKeys)
+
+	labelSchema := make([]labelSchemaFP, 0, len(t.LabelSchema))
+	for _, f := range t.LabelSchema {
+		labelSchema = append(labelSchema, labelSchemaFP{Key: f.Key, Description: f.Description})
+	}
+	sort.Slice(labelSchema, func(i, j int) bool { return labelSchema[i].Key < labelSchema[j].Key })
+
 	fp := riskTemplateFP{
-		Name:           t.Name,
-		Title:          t.Title,
-		Statement:      t.Statement,
-		LikelihoodHint: t.LikelihoodHint,
-		ImpactHint:     t.ImpactHint,
-		IsActive:       t.IsActive,
-		ViolationIDs:   violations,
-		ThreatRefs:     refs,
+		Name:                   t.Name,
+		Title:                  t.Title,
+		Statement:              t.Statement,
+		LikelihoodHint:         t.LikelihoodHint,
+		ImpactHint:             t.ImpactHint,
+		TitleTemplate:          t.TitleTemplate,
+		StatementTemplate:      t.StatementTemplate,
+		LikelihoodHintTemplate: t.LikelihoodHintTemplate,
+		ImpactHintTemplate:     t.ImpactHintTemplate,
+		DedupeLabelKeys:        dedupeLabelKeys,
+		IsActive:               t.IsActive,
+		ViolationIDs:           violations,
+		ThreatRefs:             refs,
+		LabelSchema:            labelSchema,
 	}
 	if t.RemediationTemplate != nil {
 		tasks := make([]taskFP, 0, len(t.RemediationTemplate.Tasks))
@@ -1087,15 +1376,31 @@ func riskTemplateFPFromPayload(payload RiskTemplatePayload) riskTemplateFP {
 		return refs[i].ExternalID < refs[j].ExternalID
 	})
 
+	dedupeLabelKeys := make([]string, len(payload.DedupeLabelKeys))
+	copy(dedupeLabelKeys, payload.DedupeLabelKeys)
+	sort.Strings(dedupeLabelKeys)
+
+	labelSchema := make([]labelSchemaFP, 0, len(payload.LabelSchema))
+	for _, f := range payload.LabelSchema {
+		labelSchema = append(labelSchema, labelSchemaFP(f))
+	}
+	sort.Slice(labelSchema, func(i, j int) bool { return labelSchema[i].Key < labelSchema[j].Key })
+
 	fp := riskTemplateFP{
-		Name:           payload.Name,
-		Title:          payload.Title,
-		Statement:      payload.Statement,
-		LikelihoodHint: payload.LikelihoodHint,
-		ImpactHint:     payload.ImpactHint,
-		IsActive:       isActive,
-		ViolationIDs:   violations,
-		ThreatRefs:     refs,
+		Name:                   payload.Name,
+		Title:                  payload.Title,
+		Statement:              payload.Statement,
+		LikelihoodHint:         payload.LikelihoodHint,
+		ImpactHint:             payload.ImpactHint,
+		TitleTemplate:          payload.TitleTemplate,
+		StatementTemplate:      payload.StatementTemplate,
+		LikelihoodHintTemplate: payload.LikelihoodHintTemplate,
+		ImpactHintTemplate:     payload.ImpactHintTemplate,
+		DedupeLabelKeys:        dedupeLabelKeys,
+		IsActive:               isActive,
+		ViolationIDs:           violations,
+		ThreatRefs:             refs,
+		LabelSchema:            labelSchema,
 	}
 	if payload.RemediationTemplate != nil {
 		tasks := make([]taskFP, 0, len(payload.RemediationTemplate.Tasks))

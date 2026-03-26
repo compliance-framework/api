@@ -36972,16 +36972,34 @@ const docTemplate = `{
         "templates.batchRiskTemplateItem": {
             "type": "object",
             "properties": {
+                "dedupe-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
                 "impact-hint": {
                     "type": "string"
                 },
+                "impact-hint-template": {
+                    "type": "string"
+                },
                 "is-active": {
                     "type": "boolean"
                 },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.labelSchemaFieldRequest"
+                    }
+                },
                 "likelihood-hint": {
+                    "type": "string"
+                },
+                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -36993,6 +37011,9 @@ const docTemplate = `{
                 "statement": {
                     "type": "string"
                 },
+                "statement-template": {
+                    "type": "string"
+                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37000,6 +37021,9 @@ const docTemplate = `{
                     }
                 },
                 "title": {
+                    "type": "string"
+                },
+                "title-template": {
                     "type": "string"
                 },
                 "violation-ids": {
@@ -37181,6 +37205,28 @@ const docTemplate = `{
                 }
             }
         },
+        "templates.labelSchemaFieldRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.labelSchemaFieldResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
         "templates.remediationTaskRequest": {
             "type": "object",
             "properties": {
@@ -37257,16 +37303,34 @@ const docTemplate = `{
                 "created-at": {
                     "type": "string"
                 },
+                "dedupe-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
                 "impact-hint": {
                     "type": "string"
                 },
+                "impact-hint-template": {
+                    "type": "string"
+                },
                 "is-active": {
                     "type": "boolean"
                 },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.labelSchemaFieldResponse"
+                    }
+                },
                 "likelihood-hint": {
+                    "type": "string"
+                },
+                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -37284,6 +37348,9 @@ const docTemplate = `{
                 "statement": {
                     "type": "string"
                 },
+                "statement-template": {
+                    "type": "string"
+                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37291,6 +37358,9 @@ const docTemplate = `{
                     }
                 },
                 "title": {
+                    "type": "string"
+                },
+                "title-template": {
                     "type": "string"
                 },
                 "updated-at": {
@@ -37458,13 +37528,31 @@ const docTemplate = `{
         "templates.upsertRiskTemplateRequest": {
             "type": "object",
             "properties": {
+                "dedupe-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "impact-hint": {
+                    "type": "string"
+                },
+                "impact-hint-template": {
                     "type": "string"
                 },
                 "is-active": {
                     "type": "boolean"
                 },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.labelSchemaFieldRequest"
+                    }
+                },
                 "likelihood-hint": {
+                    "type": "string"
+                },
+                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -37482,6 +37570,9 @@ const docTemplate = `{
                 "statement": {
                     "type": "string"
                 },
+                "statement-template": {
+                    "type": "string"
+                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37489,6 +37580,9 @@ const docTemplate = `{
                     }
                 },
                 "title": {
+                    "type": "string"
+                },
+                "title-template": {
                     "type": "string"
                 },
                 "violation-ids": {
