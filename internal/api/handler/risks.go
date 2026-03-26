@@ -34,15 +34,9 @@ const (
 	maxRiskDescriptionLength = 1000
 )
 
-func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.PoamService, riskSvc ...*riskrel.RiskService) *RiskHandler {
-	var rs *riskrel.RiskService
-	if len(riskSvc) > 0 && riskSvc[0] != nil {
-		rs = riskSvc[0]
-	} else {
-		rs = riskrel.NewRiskService(db)
-	}
+func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.PoamService, riskSvc *riskrel.RiskService) *RiskHandler {
 	return &RiskHandler{
-		riskService: rs,
+		riskService: riskSvc,
 		poamService: poamSvc,
 		sugar:       sugar,
 		pagination:  svc.NewPaginationConfig(),
@@ -1997,13 +1991,15 @@ func validateStatusTransition(oldStatus, newStatus string) error {
 		},
 		string(riskrel.RiskStatusMitigatingPlanned): {
 			string(riskrel.RiskStatusMitigatingImplemented): {},
+			string(riskrel.RiskStatusInvestigating):         {}, // mitigation can fail; risk returns to investigation
 		},
 		string(riskrel.RiskStatusMitigatingImplemented): {
-			string(riskrel.RiskStatusClosed): {},
+			string(riskrel.RiskStatusClosed):    {},
+			string(riskrel.RiskStatusRemediated): {}, // evidence fully green → remediated before close
 		},
 		string(riskrel.RiskStatusRiskAccepted): {
-			string(riskrel.RiskStatusClosed):            {},
-			string(riskrel.RiskStatusMitigatingPlanned): {},
+			string(riskrel.RiskStatusClosed):        {},
+			string(riskrel.RiskStatusInvestigating): {}, // re-open accepted risk for investigation
 		},
 		string(riskrel.RiskStatusRemediated): {
 			string(riskrel.RiskStatusOpen):   {},
@@ -2295,14 +2291,9 @@ func (h *RiskHandler) PromoteToPoam(ctx echo.Context) error {
 	}
 
 	// Map request milestones to service params.
+	// OrderIndex is passed as a pointer; nil means auto-assign from slice position.
 	var milestones []poamsvc.CreateMilestoneParams
-	for i, m := range req.Milestones {
-		orderIdx := 0
-		if m.OrderIndex != nil {
-			orderIdx = *m.OrderIndex
-		} else {
-			orderIdx = i
-		}
+	for _, m := range req.Milestones {
 		milestones = append(milestones, poamsvc.CreateMilestoneParams{
 			Title:                 m.Title,
 			Description:           m.Description,
@@ -2310,7 +2301,7 @@ func (h *RiskHandler) PromoteToPoam(ctx echo.Context) error {
 			PlannedCompletionDate: m.PlannedCompletionDate,
 			ResponsibleParty:      m.ResponsibleParty,
 			Remarks:               m.Remarks,
-			OrderIndex:            orderIdx,
+			OrderIndex:            m.OrderIndex,
 		})
 	}
 

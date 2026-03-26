@@ -54,7 +54,6 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 	// 1. Load and lock the risk row.
 	var risk Risk
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Preload("OwnerAssignments").
 		First(&risk, "id = ?", params.RiskID).Error; err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -107,20 +106,23 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 	}
 	if err == nil {
 		for _, task := range remediationTemplate.Tasks {
+			idx := task.OrderIndex
 			templateMilestones = append(templateMilestones, poamsvc.CreateMilestoneParams{
 				Title:      task.Title,
-				OrderIndex: task.OrderIndex,
+				OrderIndex: &idx,
 			})
 		}
 	}
 
 	// 5. Merge template milestones with extra milestones from the request.
 	//    Extra milestones are appended after template tasks, with order_index
-	//    offset by the number of template tasks.
+	//    offset by the number of template tasks. A nil OrderIndex means
+	//    "auto-assign"; a non-nil pointer (including 0) is used as-is.
 	offset := len(templateMilestones)
 	for i, extra := range params.ExtraMilestones {
-		if extra.OrderIndex == 0 {
-			extra.OrderIndex = offset + i
+		if extra.OrderIndex == nil {
+			idx := offset + i
+			extra.OrderIndex = &idx
 		}
 		templateMilestones = append(templateMilestones, extra)
 	}

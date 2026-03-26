@@ -417,19 +417,14 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 	}
 	params.ControlRefs = controlRefs
 
-	for i, mr := range in.Milestones {
+	for _, mr := range in.Milestones {
 		if mr.Title == "" {
 			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("milestone title is required")))
 		}
 		if mr.Status != "" && !poamsvc.MilestoneStatus(mr.Status).IsValid() {
 			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", mr.Status)))
 		}
-		// When orderIndex is omitted (nil), fall back to the slice position so
-		// ordering is still deterministic without requiring the client to set it.
-		msOrderIdx := i
-		if mr.OrderIndex != nil {
-			msOrderIdx = *mr.OrderIndex
-		}
+		// Pass OrderIndex as a pointer; nil means auto-assign from slice position.
 		params.Milestones = append(params.Milestones, poamsvc.CreateMilestoneParams{
 			Title:                 mr.Title,
 			Description:           mr.Description,
@@ -437,7 +432,7 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 			PlannedCompletionDate: mr.PlannedCompletionDate,
 			ResponsibleParty:      mr.ResponsibleParty,
 			Remarks:               mr.Remarks,
-			OrderIndex:            msOrderIdx,
+			OrderIndex:            mr.OrderIndex,
 		})
 	}
 
@@ -705,10 +700,6 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 	if in.Status != "" && !poamsvc.MilestoneStatus(in.Status).IsValid() {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", in.Status)))
 	}
-	var orderIdx int
-	if in.OrderIndex != nil {
-		orderIdx = *in.OrderIndex
-	}
 	m, err := h.poamService.AddMilestone(id, poamsvc.CreateMilestoneParams{
 		Title:                 in.Title,
 		Description:           in.Description,
@@ -716,7 +707,7 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 		PlannedCompletionDate: in.PlannedCompletionDate,
 		ResponsibleParty:      in.ResponsibleParty,
 		Remarks:               in.Remarks,
-		OrderIndex:            orderIdx,
+		OrderIndex:            in.OrderIndex,
 	})
 	if err != nil {
 		return h.internalError(c, "failed to add milestone", err)

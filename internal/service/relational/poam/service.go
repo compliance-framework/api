@@ -68,6 +68,8 @@ type UpdatePoamItemParams struct {
 }
 
 // CreateMilestoneParams carries all data required to create a single milestone.
+// OrderIndex is a pointer so that callers can distinguish "not provided" (nil,
+// auto-assign) from "explicitly set to 0" (valid 0-based position).
 type CreateMilestoneParams struct {
 	Title                 string
 	Description           string
@@ -75,7 +77,7 @@ type CreateMilestoneParams struct {
 	PlannedCompletionDate *time.Time
 	ResponsibleParty      *string
 	Remarks               *string
-	OrderIndex            int
+	OrderIndex            *int
 }
 
 // UpdateMilestoneParams carries the fields that may be patched on an existing
@@ -132,8 +134,10 @@ func (s *PoamService) Create(params CreatePoamItemParams) (*PoamItem, error) {
 	}
 
 	for i, mp := range params.Milestones {
-		orderIdx := mp.OrderIndex
-		if orderIdx == 0 {
+		var orderIdx int
+		if mp.OrderIndex != nil {
+			orderIdx = *mp.OrderIndex
+		} else {
 			orderIdx = i
 		}
 		ms := PoamItemMilestone{
@@ -436,6 +440,10 @@ func (s *PoamService) ListMilestones(poamItemID uuid.UUID) ([]PoamItemMilestone,
 
 // AddMilestone inserts a new milestone for the given POAM item.
 func (s *PoamService) AddMilestone(poamItemID uuid.UUID, params CreateMilestoneParams) (*PoamItemMilestone, error) {
+	var orderIdx int
+	if params.OrderIndex != nil {
+		orderIdx = *params.OrderIndex
+	}
 	m := PoamItemMilestone{
 		PoamItemID:            poamItemID,
 		Title:                 params.Title,
@@ -444,7 +452,7 @@ func (s *PoamService) AddMilestone(poamItemID uuid.UUID, params CreateMilestoneP
 		PlannedCompletionDate: params.PlannedCompletionDate,
 		ResponsibleParty:      params.ResponsibleParty,
 		Remarks:               params.Remarks,
-		OrderIndex:            params.OrderIndex,
+		OrderIndex:            orderIdx,
 	}
 	if err := s.db.Create(&m).Error; err != nil {
 		return nil, err
@@ -695,6 +703,12 @@ func (s *PoamService) DeleteFindingLink(poamItemID, findingID uuid.UUID) error {
 // committing or rolling back the transaction. This is used by cross-context
 // operations such as RiskService.PromoteToPoam that need atomicity across
 // multiple bounded contexts.
+//
+// NOTE: This method only processes Milestones and RiskIDs from
+// CreatePoamItemParams. EvidenceIDs, ControlRefs, and FindingIDs present in
+// the params struct are intentionally ignored — this method is scoped to the
+// risk-promotion use case. Use the full Create method for general POAM item
+// creation with all link types.
 func (s *PoamService) CreateWithTx(tx *gorm.DB, params CreatePoamItemParams) (*PoamItem, error) {
 	item := PoamItem{
 		SspID:                 params.SspID,
@@ -714,8 +728,10 @@ func (s *PoamService) CreateWithTx(tx *gorm.DB, params CreatePoamItemParams) (*P
 	}
 
 	for i, mp := range params.Milestones {
-		orderIdx := mp.OrderIndex
-		if orderIdx == 0 {
+		var orderIdx int
+		if mp.OrderIndex != nil {
+			orderIdx = *mp.OrderIndex
+		} else {
 			orderIdx = i
 		}
 		ms := PoamItemMilestone{

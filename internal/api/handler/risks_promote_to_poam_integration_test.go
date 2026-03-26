@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"testing"
 	"time"
 
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -346,5 +345,3 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_CompletionAdvancesRiskSt
 	require.Equal(suite.T(), int64(1), completedEvents)
 }
 
-// Ensure the testing import is used.
-var _ = (*testing.T)(nil)
