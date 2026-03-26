@@ -905,50 +905,42 @@ func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *
 }
 
 // resolveRiskTemplateFields renders the template fields (title, statement, likelihood, impact)
-// using evidence labels. If a template string is set it is rendered; otherwise the static value
-// is returned. Rendering errors are logged but non-fatal — the static fallback is used instead.
+// using evidence labels. Risk template text fields are always template-capable, so literal values
+// render unchanged while dynamic values can interpolate evidence labels. Rendering errors are
+// logged but non-fatal — the stored template source is used as the fallback.
 func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate, evidenceLabels []relational.Labels) (title string, statement string, likelihoodHint *string, impactHint *string) {
 	title = rt.Title
 	statement = rt.Statement
 	likelihoodHint = normalizeRenderedRiskLevel(rt.LikelihoodHint)
 	impactHint = normalizeRenderedRiskLevel(rt.ImpactHint)
 
-	// If no template fields are set, return static values.
-	if rt.TitleTemplate == nil && rt.StatementTemplate == nil && rt.LikelihoodHintTemplate == nil && rt.ImpactHintTemplate == nil {
-		return
-	}
-
 	labelMap := collapseEvidenceLabelValues(collectSortedUniqueEvidenceLabelValues(evidenceLabels))
 
-	if rt.TitleTemplate != nil {
-		rendered, err := templates.RenderTemplate(*rt.TitleTemplate, labelMap)
-		if err != nil {
-			w.logger.Warnw("Failed to render title template, using static title",
-				"error", err, "risk_template_id", rt.ID)
-		} else if rendered != "" {
-			title = rendered
-		}
+	rendered, err := templates.RenderTemplate(rt.Title, labelMap)
+	if err != nil {
+		w.logger.Warnw("Failed to render title template, using stored title",
+			"error", err, "risk_template_id", rt.ID)
+	} else if rendered != "" {
+		title = rendered
 	}
 
-	if rt.StatementTemplate != nil {
-		rendered, err := templates.RenderTemplate(*rt.StatementTemplate, labelMap)
-		if err != nil {
-			w.logger.Warnw("Failed to render statement template, using static statement",
-				"error", err, "risk_template_id", rt.ID)
-		} else if rendered != "" {
-			statement = rendered
-		}
+	rendered, err = templates.RenderTemplate(rt.Statement, labelMap)
+	if err != nil {
+		w.logger.Warnw("Failed to render statement template, using stored statement",
+			"error", err, "risk_template_id", rt.ID)
+	} else if rendered != "" {
+		statement = rendered
 	}
 
-	if rt.LikelihoodHintTemplate != nil {
-		rendered, err := templates.RenderTemplate(*rt.LikelihoodHintTemplate, labelMap)
+	if rt.LikelihoodHint != nil {
+		rendered, err = templates.RenderTemplate(*rt.LikelihoodHint, labelMap)
 		if err != nil {
-			w.logger.Warnw("Failed to render likelihood hint template, using static hint",
+			w.logger.Warnw("Failed to render likelihood hint template, using stored hint",
 				"error", err, "risk_template_id", rt.ID)
 		} else if rendered != "" {
 			normalized := normalizeRenderedRiskLevel(&rendered)
 			if normalized == nil {
-				w.logger.Warnw("Rendered likelihood hint template produced invalid risk level, using static hint",
+				w.logger.Warnw("Rendered likelihood hint template produced invalid risk level, using stored hint",
 					"risk_template_id", rt.ID, "rendered_value", rendered)
 			} else {
 				likelihoodHint = normalized
@@ -956,15 +948,15 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 		}
 	}
 
-	if rt.ImpactHintTemplate != nil {
-		rendered, err := templates.RenderTemplate(*rt.ImpactHintTemplate, labelMap)
+	if rt.ImpactHint != nil {
+		rendered, err = templates.RenderTemplate(*rt.ImpactHint, labelMap)
 		if err != nil {
-			w.logger.Warnw("Failed to render impact hint template, using static hint",
+			w.logger.Warnw("Failed to render impact hint template, using stored hint",
 				"error", err, "risk_template_id", rt.ID)
 		} else if rendered != "" {
 			normalized := normalizeRenderedRiskLevel(&rendered)
 			if normalized == nil {
-				w.logger.Warnw("Rendered impact hint template produced invalid risk level, using static hint",
+				w.logger.Warnw("Rendered impact hint template produced invalid risk level, using stored hint",
 					"risk_template_id", rt.ID, "rendered_value", rendered)
 			} else {
 				impactHint = normalized

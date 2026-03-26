@@ -36984,9 +36984,6 @@ const docTemplate = `{
                 "impact-hint": {
                     "type": "string"
                 },
-                "impact-hint-template": {
-                    "type": "string"
-                },
                 "is-active": {
                     "type": "boolean"
                 },
@@ -36999,9 +36996,6 @@ const docTemplate = `{
                 "likelihood-hint": {
                     "type": "string"
                 },
-                "likelihood-hint-template": {
-                    "type": "string"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -37011,9 +37005,6 @@ const docTemplate = `{
                 "statement": {
                     "type": "string"
                 },
-                "statement-template": {
-                    "type": "string"
-                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37021,9 +37012,6 @@ const docTemplate = `{
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "title-template": {
                     "type": "string"
                 },
                 "violation-ids": {
@@ -37315,9 +37303,6 @@ const docTemplate = `{
                 "impact-hint": {
                     "type": "string"
                 },
-                "impact-hint-template": {
-                    "type": "string"
-                },
                 "is-active": {
                     "type": "boolean"
                 },
@@ -37328,9 +37313,6 @@ const docTemplate = `{
                     }
                 },
                 "likelihood-hint": {
-                    "type": "string"
-                },
-                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -37348,9 +37330,6 @@ const docTemplate = `{
                 "statement": {
                     "type": "string"
                 },
-                "statement-template": {
-                    "type": "string"
-                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37358,9 +37337,6 @@ const docTemplate = `{
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "title-template": {
                     "type": "string"
                 },
                 "updated-at": {
@@ -37537,9 +37513,6 @@ const docTemplate = `{
                 "impact-hint": {
                     "type": "string"
                 },
-                "impact-hint-template": {
-                    "type": "string"
-                },
                 "is-active": {
                     "type": "boolean"
                 },
@@ -37550,9 +37523,6 @@ const docTemplate = `{
                     }
                 },
                 "likelihood-hint": {
-                    "type": "string"
-                },
-                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -37570,9 +37540,6 @@ const docTemplate = `{
                 "statement": {
                     "type": "string"
                 },
-                "statement-template": {
-                    "type": "string"
-                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37580,9 +37547,6 @@ const docTemplate = `{
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "title-template": {
                     "type": "string"
                 },
                 "violation-ids": {

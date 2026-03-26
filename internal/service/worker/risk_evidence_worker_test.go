@@ -1788,11 +1788,9 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 		titleTmpl := "CVE {{.cve_id}} in {{.repo}}"
 		stmtTmpl := "Severity: {{.severity}}"
 		rt := templates.RiskTemplate{
-			UUIDModel:         relational.UUIDModel{ID: &templateID},
-			Title:             "Fallback Title",
-			Statement:         "Fallback Statement",
-			TitleTemplate:     &titleTmpl,
-			StatementTemplate: &stmtTmpl,
+			UUIDModel: relational.UUIDModel{ID: &templateID},
+			Title:     titleTmpl,
+			Statement: stmtTmpl,
 		}
 
 		title, statement, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{
@@ -1804,27 +1802,25 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 		require.Equal(t, "Severity: critical", statement)
 	})
 
-	t.Run("invalid template falls back to static value", func(t *testing.T) {
+	t.Run("invalid template falls back to the stored field value", func(t *testing.T) {
 		badTmpl := "{{.invalid template syntax"
 		rt := templates.RiskTemplate{
-			UUIDModel:     relational.UUIDModel{ID: &templateID},
-			Title:         "Static Title",
-			Statement:     "Static Statement",
-			TitleTemplate: &badTmpl,
+			UUIDModel: relational.UUIDModel{ID: &templateID},
+			Title:     badTmpl,
+			Statement: "Static Statement",
 		}
 
 		title, statement, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{})
-		require.Equal(t, "Static Title", title)
+		require.Equal(t, badTmpl, title)
 		require.Equal(t, "Static Statement", statement)
 	})
 
 	t.Run("missing label renders with empty string via missingkey=zero", func(t *testing.T) {
 		titleTmpl := "Issue {{.cve_id}} in {{.repo}}"
 		rt := templates.RiskTemplate{
-			UUIDModel:     relational.UUIDModel{ID: &templateID},
-			Title:         "Fallback",
-			TitleTemplate: &titleTmpl,
-			Statement:     "Fallback statement",
+			UUIDModel: relational.UUIDModel{ID: &templateID},
+			Title:     titleTmpl,
+			Statement: "Fallback statement",
 		}
 
 		title, _, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{
@@ -1838,9 +1834,9 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 		likelihoodTmpl := "{{.likelihood}}"
 		impactTmpl := "{{.impact}}"
 		rt := templates.RiskTemplate{
-			UUIDModel:              relational.UUIDModel{ID: &templateID},
-			LikelihoodHintTemplate: &likelihoodTmpl,
-			ImpactHintTemplate:     &impactTmpl,
+			UUIDModel:      relational.UUIDModel{ID: &templateID},
+			LikelihoodHint: &likelihoodTmpl,
+			ImpactHint:     &impactTmpl,
 		}
 
 		_, _, likelihood, impact := worker.resolveRiskTemplateFields(rt, []relational.Labels{
@@ -1857,11 +1853,9 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 		titleTmpl := "Repos: {{.repo}}"
 		stmtTmpl := "Teams: {{.team}}"
 		rt := templates.RiskTemplate{
-			UUIDModel:         relational.UUIDModel{ID: &templateID},
-			Title:             "Fallback Title",
-			Statement:         "Fallback Statement",
-			TitleTemplate:     &titleTmpl,
-			StatementTemplate: &stmtTmpl,
+			UUIDModel: relational.UUIDModel{ID: &templateID},
+			Title:     titleTmpl,
+			Statement: stmtTmpl,
 		}
 
 		title, statement, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{
@@ -1875,25 +1869,21 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 		require.Equal(t, "Teams: platform, security", statement)
 	})
 
-	t.Run("invalid templated risk levels fall back to static hints", func(t *testing.T) {
+	t.Run("invalid templated risk levels fall back to nil when no static risk level exists", func(t *testing.T) {
 		likelihoodTmpl := "{{.likelihood}}"
 		impactTmpl := "{{.impact}}"
 		rt := templates.RiskTemplate{
-			UUIDModel:              relational.UUIDModel{ID: &templateID},
-			LikelihoodHint:         stringPtr("medium"),
-			ImpactHint:             stringPtr("high"),
-			LikelihoodHintTemplate: &likelihoodTmpl,
-			ImpactHintTemplate:     &impactTmpl,
+			UUIDModel:      relational.UUIDModel{ID: &templateID},
+			LikelihoodHint: &likelihoodTmpl,
+			ImpactHint:     &impactTmpl,
 		}
 
 		_, _, likelihood, impact := worker.resolveRiskTemplateFields(rt, []relational.Labels{
 			{Name: "likelihood", Value: strings.Repeat("x", 32)},
 			{Name: "impact", Value: "definitely-not-a-risk-level"},
 		})
-		require.NotNil(t, likelihood)
-		require.Equal(t, "moderate", *likelihood)
-		require.NotNil(t, impact)
-		require.Equal(t, "high", *impact)
+		require.Nil(t, likelihood)
+		require.Nil(t, impact)
 	})
 }
 
@@ -1933,19 +1923,17 @@ func TestCreateNewRiskForSSP_WithTemplateResolution(t *testing.T) {
 	titleTmpl := "CVE {{.cve_id}} in {{.repo}}"
 	stmtTmpl := "Severity: {{.severity}}"
 	riskTemplate := templates.RiskTemplate{
-		UUIDModel:         relational.UUIDModel{ID: &templateID},
-		PluginID:          "vuln-scanner",
-		PolicyPackage:     "compliance_framework.vuln_scan",
-		Name:              "CVE template",
-		Title:             "Fallback title",
-		Statement:         "Fallback statement",
-		TitleTemplate:     &titleTmpl,
-		StatementTemplate: &stmtTmpl,
-		LikelihoodHint:    stringPtr("high"),
-		ImpactHint:        stringPtr("high"),
-		IsActive:          true,
-		ViolationIDs:      []string{"vuln_detected"},
-		DedupeLabelKeys:   []string{"cve_id"},
+		UUIDModel:       relational.UUIDModel{ID: &templateID},
+		PluginID:        "vuln-scanner",
+		PolicyPackage:   "compliance_framework.vuln_scan",
+		Name:            "CVE template",
+		Title:           titleTmpl,
+		Statement:       stmtTmpl,
+		LikelihoodHint:  stringPtr("high"),
+		ImpactHint:      stringPtr("high"),
+		IsActive:        true,
+		ViolationIDs:    []string{"vuln_detected"},
+		DedupeLabelKeys: []string{"cve_id"},
 	}
 	require.NoError(t, db.Create(&riskTemplate).Error)
 
