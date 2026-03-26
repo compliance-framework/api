@@ -290,6 +290,7 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	err := w.db.WithContext(ctx).
 		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
 		Preload("ThreatRefs", func(db *gorm.DB) *gorm.DB { return db.Order("system ASC, external_id ASC") }).
+		Preload("LabelSchema", func(db *gorm.DB) *gorm.DB { return db.Order("key ASC") }).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
 		Find(&riskTemplates).Error
@@ -374,8 +375,8 @@ func (w *RiskEvidenceWorker) violationMatches(templateViolationIDs, evidenceViol
 func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspInfos []resolvedSSPInfo) error {
 	var errs []error
 	for _, sspInfo := range sspInfos {
-		// Compute dedupe key: ssp_id + risk_template_id
-		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, sspInfo.SSPID)
+		// Compute dedupe key: ssp_id + risk_template_id (+ optional label-based suffix)
+		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, sspInfo.SSPID, evidence.Labels)
 
 		// Look for existing active risk with this dedupe key
 		var existingRisk risks.Risk
@@ -410,9 +411,35 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 }
 
 // computeDedupeKeyForSSP computes the dedupe key for a risk.
-// Format: ssp_id:risk_template_id
-func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, sspID uuid.UUID) string {
-	return fmt.Sprintf("%s:%s", sspID.String(), riskTemplate.ID.String())
+// Base format: ssp_id:risk_template_id
+// When the template declares DedupeLabelKeys, the corresponding evidence label values
+// are appended as sorted key=value pairs, allowing the same template to produce
+// distinct risks per unique combination (e.g. per-CVE).
+func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, sspID uuid.UUID, evidenceLabels []relational.Labels) string {
+	base := fmt.Sprintf("%s:%s", sspID.String(), riskTemplate.ID.String())
+
+	if len(riskTemplate.DedupeLabelKeys) == 0 {
+		return base
+	}
+
+	// Build a map of evidence labels for fast lookup
+	labelMap := make(map[string]string, len(evidenceLabels))
+	for _, l := range evidenceLabels {
+		labelMap[l.Name] = l.Value
+	}
+
+	// Collect key=value pairs in sorted dedupe key order
+	keys := make([]string, len(riskTemplate.DedupeLabelKeys))
+	copy(keys, riskTemplate.DedupeLabelKeys)
+	sort.Strings(keys)
+
+	var parts []string
+	for _, key := range keys {
+		val := labelMap[key]
+		parts = append(parts, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	return base + ":" + strings.Join(parts, ",")
 }
 
 // updateExistingRisk updates an existing risk with new evidence.
@@ -485,9 +512,12 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID, dedupeKey string, controlLinks []controlLinkInfo) error {
 	now := time.Now().UTC()
 
+	// Resolve template fields if present, falling back to static values.
+	title, statement, likelihoodHint, impactHint := w.resolveRiskTemplateFields(riskTemplate, evidence.Labels)
+
 	newRisk := risks.Risk{
-		Title:          riskTemplate.Title,
-		Description:    riskTemplate.Statement,
+		Title:          title,
+		Description:    statement,
 		Status:         string(risks.RiskStatusOpen),
 		SSPID:          sspID,
 		RiskTemplateID: riskTemplate.ID,
@@ -497,12 +527,12 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		LastSeenAt:     now,
 	}
 
-	// Set likelihood and impact from template hints if available
-	if riskTemplate.LikelihoodHint != nil {
-		newRisk.Likelihood = riskTemplate.LikelihoodHint
+	// Set likelihood and impact from resolved values if available
+	if likelihoodHint != nil {
+		newRisk.Likelihood = likelihoodHint
 	}
-	if riskTemplate.ImpactHint != nil {
-		newRisk.Impact = riskTemplate.ImpactHint
+	if impactHint != nil {
+		newRisk.Impact = impactHint
 	}
 
 	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -871,6 +901,69 @@ func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *
 			"risk_id", risk.ID, "evidence_id", evidenceStreamID, "from_status", oldStatus)
 		return nil
 	})
+}
+
+// resolveRiskTemplateFields renders the template fields (title, statement, likelihood, impact)
+// using evidence labels. If a template string is set it is rendered; otherwise the static value
+// is returned. Rendering errors are logged but non-fatal — the static fallback is used instead.
+func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate, evidenceLabels []relational.Labels) (title string, statement string, likelihoodHint *string, impactHint *string) {
+	title = rt.Title
+	statement = rt.Statement
+	likelihoodHint = rt.LikelihoodHint
+	impactHint = rt.ImpactHint
+
+	// If no template fields are set, return static values.
+	if rt.TitleTemplate == nil && rt.StatementTemplate == nil && rt.LikelihoodHintTemplate == nil && rt.ImpactHintTemplate == nil {
+		return
+	}
+
+	// Build label map from evidence labels.
+	labelMap := make(map[string]string, len(evidenceLabels))
+	for _, l := range evidenceLabels {
+		labelMap[l.Name] = l.Value
+	}
+
+	if rt.TitleTemplate != nil {
+		rendered, err := templates.RenderTemplatePublic(*rt.TitleTemplate, labelMap)
+		if err != nil {
+			w.logger.Warnw("Failed to render title template, using static title",
+				"error", err, "risk_template_id", rt.ID)
+		} else if rendered != "" {
+			title = rendered
+		}
+	}
+
+	if rt.StatementTemplate != nil {
+		rendered, err := templates.RenderTemplatePublic(*rt.StatementTemplate, labelMap)
+		if err != nil {
+			w.logger.Warnw("Failed to render statement template, using static statement",
+				"error", err, "risk_template_id", rt.ID)
+		} else if rendered != "" {
+			statement = rendered
+		}
+	}
+
+	if rt.LikelihoodHintTemplate != nil {
+		rendered, err := templates.RenderTemplatePublic(*rt.LikelihoodHintTemplate, labelMap)
+		if err != nil {
+			w.logger.Warnw("Failed to render likelihood hint template, using static hint",
+				"error", err, "risk_template_id", rt.ID)
+		} else if rendered != "" {
+			likelihoodHint = &rendered
+		}
+	}
+
+	if rt.ImpactHintTemplate != nil {
+		rendered, err := templates.RenderTemplatePublic(*rt.ImpactHintTemplate, labelMap)
+		if err != nil {
+			w.logger.Warnw("Failed to render impact hint template, using static hint",
+				"error", err, "risk_template_id", rt.ID)
+		} else if rendered != "" {
+			impactHint = &rendered
+		}
+	}
+
+	return
 }
 
 // emitRiskEvent creates a risk event record using the provided DB handle.

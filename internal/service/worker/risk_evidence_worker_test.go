@@ -42,6 +42,7 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&relational.ImplementedRequirement{},
 		&templates.RiskTemplate{},
 		&templates.RiskTemplateThreatRef{},
+		&templates.RiskTemplateLabelSchemaField{},
 		&templates.RemediationTemplate{},
 		&templates.RemediationTask{},
 		&risks.Risk{},
@@ -1685,4 +1686,191 @@ func TestRiskEvidenceWorker_resolveSSPsViaFilters_MultipleSSPs(t *testing.T) {
 	}
 	assert.True(t, sspIDs[*ssp1.ID])
 	assert.True(t, sspIDs[*ssp2.ID])
+}
+
+func TestComputeDedupeKeyForSSP_WithDedupeLabelKeys(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	sspID := uuid.New()
+	templateID := uuid.New()
+
+	baseTemplate := templates.RiskTemplate{
+		UUIDModel: relational.UUIDModel{ID: &templateID},
+	}
+
+	t.Run("no dedupe keys returns base key only", func(t *testing.T) {
+		rt := baseTemplate
+		rt.DedupeLabelKeys = nil
+
+		key := worker.computeDedupeKeyForSSP(rt, sspID, []relational.Labels{
+			{Name: "env", Value: "prod"},
+		})
+		require.Equal(t, fmt.Sprintf("%s:%s", sspID, templateID), key)
+	})
+
+	t.Run("dedupe keys appends sorted label values", func(t *testing.T) {
+		rt := baseTemplate
+		rt.DedupeLabelKeys = []string{"cve_id", "repo"}
+
+		key := worker.computeDedupeKeyForSSP(rt, sspID, []relational.Labels{
+			{Name: "repo", Value: "my-repo"},
+			{Name: "cve_id", Value: "CVE-2024-1234"},
+			{Name: "extra", Value: "ignored"},
+		})
+		expected := fmt.Sprintf("%s:%s:cve_id=CVE-2024-1234,repo=my-repo", sspID, templateID)
+		require.Equal(t, expected, key)
+	})
+
+	t.Run("missing evidence labels produce empty values in key", func(t *testing.T) {
+		rt := baseTemplate
+		rt.DedupeLabelKeys = []string{"cve_id", "repo"}
+
+		key := worker.computeDedupeKeyForSSP(rt, sspID, []relational.Labels{
+			{Name: "cve_id", Value: "CVE-2024-5678"},
+		})
+		expected := fmt.Sprintf("%s:%s:cve_id=CVE-2024-5678,repo=", sspID, templateID)
+		require.Equal(t, expected, key)
+	})
+}
+
+func TestResolveRiskTemplateFields(t *testing.T) {
+	t.Parallel()
+
+	worker := createTestRiskEvidenceWorker(t)
+	templateID := uuid.New()
+
+	t.Run("no template fields returns static values", func(t *testing.T) {
+		rt := templates.RiskTemplate{
+			UUIDModel: relational.UUIDModel{ID: &templateID},
+			Title:     "Static Title",
+			Statement: "Static Statement",
+		}
+
+		title, statement, likelihood, impact := worker.resolveRiskTemplateFields(rt, []relational.Labels{
+			{Name: "foo", Value: "bar"},
+		})
+		require.Equal(t, "Static Title", title)
+		require.Equal(t, "Static Statement", statement)
+		require.Nil(t, likelihood)
+		require.Nil(t, impact)
+	})
+
+	t.Run("template fields render with evidence labels", func(t *testing.T) {
+		titleTmpl := "CVE {{.cve_id}} in {{.repo}}"
+		stmtTmpl := "Severity: {{.severity}}"
+		rt := templates.RiskTemplate{
+			UUIDModel:         relational.UUIDModel{ID: &templateID},
+			Title:             "Fallback Title",
+			Statement:         "Fallback Statement",
+			TitleTemplate:     &titleTmpl,
+			StatementTemplate: &stmtTmpl,
+		}
+
+		title, statement, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{
+			{Name: "cve_id", Value: "CVE-2024-1234"},
+			{Name: "repo", Value: "my-repo"},
+			{Name: "severity", Value: "critical"},
+		})
+		require.Equal(t, "CVE CVE-2024-1234 in my-repo", title)
+		require.Equal(t, "Severity: critical", statement)
+	})
+
+	t.Run("invalid template falls back to static value", func(t *testing.T) {
+		badTmpl := "{{.invalid template syntax"
+		rt := templates.RiskTemplate{
+			UUIDModel:     relational.UUIDModel{ID: &templateID},
+			Title:         "Static Title",
+			Statement:     "Static Statement",
+			TitleTemplate: &badTmpl,
+		}
+
+		title, statement, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{})
+		require.Equal(t, "Static Title", title)
+		require.Equal(t, "Static Statement", statement)
+	})
+
+	t.Run("missing label renders with empty string via missingkey=zero", func(t *testing.T) {
+		titleTmpl := "Issue {{.cve_id}} in {{.repo}}"
+		rt := templates.RiskTemplate{
+			UUIDModel:     relational.UUIDModel{ID: &templateID},
+			Title:         "Fallback",
+			TitleTemplate: &titleTmpl,
+			Statement:     "Fallback statement",
+		}
+
+		title, _, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{
+			{Name: "cve_id", Value: "CVE-2024-9999"},
+			// "repo" label is missing
+		})
+		require.Equal(t, "Issue CVE-2024-9999 in ", title)
+	})
+}
+
+func TestCreateNewRiskForSSP_WithTemplateResolution(t *testing.T) {
+	t.Parallel()
+
+	db := newRiskEvidenceWorkerTestDB(t)
+	logger := zap.NewNop().Sugar()
+	worker := NewRiskEvidenceWorker(db, logger)
+
+	// Create SSP
+	ssp := createTestSSP(t, db)
+
+	// Create evidence with labels for template rendering
+	evidenceID := uuid.New()
+	evidence := &relational.Evidence{
+		UUIDModel: relational.UUIDModel{ID: &evidenceID},
+		UUID:      evidenceID,
+		Title:     "Test Evidence",
+		Start:     time.Now().Add(-1 * time.Hour),
+		End:       time.Now(),
+		Status:    datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: "not-satisfied"}),
+		Labels: []relational.Labels{
+			{Name: "cve_id", Value: "CVE-2024-1234"},
+			{Name: "repo", Value: "my-repo"},
+			{Name: "severity", Value: "critical"},
+			{Name: "_policy", Value: "compliance_framework.vuln_scan"},
+		},
+		Props: datatypes.NewJSONSlice([]relational.Prop{
+			{Name: "violation_id", Value: "vuln_detected"},
+		}),
+	}
+	require.NoError(t, db.Create(evidence).Error)
+
+	// Create risk template with template fields
+	templateID := uuid.New()
+	titleTmpl := "CVE {{.cve_id}} in {{.repo}}"
+	stmtTmpl := "Severity: {{.severity}}"
+	riskTemplate := templates.RiskTemplate{
+		UUIDModel:         relational.UUIDModel{ID: &templateID},
+		PluginID:          "vuln-scanner",
+		PolicyPackage:     "compliance_framework.vuln_scan",
+		Name:              "CVE template",
+		Title:             "Fallback title",
+		Statement:         "Fallback statement",
+		TitleTemplate:     &titleTmpl,
+		StatementTemplate: &stmtTmpl,
+		LikelihoodHint:    stringPtr("high"),
+		ImpactHint:        stringPtr("high"),
+		IsActive:          true,
+		ViolationIDs:      []string{"vuln_detected"},
+		DedupeLabelKeys:   []string{"cve_id"},
+	}
+	require.NoError(t, db.Create(&riskTemplate).Error)
+
+	dedupeKey := worker.computeDedupeKeyForSSP(riskTemplate, *ssp.ID, evidence.Labels)
+
+	ctx := context.Background()
+	err := worker.createNewRiskForSSP(ctx, riskTemplate, evidence, *ssp.ID, dedupeKey, nil)
+	require.NoError(t, err)
+
+	// Verify the created risk has rendered template values
+	var createdRisk risks.Risk
+	require.NoError(t, db.Where("dedupe_key = ?", dedupeKey).First(&createdRisk).Error)
+
+	require.Equal(t, "CVE CVE-2024-1234 in my-repo", createdRisk.Title)
+	require.Equal(t, "Severity: critical", createdRisk.Description)
+	require.Equal(t, *ssp.ID, createdRisk.SSPID)
+	require.Equal(t, &templateID, createdRisk.RiskTemplateID)
 }

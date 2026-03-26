@@ -7428,13 +7428,25 @@ definitions:
     type: object
   templates.batchRiskTemplateItem:
     properties:
+      dedupe-label-keys:
+        items:
+          type: string
+        type: array
       id:
         type: string
       impact-hint:
         type: string
+      impact-hint-template:
+        type: string
       is-active:
         type: boolean
+      label-schema:
+        items:
+          $ref: '#/definitions/templates.labelSchemaFieldRequest'
+        type: array
       likelihood-hint:
+        type: string
+      likelihood-hint-template:
         type: string
       name:
         type: string
@@ -7442,11 +7454,15 @@ definitions:
         $ref: '#/definitions/templates.remediationTemplateRequest'
       statement:
         type: string
+      statement-template:
+        type: string
       threat-ids:
         items:
           $ref: '#/definitions/templates.threatIDRequest'
         type: array
       title:
+        type: string
+      title-template:
         type: string
       violation-ids:
         items:
@@ -7565,6 +7581,20 @@ definitions:
       data:
         $ref: '#/definitions/templates.batchUpsertSubjectTemplatesData'
     type: object
+  templates.labelSchemaFieldRequest:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+    type: object
+  templates.labelSchemaFieldResponse:
+    properties:
+      description:
+        type: string
+      key:
+        type: string
+    type: object
   templates.remediationTaskRequest:
     properties:
       order-index:
@@ -7614,13 +7644,25 @@ definitions:
     properties:
       created-at:
         type: string
+      dedupe-label-keys:
+        items:
+          type: string
+        type: array
       id:
         type: string
       impact-hint:
         type: string
+      impact-hint-template:
+        type: string
       is-active:
         type: boolean
+      label-schema:
+        items:
+          $ref: '#/definitions/templates.labelSchemaFieldResponse'
+        type: array
       likelihood-hint:
+        type: string
+      likelihood-hint-template:
         type: string
       name:
         type: string
@@ -7632,11 +7674,15 @@ definitions:
         $ref: '#/definitions/templates.remediationTemplateResponse'
       statement:
         type: string
+      statement-template:
+        type: string
       threat-ids:
         items:
           $ref: '#/definitions/templates.threatIDResponse'
         type: array
       title:
+        type: string
+      title-template:
         type: string
       updated-at:
         type: string
@@ -7745,11 +7791,23 @@ definitions:
     type: object
   templates.upsertRiskTemplateRequest:
     properties:
+      dedupe-label-keys:
+        items:
+          type: string
+        type: array
       impact-hint:
+        type: string
+      impact-hint-template:
         type: string
       is-active:
         type: boolean
+      label-schema:
+        items:
+          $ref: '#/definitions/templates.labelSchemaFieldRequest'
+        type: array
       likelihood-hint:
+        type: string
+      likelihood-hint-template:
         type: string
       name:
         type: string
@@ -7761,11 +7819,15 @@ definitions:
         $ref: '#/definitions/templates.remediationTemplateRequest'
       statement:
         type: string
+      statement-template:
+        type: string
       threat-ids:
         items:
           $ref: '#/definitions/templates.threatIDRequest'
         type: array
       title:
+        type: string
+      title-template:
         type: string
       violation-ids:
         items:

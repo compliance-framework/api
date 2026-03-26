@@ -178,6 +178,11 @@ type Remediation struct {
 	Tasks []RemediationTask `json:"tasks"`
 }
 
+type RiskTemplateLabelSchema struct {
+	Key         string  `json:"key"`
+	Description *string `json:"description,omitempty"`
+}
+
 type RiskTemplate struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
@@ -185,6 +190,14 @@ type RiskTemplate struct {
 	Statement      string  `json:"statement"`
 	LikelihoodHint *string `json:"likelihood-hint,omitempty"`
 	ImpactHint     *string `json:"impact-hint,omitempty"`
+
+	TitleTemplate          *string `json:"title-template,omitempty"`
+	StatementTemplate      *string `json:"statement-template,omitempty"`
+	LikelihoodHintTemplate *string `json:"likelihood-hint-template,omitempty"`
+	ImpactHintTemplate     *string `json:"impact-hint-template,omitempty"`
+
+	DedupeLabelKeys []string                  `json:"dedupe-label-keys,omitempty"`
+	LabelSchema     []RiskTemplateLabelSchema `json:"label-schema,omitempty"`
 
 	ViolationIds []string `json:"violation-ids"`
 

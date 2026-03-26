@@ -21,13 +21,21 @@ type RiskTemplate struct {
 	LikelihoodHint *string `json:"likelihoodHint" gorm:"type:varchar(32)"`
 	ImpactHint     *string `json:"impactHint" gorm:"type:varchar(32)"`
 
+	TitleTemplate          *string `json:"titleTemplate" gorm:"type:text"`
+	StatementTemplate      *string `json:"statementTemplate" gorm:"type:text"`
+	LikelihoodHintTemplate *string `json:"likelihoodHintTemplate" gorm:"type:text"`
+	ImpactHintTemplate     *string `json:"impactHintTemplate" gorm:"type:text"`
+
+	DedupeLabelKeys datatypes.JSONSlice[string] `json:"dedupeLabelKeys" gorm:"type:jsonb"`
+
 	RemediationTemplateID *uuid.UUID           `json:"remediationTemplateId" gorm:"type:uuid;index"`
 	RemediationTemplate   *RemediationTemplate `json:"remediationTemplate,omitempty" gorm:"foreignKey:RemediationTemplateID;references:ID"`
 
 	ViolationIDs datatypes.JSONSlice[string] `json:"violationIds" gorm:"type:jsonb"`
 	IsActive     bool                        `json:"isActive" gorm:"not null;default:false;index"`
 
-	ThreatRefs []RiskTemplateThreatRef `json:"threatRefs,omitempty" gorm:"foreignKey:RiskTemplateID;constraint:OnDelete:CASCADE"`
+	ThreatRefs  []RiskTemplateThreatRef        `json:"threatRefs,omitempty" gorm:"foreignKey:RiskTemplateID;constraint:OnDelete:CASCADE"`
+	LabelSchema []RiskTemplateLabelSchemaField `json:"labelSchema,omitempty" gorm:"foreignKey:RiskTemplateID;constraint:OnDelete:CASCADE"`
 }
 
 func (RiskTemplate) TableName() string {
@@ -46,6 +54,18 @@ type RiskTemplateThreatRef struct {
 
 func (RiskTemplateThreatRef) TableName() string {
 	return "risk_template_threat_refs"
+}
+
+type RiskTemplateLabelSchemaField struct {
+	relational.UUIDModel
+	RiskTemplateID uuid.UUID `json:"riskTemplateId" gorm:"type:uuid;not null;uniqueIndex:idx_risk_template_label_schema_fields_template_key,priority:1"`
+
+	Key         string  `json:"key" gorm:"type:text;not null;uniqueIndex:idx_risk_template_label_schema_fields_template_key,priority:2"`
+	Description *string `json:"description" gorm:"type:text"`
+}
+
+func (RiskTemplateLabelSchemaField) TableName() string {
+	return "risk_template_label_schema_fields"
 }
 
 type RemediationTemplate struct {
