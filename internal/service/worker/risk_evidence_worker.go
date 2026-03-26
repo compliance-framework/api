@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -436,7 +437,7 @@ func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskT
 	var parts []string
 	for _, key := range keys {
 		val := labelMap[key]
-		parts = append(parts, fmt.Sprintf("%s=%s", key, val))
+		parts = append(parts, fmt.Sprintf("%s=%s", url.QueryEscape(key), url.QueryEscape(val)))
 	}
 
 	return base + ":" + strings.Join(parts, ",")
@@ -924,7 +925,7 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 	}
 
 	if rt.TitleTemplate != nil {
-		rendered, err := templates.RenderTemplatePublic(*rt.TitleTemplate, labelMap)
+		rendered, err := templates.RenderTemplate(*rt.TitleTemplate, labelMap)
 		if err != nil {
 			w.logger.Warnw("Failed to render title template, using static title",
 				"error", err, "risk_template_id", rt.ID)
@@ -934,7 +935,7 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 	}
 
 	if rt.StatementTemplate != nil {
-		rendered, err := templates.RenderTemplatePublic(*rt.StatementTemplate, labelMap)
+		rendered, err := templates.RenderTemplate(*rt.StatementTemplate, labelMap)
 		if err != nil {
 			w.logger.Warnw("Failed to render statement template, using static statement",
 				"error", err, "risk_template_id", rt.ID)
@@ -944,7 +945,7 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 	}
 
 	if rt.LikelihoodHintTemplate != nil {
-		rendered, err := templates.RenderTemplatePublic(*rt.LikelihoodHintTemplate, labelMap)
+		rendered, err := templates.RenderTemplate(*rt.LikelihoodHintTemplate, labelMap)
 		if err != nil {
 			w.logger.Warnw("Failed to render likelihood hint template, using static hint",
 				"error", err, "risk_template_id", rt.ID)
@@ -960,7 +961,7 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 	}
 
 	if rt.ImpactHintTemplate != nil {
-		rendered, err := templates.RenderTemplatePublic(*rt.ImpactHintTemplate, labelMap)
+		rendered, err := templates.RenderTemplate(*rt.ImpactHintTemplate, labelMap)
 		if err != nil {
 			w.logger.Warnw("Failed to render impact hint template, using static hint",
 				"error", err, "risk_template_id", rt.ID)

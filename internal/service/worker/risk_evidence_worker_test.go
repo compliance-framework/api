@@ -1733,6 +1733,18 @@ func TestComputeDedupeKeyForSSP_WithDedupeLabelKeys(t *testing.T) {
 		expected := fmt.Sprintf("%s:%s:cve_id=CVE-2024-5678,repo=", sspID, templateID)
 		require.Equal(t, expected, key)
 	})
+
+	t.Run("dedupe key escapes delimiter characters in label values", func(t *testing.T) {
+		rt := baseTemplate
+		rt.DedupeLabelKeys = []string{"artifact", "repo"}
+
+		key := worker.computeDedupeKeyForSSP(rt, sspID, []relational.Labels{
+			{Name: "repo", Value: "payments:api,worker"},
+			{Name: "artifact", Value: "cve=id=1,part:2"},
+		})
+		expected := fmt.Sprintf("%s:%s:%s", sspID, templateID, "artifact=cve%3Did%3D1%2Cpart%3A2,repo=payments%3Aapi%2Cworker")
+		require.Equal(t, expected, key)
+	})
 }
 
 func TestResolveRiskTemplateFields(t *testing.T) {

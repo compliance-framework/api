@@ -7,8 +7,8 @@ import (
 	"text/template/parse"
 )
 
-// RenderTemplatePublic is the exported version of renderTemplate for use by other packages.
-func RenderTemplatePublic(tmplStr string, labels map[string]string) (string, error) {
+// RenderTemplate executes a Go template string with the provided label data.
+func RenderTemplate(tmplStr string, labels map[string]string) (string, error) {
 	return renderTemplate(tmplStr, labels)
 }
 
