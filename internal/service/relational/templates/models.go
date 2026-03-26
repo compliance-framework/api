@@ -21,11 +21,6 @@ type RiskTemplate struct {
 	LikelihoodHint *string `json:"likelihoodHint" gorm:"type:varchar(32)"`
 	ImpactHint     *string `json:"impactHint" gorm:"type:varchar(32)"`
 
-	TitleTemplate          *string `json:"titleTemplate" gorm:"type:text"`
-	StatementTemplate      *string `json:"statementTemplate" gorm:"type:text"`
-	LikelihoodHintTemplate *string `json:"likelihoodHintTemplate" gorm:"type:text"`
-	ImpactHintTemplate     *string `json:"impactHintTemplate" gorm:"type:text"`
-
 	DedupeLabelKeys datatypes.JSONSlice[string] `json:"dedupeLabelKeys" gorm:"type:jsonb"`
 
 	RemediationTemplateID *uuid.UUID           `json:"remediationTemplateId" gorm:"type:uuid;index"`

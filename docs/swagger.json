@@ -36978,9 +36978,6 @@
                 "impact-hint": {
                     "type": "string"
                 },
-                "impact-hint-template": {
-                    "type": "string"
-                },
                 "is-active": {
                     "type": "boolean"
                 },
@@ -36993,9 +36990,6 @@
                 "likelihood-hint": {
                     "type": "string"
                 },
-                "likelihood-hint-template": {
-                    "type": "string"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -37005,9 +36999,6 @@
                 "statement": {
                     "type": "string"
                 },
-                "statement-template": {
-                    "type": "string"
-                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37015,9 +37006,6 @@
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "title-template": {
                     "type": "string"
                 },
                 "violation-ids": {
@@ -37309,9 +37297,6 @@
                 "impact-hint": {
                     "type": "string"
                 },
-                "impact-hint-template": {
-                    "type": "string"
-                },
                 "is-active": {
                     "type": "boolean"
                 },
@@ -37322,9 +37307,6 @@
                     }
                 },
                 "likelihood-hint": {
-                    "type": "string"
-                },
-                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -37342,9 +37324,6 @@
                 "statement": {
                     "type": "string"
                 },
-                "statement-template": {
-                    "type": "string"
-                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37352,9 +37331,6 @@
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "title-template": {
                     "type": "string"
                 },
                 "updated-at": {
@@ -37531,9 +37507,6 @@
                 "impact-hint": {
                     "type": "string"
                 },
-                "impact-hint-template": {
-                    "type": "string"
-                },
                 "is-active": {
                     "type": "boolean"
                 },
@@ -37544,9 +37517,6 @@
                     }
                 },
                 "likelihood-hint": {
-                    "type": "string"
-                },
-                "likelihood-hint-template": {
                     "type": "string"
                 },
                 "name": {
@@ -37564,9 +37534,6 @@
                 "statement": {
                     "type": "string"
                 },
-                "statement-template": {
-                    "type": "string"
-                },
                 "threat-ids": {
                     "type": "array",
                     "items": {
@@ -37574,9 +37541,6 @@
                     }
                 },
                 "title": {
-                    "type": "string"
-                },
-                "title-template": {
                     "type": "string"
                 },
                 "violation-ids": {

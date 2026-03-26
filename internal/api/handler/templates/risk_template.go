@@ -66,23 +66,19 @@ type labelSchemaFieldRequest struct {
 }
 
 type upsertRiskTemplateRequest struct {
-	PluginID               string                      `json:"plugin-id"`
-	PolicyPackage          string                      `json:"policy-package"`
-	Name                   string                      `json:"name"`
-	Title                  string                      `json:"title"`
-	Statement              string                      `json:"statement"`
-	LikelihoodHint         *string                     `json:"likelihood-hint"`
-	ImpactHint             *string                     `json:"impact-hint"`
-	TitleTemplate          *string                     `json:"title-template"`
-	StatementTemplate      *string                     `json:"statement-template"`
-	LikelihoodHintTemplate *string                     `json:"likelihood-hint-template"`
-	ImpactHintTemplate     *string                     `json:"impact-hint-template"`
-	DedupeLabelKeys        []string                    `json:"dedupe-label-keys"`
-	LabelSchema            []labelSchemaFieldRequest   `json:"label-schema"`
-	ViolationIDs           []string                    `json:"violation-ids"`
-	ThreatIDs              []threatIDRequest           `json:"threat-ids"`
-	Remediation            *remediationTemplateRequest `json:"remediation-template"`
-	IsActive               *bool                       `json:"is-active"`
+	PluginID        string                      `json:"plugin-id"`
+	PolicyPackage   string                      `json:"policy-package"`
+	Name            string                      `json:"name"`
+	Title           string                      `json:"title"`
+	Statement       string                      `json:"statement"`
+	LikelihoodHint  *string                     `json:"likelihood-hint"`
+	ImpactHint      *string                     `json:"impact-hint"`
+	DedupeLabelKeys []string                    `json:"dedupe-label-keys"`
+	LabelSchema     []labelSchemaFieldRequest   `json:"label-schema"`
+	ViolationIDs    []string                    `json:"violation-ids"`
+	ThreatIDs       []threatIDRequest           `json:"threat-ids"`
+	Remediation     *remediationTemplateRequest `json:"remediation-template"`
+	IsActive        *bool                       `json:"is-active"`
 }
 
 type threatIDResponse struct {
@@ -111,26 +107,22 @@ type labelSchemaFieldResponse struct {
 }
 
 type riskTemplateResponse struct {
-	ID                     uuid.UUID                    `json:"id"`
-	CreatedAt              time.Time                    `json:"created-at"`
-	UpdatedAt              time.Time                    `json:"updated-at"`
-	PluginID               string                       `json:"plugin-id"`
-	PolicyPackage          string                       `json:"policy-package"`
-	Name                   string                       `json:"name"`
-	Title                  string                       `json:"title"`
-	Statement              string                       `json:"statement"`
-	LikelihoodHint         *string                      `json:"likelihood-hint"`
-	ImpactHint             *string                      `json:"impact-hint"`
-	TitleTemplate          *string                      `json:"title-template,omitempty"`
-	StatementTemplate      *string                      `json:"statement-template,omitempty"`
-	LikelihoodHintTemplate *string                      `json:"likelihood-hint-template,omitempty"`
-	ImpactHintTemplate     *string                      `json:"impact-hint-template,omitempty"`
-	DedupeLabelKeys        []string                     `json:"dedupe-label-keys,omitempty"`
-	LabelSchema            []labelSchemaFieldResponse   `json:"label-schema,omitempty"`
-	ViolationIDs           []string                     `json:"violation-ids"`
-	ThreatIDs              []threatIDResponse           `json:"threat-ids"`
-	Remediation            *remediationTemplateResponse `json:"remediation-template,omitempty"`
-	IsActive               bool                         `json:"is-active"`
+	ID              uuid.UUID                    `json:"id"`
+	CreatedAt       time.Time                    `json:"created-at"`
+	UpdatedAt       time.Time                    `json:"updated-at"`
+	PluginID        string                       `json:"plugin-id"`
+	PolicyPackage   string                       `json:"policy-package"`
+	Name            string                       `json:"name"`
+	Title           string                       `json:"title"`
+	Statement       string                       `json:"statement"`
+	LikelihoodHint  *string                      `json:"likelihood-hint"`
+	ImpactHint      *string                      `json:"impact-hint"`
+	DedupeLabelKeys []string                     `json:"dedupe-label-keys,omitempty"`
+	LabelSchema     []labelSchemaFieldResponse   `json:"label-schema,omitempty"`
+	ViolationIDs    []string                     `json:"violation-ids"`
+	ThreatIDs       []threatIDResponse           `json:"threat-ids"`
+	Remediation     *remediationTemplateResponse `json:"remediation-template,omitempty"`
+	IsActive        bool                         `json:"is-active"`
 }
 
 type riskTemplateDataResponse struct {
@@ -311,22 +303,18 @@ func (h *RiskTemplateHandler) Delete(ctx echo.Context) error {
 
 func mapRequestToPayload(req upsertRiskTemplateRequest) templaterel.RiskTemplatePayload {
 	payload := templaterel.RiskTemplatePayload{
-		PluginID:               req.PluginID,
-		PolicyPackage:          req.PolicyPackage,
-		Name:                   req.Name,
-		Title:                  req.Title,
-		Statement:              req.Statement,
-		LikelihoodHint:         req.LikelihoodHint,
-		ImpactHint:             req.ImpactHint,
-		TitleTemplate:          req.TitleTemplate,
-		StatementTemplate:      req.StatementTemplate,
-		LikelihoodHintTemplate: req.LikelihoodHintTemplate,
-		ImpactHintTemplate:     req.ImpactHintTemplate,
-		DedupeLabelKeys:        req.DedupeLabelKeys,
-		ViolationIDs:           req.ViolationIDs,
-		IsActive:               req.IsActive,
-		ThreatRefs:             make([]templaterel.ThreatRefInput, 0, len(req.ThreatIDs)),
-		LabelSchema:            make([]templaterel.RiskTemplateLabelSchemaFieldInput, 0, len(req.LabelSchema)),
+		PluginID:        req.PluginID,
+		PolicyPackage:   req.PolicyPackage,
+		Name:            req.Name,
+		Title:           req.Title,
+		Statement:       req.Statement,
+		LikelihoodHint:  req.LikelihoodHint,
+		ImpactHint:      req.ImpactHint,
+		DedupeLabelKeys: req.DedupeLabelKeys,
+		ViolationIDs:    req.ViolationIDs,
+		IsActive:        req.IsActive,
+		ThreatRefs:      make([]templaterel.ThreatRefInput, 0, len(req.ThreatIDs)),
+		LabelSchema:     make([]templaterel.RiskTemplateLabelSchemaFieldInput, 0, len(req.LabelSchema)),
 	}
 
 	for _, ref := range req.ThreatIDs {
@@ -364,22 +352,18 @@ func mapRequestToPayload(req upsertRiskTemplateRequest) templaterel.RiskTemplate
 }
 
 type batchRiskTemplateItem struct {
-	ID                     string                      `json:"id"`
-	Name                   string                      `json:"name"`
-	Title                  string                      `json:"title"`
-	Statement              string                      `json:"statement"`
-	LikelihoodHint         *string                     `json:"likelihood-hint"`
-	ImpactHint             *string                     `json:"impact-hint"`
-	TitleTemplate          *string                     `json:"title-template"`
-	StatementTemplate      *string                     `json:"statement-template"`
-	LikelihoodHintTemplate *string                     `json:"likelihood-hint-template"`
-	ImpactHintTemplate     *string                     `json:"impact-hint-template"`
-	DedupeLabelKeys        []string                    `json:"dedupe-label-keys"`
-	LabelSchema            []labelSchemaFieldRequest   `json:"label-schema"`
-	ViolationIDs           []string                    `json:"violation-ids"`
-	ThreatIDs              []threatIDRequest           `json:"threat-ids"`
-	Remediation            *remediationTemplateRequest `json:"remediation-template"`
-	IsActive               *bool                       `json:"is-active"`
+	ID              string                      `json:"id"`
+	Name            string                      `json:"name"`
+	Title           string                      `json:"title"`
+	Statement       string                      `json:"statement"`
+	LikelihoodHint  *string                     `json:"likelihood-hint"`
+	ImpactHint      *string                     `json:"impact-hint"`
+	DedupeLabelKeys []string                    `json:"dedupe-label-keys"`
+	LabelSchema     []labelSchemaFieldRequest   `json:"label-schema"`
+	ViolationIDs    []string                    `json:"violation-ids"`
+	ThreatIDs       []threatIDRequest           `json:"threat-ids"`
+	Remediation     *remediationTemplateRequest `json:"remediation-template"`
+	IsActive        *bool                       `json:"is-active"`
 }
 
 type batchUpsertRiskTemplatesRequest struct {
@@ -434,21 +418,17 @@ func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
 			return ctx.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("item %d: invalid id %q: %w", len(items), item.ID, err)))
 		}
 		svcItem := templaterel.BatchRiskTemplateItem{
-			ID:                     parsedID,
-			Name:                   item.Name,
-			Title:                  item.Title,
-			Statement:              item.Statement,
-			LikelihoodHint:         item.LikelihoodHint,
-			ImpactHint:             item.ImpactHint,
-			TitleTemplate:          item.TitleTemplate,
-			StatementTemplate:      item.StatementTemplate,
-			LikelihoodHintTemplate: item.LikelihoodHintTemplate,
-			ImpactHintTemplate:     item.ImpactHintTemplate,
-			DedupeLabelKeys:        item.DedupeLabelKeys,
-			ViolationIDs:           item.ViolationIDs,
-			IsActive:               item.IsActive,
-			ThreatRefs:             make([]templaterel.ThreatRefInput, 0, len(item.ThreatIDs)),
-			LabelSchema:            make([]templaterel.RiskTemplateLabelSchemaFieldInput, 0, len(item.LabelSchema)),
+			ID:              parsedID,
+			Name:            item.Name,
+			Title:           item.Title,
+			Statement:       item.Statement,
+			LikelihoodHint:  item.LikelihoodHint,
+			ImpactHint:      item.ImpactHint,
+			DedupeLabelKeys: item.DedupeLabelKeys,
+			ViolationIDs:    item.ViolationIDs,
+			IsActive:        item.IsActive,
+			ThreatRefs:      make([]templaterel.ThreatRefInput, 0, len(item.ThreatIDs)),
+			LabelSchema:     make([]templaterel.RiskTemplateLabelSchemaFieldInput, 0, len(item.LabelSchema)),
 		}
 		for _, ref := range item.ThreatIDs {
 			svcItem.ThreatRefs = append(svcItem.ThreatRefs, templaterel.ThreatRefInput{
@@ -504,24 +484,20 @@ func (h *RiskTemplateHandler) BatchUpsert(ctx echo.Context) error {
 
 func mapRiskTemplateToResponse(row templaterel.RiskTemplate) riskTemplateResponse {
 	resp := riskTemplateResponse{
-		ID:                     *row.ID,
-		CreatedAt:              row.CreatedAt,
-		UpdatedAt:              row.UpdatedAt,
-		PluginID:               row.PluginID,
-		PolicyPackage:          row.PolicyPackage,
-		Name:                   row.Name,
-		Title:                  row.Title,
-		Statement:              row.Statement,
-		LikelihoodHint:         riskrel.NormalizeRiskLevelPtr(row.LikelihoodHint),
-		ImpactHint:             riskrel.NormalizeRiskLevelPtr(row.ImpactHint),
-		TitleTemplate:          row.TitleTemplate,
-		StatementTemplate:      row.StatementTemplate,
-		LikelihoodHintTemplate: row.LikelihoodHintTemplate,
-		ImpactHintTemplate:     row.ImpactHintTemplate,
-		DedupeLabelKeys:        append([]string{}, row.DedupeLabelKeys...),
-		ViolationIDs:           append([]string{}, row.ViolationIDs...),
-		ThreatIDs:              make([]threatIDResponse, 0, len(row.ThreatRefs)),
-		IsActive:               row.IsActive,
+		ID:              *row.ID,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
+		PluginID:        row.PluginID,
+		PolicyPackage:   row.PolicyPackage,
+		Name:            row.Name,
+		Title:           row.Title,
+		Statement:       row.Statement,
+		LikelihoodHint:  riskrel.NormalizeRiskLevelPtr(row.LikelihoodHint),
+		ImpactHint:      riskrel.NormalizeRiskLevelPtr(row.ImpactHint),
+		DedupeLabelKeys: append([]string{}, row.DedupeLabelKeys...),
+		ViolationIDs:    append([]string{}, row.ViolationIDs...),
+		ThreatIDs:       make([]threatIDResponse, 0, len(row.ThreatRefs)),
+		IsActive:        row.IsActive,
 	}
 
 	if len(row.LabelSchema) > 0 {

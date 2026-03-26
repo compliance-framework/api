@@ -191,11 +191,6 @@ type RiskTemplate struct {
 	LikelihoodHint *string `json:"likelihood-hint,omitempty"`
 	ImpactHint     *string `json:"impact-hint,omitempty"`
 
-	TitleTemplate          *string `json:"title-template,omitempty"`
-	StatementTemplate      *string `json:"statement-template,omitempty"`
-	LikelihoodHintTemplate *string `json:"likelihood-hint-template,omitempty"`
-	ImpactHintTemplate     *string `json:"impact-hint-template,omitempty"`
-
 	DedupeLabelKeys []string                  `json:"dedupe-label-keys,omitempty"`
 	LabelSchema     []RiskTemplateLabelSchema `json:"label-schema,omitempty"`
 

@@ -723,7 +723,7 @@ func validRiskTemplatePayload() RiskTemplatePayload {
 	}
 }
 
-func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T) {
+func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateCapableFields(t *testing.T) {
 	db := newRiskTemplateTestDB(t)
 	svc := NewRiskTemplateService(db)
 
@@ -735,17 +735,15 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 		PluginID:      "vuln-scanner",
 		PolicyPackage: "compliance_framework.vulnerability_scan",
 		Name:          "CVE risk template",
-		Title:         "Vulnerability found",
-		Statement:     "A vulnerability was detected.",
+		Title:         titleTmpl,
+		Statement:     stmtTmpl,
 		IsActive:      boolPtr(true),
 		LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 			{Key: "cve_id", Description: &desc},
 			{Key: "repo_name"},
 			{Key: "severity"},
 		},
-		TitleTemplate:     &titleTmpl,
-		StatementTemplate: &stmtTmpl,
-		DedupeLabelKeys:   []string{"cve_id"},
+		DedupeLabelKeys: []string{"cve_id"},
 		ThreatRefs: []ThreatRefInput{
 			{System: "https://cve.mitre.org", ExternalID: "CVE-2024-0001", Title: "Test CVE"},
 		},
@@ -761,11 +759,8 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 	require.Equal(t, "repo_name", created.LabelSchema[1].Key)
 	require.Equal(t, "severity", created.LabelSchema[2].Key)
 
-	// Verify template fields persisted
-	require.NotNil(t, created.TitleTemplate)
-	require.Equal(t, "Vulnerability {{.cve_id}} found in {{.repo_name}}", *created.TitleTemplate)
-	require.NotNil(t, created.StatementTemplate)
-	require.Equal(t, stmtTmpl, *created.StatementTemplate)
+	require.Equal(t, "Vulnerability {{.cve_id}} found in {{.repo_name}}", created.Title)
+	require.Equal(t, stmtTmpl, created.Statement)
 
 	// Verify dedupe label keys persisted
 	require.Len(t, created.DedupeLabelKeys, 1)
@@ -775,23 +770,21 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 	got, err := svc.GetByID(*created.ID)
 	require.NoError(t, err)
 	require.Len(t, got.LabelSchema, 3)
-	require.NotNil(t, got.TitleTemplate)
 	require.Len(t, got.DedupeLabelKeys, 1)
 
-	// Update: replace label schema and template fields
+	// Update: replace label schema and template-capable fields
 	newTitleTmpl := "Issue {{.issue_id}} in {{.repo_name}}"
 	updated, err := svc.Update(*created.ID, RiskTemplatePayload{
 		PluginID:      "vuln-scanner",
 		PolicyPackage: "compliance_framework.vulnerability_scan",
 		Name:          "CVE risk template (updated)",
-		Title:         "Vulnerability found",
+		Title:         newTitleTmpl,
 		Statement:     "A vulnerability was detected.",
 		IsActive:      boolPtr(true),
 		LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 			{Key: "issue_id"},
 			{Key: "repo_name"},
 		},
-		TitleTemplate:   &newTitleTmpl,
 		DedupeLabelKeys: []string{"issue_id"},
 		ThreatRefs: []ThreatRefInput{
 			{System: "https://cve.mitre.org", ExternalID: "CVE-2024-0001", Title: "Test CVE"},
@@ -801,9 +794,8 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 	require.Len(t, updated.LabelSchema, 2)
 	require.Equal(t, "issue_id", updated.LabelSchema[0].Key)
 	require.Equal(t, "repo_name", updated.LabelSchema[1].Key)
-	require.NotNil(t, updated.TitleTemplate)
-	require.Equal(t, newTitleTmpl, *updated.TitleTemplate)
-	require.Nil(t, updated.StatementTemplate) // removed
+	require.Equal(t, newTitleTmpl, updated.Title)
+	require.Equal(t, "A vulnerability was detected.", updated.Statement)
 	require.Len(t, updated.DedupeLabelKeys, 1)
 	require.Equal(t, "issue_id", updated.DedupeLabelKeys[0])
 
@@ -815,7 +807,7 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 	require.Equal(t, int64(0), oldSchemaCount)
 }
 
-func TestRiskTemplateService_TemplateFieldValidation(t *testing.T) {
+func TestRiskTemplateService_TemplateCapableFieldValidation(t *testing.T) {
 	db := newRiskTemplateTestDB(t)
 	svc := NewRiskTemplateService(db)
 
@@ -825,23 +817,21 @@ func TestRiskTemplateService_TemplateFieldValidation(t *testing.T) {
 		message string
 	}{
 		{
-			name: "template fields without label schema",
+			name: "template field reference without label schema",
 			mutate: func(payload *RiskTemplatePayload) {
-				tmpl := "{{.some_key}}"
-				payload.TitleTemplate = &tmpl
+				payload.Title = "{{.some_key}}"
 			},
-			message: "template fields require a non-empty labelSchema",
+			message: `title: template references undefined label key: "some_key" (not in label schema)`,
 		},
 		{
 			name: "template field referencing undefined key",
 			mutate: func(payload *RiskTemplatePayload) {
-				tmpl := "{{.undefined_key}}"
-				payload.TitleTemplate = &tmpl
+				payload.Title = "{{.undefined_key}}"
 				payload.LabelSchema = []RiskTemplateLabelSchemaFieldInput{
 					{Key: "defined_key"},
 				}
 			},
-			message: `titleTemplate: template references undefined label key: "undefined_key" (not in label schema)`,
+			message: `title: template references undefined label key: "undefined_key" (not in label schema)`,
 		},
 		{
 			name: "dedupe label keys without label schema",
@@ -900,15 +890,14 @@ func TestRiskTemplateService_TemplateFieldValidation(t *testing.T) {
 			message: "labelSchema[0].description must be at most 1000 characters",
 		},
 		{
-			name: "template field over max length",
+			name: "template-capable field over max length",
 			mutate: func(payload *RiskTemplatePayload) {
-				tmpl := strings.Repeat("t", maxRiskTemplateFieldLength+1)
-				payload.TitleTemplate = &tmpl
+				payload.Title = strings.Repeat("t", maxRiskTemplateFieldLength+1)
 				payload.LabelSchema = []RiskTemplateLabelSchemaFieldInput{
 					{Key: "defined_key"},
 				}
 			},
-			message: "titleTemplate must be at most 1000 characters",
+			message: "title must be at most 1000 characters",
 		},
 	}
 
@@ -925,7 +914,7 @@ func TestRiskTemplateService_TemplateFieldValidation(t *testing.T) {
 	}
 }
 
-func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
+func TestRiskTemplateService_BatchUpsertWithTemplateCapableFields(t *testing.T) {
 	db := newRiskTemplateTestDB(t)
 	svc := NewRiskTemplateService(db)
 
@@ -936,15 +925,13 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	stmtTmpl := "Severity: {{.severity}}"
 	id1 := uuid.New()
 
-	// Round 1: create with template fields
+	// Round 1: create with template-capable fields
 	result, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
 		{
-			ID:                id1,
-			Name:              "Templated batch",
-			Title:             "Fallback title",
-			Statement:         "Fallback statement",
-			TitleTemplate:     &titleTmpl,
-			StatementTemplate: &stmtTmpl,
+			ID:        id1,
+			Name:      "Templated batch",
+			Title:     titleTmpl,
+			Statement: stmtTmpl,
 			LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 				{Key: "cve_id"},
 				{Key: "repo"},
@@ -956,18 +943,16 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Created, 1)
 	require.Len(t, result.Created[0].LabelSchema, 3)
-	require.NotNil(t, result.Created[0].TitleTemplate)
+	require.Equal(t, titleTmpl, result.Created[0].Title)
 	require.Len(t, result.Created[0].DedupeLabelKeys, 1)
 
 	// Round 2: same payload — should be unchanged
 	result2, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
 		{
-			ID:                id1,
-			Name:              "Templated batch",
-			Title:             "Fallback title",
-			Statement:         "Fallback statement",
-			TitleTemplate:     &titleTmpl,
-			StatementTemplate: &stmtTmpl,
+			ID:        id1,
+			Name:      "Templated batch",
+			Title:     titleTmpl,
+			Statement: stmtTmpl,
 			LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 				{Key: "cve_id"},
 				{Key: "repo"},
@@ -983,16 +968,14 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	require.Len(t, result2.Unchanged, 1)
 	require.Equal(t, id1, result2.Unchanged[0])
 
-	// Round 3: change template field — should be updated
+	// Round 3: change template-capable field — should be updated
 	newTitleTmpl := "Issue {{.cve_id}}"
 	result3, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
 		{
-			ID:                id1,
-			Name:              "Templated batch",
-			Title:             "Fallback title",
-			Statement:         "Fallback statement",
-			TitleTemplate:     &newTitleTmpl,
-			StatementTemplate: &stmtTmpl,
+			ID:        id1,
+			Name:      "Templated batch",
+			Title:     newTitleTmpl,
+			Statement: stmtTmpl,
 			LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 				{Key: "cve_id"},
 				{Key: "repo"},
@@ -1003,6 +986,5 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, result3.Updated, 1)
-	require.NotNil(t, result3.Updated[0].TitleTemplate)
-	require.Equal(t, newTitleTmpl, *result3.Updated[0].TitleTemplate)
+	require.Equal(t, newTitleTmpl, result3.Updated[0].Title)
 }

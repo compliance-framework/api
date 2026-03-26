@@ -7436,8 +7436,6 @@ definitions:
         type: string
       impact-hint:
         type: string
-      impact-hint-template:
-        type: string
       is-active:
         type: boolean
       label-schema:
@@ -7446,23 +7444,17 @@ definitions:
         type: array
       likelihood-hint:
         type: string
-      likelihood-hint-template:
-        type: string
       name:
         type: string
       remediation-template:
         $ref: '#/definitions/templates.remediationTemplateRequest'
       statement:
         type: string
-      statement-template:
-        type: string
       threat-ids:
         items:
           $ref: '#/definitions/templates.threatIDRequest'
         type: array
       title:
-        type: string
-      title-template:
         type: string
       violation-ids:
         items:
@@ -7652,8 +7644,6 @@ definitions:
         type: string
       impact-hint:
         type: string
-      impact-hint-template:
-        type: string
       is-active:
         type: boolean
       label-schema:
@@ -7661,8 +7651,6 @@ definitions:
           $ref: '#/definitions/templates.labelSchemaFieldResponse'
         type: array
       likelihood-hint:
-        type: string
-      likelihood-hint-template:
         type: string
       name:
         type: string
@@ -7674,15 +7662,11 @@ definitions:
         $ref: '#/definitions/templates.remediationTemplateResponse'
       statement:
         type: string
-      statement-template:
-        type: string
       threat-ids:
         items:
           $ref: '#/definitions/templates.threatIDResponse'
         type: array
       title:
-        type: string
-      title-template:
         type: string
       updated-at:
         type: string
@@ -7797,8 +7781,6 @@ definitions:
         type: array
       impact-hint:
         type: string
-      impact-hint-template:
-        type: string
       is-active:
         type: boolean
       label-schema:
@@ -7806,8 +7788,6 @@ definitions:
           $ref: '#/definitions/templates.labelSchemaFieldRequest'
         type: array
       likelihood-hint:
-        type: string
-      likelihood-hint-template:
         type: string
       name:
         type: string
@@ -7819,15 +7799,11 @@ definitions:
         $ref: '#/definitions/templates.remediationTemplateRequest'
       statement:
         type: string
-      statement-template:
-        type: string
       threat-ids:
         items:
           $ref: '#/definitions/templates.threatIDRequest'
         type: array
       title:
-        type: string
-      title-template:
         type: string
       violation-ids:
         items:
