@@ -520,10 +520,16 @@ func validateRiskTemplateLabelSchema(schema []RiskTemplateLabelSchemaFieldInput)
 		if key == "" {
 			return newValidationError(fmt.Sprintf("labelSchema[%d].key must not be empty", i))
 		}
+		if err := validateTextLength(fmt.Sprintf("labelSchema[%d].key", i), key); err != nil {
+			return err
+		}
 		if _, exists := seen[key]; exists {
 			return newValidationError(fmt.Sprintf("labelSchema has duplicate key %q", key))
 		}
 		seen[key] = struct{}{}
+		if err := validateOptionalText(fmt.Sprintf("labelSchema[%d].description", i), field.Description); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -574,6 +580,19 @@ func validateRiskTemplateTemplateFields(payload *RiskTemplatePayload) error {
 			return newValidationError("template fields require a non-empty labelSchema")
 		}
 		return nil
+	}
+
+	if err := validateOptionalText("titleTemplate", payload.TitleTemplate); err != nil {
+		return err
+	}
+	if err := validateOptionalText("statementTemplate", payload.StatementTemplate); err != nil {
+		return err
+	}
+	if err := validateOptionalText("likelihoodHintTemplate", payload.LikelihoodHintTemplate); err != nil {
+		return err
+	}
+	if err := validateOptionalText("impactHintTemplate", payload.ImpactHintTemplate); err != nil {
+		return err
 	}
 
 	// Build SubjectTemplateLabelSchemaField slice for reuse of validateTemplateAgainstSchema.
@@ -631,9 +650,29 @@ func normalizeRiskTemplatePayload(payload *RiskTemplatePayload) {
 
 	for i := range payload.LabelSchema {
 		payload.LabelSchema[i].Key = strings.TrimSpace(payload.LabelSchema[i].Key)
+		if payload.LabelSchema[i].Description != nil {
+			normalizedDescription := strings.TrimSpace(*payload.LabelSchema[i].Description)
+			payload.LabelSchema[i].Description = &normalizedDescription
+		}
 	}
 	for i := range payload.DedupeLabelKeys {
 		payload.DedupeLabelKeys[i] = strings.TrimSpace(payload.DedupeLabelKeys[i])
+	}
+	if payload.TitleTemplate != nil {
+		normalizedTitleTemplate := strings.TrimSpace(*payload.TitleTemplate)
+		payload.TitleTemplate = &normalizedTitleTemplate
+	}
+	if payload.StatementTemplate != nil {
+		normalizedStatementTemplate := strings.TrimSpace(*payload.StatementTemplate)
+		payload.StatementTemplate = &normalizedStatementTemplate
+	}
+	if payload.LikelihoodHintTemplate != nil {
+		normalizedLikelihoodHintTemplate := strings.TrimSpace(*payload.LikelihoodHintTemplate)
+		payload.LikelihoodHintTemplate = &normalizedLikelihoodHintTemplate
+	}
+	if payload.ImpactHintTemplate != nil {
+		normalizedImpactHintTemplate := strings.TrimSpace(*payload.ImpactHintTemplate)
+		payload.ImpactHintTemplate = &normalizedImpactHintTemplate
 	}
 
 	if payload.RemediationTemplate == nil {

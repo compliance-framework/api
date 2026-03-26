@@ -727,9 +727,9 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 	db := newRiskTemplateTestDB(t)
 	svc := NewRiskTemplateService(db)
 
-	titleTmpl := "Vulnerability {{.cve_id}} found in {{.repo_name}}"
+	titleTmpl := " Vulnerability {{.cve_id}} found in {{.repo_name}} "
 	stmtTmpl := "CVE {{.cve_id}} with severity {{.severity}} detected."
-	desc := "The CVE identifier"
+	desc := " The CVE identifier "
 
 	created, err := svc.Create(RiskTemplatePayload{
 		PluginID:      "vuln-scanner",
@@ -763,7 +763,7 @@ func TestRiskTemplateService_CreateWithLabelSchemaAndTemplateFields(t *testing.T
 
 	// Verify template fields persisted
 	require.NotNil(t, created.TitleTemplate)
-	require.Equal(t, titleTmpl, *created.TitleTemplate)
+	require.Equal(t, "Vulnerability {{.cve_id}} found in {{.repo_name}}", *created.TitleTemplate)
 	require.NotNil(t, created.StatementTemplate)
 	require.Equal(t, stmtTmpl, *created.StatementTemplate)
 
@@ -880,6 +880,36 @@ func TestRiskTemplateService_TemplateFieldValidation(t *testing.T) {
 			},
 			message: `dedupeLabelKeys has duplicate key "key_a"`,
 		},
+		{
+			name: "label schema key over max length",
+			mutate: func(payload *RiskTemplatePayload) {
+				payload.LabelSchema = []RiskTemplateLabelSchemaFieldInput{
+					{Key: strings.Repeat("k", maxRiskTemplateFieldLength+1)},
+				}
+			},
+			message: "labelSchema[0].key must be at most 1000 characters",
+		},
+		{
+			name: "label schema description over max length",
+			mutate: func(payload *RiskTemplatePayload) {
+				description := strings.Repeat("d", maxRiskTemplateFieldLength+1)
+				payload.LabelSchema = []RiskTemplateLabelSchemaFieldInput{
+					{Key: "defined_key", Description: &description},
+				}
+			},
+			message: "labelSchema[0].description must be at most 1000 characters",
+		},
+		{
+			name: "template field over max length",
+			mutate: func(payload *RiskTemplatePayload) {
+				tmpl := strings.Repeat("t", maxRiskTemplateFieldLength+1)
+				payload.TitleTemplate = &tmpl
+				payload.LabelSchema = []RiskTemplateLabelSchemaFieldInput{
+					{Key: "defined_key"},
+				}
+			},
+			message: "titleTemplate must be at most 1000 characters",
+		},
 	}
 
 	for _, tt := range tests {
@@ -909,11 +939,11 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	// Round 1: create with template fields
 	result, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
 		{
-			ID:            id1,
-			Name:          "Templated batch",
-			Title:         "Fallback title",
-			Statement:     "Fallback statement",
-			TitleTemplate: &titleTmpl,
+			ID:                id1,
+			Name:              "Templated batch",
+			Title:             "Fallback title",
+			Statement:         "Fallback statement",
+			TitleTemplate:     &titleTmpl,
 			StatementTemplate: &stmtTmpl,
 			LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 				{Key: "cve_id"},
@@ -932,11 +962,11 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	// Round 2: same payload — should be unchanged
 	result2, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
 		{
-			ID:            id1,
-			Name:          "Templated batch",
-			Title:         "Fallback title",
-			Statement:     "Fallback statement",
-			TitleTemplate: &titleTmpl,
+			ID:                id1,
+			Name:              "Templated batch",
+			Title:             "Fallback title",
+			Statement:         "Fallback statement",
+			TitleTemplate:     &titleTmpl,
 			StatementTemplate: &stmtTmpl,
 			LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 				{Key: "cve_id"},
@@ -957,11 +987,11 @@ func TestRiskTemplateService_BatchUpsertWithTemplateFields(t *testing.T) {
 	newTitleTmpl := "Issue {{.cve_id}}"
 	result3, err := svc.BatchUpsert(pluginID, policy, []BatchRiskTemplateItem{
 		{
-			ID:            id1,
-			Name:          "Templated batch",
-			Title:         "Fallback title",
-			Statement:     "Fallback statement",
-			TitleTemplate: &newTitleTmpl,
+			ID:                id1,
+			Name:              "Templated batch",
+			Title:             "Fallback title",
+			Statement:         "Fallback statement",
+			TitleTemplate:     &newTitleTmpl,
 			StatementTemplate: &stmtTmpl,
 			LabelSchema: []RiskTemplateLabelSchemaFieldInput{
 				{Key: "cve_id"},

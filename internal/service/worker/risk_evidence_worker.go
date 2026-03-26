@@ -909,8 +909,8 @@ func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *
 func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate, evidenceLabels []relational.Labels) (title string, statement string, likelihoodHint *string, impactHint *string) {
 	title = rt.Title
 	statement = rt.Statement
-	likelihoodHint = rt.LikelihoodHint
-	impactHint = rt.ImpactHint
+	likelihoodHint = normalizeRenderedRiskLevel(rt.LikelihoodHint)
+	impactHint = normalizeRenderedRiskLevel(rt.ImpactHint)
 
 	// If no template fields are set, return static values.
 	if rt.TitleTemplate == nil && rt.StatementTemplate == nil && rt.LikelihoodHintTemplate == nil && rt.ImpactHintTemplate == nil {
@@ -949,7 +949,13 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 			w.logger.Warnw("Failed to render likelihood hint template, using static hint",
 				"error", err, "risk_template_id", rt.ID)
 		} else if rendered != "" {
-			likelihoodHint = &rendered
+			normalized := normalizeRenderedRiskLevel(&rendered)
+			if normalized == nil {
+				w.logger.Warnw("Rendered likelihood hint template produced invalid risk level, using static hint",
+					"risk_template_id", rt.ID, "rendered_value", rendered)
+			} else {
+				likelihoodHint = normalized
+			}
 		}
 	}
 
@@ -959,11 +965,31 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 			w.logger.Warnw("Failed to render impact hint template, using static hint",
 				"error", err, "risk_template_id", rt.ID)
 		} else if rendered != "" {
-			impactHint = &rendered
+			normalized := normalizeRenderedRiskLevel(&rendered)
+			if normalized == nil {
+				w.logger.Warnw("Rendered impact hint template produced invalid risk level, using static hint",
+					"risk_template_id", rt.ID, "rendered_value", rendered)
+			} else {
+				impactHint = normalized
+			}
 		}
 	}
 
 	return
+}
+
+func normalizeRenderedRiskLevel(level *string) *string {
+	if level == nil {
+		return nil
+	}
+
+	normalized := risks.NormalizeRiskLevel(*level)
+	if normalized == "" || !normalized.IsValid() {
+		return nil
+	}
+
+	value := string(normalized)
+	return &value
 }
 
 // emitRiskEvent creates a risk event record using the provided DB handle.

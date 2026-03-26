@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1804,6 +1805,46 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 			// "repo" label is missing
 		})
 		require.Equal(t, "Issue CVE-2024-9999 in ", title)
+	})
+
+	t.Run("templated risk levels are normalized before use", func(t *testing.T) {
+		likelihoodTmpl := "{{.likelihood}}"
+		impactTmpl := "{{.impact}}"
+		rt := templates.RiskTemplate{
+			UUIDModel:              relational.UUIDModel{ID: &templateID},
+			LikelihoodHintTemplate: &likelihoodTmpl,
+			ImpactHintTemplate:     &impactTmpl,
+		}
+
+		_, _, likelihood, impact := worker.resolveRiskTemplateFields(rt, []relational.Labels{
+			{Name: "likelihood", Value: "Medium"},
+			{Name: "impact", Value: " HIGH "},
+		})
+		require.NotNil(t, likelihood)
+		require.Equal(t, "moderate", *likelihood)
+		require.NotNil(t, impact)
+		require.Equal(t, "high", *impact)
+	})
+
+	t.Run("invalid templated risk levels fall back to static hints", func(t *testing.T) {
+		likelihoodTmpl := "{{.likelihood}}"
+		impactTmpl := "{{.impact}}"
+		rt := templates.RiskTemplate{
+			UUIDModel:              relational.UUIDModel{ID: &templateID},
+			LikelihoodHint:         stringPtr("medium"),
+			ImpactHint:             stringPtr("high"),
+			LikelihoodHintTemplate: &likelihoodTmpl,
+			ImpactHintTemplate:     &impactTmpl,
+		}
+
+		_, _, likelihood, impact := worker.resolveRiskTemplateFields(rt, []relational.Labels{
+			{Name: "likelihood", Value: strings.Repeat("x", 32)},
+			{Name: "impact", Value: "definitely-not-a-risk-level"},
+		})
+		require.NotNil(t, likelihood)
+		require.Equal(t, "moderate", *likelihood)
+		require.NotNil(t, impact)
+		require.Equal(t, "high", *impact)
 	})
 }
 
