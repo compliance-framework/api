@@ -1994,7 +1994,7 @@ func validateStatusTransition(oldStatus, newStatus string) error {
 			string(riskrel.RiskStatusInvestigating):         {}, // mitigation can fail; risk returns to investigation
 		},
 		string(riskrel.RiskStatusMitigatingImplemented): {
-			string(riskrel.RiskStatusClosed):    {},
+			string(riskrel.RiskStatusClosed):     {},
 			string(riskrel.RiskStatusRemediated): {}, // evidence fully green → remediated before close
 		},
 		string(riskrel.RiskStatusRiskAccepted): {
