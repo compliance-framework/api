@@ -423,11 +423,7 @@ func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskT
 		return base
 	}
 
-	// Build a map of evidence labels for fast lookup
-	labelMap := make(map[string]string, len(evidenceLabels))
-	for _, l := range evidenceLabels {
-		labelMap[l.Name] = l.Value
-	}
+	labelValues := collectSortedUniqueEvidenceLabelValues(evidenceLabels)
 
 	// Collect key=value pairs in sorted dedupe key order
 	keys := make([]string, len(riskTemplate.DedupeLabelKeys))
@@ -436,8 +432,12 @@ func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskT
 
 	var parts []string
 	for _, key := range keys {
-		val := labelMap[key]
-		parts = append(parts, fmt.Sprintf("%s=%s", url.QueryEscape(key), url.QueryEscape(val)))
+		values := labelValues[key]
+		encodedValues := make([]string, len(values))
+		for i, val := range values {
+			encodedValues[i] = url.QueryEscape(val)
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", url.QueryEscape(key), strings.Join(encodedValues, "&")))
 	}
 
 	return base + ":" + strings.Join(parts, ",")
@@ -918,11 +918,7 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 		return
 	}
 
-	// Build label map from evidence labels.
-	labelMap := make(map[string]string, len(evidenceLabels))
-	for _, l := range evidenceLabels {
-		labelMap[l.Name] = l.Value
-	}
+	labelMap := collapseEvidenceLabelValues(collectSortedUniqueEvidenceLabelValues(evidenceLabels))
 
 	if rt.TitleTemplate != nil {
 		rendered, err := templates.RenderTemplate(*rt.TitleTemplate, labelMap)
@@ -977,6 +973,46 @@ func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate
 	}
 
 	return
+}
+
+// collectSortedUniqueEvidenceLabelValues groups evidence labels by name, sorts each value list,
+// and removes duplicates so callers can deterministically consume multi-valued labels.
+func collectSortedUniqueEvidenceLabelValues(evidenceLabels []relational.Labels) map[string][]string {
+	labelValues := make(map[string][]string, len(evidenceLabels))
+	for _, l := range evidenceLabels {
+		labelValues[l.Name] = append(labelValues[l.Name], l.Value)
+	}
+
+	for name, values := range labelValues {
+		sort.Strings(values)
+
+		unique := values[:0]
+		var previous string
+		for i, value := range values {
+			if i == 0 || value != previous {
+				unique = append(unique, value)
+				previous = value
+			}
+		}
+
+		labelValues[name] = unique
+	}
+
+	return labelValues
+}
+
+// collapseEvidenceLabelValues joins each sorted unique value set into a deterministic string so
+// string-based template rendering can still expose every value for a multi-valued label.
+func collapseEvidenceLabelValues(labelValues map[string][]string) map[string]string {
+	labelMap := make(map[string]string, len(labelValues))
+	for name, values := range labelValues {
+		if len(values) == 0 {
+			continue
+		}
+		labelMap[name] = strings.Join(values, ", ")
+	}
+
+	return labelMap
 }
 
 func normalizeRenderedRiskLevel(level *string) *string {

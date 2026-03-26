@@ -1745,6 +1745,21 @@ func TestComputeDedupeKeyForSSP_WithDedupeLabelKeys(t *testing.T) {
 		expected := fmt.Sprintf("%s:%s:%s", sspID, templateID, "artifact=cve%3Did%3D1%2Cpart%3A2,repo=payments%3Aapi%2Cworker")
 		require.Equal(t, expected, key)
 	})
+
+	t.Run("dedupe key includes sorted unique values for duplicate label names", func(t *testing.T) {
+		rt := baseTemplate
+		rt.DedupeLabelKeys = []string{"repo", "team"}
+
+		key := worker.computeDedupeKeyForSSP(rt, sspID, []relational.Labels{
+			{Name: "repo", Value: "worker"},
+			{Name: "repo", Value: "api"},
+			{Name: "repo", Value: "api"},
+			{Name: "team", Value: "platform"},
+			{Name: "team", Value: "security"},
+		})
+		expected := fmt.Sprintf("%s:%s:%s", sspID, templateID, "repo=api&worker,team=platform&security")
+		require.Equal(t, expected, key)
+	})
 }
 
 func TestResolveRiskTemplateFields(t *testing.T) {
@@ -1836,6 +1851,28 @@ func TestResolveRiskTemplateFields(t *testing.T) {
 		require.Equal(t, "moderate", *likelihood)
 		require.NotNil(t, impact)
 		require.Equal(t, "high", *impact)
+	})
+
+	t.Run("template fields deterministically include all values for duplicate label names", func(t *testing.T) {
+		titleTmpl := "Repos: {{.repo}}"
+		stmtTmpl := "Teams: {{.team}}"
+		rt := templates.RiskTemplate{
+			UUIDModel:         relational.UUIDModel{ID: &templateID},
+			Title:             "Fallback Title",
+			Statement:         "Fallback Statement",
+			TitleTemplate:     &titleTmpl,
+			StatementTemplate: &stmtTmpl,
+		}
+
+		title, statement, _, _ := worker.resolveRiskTemplateFields(rt, []relational.Labels{
+			{Name: "repo", Value: "worker"},
+			{Name: "repo", Value: "api"},
+			{Name: "repo", Value: "api"},
+			{Name: "team", Value: "security"},
+			{Name: "team", Value: "platform"},
+		})
+		require.Equal(t, "Repos: api, worker", title)
+		require.Equal(t, "Teams: platform, security", statement)
 	})
 
 	t.Run("invalid templated risk levels fall back to static hints", func(t *testing.T) {
