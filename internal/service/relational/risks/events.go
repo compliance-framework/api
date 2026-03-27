@@ -34,6 +34,8 @@ const (
 	RiskEventTypeRemediationUpdated RiskEventType = "remediation_updated"
 	RiskEventTypeRemediationDeleted RiskEventType = "remediation_deleted"
 	RiskEventTypeEvidenceRecovered  RiskEventType = "evidence_recovered"
+	RiskEventTypePoamPromoted       RiskEventType = "poam_promoted"
+	RiskEventTypePoamCompleted      RiskEventType = "poam_completed"
 )
 
 type RiskEvent struct {
@@ -187,6 +189,16 @@ func BuildRiskEventDetails(eventType string, payload datatypes.JSONMap, occurred
 			return fmt.Sprintf("Evidence %s recovered; risk is accepted so no automatic status change was applied.", evidenceID)
 		}
 		return "Evidence recovered; risk is accepted so no automatic status change was applied."
+	case string(RiskEventTypePoamPromoted):
+		if poamItemID := payloadString(payload, "poamItemId"); poamItemID != "" {
+			return fmt.Sprintf("Risk was promoted to POAM item %s; status transitioned to mitigating-planned.", poamItemID)
+		}
+		return "Risk was promoted to a POAM item; status transitioned to mitigating-planned."
+	case string(RiskEventTypePoamCompleted):
+		if poamItemID := payloadString(payload, "poamItemId"); poamItemID != "" {
+			return fmt.Sprintf("Linked POAM item %s was completed; risk status advanced to mitigating-implemented.", poamItemID)
+		}
+		return "A linked POAM item was completed; risk status advanced to mitigating-implemented."
 	default:
 		return fmt.Sprintf("Risk event recorded: %s.", eventType)
 	}

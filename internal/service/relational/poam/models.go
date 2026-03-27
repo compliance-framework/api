@@ -78,9 +78,13 @@ type PoamItem struct {
 	CompletedAt           *time.Time `                                                 json:"completedAt,omitempty"`
 	CreatedFromRiskID     *uuid.UUID `gorm:"type:uuid"                                 json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string    `                                                 json:"acceptanceRationale,omitempty"`
-	LastStatusChangeAt    time.Time  `gorm:"not null"                                  json:"lastStatusChangeAt"`
-	CreatedAt             time.Time  `                                                 json:"createdAt"`
-	UpdatedAt             time.Time  `                                                 json:"updatedAt"`
+	// ResourceRequired is a free-text planning field describing effort or budget needed.
+	// Point-of-contact identity is expressed via PrimaryOwnerUserID (a FK to the users table)
+	// rather than free-text poc_name/poc_email fields.
+	ResourceRequired   *string   `gorm:"type:text" json:"resourceRequired,omitempty"`
+	LastStatusChangeAt time.Time `gorm:"not null"                                  json:"lastStatusChangeAt"`
+	CreatedAt          time.Time `                                                 json:"createdAt"`
+	UpdatedAt          time.Time `                                                 json:"updatedAt"`
 
 	// Associations — loaded on demand via Preload.
 	Milestones    []PoamItemMilestone    `gorm:"foreignKey:PoamItemID;constraint:OnDelete:CASCADE" json:"milestones,omitempty"`

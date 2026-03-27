@@ -38,6 +38,7 @@ type CreatePoamItemParams struct {
 	PlannedCompletionDate *time.Time
 	CreatedFromRiskID     *uuid.UUID
 	AcceptanceRationale   *string
+	ResourceRequired      *string
 	RiskIDs               []uuid.UUID
 	EvidenceIDs           []uuid.UUID
 	ControlRefs           []ControlRef
@@ -67,6 +68,8 @@ type UpdatePoamItemParams struct {
 }
 
 // CreateMilestoneParams carries all data required to create a single milestone.
+// OrderIndex is a pointer so that callers can distinguish "not provided" (nil,
+// auto-assign) from "explicitly set to 0" (valid 0-based position).
 type CreateMilestoneParams struct {
 	Title                 string
 	Description           string
@@ -74,7 +77,7 @@ type CreateMilestoneParams struct {
 	PlannedCompletionDate *time.Time
 	ResponsibleParty      *string
 	Remarks               *string
-	OrderIndex            int
+	OrderIndex            *int
 }
 
 // UpdateMilestoneParams carries the fields that may be patched on an existing
@@ -116,6 +119,7 @@ func (s *PoamService) Create(params CreatePoamItemParams) (*PoamItem, error) {
 		PlannedCompletionDate: params.PlannedCompletionDate,
 		CreatedFromRiskID:     params.CreatedFromRiskID,
 		AcceptanceRationale:   params.AcceptanceRationale,
+		ResourceRequired:      params.ResourceRequired,
 	}
 
 	tx, err := beginTx(s.db)
@@ -130,8 +134,10 @@ func (s *PoamService) Create(params CreatePoamItemParams) (*PoamItem, error) {
 	}
 
 	for i, mp := range params.Milestones {
-		orderIdx := mp.OrderIndex
-		if orderIdx == 0 {
+		var orderIdx int
+		if mp.OrderIndex != nil {
+			orderIdx = *mp.OrderIndex
+		} else {
 			orderIdx = i
 		}
 		ms := PoamItemMilestone{
@@ -434,6 +440,10 @@ func (s *PoamService) ListMilestones(poamItemID uuid.UUID) ([]PoamItemMilestone,
 
 // AddMilestone inserts a new milestone for the given POAM item.
 func (s *PoamService) AddMilestone(poamItemID uuid.UUID, params CreateMilestoneParams) (*PoamItemMilestone, error) {
+	var orderIdx int
+	if params.OrderIndex != nil {
+		orderIdx = *params.OrderIndex
+	}
 	m := PoamItemMilestone{
 		PoamItemID:            poamItemID,
 		Title:                 params.Title,
@@ -442,7 +452,7 @@ func (s *PoamService) AddMilestone(poamItemID uuid.UUID, params CreateMilestoneP
 		PlannedCompletionDate: params.PlannedCompletionDate,
 		ResponsibleParty:      params.ResponsibleParty,
 		Remarks:               params.Remarks,
-		OrderIndex:            params.OrderIndex,
+		OrderIndex:            orderIdx,
 	}
 	if err := s.db.Create(&m).Error; err != nil {
 		return nil, err
@@ -686,6 +696,67 @@ func (s *PoamService) DeleteFindingLink(poamItemID, findingID uuid.UUID) error {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+// CreateWithTx inserts a new POAM item and its milestones/links within an
+// externally-managed *gorm.DB transaction. The caller is responsible for
+// committing or rolling back the transaction. This is used by cross-context
+// operations such as RiskService.PromoteToPoam that need atomicity across
+// multiple bounded contexts.
+//
+// NOTE: This method only processes Milestones and RiskIDs from
+// CreatePoamItemParams. EvidenceIDs, ControlRefs, and FindingIDs present in
+// the params struct are intentionally ignored — this method is scoped to the
+// risk-promotion use case. Use the full Create method for general POAM item
+// creation with all link types.
+func (s *PoamService) CreateWithTx(tx *gorm.DB, params CreatePoamItemParams) (*PoamItem, error) {
+	item := PoamItem{
+		SspID:                 params.SspID,
+		Title:                 params.Title,
+		Description:           params.Description,
+		Status:                params.Status,
+		SourceType:            params.SourceType,
+		PrimaryOwnerUserID:    params.PrimaryOwnerUserID,
+		PlannedCompletionDate: params.PlannedCompletionDate,
+		CreatedFromRiskID:     params.CreatedFromRiskID,
+		AcceptanceRationale:   params.AcceptanceRationale,
+		ResourceRequired:      params.ResourceRequired,
+	}
+
+	if err := tx.Create(&item).Error; err != nil {
+		return nil, err
+	}
+
+	for i, mp := range params.Milestones {
+		var orderIdx int
+		if mp.OrderIndex != nil {
+			orderIdx = *mp.OrderIndex
+		} else {
+			orderIdx = i
+		}
+		ms := PoamItemMilestone{
+			PoamItemID:            item.ID,
+			Title:                 mp.Title,
+			Description:           mp.Description,
+			Status:                mp.Status,
+			PlannedCompletionDate: mp.PlannedCompletionDate,
+			ResponsibleParty:      mp.ResponsibleParty,
+			Remarks:               mp.Remarks,
+			OrderIndex:            orderIdx,
+		}
+		if err := tx.Create(&ms).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	for _, riskID := range params.RiskIDs {
+		link := PoamItemRiskLink{PoamItemID: item.ID, RiskID: riskID}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&link).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return &item, nil
 }
 
 // ---------------------------------------------------------------------------

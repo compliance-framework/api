@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -19,12 +21,13 @@ import (
 // imports gorm directly for data access.
 type PoamItemsHandler struct {
 	poamService *poamsvc.PoamService
+	riskService *riskrel.RiskService
 	sugar       *zap.SugaredLogger
 }
 
 // NewPoamItemsHandler constructs a PoamItemsHandler.
-func NewPoamItemsHandler(svc *poamsvc.PoamService, sugar *zap.SugaredLogger) *PoamItemsHandler {
-	return &PoamItemsHandler{poamService: svc, sugar: sugar}
+func NewPoamItemsHandler(svc *poamsvc.PoamService, riskSvc *riskrel.RiskService, sugar *zap.SugaredLogger) *PoamItemsHandler {
+	return &PoamItemsHandler{poamService: svc, riskService: riskSvc, sugar: sugar}
 }
 
 // Register mounts all POAM routes onto the given Echo group. JWT middleware
@@ -83,6 +86,7 @@ type createPoamItemRequest struct {
 	PlannedCompletionDate *time.Time               `json:"plannedCompletionDate"`
 	CreatedFromRiskID     *string                  `json:"createdFromRiskId"`
 	AcceptanceRationale   *string                  `json:"acceptanceRationale"`
+	ResourceRequired      *string                  `json:"resourceRequired"`
 	RiskIDs               []string                 `json:"riskIds"`
 	EvidenceIDs           []string                 `json:"evidenceIds"`
 	ControlRefs           []poamControlRefRequest  `json:"controlRefs"`
@@ -178,6 +182,7 @@ type poamItemResponse struct {
 	CompletedAt           *time.Time             `json:"completedAt,omitempty"`
 	CreatedFromRiskID     *uuid.UUID             `json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string                `json:"acceptanceRationale,omitempty"`
+	ResourceRequired      *string                `json:"resourceRequired,omitempty"`
 	LastStatusChangeAt    time.Time              `json:"lastStatusChangeAt"`
 	CreatedAt             time.Time              `json:"createdAt"`
 	UpdatedAt             time.Time              `json:"updatedAt"`
@@ -216,6 +221,7 @@ func toPoamItemResponse(item *poamsvc.PoamItem) poamItemResponse {
 		CompletedAt:           item.CompletedAt,
 		CreatedFromRiskID:     item.CreatedFromRiskID,
 		AcceptanceRationale:   item.AcceptanceRationale,
+		ResourceRequired:      item.ResourceRequired,
 		LastStatusChangeAt:    item.LastStatusChangeAt,
 		CreatedAt:             item.CreatedAt,
 		UpdatedAt:             item.UpdatedAt,
@@ -369,6 +375,7 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 		SourceType:            in.SourceType,
 		PlannedCompletionDate: in.PlannedCompletionDate,
 		AcceptanceRationale:   in.AcceptanceRationale,
+		ResourceRequired:      in.ResourceRequired,
 	}
 
 	if in.PrimaryOwnerUserID != nil {
@@ -410,19 +417,14 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 	}
 	params.ControlRefs = controlRefs
 
-	for i, mr := range in.Milestones {
+	for _, mr := range in.Milestones {
 		if mr.Title == "" {
 			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("milestone title is required")))
 		}
 		if mr.Status != "" && !poamsvc.MilestoneStatus(mr.Status).IsValid() {
 			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", mr.Status)))
 		}
-		// When orderIndex is omitted (nil), fall back to the slice position so
-		// ordering is still deterministic without requiring the client to set it.
-		msOrderIdx := i
-		if mr.OrderIndex != nil {
-			msOrderIdx = *mr.OrderIndex
-		}
+		// Pass OrderIndex as a pointer; nil means auto-assign from slice position.
 		params.Milestones = append(params.Milestones, poamsvc.CreateMilestoneParams{
 			Title:                 mr.Title,
 			Description:           mr.Description,
@@ -430,7 +432,7 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 			PlannedCompletionDate: mr.PlannedCompletionDate,
 			ResponsibleParty:      mr.ResponsibleParty,
 			Remarks:               mr.Remarks,
-			OrderIndex:            msOrderIdx,
+			OrderIndex:            mr.OrderIndex,
 		})
 	}
 
@@ -560,6 +562,16 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 	}
 	params.RemoveFindingIDs = removeFindingIDs
 
+	// Capture the current status before the update to detect a completion transition.
+	currentItem, err := h.poamService.GetByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		return h.internalError(c, "failed to fetch poam item", err)
+	}
+	wasCompleted := currentItem.Status == string(poamsvc.PoamItemStatusCompleted)
+
 	item, err := h.poamService.Update(id, params)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -567,6 +579,26 @@ func (h *PoamItemsHandler) Update(c echo.Context) error {
 		}
 		return h.internalError(c, "failed to update poam item", err)
 	}
+
+	// When a POAM item transitions to completed, advance all linked risks from
+	// mitigating-planned → mitigating-implemented.
+	nowCompleted := item.Status == string(poamsvc.PoamItemStatusCompleted)
+	if !wasCompleted && nowCompleted {
+		var actorUserID *uuid.UUID
+		if claims, ok := c.Get("user").(*authn.UserClaims); ok && claims != nil {
+			if uid, err := h.riskService.ResolveUserIDByEmail(claims.Subject); err == nil {
+				actorUserID = uid
+			}
+		}
+		if err := h.riskService.OnPoamItemCompleted(id, actorUserID); err != nil {
+			// Log but do not fail the POAM update — the item is already saved.
+			h.sugar.Warnw("failed to advance linked risk statuses on POAM completion",
+				"poamItemId", id,
+				"error", err,
+			)
+		}
+	}
+
 	return c.JSON(http.StatusOK, GenericDataResponse[poamItemResponse]{Data: toPoamItemResponse(item)})
 }
 
@@ -668,10 +700,6 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 	if in.Status != "" && !poamsvc.MilestoneStatus(in.Status).IsValid() {
 		return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("invalid milestone status: %s", in.Status)))
 	}
-	var orderIdx int
-	if in.OrderIndex != nil {
-		orderIdx = *in.OrderIndex
-	}
 	m, err := h.poamService.AddMilestone(id, poamsvc.CreateMilestoneParams{
 		Title:                 in.Title,
 		Description:           in.Description,
@@ -679,7 +707,7 @@ func (h *PoamItemsHandler) AddMilestone(c echo.Context) error {
 		PlannedCompletionDate: in.PlannedCompletionDate,
 		ResponsibleParty:      in.ResponsibleParty,
 		Remarks:               in.Remarks,
-		OrderIndex:            orderIdx,
+		OrderIndex:            in.OrderIndex,
 	})
 	if err != nil {
 		return h.internalError(c, "failed to add milestone", err)
