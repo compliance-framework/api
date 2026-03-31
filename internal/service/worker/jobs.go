@@ -695,6 +695,16 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
+
+			// Register POAM notification workers (BCH-1186 Phase 3)
+			poamDeadlineReminderWorker := NewPoamDeadlineReminderWorker(emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(poamDeadlineReminderWorker.Work))
+
+			poamOverdueNotificationWorker := NewPoamOverdueNotificationWorker(emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(poamOverdueNotificationWorker.Work))
+
+			milestoneOverdueReminderWorker := NewMilestoneOverdueReminderWorker(emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(milestoneOverdueReminderWorker.Work))
 		}
 	}
 
