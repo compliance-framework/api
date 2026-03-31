@@ -1534,13 +1534,13 @@ definitions:
     type: object
   handler.controlLinkResponse:
     properties:
-      catalogId:
+      catalog-id:
         type: string
-      controlId:
+      control-id:
         type: string
-      createdAt:
+      created-at:
         type: string
-      poamItemId:
+      poam-item-id:
         type: string
     type: object
   handler.createFilterRequest:
@@ -1565,16 +1565,16 @@ definitions:
     properties:
       description:
         type: string
-      orderIndex:
+      order-index:
         description: |-
           OrderIndex is a pointer so that clients can explicitly set 0 without it
           being indistinguishable from an omitted field.
         type: integer
-      plannedCompletionDate:
+      planned-completion-date:
         type: string
       remarks:
         type: string
-      responsibleParty:
+      responsible-party:
         type: string
       status:
         type: string
@@ -1585,21 +1585,21 @@ definitions:
     type: object
   handler.createPoamItemRequest:
     properties:
-      acceptanceRationale:
+      acceptance-rationale:
         type: string
-      controlRefs:
+      control-refs:
         items:
           $ref: '#/definitions/handler.poamControlRefRequest'
         type: array
-      createdFromRiskId:
+      created-from-risk-id:
         type: string
       description:
         type: string
-      evidenceIds:
+      evidence-ids:
         items:
           type: string
         type: array
-      findingIds:
+      finding-ids:
         items:
           type: string
         type: array
@@ -1607,26 +1607,26 @@ definitions:
         items:
           $ref: '#/definitions/handler.createMilestoneRequest'
         type: array
-      plannedCompletionDate:
+      planned-completion-date:
         type: string
-      primaryOwnerUserId:
+      primary-owner-user-id:
         type: string
-      resourceRequired:
+      resource-required:
         type: string
-      riskIds:
+      risk-ids:
         items:
           type: string
         type: array
-      sourceType:
+      source-type:
         type: string
-      sspId:
+      ssp-id:
         type: string
       status:
         type: string
       title:
         type: string
     required:
-    - sspId
+    - ssp-id
     - title
     type: object
   handler.createRiskRequest:
@@ -1666,20 +1666,20 @@ definitions:
     type: object
   handler.evidenceLinkResponse:
     properties:
-      createdAt:
+      created-at:
         type: string
-      evidenceId:
+      evidence-id:
         type: string
-      poamItemId:
+      poam-item-id:
         type: string
     type: object
   handler.findingLinkResponse:
     properties:
-      createdAt:
+      created-at:
         type: string
-      findingId:
+      finding-id:
         type: string
-      poamItemId:
+      poam-item-id:
         type: string
     type: object
   handler.milestoneResponse:
@@ -1696,7 +1696,7 @@ definitions:
         type: integer
       plannedCompletionDate:
         type: string
-      poamItemId:
+      poam-item-id:
         type: string
       remarks:
         type: string
@@ -1730,8 +1730,6 @@ definitions:
           $ref: '#/definitions/handler.controlLinkResponse'
         type: array
       createdAt:
-        type: string
-      createdFromRiskId:
         type: string
       description:
         type: string
@@ -1870,11 +1868,11 @@ definitions:
     type: object
   handler.riskLinkResponse:
     properties:
-      createdAt:
+      created-at:
         type: string
-      poamItemId:
+      poam-item-id:
         type: string
-      riskId:
+      risk-id:
         type: string
     type: object
   handler.riskOwnerAssignmentRequest:
@@ -1995,13 +1993,13 @@ definitions:
     properties:
       description:
         type: string
-      orderIndex:
+      order-index:
         type: integer
-      plannedCompletionDate:
+      planned-completion-date:
         type: string
       remarks:
         type: string
-      responsibleParty:
+      responsible-party:
         type: string
       status:
         type: string
@@ -2010,44 +2008,44 @@ definitions:
     type: object
   handler.updatePoamItemRequest:
     properties:
-      acceptanceRationale:
+      acceptance-rationale:
         type: string
-      addControlRefs:
+      add-control-refs:
         items:
           $ref: '#/definitions/handler.poamControlRefRequest'
         type: array
-      addEvidenceIds:
+      add-evidence-ids:
         items:
           type: string
         type: array
-      addFindingIds:
+      add-finding-ids:
         items:
           type: string
         type: array
-      addRiskIds:
+      add-risk-ids:
         description: Link management — add/remove in the same call as scalar updates.
         items:
           type: string
         type: array
       description:
         type: string
-      plannedCompletionDate:
+      planned-completion-date:
         type: string
-      primaryOwnerUserId:
+      primary-owner-user-id:
         type: string
-      removeControlRefs:
+      remove-control-refs:
         items:
           $ref: '#/definitions/handler.poamControlRefRequest'
         type: array
-      removeEvidenceIds:
+      remove-evidence-ids:
         items:
           type: string
         type: array
-      removeFindingIds:
+      remove-finding-ids:
         items:
           type: string
         type: array
-      removeRiskIds:
+      remove-risk-ids:
         items:
           type: string
         type: array
