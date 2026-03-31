@@ -8,11 +8,14 @@ import (
 
 // OnPoamItemCompleted is called by the POAM handler when a POAM item
 // transitions to the "completed" status. It advances every linked risk that is
-// currently in mitigating-planned status to mitigating-implemented, emitting a
-// status_changed event and a poam_completed event for each one.
+// currently in mitigating-planned status to mitigating-implemented only when
+// all POAM items linked to that risk are completed, emitting a status_changed
+// event and a poam_completed event for each transitioned risk.
 //
 // Only risks in mitigating-planned are advanced; risks in any other status are
-// left untouched (they may have been manually moved or re-accepted).
+// left untouched (they may have been manually moved or re-accepted). If any
+// linked POAM item for a risk remains non-completed, that risk is also left
+// untouched.
 func (s *RiskService) OnPoamItemCompleted(poamItemID uuid.UUID, actorUserID *uuid.UUID) error {
 	// Find all risk IDs linked to this POAM item.
 	type linkRow struct {
@@ -38,7 +41,8 @@ func (s *RiskService) OnPoamItemCompleted(poamItemID uuid.UUID, actorUserID *uui
 
 // advanceRiskToMitigatingImplemented transitions a single risk from
 // mitigating-planned → mitigating-implemented inside its own transaction.
-// If the risk is not in mitigating-planned, it is silently skipped.
+// If the risk is not in mitigating-planned, or if any linked POAM item remains
+// non-completed, it is silently skipped.
 func (s *RiskService) advanceRiskToMitigatingImplemented(riskID, poamItemID uuid.UUID, actorUserID *uuid.UUID) error {
 	tx, err := beginTx(s.db)
 	if err != nil {
@@ -55,6 +59,21 @@ func (s *RiskService) advanceRiskToMitigatingImplemented(riskID, poamItemID uuid
 
 	// Only advance risks that are in mitigating-planned.
 	if risk.Status != string(RiskStatusMitigatingPlanned) {
+		tx.Rollback()
+		return nil
+	}
+
+	var activeLinkedPoamCount int64
+	if err := tx.Raw(`
+		SELECT COUNT(*)
+		FROM ccf_poam_item_risk_links l
+		JOIN ccf_poam_items p ON p.id = l.poam_item_id
+		WHERE l.risk_id = ? AND p.status <> ?
+	`, riskID, "completed").Scan(&activeLinkedPoamCount).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if activeLinkedPoamCount > 0 {
 		tx.Rollback()
 		return nil
 	}

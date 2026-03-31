@@ -771,7 +771,7 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, IsValidationError(err))
-	require.EqualError(t, err, "only risks in status risk-accepted can be reviewed")
+	require.EqualError(t, err, "only risks in status risk-accepted can be extended")
 
 	var reviews []RiskReview
 	require.NoError(t, db.Where("risk_id = ?", riskID).Order("created_at asc").Find(&reviews).Error)
@@ -792,6 +792,86 @@ func TestRiskServiceReviewRiskDecisions(t *testing.T) {
 		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).
 		Count(&statusChangeEventCount).Error)
 	require.Equal(t, int64(1), statusChangeEventCount)
+}
+
+func TestRiskServiceReviewRiskReopenMitigatingImplemented(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	userID := uuid.New()
+	sspID := uuid.New()
+
+	base := Risk{
+		Title:       "test reopen",
+		Description: "test reopen",
+		Status:      string(RiskStatusMitigatingImplemented),
+		SSPID:       sspID,
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}
+
+	created, err := svc.Create(CreateRiskParams{
+		Risk:        base,
+		ActorUserID: &userID,
+	})
+	require.NoError(t, err)
+
+	reopened, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      *created.ID,
+		ActorUserID: &userID,
+		Decision:    RiskReviewDecisionReopen,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusInvestigating), reopened.Status)
+	require.Nil(t, reopened.ReviewDeadline)
+	require.Nil(t, reopened.AcceptanceJustification)
+	require.NotNil(t, reopened.LastReviewedAt)
+
+	var reviews []RiskReview
+	require.NoError(t, db.Where("risk_id = ?", *created.ID).Find(&reviews).Error)
+	require.Len(t, reviews, 1)
+	require.Equal(t, "reopen", reviews[0].Decision)
+}
+
+func TestRiskServiceReviewRiskReopenMitigatingPlanned(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	userID := uuid.New()
+	sspID := uuid.New()
+
+	base := Risk{
+		Title:       "test reopen planned",
+		Description: "test reopen planned",
+		Status:      string(RiskStatusMitigatingPlanned),
+		SSPID:       sspID,
+		SourceType:  string(RiskSourceTypeManual),
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}
+
+	created, err := svc.Create(CreateRiskParams{
+		Risk:        base,
+		ActorUserID: &userID,
+	})
+	require.NoError(t, err)
+
+	reopened, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      *created.ID,
+		ActorUserID: &userID,
+		Decision:    RiskReviewDecisionReopen,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusInvestigating), reopened.Status)
+	require.Nil(t, reopened.ReviewDeadline)
+	require.Nil(t, reopened.AcceptanceJustification)
+	require.NotNil(t, reopened.LastReviewedAt)
+
+	var reviews []RiskReview
+	require.NoError(t, db.Where("risk_id = ?", *created.ID).Find(&reviews).Error)
+	require.Len(t, reviews, 1)
+	require.Equal(t, "reopen", reviews[0].Decision)
 }
 
 func TestRiskServiceReviewRiskReassess(t *testing.T) {

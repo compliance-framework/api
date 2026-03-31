@@ -438,12 +438,24 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 			tx.Rollback()
 			return nil, newValidationError("implement is only allowed for risks in status mitigating-planned")
 		}
-	case RiskReviewDecisionExtend, RiskReviewDecisionReopen:
+	case RiskReviewDecisionExtend:
 		if risk.Status != string(RiskStatusRiskAccepted) {
 			tx.Rollback()
-			return nil, newValidationError("only risks in status risk-accepted can be reviewed")
+			return nil, newValidationError("only risks in status risk-accepted can be extended")
 		}
 		if params.RequireCurrentReviewDeadlineBefore != nil {
+			cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
+			if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
+				tx.Rollback()
+				return nil, newValidationError("risk review deadline no longer eligible for requested decision")
+			}
+		}
+	case RiskReviewDecisionReopen:
+		if risk.Status != string(RiskStatusRiskAccepted) && risk.Status != string(RiskStatusMitigatingImplemented) && risk.Status != string(RiskStatusMitigatingPlanned) {
+			tx.Rollback()
+			return nil, newValidationError("only risks in status risk-accepted, mitigating-planned, or mitigating-implemented can be reopened")
+		}
+		if params.RequireCurrentReviewDeadlineBefore != nil && risk.Status == string(RiskStatusRiskAccepted) {
 			cutoff := params.RequireCurrentReviewDeadlineBefore.UTC()
 			if risk.ReviewDeadline == nil || risk.ReviewDeadline.UTC().After(cutoff) {
 				tx.Rollback()
@@ -454,6 +466,7 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		tx.Rollback()
 		return nil, newValidationError("invalid review decision")
 	}
+	fromStatus := risk.Status
 	fromLikelihood := NormalizeRiskLevelPtr(risk.Likelihood)
 	fromImpact := NormalizeRiskLevelPtr(risk.Impact)
 
@@ -492,7 +505,7 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 
 	if decision == RiskReviewDecisionReopen {
 		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
-			"from": string(RiskStatusRiskAccepted),
+			"from": fromStatus,
 			"to":   risk.Status,
 		}, riskSnapshot); err != nil {
 			tx.Rollback()
