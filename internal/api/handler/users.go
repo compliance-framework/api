@@ -501,6 +501,16 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 		Delete(&relational.SSOUserLink{}).Error; err != nil {
 		h.sugar.Warnw("Failed to remove SSO bindings for deleted user", "userID", userUUID.String(), "error", err)
 	}
+	if err := h.db.Unscoped().
+		Where("user_id = ?", userUUID.String()).
+		Delete(&relational.SlackUserLink{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove Slack bindings for deleted user", "userID", userUUID.String(), "error", err)
+	}
+	if err := h.db.Unscoped().
+		Where("user_id = ?", userUUID.String()).
+		Delete(&relational.SlackLinkAttempt{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove Slack link attempts for deleted user", "userID", userUUID.String(), "error", err)
+	}
 
 	return ctx.NoContent(204)
 }

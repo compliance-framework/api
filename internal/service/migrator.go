@@ -135,6 +135,8 @@ func MigrateUp(db *gorm.DB) error {
 
 		// Compliance-Framework - not related to OSCAL
 		&relational.SSOUserLink{},
+		&relational.SlackLinkAttempt{},
+		&relational.SlackUserLink{},
 		&poamrel.PoamItem{},
 		&poamrel.PoamItemMilestone{},
 		&poamrel.PoamItemRiskLink{},
@@ -360,6 +362,8 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.AgentAuthEvent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.Agent{},
+		&relational.SlackLinkAttempt{},
+		&relational.SlackUserLink{},
 		&relational.User{},
 
 		&Heartbeat{},

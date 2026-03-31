@@ -12,6 +12,9 @@ type SlackConfig struct {
 	Enabled       bool   `mapstructure:"enabled" yaml:"enabled" json:"enabled"`
 	Token         string `mapstructure:"token" yaml:"token" json:"token"`
 	DigestChannel string `mapstructure:"digest_channel" yaml:"digest_channel" json:"digest_channel"`
+	ClientID      string `mapstructure:"client_id" yaml:"client_id" json:"client_id"`
+	ClientSecret  string `mapstructure:"client_secret" yaml:"client_secret" json:"client_secret"`
+	RedirectURL   string `mapstructure:"redirect_url" yaml:"redirect_url" json:"redirect_url"`
 }
 
 func LoadSlackConfig(path string) (*SlackConfig, error) {
@@ -30,6 +33,9 @@ func LoadSlackConfig(path string) (*SlackConfig, error) {
 	v.SetDefault("enabled", false)
 	v.SetDefault("token", "")
 	v.SetDefault("digest_channel", "")
+	v.SetDefault("client_id", "")
+	v.SetDefault("client_secret", "")
+	v.SetDefault("redirect_url", "")
 
 	if err := v.BindEnv("enabled"); err != nil {
 		return nil, fmt.Errorf("failed to bind slack enabled env var: %w", err)
@@ -39,6 +45,15 @@ func LoadSlackConfig(path string) (*SlackConfig, error) {
 	}
 	if err := v.BindEnv("digest_channel"); err != nil {
 		return nil, fmt.Errorf("failed to bind slack digest_channel env var: %w", err)
+	}
+	if err := v.BindEnv("client_id"); err != nil {
+		return nil, fmt.Errorf("failed to bind slack client_id env var: %w", err)
+	}
+	if err := v.BindEnv("client_secret"); err != nil {
+		return nil, fmt.Errorf("failed to bind slack client_secret env var: %w", err)
+	}
+	if err := v.BindEnv("redirect_url"); err != nil {
+		return nil, fmt.Errorf("failed to bind slack redirect_url env var: %w", err)
 	}
 
 	if err := v.ReadInConfig(); err != nil {
