@@ -381,7 +381,7 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		return nil, newValidationError("decision is required")
 	}
 	if !decision.IsValid() {
-		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess))
+		return nil, newValidationError(fmt.Sprintf("decision must be one of: %s, %s, %s, %s", RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess, RiskReviewDecisionImplement))
 	}
 
 	reassessedLikelihood := NormalizeRiskLevelPtr(params.Likelihood)
@@ -400,6 +400,9 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	}
 	if decision == RiskReviewDecisionReopen && nextReviewDeadline != nil {
 		return nil, newValidationError("nextReviewDeadline must not be provided when decision is reopen")
+	}
+	if decision == RiskReviewDecisionImplement && nextReviewDeadline != nil {
+		return nil, newValidationError("nextReviewDeadline must not be provided when decision is implement")
 	}
 	if decision == RiskReviewDecisionReassess {
 		if nextReviewDeadline != nil {
@@ -424,12 +427,18 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		tx.Rollback()
 		return nil, err
 	}
-	if decision == RiskReviewDecisionReassess {
+	switch decision {
+	case RiskReviewDecisionReassess:
 		if !isReassessEligibleRiskStatus(risk.Status) {
 			tx.Rollback()
 			return nil, newValidationError("reassess is only allowed for risks in status open, investigating, or mitigating-implemented")
 		}
-	} else {
+	case RiskReviewDecisionImplement:
+		if risk.Status != string(RiskStatusMitigatingPlanned) {
+			tx.Rollback()
+			return nil, newValidationError("implement is only allowed for risks in status mitigating-planned")
+		}
+	case RiskReviewDecisionExtend, RiskReviewDecisionReopen:
 		if risk.Status != string(RiskStatusRiskAccepted) {
 			tx.Rollback()
 			return nil, newValidationError("only risks in status risk-accepted can be reviewed")
@@ -441,6 +450,9 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 				return nil, newValidationError("risk review deadline no longer eligible for requested decision")
 			}
 		}
+	default:
+		tx.Rollback()
+		return nil, newValidationError("invalid review decision")
 	}
 	fromLikelihood := NormalizeRiskLevelPtr(risk.Likelihood)
 	fromImpact := NormalizeRiskLevelPtr(risk.Impact)
@@ -462,6 +474,9 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		risk.Likelihood = reassessedLikelihood
 		risk.Impact = reassessedImpact
 	}
+	if decision == RiskReviewDecisionImplement {
+		risk.Status = string(RiskStatusMitigatingImplemented)
+	}
 
 	risk.LastReviewedAt = &reviewedAt
 	if err := tx.Save(&risk).Error; err != nil {
@@ -478,6 +493,16 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 	if decision == RiskReviewDecisionReopen {
 		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
 			"from": string(RiskStatusRiskAccepted),
+			"to":   risk.Status,
+		}, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if decision == RiskReviewDecisionImplement {
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, datatypes.JSONMap{
+			"from": string(RiskStatusMitigatingPlanned),
 			"to":   risk.Status,
 		}, riskSnapshot); err != nil {
 			tx.Rollback()

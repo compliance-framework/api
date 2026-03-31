@@ -966,7 +966,7 @@ func (h *RiskHandler) Accept(ctx echo.Context) error {
 // Review godoc
 //
 //	@Summary		Review risk
-//	@Description	Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.
+//	@Description	Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented. For decision=implement, nextReviewDeadline must be omitted and risk must be mitigating-planned.
 //	@Tags			Risks
 //	@Accept			json
 //	@Produce		json

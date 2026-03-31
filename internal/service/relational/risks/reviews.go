@@ -14,14 +14,15 @@ import (
 type RiskReviewDecision string
 
 const (
-	RiskReviewDecisionExtend   RiskReviewDecision = "extend"
-	RiskReviewDecisionReopen   RiskReviewDecision = "reopen"
-	RiskReviewDecisionReassess RiskReviewDecision = "reassess"
+	RiskReviewDecisionExtend    RiskReviewDecision = "extend"
+	RiskReviewDecisionReopen    RiskReviewDecision = "reopen"
+	RiskReviewDecisionReassess  RiskReviewDecision = "reassess"
+	RiskReviewDecisionImplement RiskReviewDecision = "implement"
 )
 
 func (d RiskReviewDecision) IsValid() bool {
 	switch d {
-	case RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess:
+	case RiskReviewDecisionExtend, RiskReviewDecisionReopen, RiskReviewDecisionReassess, RiskReviewDecisionImplement:
 		return true
 	default:
 		return false

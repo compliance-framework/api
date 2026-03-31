@@ -917,6 +917,108 @@ func TestRiskServiceReviewRiskReassess(t *testing.T) {
 	}
 }
 
+func TestRiskServiceReviewRiskImplement(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	actorID := uuid.New()
+	low := "low"
+
+	// Create a risk in mitigating-planned status
+	riskID := uuid.New()
+	require.NoError(t, db.Create(&Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "implement-risk",
+		Description: "desc",
+		Status:      string(RiskStatusMitigatingPlanned),
+		SSPID:       uuid.New(),
+		SourceType:  string(RiskSourceTypeManual),
+		Likelihood:  &low,
+		Impact:      &low,
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}).Error)
+
+	// Test that nextReviewDeadline must not be provided
+	nextDeadline := time.Now().Add(7 * 24 * time.Hour).UTC()
+	_, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:             riskID,
+		ActorUserID:        &actorID,
+		Decision:           RiskReviewDecisionImplement,
+		NextReviewDeadline: &nextDeadline,
+	})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	require.EqualError(t, err, "nextReviewDeadline must not be provided when decision is implement")
+
+	// Test that implement is only allowed for mitigating-planned risks
+	invalidStatuses := []RiskStatus{RiskStatusOpen, RiskStatusInvestigating, RiskStatusRiskAccepted, RiskStatusMitigatingImplemented, RiskStatusClosed}
+	for _, status := range invalidStatuses {
+		invalidRiskID := uuid.New()
+		require.NoError(t, db.Create(&Risk{
+			UUIDModel:   relational.UUIDModel{ID: &invalidRiskID},
+			Title:       "invalid-implement-risk",
+			Description: "desc",
+			Status:      string(status),
+			SSPID:       uuid.New(),
+			SourceType:  string(RiskSourceTypeManual),
+			FirstSeenAt: time.Now().UTC(),
+			LastSeenAt:  time.Now().UTC(),
+		}).Error)
+
+		_, err := svc.ReviewRisk(ReviewRiskParams{
+			RiskID:      invalidRiskID,
+			ActorUserID: &actorID,
+			Decision:    RiskReviewDecisionImplement,
+		})
+		require.Error(t, err)
+		require.True(t, IsValidationError(err))
+		require.EqualError(t, err, "implement is only allowed for risks in status mitigating-planned")
+	}
+
+	// Test successful implement decision
+	reviewedAt := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	notes := "mitigation implemented via POAM review"
+	implemented, err := svc.ReviewRisk(ReviewRiskParams{
+		RiskID:      riskID,
+		ActorUserID: &actorID,
+		ReviewedAt:  &reviewedAt,
+		Decision:    RiskReviewDecisionImplement,
+		Notes:       &notes,
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(RiskStatusMitigatingImplemented), implemented.Status)
+	require.NotNil(t, implemented.LastReviewedAt)
+	require.WithinDuration(t, reviewedAt, *implemented.LastReviewedAt, time.Second)
+
+	// Verify review record was created
+	var reviews []RiskReview
+	require.NoError(t, db.Where("risk_id = ?", riskID).Order("created_at asc").Find(&reviews).Error)
+	require.Len(t, reviews, 1)
+	require.Equal(t, string(RiskReviewDecisionImplement), reviews[0].Decision)
+	require.NotNil(t, reviews[0].ReviewJustification)
+	require.Equal(t, notes, *reviews[0].ReviewJustification)
+	require.Nil(t, reviews[0].NextReviewDeadline)
+	require.Nil(t, reviews[0].ReassessedLikelihood)
+	require.Nil(t, reviews[0].ReassessedImpact)
+
+	// Verify reviewed event was logged
+	var reviewedEventCount int64
+	require.NoError(t, db.Model(&RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeReviewed)).
+		Count(&reviewedEventCount).Error)
+	require.Equal(t, int64(1), reviewedEventCount)
+
+	// Verify status change event was logged
+	var statusChangeEvents []RiskEvent
+	require.NoError(t, db.Where("risk_id = ? AND event_type = ?", riskID, string(RiskEventTypeStatusChange)).Find(&statusChangeEvents).Error)
+	require.Len(t, statusChangeEvents, 1)
+	require.NotNil(t, statusChangeEvents[0].Details)
+	require.NotEmpty(t, *statusChangeEvents[0].Details)
+	require.Equal(t, string(RiskStatusMitigatingPlanned), statusChangeEvents[0].Payload["from"])
+	require.Equal(t, string(RiskStatusMitigatingImplemented), statusChangeEvents[0].Payload["to"])
+}
+
 func TestRiskServiceThreatAndRemediationCRUD(t *testing.T) {
 	db := newRiskServiceTestDB(t)
 	svc := NewRiskService(db)

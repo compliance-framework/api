@@ -21970,7 +21970,7 @@ const docTemplate = `{
         },
         "/risks/{id}/review": {
             "post": {
-                "description": "Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.",
+                "description": "Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented. For decision=implement, nextReviewDeadline must be omitted and risk must be mitigating-planned.",
                 "consumes": [
                     "application/json"
                 ],
