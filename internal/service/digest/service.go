@@ -9,6 +9,8 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/relational"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
+	"github.com/compliance-framework/api/internal/service/slack/formatters"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -181,6 +183,58 @@ func (s *Service) GetAllActiveUsers(ctx context.Context) ([]relational.User, err
 	return users, nil
 }
 
+func (s *Service) SendDigestSlack(ctx context.Context, summary *EvidenceSummary) error {
+	if s.config == nil || s.config.Slack == nil || !s.config.Slack.Enabled {
+		return nil
+	}
+	if s.config.Slack.DigestChannel == "" {
+		s.logger.Warn("Slack is enabled but digest_channel is empty; skipping digest Slack message")
+		return nil
+	}
+
+	slackService, err := slacksvc.NewService(s.config.Slack, s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Slack service for global digest: %w", err)
+	}
+
+	data := formatters.DigestSummary{
+		TotalCount:        summary.TotalCount,
+		SatisfiedCount:    summary.SatisfiedCount,
+		NotSatisfiedCount: summary.NotSatisfiedCount,
+		ExpiredCount:      summary.ExpiredCount,
+		TopExpired:        toSlackDigestEvidence(summary.TopExpired),
+		TopNotSatisfied:   toSlackDigestEvidence(summary.TopNotSatisfied),
+		BaseURL:           s.config.WebBaseURL,
+	}
+	message, err := formatters.FormatDigestMessage(&data)
+	if err != nil {
+		return fmt.Errorf("failed to format Slack message for global digest: %w", err)
+	}
+	_, err = slackService.SendMessage(ctx, s.config.Slack.DigestChannel, message)
+
+	if err != nil {
+		return fmt.Errorf("failed to send Slack message from global digest: %w", err)
+	}
+	return nil
+}
+
+func toSlackDigestEvidence(items []EvidenceItem) []formatters.DigestSummaryEvidence {
+	if len(items) == 0 {
+		return nil
+	}
+
+	out := make([]formatters.DigestSummaryEvidence, 0, len(items))
+	for i := range items {
+		out = append(out, formatters.DigestSummaryEvidence{
+			ID:          items[i].ID,
+			Title:       items[i].Title,
+			Description: items[i].Description,
+			ExpiresAt:   items[i].ExpiresAt,
+		})
+	}
+	return out
+}
+
 // SendDigestEmail sends a digest email to a user
 func (s *Service) SendDigestEmail(ctx context.Context, user *relational.User, summary *EvidenceSummary) error {
 	if s.emailService == nil || !s.emailService.IsEnabled() {
@@ -250,6 +304,10 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	summary, err := s.GetGlobalEvidenceSummary(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get evidence summary: %w", err)
+	}
+
+	if err := s.SendDigestSlack(ctx, summary); err != nil {
+		s.logger.Warnw("Failed to send digest to Slack", "error", err)
 	}
 
 	// Skip if there's nothing to report

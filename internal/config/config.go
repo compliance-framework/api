@@ -33,6 +33,7 @@ type Config struct {
 	WebBaseURL                        string
 	SSO                               *SSOConfig
 	Email                             *EmailConfig
+	Slack                             *SlackConfig
 	Worker                            *WorkerConfig
 	EvidenceDefaultExpiryMonths       int    // Default expiration in months for evidence without explicit expiry
 	DigestEnabled                     bool   // Enable or disable the digest scheduler
@@ -155,6 +156,16 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		emailConfig = &EmailConfig{Enabled: false}
 	}
 
+	slackConfigPath := viper.GetString("slack_config")
+	if slackConfigPath == "" {
+		slackConfigPath = "slack.yaml"
+	}
+	slackConfig, err := LoadSlackConfig(slackConfigPath)
+	if err != nil {
+		logger.Warnw("Failed to load Slack config, Slack integration will be disabled", "error", err, "path", slackConfigPath)
+		slackConfig = &SlackConfig{Enabled: false}
+	}
+
 	// Evidence default expiry in months (default: 1 month)
 	evidenceDefaultExpiryMonths := viper.GetInt("evidence_default_expiry_months")
 	if evidenceDefaultExpiryMonths <= 0 {
@@ -226,6 +237,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		WebBaseURL:                        webBaseURL,
 		SSO:                               ssoConfig,
 		Email:                             emailConfig,
+		Slack:                             slackConfig,
 		Worker:                            workerConfig,
 		EvidenceDefaultExpiryMonths:       evidenceDefaultExpiryMonths,
 		DigestEnabled:                     digestEnabled,
