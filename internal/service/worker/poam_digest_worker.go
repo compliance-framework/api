@@ -127,7 +127,9 @@ func normalizePoamDigestWindow(kind string) string {
 // ─── Email item types ─────────────────────────────────────────────────────────
 
 // PoamDigestEmailItem represents a single POAM item row in the digest email.
+// PoamItemID is carried for test assertions; it is not rendered in the template.
 type PoamDigestEmailItem struct {
+	PoamItemID     uuid.UUID // used for test assertions; not rendered in template
 	Title          string
 	SSPName        string
 	Status         string
@@ -148,11 +150,11 @@ type PoamMilestoneDigestEmailItem struct {
 
 // poamDigestClassification holds the five bucketed sections of the digest.
 type poamDigestClassification struct {
-	NewSinceLastDigest   []PoamDigestEmailItem
-	Overdue              []PoamDigestEmailItem
-	ApproachingDeadline  []PoamDigestEmailItem
-	Stale                []PoamDigestEmailItem
-	MilestonesDueSoon    []PoamMilestoneDigestEmailItem
+	NewSinceLastDigest  []PoamDigestEmailItem
+	Overdue             []PoamDigestEmailItem
+	ApproachingDeadline []PoamDigestEmailItem
+	Stale               []PoamDigestEmailItem
+	MilestonesDueSoon   []PoamMilestoneDigestEmailItem
 }
 
 func (c poamDigestClassification) Empty() bool {
@@ -297,6 +299,7 @@ func classifyPoamDigest(
 		milestoneCount := len(item.Milestones)
 		poamURL := fmt.Sprintf("%s/poam-items/%s", strings.TrimRight(webBaseURL, "/"), item.ID.String())
 		emailItem := PoamDigestEmailItem{
+			PoamItemID:     item.ID,
 			Title:          item.Title,
 			SSPName:        sspName,
 			Status:         string(item.Status),
@@ -451,6 +454,20 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 		return nil
 	}
 
+	// Respect the user's POAM notification subscription preference.
+	// The Risk digest uses RiskNotificationsSubscribed; POAM reuses the same
+	// field until a dedicated PoamNotificationsSubscribed column is added.
+	if !user.RiskNotificationsSubscribed {
+		w.logger.Debugw("PoamOpenDigestWorker: user unsubscribed from notifications, skipping",
+			"user_id", args.RecipientUserID,
+		)
+		return nil
+	}
+
+	if w.db == nil {
+		return fmt.Errorf("PoamOpenDigestWorker: db is nil")
+	}
+
 	window, err := parsePoamDigestWindowFromArgs(args)
 	if err != nil {
 		return fmt.Errorf("poam open digest: invalid job args: %w", err)
@@ -474,15 +491,14 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 		sspNames = make(map[string]string)
 	}
 
-	// Convert map[string]string to map[uuid.UUID]string for classifyPoamDigest.
+	// Convert map[string]string → map[uuid.UUID]string for classifyPoamDigest.
 	sspNamesByUUID := make(map[uuid.UUID]string, len(sspNames))
 	for k, v := range sspNames {
-		if id, err := uuid.Parse(k); err == nil {
+		if id, parseErr := uuid.Parse(k); parseErr == nil {
 			sspNamesByUUID[id] = v
-		} else {
-			sspNamesByUUID[items[0].SspID] = v // best-effort fallback
 		}
 	}
+
 	classification := classifyPoamDigest(items, sspNamesByUUID, w.webBaseURL, w.now().UTC(), window)
 	if classification.Empty() {
 		w.logger.Debugw("PoamOpenDigestWorker: no digestable items after classification, skipping",
@@ -494,47 +510,52 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 	periodLabel := formatPoamDigestPeriodLabel(window)
 	poamListURL := fmt.Sprintf("%s/poam-items", strings.TrimRight(w.webBaseURL, "/"))
 
-	recipientName := user.Email
-	if strings.TrimSpace(user.FirstName+" "+user.LastName) != "" {
-		recipientName = strings.TrimSpace(user.FirstName + " " + user.LastName)
-	}
-
 	templateData := map[string]interface{}{
-		"RecipientName":       recipientName,
-		"PeriodLabel":         periodLabel,
-		"NewSinceLastDigest":  classification.NewSinceLastDigest,
-		"Overdue":             classification.Overdue,
-		"ApproachingDeadline": classification.ApproachingDeadline,
-		"MilestonesDueSoon":   classification.MilestonesDueSoon,
-		"Stale":               classification.Stale,
-		"PoamListURL":         poamListURL,
+		"RecipientName":          user.FullName(),
+		"PeriodLabel":            periodLabel,
+		"NewSinceLastDigest":     classification.NewSinceLastDigest,
+		"Overdue":                classification.Overdue,
+		"ApproachingDeadline":    classification.ApproachingDeadline,
+		"MilestonesDueSoon":      classification.MilestonesDueSoon,
+		"Stale":                  classification.Stale,
+		"PoamListURL":            poamListURL,
+		"HasNewSinceLast":        len(classification.NewSinceLastDigest) > 0,
+		"HasOverdue":             len(classification.Overdue) > 0,
+		"HasApproachingDeadline": len(classification.ApproachingDeadline) > 0,
+		"HasMilestonesDueSoon":   len(classification.MilestonesDueSoon) > 0,
+		"HasStale":               len(classification.Stale) > 0,
 	}
 
-	htmlBody, textBody, renderErr := w.emailService.UseTemplate("poam-open-digest", templateData)
-	if renderErr != nil {
-		return fmt.Errorf("poam open digest: render template failed for %s: %w", user.Email, renderErr)
+	htmlBody, textBody, err := w.emailService.UseTemplate("poam-open-digest", templateData)
+	if err != nil {
+		return fmt.Errorf("poam open digest: render template failed: %w", err)
 	}
 
-	msg := &types.Message{
+	message := &types.Message{
 		From:     w.emailService.GetDefaultFromAddress(),
 		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("POAM Digest \u2014 %s", periodLabel),
+		Subject:  fmt.Sprintf("Your POAM digest — %s", formatDate(w.now().UTC())),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
 	}
 
-	if _, err := w.emailService.Send(ctx, msg); err != nil {
-		return fmt.Errorf("poam open digest: send email failed for %s: %w", user.Email, err)
+	result, err := w.emailService.Send(ctx, message)
+	if err != nil {
+		return fmt.Errorf("poam open digest: send email failed: %w", err)
+	}
+	if !result.Success {
+		return fmt.Errorf("poam open digest: email send failed: %s", result.Error)
 	}
 
-	w.logger.Infow("PoamOpenDigestWorker: digest sent",
+	w.logger.Infow("PoamOpenDigestWorker: digest email sent",
 		"user_id", args.RecipientUserID,
 		"email", user.Email,
-		"new", len(classification.NewSinceLastDigest),
-		"overdue", len(classification.Overdue),
-		"approaching", len(classification.ApproachingDeadline),
-		"milestones_due_soon", len(classification.MilestonesDueSoon),
-		"stale", len(classification.Stale),
+		"new_count", len(classification.NewSinceLastDigest),
+		"overdue_count", len(classification.Overdue),
+		"approaching_count", len(classification.ApproachingDeadline),
+		"milestones_due_soon_count", len(classification.MilestonesDueSoon),
+		"stale_count", len(classification.Stale),
+		"message_id", result.MessageID,
 	)
 	return nil
 }

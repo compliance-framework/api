@@ -63,11 +63,12 @@ func (suite *PoamWorkersIntegrationSuite) SetupTest() {
 func (suite *PoamWorkersIntegrationSuite) seedUser(email string) uuid.UUID {
 	id := uuid.New()
 	suite.Require().NoError(suite.DB.Model(&relational.User{}).Create(map[string]interface{}{
-		"id":         id,
-		"email":      email,
-		"first_name": "Test",
-		"last_name":  "User",
-		"auth_method": "password",
+		"id":                            id,
+		"email":                         email,
+		"first_name":                    "Test",
+		"last_name":                     "User",
+		"auth_method":                   "password",
+		"risk_notifications_subscribed": true,
 	}).Error)
 	return id
 }
@@ -407,33 +408,33 @@ suite.Require().True(found, "scheduler should enqueue a digest job for the owner
 // Run the per-recipient digest worker
 mockEmail := &MockEmailService{}
 mockEmail.On("UseTemplate", "poam-open-digest", mock.MatchedBy(func(data map[string]interface{}) bool {
-overdueBucket, _ := data["Overdue"].([]poamDigestEmailItem)
-approachBucket, _ := data["ApproachingDeadline"].([]poamDigestEmailItem)
-staleBucket, _ := data["Stale"].([]poamDigestEmailItem)
+	overdueBucket, _ := data["Overdue"].([]PoamDigestEmailItem)
+	approachBucket, _ := data["ApproachingDeadline"].([]PoamDigestEmailItem)
+	staleBucket, _ := data["Stale"].([]PoamDigestEmailItem)
 
-overdueFound := false
-for _, it := range overdueBucket {
-if it.PoamItemID == overdueItem.ID {
-overdueFound = true
-}
-}
-approachFound := false
-for _, it := range approachBucket {
-if it.PoamItemID == approachItem.ID {
-approachFound = true
-}
-}
-staleFound := false
-for _, it := range staleBucket {
-if it.PoamItemID == staleItem.ID {
-staleFound = true
-}
-}
-return overdueFound && approachFound && staleFound
+	overdueFound := false
+	for _, it := range overdueBucket {
+		if it.PoamItemID == overdueItem.ID {
+			overdueFound = true
+		}
+	}
+	approachFound := false
+	for _, it := range approachBucket {
+		if it.PoamItemID == approachItem.ID {
+			approachFound = true
+		}
+	}
+	staleFound := false
+	for _, it := range staleBucket {
+		if it.PoamItemID == staleItem.ID {
+			staleFound = true
+		}
+	}
+	return overdueFound && approachFound && staleFound
 })).Return("<html>digest</html>", "POAM digest", nil)
 mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
-return len(msg.To) == 1 && msg.To[0] == "digest-owner@example.com"
+	return len(msg.To) == 1 && msg.To[0] == "digest-owner@example.com"
 })).Return(&types.SendResult{Success: true, MessageID: "msg-digest-1"}, nil)
 
 digestWorker := NewPoamOpenDigestWorker(suite.DB, mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
