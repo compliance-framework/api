@@ -7,6 +7,11 @@ import (
 	"text/template/parse"
 )
 
+// RenderTemplate executes a Go template string with the provided label data.
+func RenderTemplate(tmplStr string, labels map[string]string) (string, error) {
+	return renderTemplate(tmplStr, labels)
+}
+
 // renderTemplate executes a Go template string with the provided label data.
 // Returns the rendered string or an error if the template is invalid or execution fails.
 func renderTemplate(tmplStr string, labels map[string]string) (string, error) {

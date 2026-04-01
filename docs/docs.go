@@ -37151,6 +37151,12 @@ const docTemplate = `{
         "templates.batchRiskTemplateItem": {
             "type": "object",
             "properties": {
+                "dedupe-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -37159,6 +37165,12 @@ const docTemplate = `{
                 },
                 "is-active": {
                     "type": "boolean"
+                },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.labelSchemaFieldRequest"
+                    }
                 },
                 "likelihood-hint": {
                     "type": "string"
@@ -37360,6 +37372,28 @@ const docTemplate = `{
                 }
             }
         },
+        "templates.labelSchemaFieldRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "templates.labelSchemaFieldResponse": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
         "templates.remediationTaskRequest": {
             "type": "object",
             "properties": {
@@ -37436,6 +37470,12 @@ const docTemplate = `{
                 "created-at": {
                     "type": "string"
                 },
+                "dedupe-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
@@ -37444,6 +37484,12 @@ const docTemplate = `{
                 },
                 "is-active": {
                     "type": "boolean"
+                },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.labelSchemaFieldResponse"
+                    }
                 },
                 "likelihood-hint": {
                     "type": "string"
@@ -37637,11 +37683,23 @@ const docTemplate = `{
         "templates.upsertRiskTemplateRequest": {
             "type": "object",
             "properties": {
+                "dedupe-label-keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "impact-hint": {
                     "type": "string"
                 },
                 "is-active": {
                     "type": "boolean"
+                },
+                "label-schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/templates.labelSchemaFieldRequest"
+                    }
                 },
                 "likelihood-hint": {
                     "type": "string"

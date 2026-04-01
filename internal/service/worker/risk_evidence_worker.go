@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -290,6 +291,7 @@ func (w *RiskEvidenceWorker) loadRiskTemplates(ctx context.Context, evidenceLabe
 	err := w.db.WithContext(ctx).
 		Where("policy_package IN ? AND is_active = ?", policyPackageList, true).
 		Preload("ThreatRefs", func(db *gorm.DB) *gorm.DB { return db.Order("system ASC, external_id ASC") }).
+		Preload("LabelSchema", func(db *gorm.DB) *gorm.DB { return db.Order("key ASC") }).
 		Preload("RemediationTemplate").
 		Preload("RemediationTemplate.Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
 		Find(&riskTemplates).Error
@@ -374,8 +376,8 @@ func (w *RiskEvidenceWorker) violationMatches(templateViolationIDs, evidenceViol
 func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspInfos []resolvedSSPInfo) error {
 	var errs []error
 	for _, sspInfo := range sspInfos {
-		// Compute dedupe key: ssp_id + risk_template_id
-		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, sspInfo.SSPID)
+		// Compute dedupe key: ssp_id + risk_template_id (+ optional label-based suffix)
+		dedupeKey := w.computeDedupeKeyForSSP(riskTemplate, sspInfo.SSPID, evidence.Labels)
 
 		// Look for existing active risk with this dedupe key
 		var existingRisk risks.Risk
@@ -410,9 +412,35 @@ func (w *RiskEvidenceWorker) createOrUpdateRisksForSSPs(ctx context.Context, ris
 }
 
 // computeDedupeKeyForSSP computes the dedupe key for a risk.
-// Format: ssp_id:risk_template_id
-func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, sspID uuid.UUID) string {
-	return fmt.Sprintf("%s:%s", sspID.String(), riskTemplate.ID.String())
+// Base format: ssp_id:risk_template_id
+// When the template declares DedupeLabelKeys, the corresponding evidence label values
+// are appended as sorted key=value pairs, allowing the same template to produce
+// distinct risks per unique combination (e.g. per-CVE).
+func (w *RiskEvidenceWorker) computeDedupeKeyForSSP(riskTemplate templates.RiskTemplate, sspID uuid.UUID, evidenceLabels []relational.Labels) string {
+	base := fmt.Sprintf("%s:%s", sspID.String(), riskTemplate.ID.String())
+
+	if len(riskTemplate.DedupeLabelKeys) == 0 {
+		return base
+	}
+
+	labelValues := collectSortedUniqueEvidenceLabelValues(evidenceLabels)
+
+	// Collect key=value pairs in sorted dedupe key order
+	keys := make([]string, len(riskTemplate.DedupeLabelKeys))
+	copy(keys, riskTemplate.DedupeLabelKeys)
+	sort.Strings(keys)
+
+	var parts []string
+	for _, key := range keys {
+		values := labelValues[key]
+		encodedValues := make([]string, len(values))
+		for i, val := range values {
+			encodedValues[i] = url.QueryEscape(val)
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", url.QueryEscape(key), strings.Join(encodedValues, "&")))
+	}
+
+	return base + ":" + strings.Join(parts, ",")
 }
 
 // updateExistingRisk updates an existing risk with new evidence.
@@ -485,9 +513,12 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTemplate templates.RiskTemplate, evidence *relational.Evidence, sspID uuid.UUID, dedupeKey string, controlLinks []controlLinkInfo) error {
 	now := time.Now().UTC()
 
+	// Resolve template fields if present, falling back to static values.
+	title, statement, likelihoodHint, impactHint := w.resolveRiskTemplateFields(riskTemplate, evidence.Labels)
+
 	newRisk := risks.Risk{
-		Title:          riskTemplate.Title,
-		Description:    riskTemplate.Statement,
+		Title:          title,
+		Description:    statement,
 		Status:         string(risks.RiskStatusOpen),
 		SSPID:          sspID,
 		RiskTemplateID: riskTemplate.ID,
@@ -497,12 +528,12 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 		LastSeenAt:     now,
 	}
 
-	// Set likelihood and impact from template hints if available
-	if riskTemplate.LikelihoodHint != nil {
-		newRisk.Likelihood = riskTemplate.LikelihoodHint
+	// Set likelihood and impact from resolved values if available
+	if likelihoodHint != nil {
+		newRisk.Likelihood = likelihoodHint
 	}
-	if riskTemplate.ImpactHint != nil {
-		newRisk.Impact = riskTemplate.ImpactHint
+	if impactHint != nil {
+		newRisk.Impact = impactHint
 	}
 
 	err := w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -871,6 +902,123 @@ func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *
 			"risk_id", risk.ID, "evidence_id", evidenceStreamID, "from_status", oldStatus)
 		return nil
 	})
+}
+
+// resolveRiskTemplateFields renders the template fields (title, statement, likelihood, impact)
+// using evidence labels. Risk template text fields are always template-capable, so literal values
+// render unchanged while dynamic values can interpolate evidence labels. Rendering errors are
+// logged but non-fatal — the stored template source is used as the fallback.
+func (w *RiskEvidenceWorker) resolveRiskTemplateFields(rt templates.RiskTemplate, evidenceLabels []relational.Labels) (title string, statement string, likelihoodHint *string, impactHint *string) {
+	title = rt.Title
+	statement = rt.Statement
+	likelihoodHint = normalizeRenderedRiskLevel(rt.LikelihoodHint)
+	impactHint = normalizeRenderedRiskLevel(rt.ImpactHint)
+
+	labelMap := collapseEvidenceLabelValues(collectSortedUniqueEvidenceLabelValues(evidenceLabels))
+
+	rendered, err := templates.RenderTemplate(rt.Title, labelMap)
+	if err != nil {
+		w.logger.Warnw("Failed to render title template, using stored title",
+			"error", err, "risk_template_id", rt.ID)
+	} else if rendered != "" {
+		title = rendered
+	}
+
+	rendered, err = templates.RenderTemplate(rt.Statement, labelMap)
+	if err != nil {
+		w.logger.Warnw("Failed to render statement template, using stored statement",
+			"error", err, "risk_template_id", rt.ID)
+	} else if rendered != "" {
+		statement = rendered
+	}
+
+	if rt.LikelihoodHint != nil {
+		rendered, err = templates.RenderTemplate(*rt.LikelihoodHint, labelMap)
+		if err != nil {
+			w.logger.Warnw("Failed to render likelihood hint template, using stored hint",
+				"error", err, "risk_template_id", rt.ID)
+		} else if rendered != "" {
+			normalized := normalizeRenderedRiskLevel(&rendered)
+			if normalized == nil {
+				w.logger.Warnw("Rendered likelihood hint template produced invalid risk level, using stored hint",
+					"risk_template_id", rt.ID, "rendered_value", rendered)
+			} else {
+				likelihoodHint = normalized
+			}
+		}
+	}
+
+	if rt.ImpactHint != nil {
+		rendered, err = templates.RenderTemplate(*rt.ImpactHint, labelMap)
+		if err != nil {
+			w.logger.Warnw("Failed to render impact hint template, using stored hint",
+				"error", err, "risk_template_id", rt.ID)
+		} else if rendered != "" {
+			normalized := normalizeRenderedRiskLevel(&rendered)
+			if normalized == nil {
+				w.logger.Warnw("Rendered impact hint template produced invalid risk level, using stored hint",
+					"risk_template_id", rt.ID, "rendered_value", rendered)
+			} else {
+				impactHint = normalized
+			}
+		}
+	}
+
+	return
+}
+
+// collectSortedUniqueEvidenceLabelValues groups evidence labels by name, sorts each value list,
+// and removes duplicates so callers can deterministically consume multi-valued labels.
+func collectSortedUniqueEvidenceLabelValues(evidenceLabels []relational.Labels) map[string][]string {
+	labelValues := make(map[string][]string, len(evidenceLabels))
+	for _, l := range evidenceLabels {
+		labelValues[l.Name] = append(labelValues[l.Name], l.Value)
+	}
+
+	for name, values := range labelValues {
+		sort.Strings(values)
+
+		unique := values[:0]
+		var previous string
+		for i, value := range values {
+			if i == 0 || value != previous {
+				unique = append(unique, value)
+				previous = value
+			}
+		}
+
+		labelValues[name] = unique
+	}
+
+	return labelValues
+}
+
+// collapseEvidenceLabelValues joins each sorted unique value set into a deterministic string so
+// string-based template rendering can still expose every value for a multi-valued label.
+func collapseEvidenceLabelValues(labelValues map[string][]string) map[string]string {
+	labelMap := make(map[string]string, len(labelValues))
+	for name, values := range labelValues {
+		if len(values) == 0 {
+			continue
+		}
+		labelMap[name] = strings.Join(values, ", ")
+	}
+
+	return labelMap
+}
+
+func normalizeRenderedRiskLevel(level *string) *string {
+	if level == nil {
+		return nil
+	}
+
+	normalized := risks.NormalizeRiskLevel(*level)
+	if normalized == "" || !normalized.IsValid() {
+		return nil
+	}
+
+	value := string(normalized)
+	return &value
 }
 
 // emitRiskEvent creates a risk event record using the provided DB handle.
