@@ -29,6 +29,12 @@ type PoamConfig struct {
 	MilestoneOverdueEnabled  bool   `mapstructure:"milestone_overdue_enabled"  yaml:"milestone_overdue_enabled"  json:"milestoneOverdueEnabled"`
 	MilestoneOverdueSchedule string `mapstructure:"milestone_overdue_schedule" yaml:"milestone_overdue_schedule" json:"milestoneOverdueSchedule"`
 
+	// OpenDigestEnabled enables the daily POAM open digest job (0 0 7 * * *).
+	OpenDigestEnabled  bool   `mapstructure:"open_digest_enabled"  yaml:"open_digest_enabled"  json:"openDigestEnabled"`
+	OpenDigestSchedule string `mapstructure:"open_digest_schedule" yaml:"open_digest_schedule" json:"openDigestSchedule"`
+	// OpenDigestWindow controls whether the digest covers a "daily" or "weekly" window.
+	OpenDigestWindow   string `mapstructure:"open_digest_window"   yaml:"open_digest_window"   json:"openDigestWindow"`
+
 	// WebBaseURL is the base URL prepended to POAM deep-links in notification emails.
 	WebBaseURL string `mapstructure:"web_base_url" yaml:"web_base_url" json:"webBaseURL"`
 }
@@ -43,6 +49,9 @@ func DefaultPoamConfig() *PoamConfig {
 		OverdueTransitionSchedule: "0 0 9 * * *",
 		MilestoneOverdueEnabled:   false,
 		MilestoneOverdueSchedule:  "0 0 10 * * 1",
+		OpenDigestEnabled:         false,
+		OpenDigestSchedule:        "0 0 7 * * *",
+		OpenDigestWindow:          "daily",
 		WebBaseURL:                "",
 	}
 }
@@ -60,6 +69,9 @@ func LoadPoamConfig(path string) (*PoamConfig, error) {
 	v.SetDefault("overdue_transition_schedule", def.OverdueTransitionSchedule)
 	v.SetDefault("milestone_overdue_enabled", def.MilestoneOverdueEnabled)
 	v.SetDefault("milestone_overdue_schedule", def.MilestoneOverdueSchedule)
+	v.SetDefault("open_digest_enabled", def.OpenDigestEnabled)
+	v.SetDefault("open_digest_schedule", def.OpenDigestSchedule)
+	v.SetDefault("open_digest_window", def.OpenDigestWindow)
 	v.SetDefault("web_base_url", def.WebBaseURL)
 
 	v.SetEnvPrefix("CCF_POAM")
@@ -97,6 +109,7 @@ func (c *PoamConfig) Validate() error {
 		{c.DeadlineReminderEnabled, c.DeadlineReminderSchedule, "deadline_reminder_schedule"},
 		{c.OverdueTransitionEnabled, c.OverdueTransitionSchedule, "overdue_transition_schedule"},
 		{c.MilestoneOverdueEnabled, c.MilestoneOverdueSchedule, "milestone_overdue_schedule"},
+		{c.OpenDigestEnabled, c.OpenDigestSchedule, "open_digest_schedule"},
 	}
 	for _, ch := range checks {
 		if ch.enabled {

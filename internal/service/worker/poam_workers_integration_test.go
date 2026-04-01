@@ -356,3 +356,134 @@ func (suite *PoamWorkersIntegrationSuite) TestMilestoneOverdueScanner_SkipsCompl
 
 	suite.Empty(client.params, "milestones on completed POAM items should not be scanned")
 }
+
+// ---------------------------------------------------------------------------
+// POAM Open Digest integration tests (BCH-1186 Phase 3)
+// ---------------------------------------------------------------------------
+
+// TestPoamOpenDigest_CorrectGroupingPerRecipient is the primary integration
+// test required by the Definition of Done. It creates three POAM items in
+// different states (overdue, approaching deadline, stale), runs the scheduler
+// and per-recipient digest worker, and verifies correct bucket grouping.
+func (suite *PoamWorkersIntegrationSuite) TestPoamOpenDigest_CorrectGroupingPerRecipient() {
+ctx := context.Background()
+now := time.Now().UTC()
+
+ownerID := suite.seedUser("digest-owner@example.com")
+sspID := suite.seedSSP("Digest Test SSP")
+
+// Item 1: overdue
+overdueDeadline := now.Add(-5 * 24 * time.Hour)
+overdueItem := suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusOverdue, overdueDeadline)
+
+// Item 2: approaching deadline (20 days out, open status)
+approachDeadline := now.Add(20 * 24 * time.Hour)
+approachItem := suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusOpen, approachDeadline)
+
+// Item 3: stale (open, updated >30 days ago — force UpdatedAt via raw SQL)
+staleDeadline := now.Add(90 * 24 * time.Hour)
+staleItem := suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusOpen, staleDeadline)
+staleTime := now.Add(-35 * 24 * time.Hour)
+suite.Require().NoError(suite.DB.Exec(
+"UPDATE ccf_poam_items SET updated_at = ?, created_at = ? WHERE id = ?",
+staleTime, staleTime, staleItem.ID,
+).Error)
+
+// Run the scheduler — should enqueue exactly one PoamOpenDigestArgs job for ownerID
+client := &stubRiverClient{}
+scheduler := NewPoamOpenDigestSchedulerWorker(suite.DB, client, poamDigestWindowDaily, suite.logger)
+suite.Require().NoError(scheduler.Work(ctx, &river.Job[PoamOpenDigestSchedulerArgs]{}))
+
+var digestArgs PoamOpenDigestArgs
+found := false
+for _, p := range client.params {
+if args, ok := p.Args.(PoamOpenDigestArgs); ok && args.RecipientUserID == ownerID {
+digestArgs = args
+found = true
+}
+}
+suite.Require().True(found, "scheduler should enqueue a digest job for the owner")
+
+// Run the per-recipient digest worker
+mockEmail := &MockEmailService{}
+mockEmail.On("UseTemplate", "poam-open-digest", mock.MatchedBy(func(data map[string]interface{}) bool {
+overdueBucket, _ := data["Overdue"].([]poamDigestEmailItem)
+approachBucket, _ := data["ApproachingDeadline"].([]poamDigestEmailItem)
+staleBucket, _ := data["Stale"].([]poamDigestEmailItem)
+
+overdueFound := false
+for _, it := range overdueBucket {
+if it.PoamItemID == overdueItem.ID {
+overdueFound = true
+}
+}
+approachFound := false
+for _, it := range approachBucket {
+if it.PoamItemID == approachItem.ID {
+approachFound = true
+}
+}
+staleFound := false
+for _, it := range staleBucket {
+if it.PoamItemID == staleItem.ID {
+staleFound = true
+}
+}
+return overdueFound && approachFound && staleFound
+})).Return("<html>digest</html>", "POAM digest", nil)
+mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
+mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
+return len(msg.To) == 1 && msg.To[0] == "digest-owner@example.com"
+})).Return(&types.SendResult{Success: true, MessageID: "msg-digest-1"}, nil)
+
+digestWorker := NewPoamOpenDigestWorker(suite.DB, mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+suite.Require().NoError(digestWorker.Work(ctx, &river.Job[PoamOpenDigestArgs]{Args: digestArgs}))
+mockEmail.AssertExpectations(suite.T())
+}
+
+// TestPoamOpenDigest_IdempotentScheduler verifies that running the scheduler
+// twice in the same window produces the same set of jobs per run.
+func (suite *PoamWorkersIntegrationSuite) TestPoamOpenDigest_IdempotentScheduler() {
+ctx := context.Background()
+now := time.Now().UTC()
+
+ownerID := suite.seedUser("idempotent-digest@example.com")
+sspID := suite.seedSSP("Idempotent Digest SSP")
+deadline := now.Add(30 * 24 * time.Hour)
+suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusOpen, deadline)
+suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusInProgress, deadline)
+
+client := &stubRiverClient{}
+scheduler := NewPoamOpenDigestSchedulerWorker(suite.DB, client, poamDigestWindowDaily, suite.logger)
+
+suite.Require().NoError(scheduler.Work(ctx, &river.Job[PoamOpenDigestSchedulerArgs]{}))
+firstRunCount := len(client.params)
+suite.Require().NoError(scheduler.Work(ctx, &river.Job[PoamOpenDigestSchedulerArgs]{}))
+secondRunCount := len(client.params)
+
+suite.Require().Greater(firstRunCount, 0)
+suite.Equal(firstRunCount, secondRunCount-firstRunCount,
+"second run should produce the same number of jobs; River deduplication prevents actual duplicates")
+}
+
+// TestPoamOpenDigest_SkipsRecipientsWithNoActiveItems verifies that recipients
+// whose items are all completed do not receive a digest.
+func (suite *PoamWorkersIntegrationSuite) TestPoamOpenDigest_SkipsRecipientsWithNoActiveItems() {
+ctx := context.Background()
+now := time.Now().UTC()
+
+ownerID := suite.seedUser("completed-only@example.com")
+sspID := suite.seedSSP("Completed Only SSP")
+deadline := now.Add(30 * 24 * time.Hour)
+suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusCompleted, deadline)
+
+client := &stubRiverClient{}
+scheduler := NewPoamOpenDigestSchedulerWorker(suite.DB, client, poamDigestWindowDaily, suite.logger)
+suite.Require().NoError(scheduler.Work(ctx, &river.Job[PoamOpenDigestSchedulerArgs]{}))
+
+for _, p := range client.params {
+if args, ok := p.Args.(PoamOpenDigestArgs); ok {
+suite.NotEqual(ownerID, args.RecipientUserID, "completed-only owner should not receive a digest")
+}
+}
+}

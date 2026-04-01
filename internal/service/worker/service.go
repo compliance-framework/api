@@ -261,6 +261,14 @@ func NewServiceWithDigest(
 	milestoneOverdueScannerWorker := NewMilestoneOverdueScannerWorker(db, clientProxy, userRepo, webBaseURL, logger)
 	river.AddWorker(workers, river.WorkFunc(milestoneOverdueScannerWorker.Work))
 
+	// POAM digest scheduler worker (BCH-1186 Phase 4)
+	poamDigestWindowKind := "daily"
+	if digestCfg != nil && digestCfg.Poam != nil {
+		poamDigestWindowKind = digestCfg.Poam.OpenDigestWindow
+	}
+	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamDigestWindowKind, logger)
+	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
+
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
 
@@ -633,6 +641,10 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	}
 	if cfg.Poam != nil && cfg.Poam.MilestoneOverdueEnabled {
 		periodicJobs = append(periodicJobs, NewMilestoneOverduePeriodicJob(cfg.Poam.MilestoneOverdueSchedule, logger))
+	}
+	// POAM digest periodic job (BCH-1186 Phase 4)
+	if cfg.Poam != nil && cfg.Poam.OpenDigestEnabled {
+		periodicJobs = append(periodicJobs, NewPoamOpenDigestPeriodicJob(cfg.Poam.OpenDigestSchedule, logger))
 	}
 	return periodicJobs
 }

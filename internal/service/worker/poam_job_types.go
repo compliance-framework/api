@@ -19,6 +19,10 @@ const (
 	JobTypePoamDeadlineReminder      = "poam_deadline_reminder"
 	JobTypePoamOverdueNotification   = "poam_overdue_notification"
 	JobTypeMilestoneOverdueReminder  = "poam_milestone_overdue_reminder"
+
+	// Digest job kinds.
+	JobTypePoamOpenDigestScheduler = "poam_open_digest_scheduler"
+	JobTypePoamOpenDigest          = "poam_open_digest"
 )
 
 // ─── Scanner args (no payload — scanner reads DB itself) ─────────────────────
@@ -76,6 +80,20 @@ type PoamOverdueNotificationArgs struct {
 	OverdueWindow   string    `json:"overdue_window"` // e.g. "2026-03-31"
 }
 
+// PoamOpenDigestSchedulerArgs is the args type for the periodic POAM digest
+// scheduler job. It has no payload — the scheduler resolves recipients from DB.
+type PoamOpenDigestSchedulerArgs struct{}
+
+// PoamOpenDigestArgs carries the data needed to build and send the grouped
+// POAM digest email for a single recipient.
+// Idempotency key: RecipientUserID + WindowStart + WindowEnd (ByArgs + ByPeriod).
+type PoamOpenDigestArgs struct {
+	RecipientUserID uuid.UUID `json:"recipient_user_id"`
+	WindowStart     string    `json:"window_start"`  // RFC3339
+	WindowEnd       string    `json:"window_end"`    // RFC3339
+	WindowKind      string    `json:"window_kind"`   // "daily" | "weekly"
+}
+
 // MilestoneOverdueReminderArgs carries the data needed to send a single
 // incomplete milestone overdue reminder email to one recipient.
 // Idempotency key: MilestoneID + DueDate + WeeklyBucket (ByArgs + ByPeriod 7 days).
@@ -100,6 +118,8 @@ func (MilestoneOverdueScannerArgs) Kind() string       { return JobTypeMilestone
 func (PoamDeadlineReminderArgs) Kind() string          { return JobTypePoamDeadlineReminder }
 func (PoamOverdueNotificationArgs) Kind() string       { return JobTypePoamOverdueNotification }
 func (MilestoneOverdueReminderArgs) Kind() string      { return JobTypeMilestoneOverdueReminder }
+func (PoamOpenDigestSchedulerArgs) Kind() string       { return JobTypePoamOpenDigestScheduler }
+func (PoamOpenDigestArgs) Kind() string                { return JobTypePoamOpenDigest }
 
 // ─── Timeout() methods ───────────────────────────────────────────────────────
 
@@ -109,6 +129,8 @@ func (MilestoneOverdueScannerArgs) Timeout() time.Duration      { return 30 * ti
 func (PoamDeadlineReminderArgs) Timeout() time.Duration         { return 30 * time.Second }
 func (PoamOverdueNotificationArgs) Timeout() time.Duration      { return 30 * time.Second }
 func (MilestoneOverdueReminderArgs) Timeout() time.Duration     { return 30 * time.Second }
+func (PoamOpenDigestSchedulerArgs) Timeout() time.Duration     { return 5 * time.Minute }
+func (PoamOpenDigestArgs) Timeout() time.Duration              { return 30 * time.Second }
 
 // ─── Insert option helpers ───────────────────────────────────────────────────
 
@@ -117,6 +139,19 @@ func (MilestoneOverdueReminderArgs) Timeout() time.Duration     { return 30 * ti
 func JobInsertOptionsForPoamNotification(byPeriod time.Duration) *river.InsertOpts {
 	return &river.InsertOpts{
 		Queue:       "email",
+		MaxAttempts: 3,
+		UniqueOpts: river.UniqueOpts{
+			ByArgs:   true,
+			ByPeriod: byPeriod,
+		},
+	}
+}
+
+// JobInsertOptionsForPoamDigest returns insert options for POAM digest jobs on
+// the "digest" queue. Idempotency is enforced via ByArgs + ByPeriod.
+func JobInsertOptionsForPoamDigest(byPeriod time.Duration) *river.InsertOpts {
+	return &river.InsertOpts{
+		Queue:       "digest",
 		MaxAttempts: 3,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:   true,

@@ -705,6 +705,11 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 			milestoneOverdueReminderWorker := NewMilestoneOverdueReminderWorker(emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(milestoneOverdueReminderWorker.Work))
+
+			// Register POAM digest worker (BCH-1186 Phase 4)
+			// Note: PoamOpenDigestSchedulerWorker is registered in service.go (needs clientProxy).
+			poamOpenDigestWorker := NewPoamOpenDigestWorker(db, emailService, userRepo, webBaseURL, logger)
+			river.AddWorker(workers, river.WorkFunc(poamOpenDigestWorker.Work))
 		}
 	}
 
