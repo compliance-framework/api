@@ -33,7 +33,7 @@ type PoamConfig struct {
 	OpenDigestEnabled  bool   `mapstructure:"open_digest_enabled"  yaml:"open_digest_enabled"  json:"openDigestEnabled"`
 	OpenDigestSchedule string `mapstructure:"open_digest_schedule" yaml:"open_digest_schedule" json:"openDigestSchedule"`
 	// OpenDigestWindow controls whether the digest covers a "daily" or "weekly" window.
-	OpenDigestWindow   string `mapstructure:"open_digest_window"   yaml:"open_digest_window"   json:"openDigestWindow"`
+	OpenDigestWindow string `mapstructure:"open_digest_window"   yaml:"open_digest_window"   json:"openDigestWindow"`
 
 	// WebBaseURL is the base URL prepended to POAM deep-links in notification emails.
 	WebBaseURL string `mapstructure:"web_base_url" yaml:"web_base_url" json:"webBaseURL"`

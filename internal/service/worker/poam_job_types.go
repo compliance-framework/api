@@ -11,14 +11,14 @@ import (
 
 const (
 	// Scanner job kinds — one per periodic trigger.
-	JobTypePoamDeadlineReminderScanner   = "poam_deadline_reminder_scanner"
-	JobTypePoamOverdueTransitionScanner  = "poam_overdue_transition_scanner"
+	JobTypePoamDeadlineReminderScanner    = "poam_deadline_reminder_scanner"
+	JobTypePoamOverdueTransitionScanner   = "poam_overdue_transition_scanner"
 	JobTypeMilestoneOverdueScannerScanner = "poam_milestone_overdue_scanner"
 
 	// Notification / action job kinds — one per item per recipient.
-	JobTypePoamDeadlineReminder      = "poam_deadline_reminder"
-	JobTypePoamOverdueNotification   = "poam_overdue_notification"
-	JobTypeMilestoneOverdueReminder  = "poam_milestone_overdue_reminder"
+	JobTypePoamDeadlineReminder     = "poam_deadline_reminder"
+	JobTypePoamOverdueNotification  = "poam_overdue_notification"
+	JobTypeMilestoneOverdueReminder = "poam_milestone_overdue_reminder"
 
 	// Digest job kinds.
 	JobTypePoamOpenDigestScheduler = "poam_open_digest_scheduler"
@@ -54,16 +54,16 @@ type MilestoneOverdueScannerArgs struct{}
 // POAM deadline approaching reminder email to one recipient.
 // Idempotency key: PoamItemID + Deadline + ReminderWindowBucket (ByArgs + ByPeriod 24h).
 type PoamDeadlineReminderArgs struct {
-	PoamItemID          uuid.UUID `json:"poam_item_id"`
-	RecipientUserID     uuid.UUID `json:"recipient_user_id"`
-	PoamTitle           string    `json:"poam_title"`
-	SspID               uuid.UUID `json:"ssp_id"`
-	SspDisplayName      string    `json:"ssp_display_name"`
-	CurrentStatus       string    `json:"current_status"`
-	Deadline            string    `json:"deadline"`         // RFC3339
-	MilestoneCount      int       `json:"milestone_count"`
-	PoamURL             string    `json:"poam_url"`
-	ReminderWindowBucket string   `json:"reminder_window_bucket"` // e.g. "2026-03-31"
+	PoamItemID           uuid.UUID `json:"poam_item_id"`
+	RecipientUserID      uuid.UUID `json:"recipient_user_id"`
+	PoamTitle            string    `json:"poam_title"`
+	SspID                uuid.UUID `json:"ssp_id"`
+	SspDisplayName       string    `json:"ssp_display_name"`
+	CurrentStatus        string    `json:"current_status"`
+	Deadline             string    `json:"deadline"` // RFC3339
+	MilestoneCount       int       `json:"milestone_count"`
+	PoamURL              string    `json:"poam_url"`
+	ReminderWindowBucket string    `json:"reminder_window_bucket"` // e.g. "2026-03-31"
 }
 
 // PoamOverdueNotificationArgs carries the data needed to send a single
@@ -75,7 +75,7 @@ type PoamOverdueNotificationArgs struct {
 	PoamTitle       string    `json:"poam_title"`
 	SspID           uuid.UUID `json:"ssp_id"`
 	SspDisplayName  string    `json:"ssp_display_name"`
-	Deadline        string    `json:"deadline"`       // RFC3339
+	Deadline        string    `json:"deadline"` // RFC3339
 	PoamURL         string    `json:"poam_url"`
 	OverdueWindow   string    `json:"overdue_window"` // e.g. "2026-03-31"
 }
@@ -89,9 +89,9 @@ type PoamOpenDigestSchedulerArgs struct{}
 // Idempotency key: RecipientUserID + WindowStart + WindowEnd (ByArgs + ByPeriod).
 type PoamOpenDigestArgs struct {
 	RecipientUserID uuid.UUID `json:"recipient_user_id"`
-	WindowStart     string    `json:"window_start"`  // RFC3339
-	WindowEnd       string    `json:"window_end"`    // RFC3339
-	WindowKind      string    `json:"window_kind"`   // "daily" | "weekly"
+	WindowStart     string    `json:"window_start"` // RFC3339
+	WindowEnd       string    `json:"window_end"`   // RFC3339
+	WindowKind      string    `json:"window_kind"`  // "daily" | "weekly"
 }
 
 // MilestoneOverdueReminderArgs carries the data needed to send a single
@@ -105,21 +105,21 @@ type MilestoneOverdueReminderArgs struct {
 	PoamTitle       string    `json:"poam_title"`
 	SspID           uuid.UUID `json:"ssp_id"`
 	SspDisplayName  string    `json:"ssp_display_name"`
-	DueDate         string    `json:"due_date"`      // RFC3339
+	DueDate         string    `json:"due_date"` // RFC3339
 	PoamURL         string    `json:"poam_url"`
 	WeeklyBucket    string    `json:"weekly_bucket"` // e.g. "2026-W14"
 }
 
 // ─── Kind() methods ──────────────────────────────────────────────────────────
 
-func (PoamDeadlineReminderScannerArgs) Kind() string   { return JobTypePoamDeadlineReminderScanner }
-func (PoamOverdueTransitionScannerArgs) Kind() string  { return JobTypePoamOverdueTransitionScanner }
-func (MilestoneOverdueScannerArgs) Kind() string       { return JobTypeMilestoneOverdueScannerScanner }
-func (PoamDeadlineReminderArgs) Kind() string          { return JobTypePoamDeadlineReminder }
-func (PoamOverdueNotificationArgs) Kind() string       { return JobTypePoamOverdueNotification }
-func (MilestoneOverdueReminderArgs) Kind() string      { return JobTypeMilestoneOverdueReminder }
-func (PoamOpenDigestSchedulerArgs) Kind() string       { return JobTypePoamOpenDigestScheduler }
-func (PoamOpenDigestArgs) Kind() string                { return JobTypePoamOpenDigest }
+func (PoamDeadlineReminderScannerArgs) Kind() string  { return JobTypePoamDeadlineReminderScanner }
+func (PoamOverdueTransitionScannerArgs) Kind() string { return JobTypePoamOverdueTransitionScanner }
+func (MilestoneOverdueScannerArgs) Kind() string      { return JobTypeMilestoneOverdueScannerScanner }
+func (PoamDeadlineReminderArgs) Kind() string         { return JobTypePoamDeadlineReminder }
+func (PoamOverdueNotificationArgs) Kind() string      { return JobTypePoamOverdueNotification }
+func (MilestoneOverdueReminderArgs) Kind() string     { return JobTypeMilestoneOverdueReminder }
+func (PoamOpenDigestSchedulerArgs) Kind() string      { return JobTypePoamOpenDigestScheduler }
+func (PoamOpenDigestArgs) Kind() string               { return JobTypePoamOpenDigest }
 
 // ─── Timeout() methods ───────────────────────────────────────────────────────
 
@@ -129,8 +129,8 @@ func (MilestoneOverdueScannerArgs) Timeout() time.Duration      { return 30 * ti
 func (PoamDeadlineReminderArgs) Timeout() time.Duration         { return 30 * time.Second }
 func (PoamOverdueNotificationArgs) Timeout() time.Duration      { return 30 * time.Second }
 func (MilestoneOverdueReminderArgs) Timeout() time.Duration     { return 30 * time.Second }
-func (PoamOpenDigestSchedulerArgs) Timeout() time.Duration     { return 5 * time.Minute }
-func (PoamOpenDigestArgs) Timeout() time.Duration              { return 30 * time.Second }
+func (PoamOpenDigestSchedulerArgs) Timeout() time.Duration      { return 5 * time.Minute }
+func (PoamOpenDigestArgs) Timeout() time.Duration               { return 30 * time.Second }
 
 // ─── Insert option helpers ───────────────────────────────────────────────────
 

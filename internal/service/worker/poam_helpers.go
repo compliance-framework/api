@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -86,18 +85,4 @@ func resolvePoamSSPDisplayNames(ctx context.Context, db *gorm.DB, items []poam.P
 func resolvePoamURL(webBaseURL string, poamItemID uuid.UUID) string {
 	base := strings.TrimRight(webBaseURL, "/")
 	return base + "/poam-items/" + poamItemID.String()
-}
-
-// resolveUserEmail looks up a user by UUID and returns their email address.
-// Returns an empty string (and nil error) when the user is not found, so the
-// caller can silently skip rather than fail the job.
-func resolveUserEmail(ctx context.Context, userRepo UserRepository, userID uuid.UUID) (string, error) {
-	user, err := userRepo.FindUserByID(ctx, userID.String())
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", nil
-		}
-		return "", err
-	}
-	return user.Email, nil
 }

@@ -81,7 +81,6 @@ func NewMilestoneOverduePeriodicJob(schedule string, logger *zap.SugaredLogger) 
 	)
 }
 
-
 // NewPoamOpenDigestPeriodicJob creates the River PeriodicJob for the daily
 // POAM open digest scheduler. Default cron: "0 0 7 * * *" (07:00 UTC).
 func NewPoamOpenDigestPeriodicJob(schedule string, logger *zap.SugaredLogger) *river.PeriodicJob {

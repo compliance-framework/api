@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
