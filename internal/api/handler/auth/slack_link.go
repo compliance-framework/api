@@ -75,10 +75,6 @@ type slackLinkStatusResponse struct {
 	LinkedAt         time.Time `json:"linkedAt,omitempty"`
 }
 
-type slackLinkStartResponse struct {
-	AuthURL string `json:"authUrl"`
-}
-
 func NewSlackLinkHandler(logger *zap.SugaredLogger, db *gorm.DB, cfg *config.Config) *SlackLinkHandler {
 	return &SlackLinkHandler{
 		sugar:       logger,
@@ -207,7 +203,7 @@ func (h *SlackLinkHandler) Callback(ctx echo.Context) error {
 
 func (h *SlackLinkHandler) GetStatus(ctx echo.Context) error {
 	if !h.isLinkingConfigured() {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("Slack account linking is not configured")))
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("slack account linking is not configured")))
 	}
 
 	user, err := h.getCurrentUser(ctx)
@@ -245,7 +241,7 @@ func (h *SlackLinkHandler) GetStatus(ctx echo.Context) error {
 
 func (h *SlackLinkHandler) Unlink(ctx echo.Context) error {
 	if !h.isLinkingConfigured() {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("Slack account linking is not configured")))
+		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("slack account linking is not configured")))
 	}
 
 	user, err := h.getCurrentUser(ctx)
@@ -285,7 +281,7 @@ func (h *SlackLinkHandler) fetchSlackUserInfo(ctx context.Context, accessToken s
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Slack user info request failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("slack user info request failed with status %d", resp.StatusCode)
 	}
 
 	var userInfo slackOpenIDUserInfo
