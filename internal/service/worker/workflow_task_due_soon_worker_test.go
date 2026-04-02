@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -26,11 +27,13 @@ func TestWorkflowTaskDueSoonWorker_SubscribedUser_SendsEmail(t *testing.T) {
 	mockLog := zap.NewNop().Sugar()
 
 	user := NotificationUser{
-		ID:                           "user-1",
-		Email:                        "alice@example.com",
-		FirstName:                    "Alice",
-		LastName:                     "Smith",
-		TaskAvailableEmailSubscribed: true,
+		ID:        "user-1",
+		Email:     "alice@example.com",
+		FirstName: "Alice",
+		LastName:  "Smith",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"email"}},
+		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-1").Return(user, nil)
 	mockEmail.On("UseTemplate", "workflow-task-due-soon", mock.Anything).Return("<html>Due Soon</html>", "Due soon text", nil)
@@ -65,10 +68,12 @@ func TestWorkflowTaskDueSoonWorker_UnsubscribedUser_Skips(t *testing.T) {
 	mockLog := zap.NewNop().Sugar()
 
 	user := NotificationUser{
-		ID:                           "user-2",
-		Email:                        "bob@example.com",
-		FirstName:                    "Bob",
-		TaskAvailableEmailSubscribed: false,
+		ID:        "user-2",
+		Email:     "bob@example.com",
+		FirstName: "Bob",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{}},
+		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
 
@@ -117,10 +122,12 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockLog := zap.NewNop().Sugar()
 
 	user := NotificationUser{
-		ID:                           "user-3",
-		Email:                        "carol@example.com",
-		FirstName:                    "Carol",
-		TaskAvailableEmailSubscribed: true,
+		ID:        "user-3",
+		Email:     "carol@example.com",
+		FirstName: "Carol",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"email"}},
+		},
 	}
 	mockRepo.On("FindUserByID", ctx, "user-3").Return(user, nil)
 	mockEmail.On("UseTemplate", "workflow-task-due-soon", mock.Anything).Return("", "", errors.New("template broken"))
@@ -139,4 +146,45 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 	err := w.Work(ctx, makeDueSoonJob(args))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "workflow-task-due-soon template")
+}
+
+func TestWorkflowTaskDueSoonWorker_MultiChannel_IncludingEmail_SendsEmail(t *testing.T) {
+	ctx := context.Background()
+	dueDate := time.Now().Add(24 * time.Hour)
+
+	mockEmail := &MockEmailService{}
+	mockRepo := &MockUserRepository{}
+	mockLog := zap.NewNop().Sugar()
+
+	user := NotificationUser{
+		ID:        "user-4",
+		Email:     "dora@example.com",
+		FirstName: "Dora",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack", "email"}},
+		},
+	}
+	mockRepo.On("FindUserByID", ctx, "user-4").Return(user, nil)
+	mockEmail.On("UseTemplate", "workflow-task-due-soon", mock.Anything).Return("<html>Due Soon</html>", "Due soon text", nil)
+	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
+	mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
+		return msg.To[0] == "dora@example.com" && msg.Subject != ""
+	})).Return(&types.SendResult{Success: true, MessageID: "msg-4"}, nil).Once()
+
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
+
+	args := WorkflowTaskDueSoonArgs{
+		UserID:                "user-4",
+		StepExecutionID:       "step-4",
+		StepTitle:             "Submit Evidence",
+		WorkflowTitle:         "SOC2 Audit",
+		WorkflowInstanceTitle: "SOC2 2026",
+		StepURL:               "https://app.example.com/steps/step-4",
+		DueDate:               dueDate,
+	}
+
+	err := w.Work(ctx, makeDueSoonJob(args))
+	assert.NoError(t, err)
+	mockEmail.AssertExpectations(t)
+	mockRepo.AssertExpectations(t)
 }

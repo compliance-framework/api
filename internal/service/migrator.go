@@ -1,6 +1,9 @@
 package service
 
 import (
+	"context"
+
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
@@ -147,6 +150,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Agent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.AgentAuthEvent{},
+		&relational.UserNotificationSubscription{},
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Labels{},
@@ -165,6 +169,10 @@ func MigrateUp(db *gorm.DB) error {
 		}
 	}
 	if err := riskrel.EnsureIndexes(db); err != nil {
+		return err
+	}
+
+	if err := migrateLegacyTaskAvailableEmailSubscriptions(db); err != nil {
 		return err
 	}
 
@@ -198,6 +206,61 @@ func MigrateUp(db *gorm.DB) error {
 	// is typically not used for expression predicates like UPPER(control_id) without an expression index.
 
 	return err
+}
+
+func migrateLegacyTaskAvailableEmailSubscriptions(db *gorm.DB) error {
+	// Nothing to migrate after the legacy column has been removed.
+	if !db.Migrator().HasColumn(&relational.User{}, "task_available_email_subscribed") {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy task-available email subscription migration: ccf_users.task_available_email_subscribed is already absent",
+		)
+		return nil
+	}
+
+	// Backfill legacy task-available email subscription into the notifications table.
+	type legacySubscribedUser struct {
+		ID string `gorm:"column:id"`
+	}
+
+	var subscribedUsers []legacySubscribedUser
+	if err := db.Table("ccf_users").
+		Select("id").
+		Where("task_available_email_subscribed = ?", true).
+		Scan(&subscribedUsers).Error; err != nil {
+		return err
+	}
+
+	for i := range subscribedUsers {
+		if subscribedUsers[i].ID == "" {
+			db.Logger.Warn(
+				context.Background(),
+				"Skipping legacy task-available email subscription row with empty user ID at index %d",
+				i,
+			)
+			continue
+		}
+
+		var count int64
+		if err := db.Model(&relational.UserNotificationSubscription{}).
+			Where("user_id = ? AND notification_type = ?", subscribedUsers[i].ID, notification.NotificationTypeTaskAvailable).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+
+		if err := db.Create(&relational.UserNotificationSubscription{
+			UserID:           subscribedUsers[i].ID,
+			NotificationType: notification.NotificationTypeTaskAvailable,
+			Channels:         []string{notification.DeliveryChannelEmail},
+		}).Error; err != nil {
+			return err
+		}
+	}
+
+	return db.Migrator().DropColumn(&relational.User{}, "task_available_email_subscribed")
 }
 
 func MigrateDown(db *gorm.DB) error {
@@ -365,6 +428,7 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.SlackLinkAttempt{},
 		&relational.SlackUserLink{},
 		&relational.User{},
+		&relational.UserNotificationSubscription{},
 
 		&Heartbeat{},
 		&relational.Evidence{},

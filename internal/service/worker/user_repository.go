@@ -35,13 +35,44 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 		return NotificationUser{}, fmt.Errorf("failed to fetch user %s: %w", userID, err)
 	}
 
+	var rows []relational.UserNotificationSubscription
+	err = r.db.WithContext(ctx).
+		Where("user_id = ?", user.ID.String()).
+		Find(&rows).Error
+	if err != nil {
+		return NotificationUser{}, fmt.Errorf("failed to fetch notification subscriptions for user %s: %w", userID, err)
+	}
+
+	var slackLink relational.SlackUserLink
+	var slackUserID string
+	err = r.db.WithContext(ctx).
+		Where("user_id = ?", user.ID.String()).
+		First(&slackLink).Error
+	if err == nil {
+		slackUserID = slackLink.SlackUserID
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return NotificationUser{}, fmt.Errorf("failed to fetch slack user link for user %s: %w", userID, err)
+	}
+
+	subscriptions := make([]NotificationSubscription, 0, len(rows))
+	for i := range rows {
+		channels := make([]string, len(rows[i].Channels))
+		copy(channels, rows[i].Channels)
+
+		subscriptions = append(subscriptions, NotificationSubscription{
+			NotificationType: rows[i].NotificationType,
+			Channels:         channels,
+		})
+	}
+
 	return NotificationUser{
-		ID:                           user.ID.String(),
-		Email:                        user.Email,
-		FirstName:                    user.FirstName,
-		LastName:                     user.LastName,
-		TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
-		TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
-		RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
+		ID:                          user.ID.String(),
+		Email:                       user.Email,
+		FirstName:                   user.FirstName,
+		LastName:                    user.LastName,
+		SlackUserID:                 slackUserID,
+		NotificationSubscriptions:   subscriptions,
+		TaskDailyDigestSubscribed:   user.TaskDailyDigestSubscribed,
+		RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
 	}, nil
 }

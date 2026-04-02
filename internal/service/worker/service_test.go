@@ -7,6 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email/types"
+	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/riverqueue/river"
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,20 @@ func (m *MockEmailService) GetDefaultFromAddress() string {
 // MockDigestService is a mock implementation of DigestService
 type MockDigestService struct {
 	mock.Mock
+}
+
+type MockSlackService struct {
+	mock.Mock
+}
+
+func (m *MockSlackService) SendMessage(ctx context.Context, channel string, message *slacktypes.Message) (*slacktypes.SendResult, error) {
+	args := m.Called(ctx, channel, message)
+	return args.Get(0).(*slacktypes.SendResult), args.Error(1)
+}
+
+func (m *MockSlackService) IsEnabled() bool {
+	args := m.Called()
+	return args.Bool(0)
 }
 
 func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
@@ -299,7 +314,7 @@ func TestWorkers(t *testing.T) {
 	mockEmailService := &MockEmailService{}
 	mockDigestService := &MockDigestService{}
 
-	workers := Workers(mockEmailService, mockDigestService, nil, nil, "", zap.NewNop().Sugar())
+	workers := Workers(mockEmailService, mockDigestService, nil, nil, nil, "", zap.NewNop().Sugar())
 
 	assert.NotNil(t, workers)
 }

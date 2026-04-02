@@ -31,8 +31,6 @@ type User struct {
 	// DigestSubscribed indicates if the user wants to receive evidence digest emails
 	DigestSubscribed bool `json:"digestSubscribed" gorm:"default:false"`
 
-	// TaskAvailableEmailSubscribed indicates if the user wants an email when tasks become available
-	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed" gorm:"default:false"`
 	// TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email
 	TaskDailyDigestSubscribed bool `json:"taskDailyDigestSubscribed" gorm:"default:false"`
 

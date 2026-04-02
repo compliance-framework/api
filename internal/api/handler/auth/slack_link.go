@@ -106,108 +106,102 @@ func (h *SlackLinkHandler) Register(api *echo.Group, jwtMiddleware echo.Middlewa
 }
 
 func (h *SlackLinkHandler) StartLink(ctx echo.Context) error {
+
 	if !h.isLinkingConfigured() {
-		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("Slack account linking is not configured")))
+		h.sugar.Error("Slack linking attempted but Slack integration is not configured")
+		return h.respondCallbackError(ctx, "not_configured")
 	}
 
 	user, err := h.getCurrentUser(ctx)
 	if err != nil {
-		return ctx.JSON(http.StatusUnauthorized, api.NewError(err))
+		h.sugar.Warnf("Unauthorized attempt to start Slack linking: %v", err)
+		return h.respondCallbackError(ctx, "unauthorized")
 	}
 
 	state, err := generateStateToken()
 	if err != nil {
 		h.sugar.Errorw("failed to generate Slack link state token", "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		return h.respondCallbackError(ctx, "init_failed")
 	}
 
 	expiresAt := time.Now().UTC().Add(slackLinkCookieTTL)
 	if err := h.createLinkAttempt(ctx.Request().Context(), user.ID.String(), state, expiresAt); err != nil {
 		h.sugar.Errorw("failed to persist Slack link state", "userID", user.ID.String(), "error", err)
-		return ctx.JSON(http.StatusInternalServerError, api.NewError(fmt.Errorf("failed to initialize Slack account linking")))
+		return h.respondCallbackError(ctx, "init_failed")
 	}
 
 	h.setLinkCookie(ctx, slackLinkStateCookieName, state, slackLinkCookieTTL)
 
 	authURL := h.oauthConfig.AuthCodeURL(state)
-	if strings.EqualFold(ctx.QueryParam("redirect"), "true") {
-		return ctx.Redirect(http.StatusTemporaryRedirect, authURL)
-	}
-
-	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[slackLinkStartResponse]{
-		Data: slackLinkStartResponse{
-			AuthURL: authURL,
-		},
-	})
+	return ctx.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
 func (h *SlackLinkHandler) Callback(ctx echo.Context) error {
 	if !h.isLinkingConfigured() {
-		return h.respondCallbackError(ctx, "Slack account linking is not configured")
+		return h.respondCallbackError(ctx, "not_configured")
 	}
 
 	defer h.clearLinkCookie(ctx, slackLinkStateCookieName)
 
 	if errParam := strings.TrimSpace(ctx.QueryParam("error")); errParam != "" {
 		h.sugar.Warnw("Received error from Slack OAuth callback", "error", errParam)
-		return h.respondCallbackError(ctx, "slack authorization failed")
+		return h.respondCallbackError(ctx, "unauthorized")
 	}
 
 	stateCookie, err := ctx.Cookie(slackLinkStateCookieName)
 	if err != nil {
-		return h.respondCallbackError(ctx, "missing Slack link state cookie")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	receivedState := strings.TrimSpace(ctx.QueryParam("state"))
 	if receivedState == "" || stateCookie.Value != receivedState {
-		return h.respondCallbackError(ctx, "invalid Slack link state")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	userID, err := h.consumeLinkAttempt(ctx.Request().Context(), receivedState)
 	if err != nil {
 		h.sugar.Errorw("Failed to consume Slack link attempt", "error", err)
 		if errors.Is(err, errInvalidOrExpiredSlackLinkState) {
-			return h.respondCallbackError(ctx, "invalid or expired Slack link state")
+			return h.respondCallbackError(ctx, "error_occurred")
 		}
 
-		return h.respondCallbackError(ctx, "failed to validate Slack link state")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	code := strings.TrimSpace(ctx.QueryParam("code"))
 	if code == "" {
-		return h.respondCallbackError(ctx, "missing authorization code")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	token, err := h.oauthConfig.Exchange(ctx.Request().Context(), code)
 	if err != nil {
 		h.sugar.Errorw("Failed to exchange Slack authorization code", "error", err)
-		return h.respondCallbackError(ctx, "failed to exchange Slack authorization code")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	if strings.TrimSpace(token.AccessToken) == "" {
-		return h.respondCallbackError(ctx, "slack token exchange returned an empty access token")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	userInfo, err := h.fetchSlackUserInfo(ctx.Request().Context(), token.AccessToken)
 	if err != nil {
 		h.sugar.Errorw("Failed to fetch Slack user info", "error", err)
-		return h.respondCallbackError(ctx, "failed to fetch Slack user info")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	if strings.TrimSpace(userInfo.UserID) == "" || strings.TrimSpace(userInfo.TeamID) == "" {
-		return h.respondCallbackError(ctx, "slack user info response is missing required identity fields")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
 
 	_, err = h.upsertSlackLink(ctx.Request().Context(), userID, userInfo)
 	if err != nil {
 		h.sugar.Errorw("Failed to persist Slack user link", "error", err)
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return h.respondCallbackError(ctx, "this Slack account is already linked to another user")
+			return h.respondCallbackError(ctx, "linking_exists")
 		}
 
-		return h.respondCallbackError(ctx, "failed to persist Slack user link")
+		return h.respondCallbackError(ctx, "error_occurred")
 	}
-
 	return h.respondCallbackSuccess(ctx)
 }
 
@@ -565,12 +559,12 @@ func (h *SlackLinkHandler) respondCallbackSuccess(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusFound, h.webCallbackRedirectURL(query))
 }
 
-func (h *SlackLinkHandler) respondCallbackError(ctx echo.Context, respErr string) error {
+func (h *SlackLinkHandler) respondCallbackError(ctx echo.Context, errCode string) error {
 	query := url.Values{}
 	query.Set("status", "error")
 
-	if respErr != "" {
-		query.Set("code", respErr)
+	if errCode != "" {
+		query.Set("code", errCode)
 
 	}
 

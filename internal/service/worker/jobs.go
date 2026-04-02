@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
+	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
+	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
@@ -160,20 +163,32 @@ type EmailService interface {
 	GetDefaultFromAddress() string
 }
 
+type SlackService interface {
+	SendMessage(ctx context.Context, channel string, message *slacktypes.Message) (*slacktypes.SendResult, error)
+	IsEnabled() bool
+}
+
 // UserRepository is the minimal DB interface needed by notification workers
 type UserRepository interface {
 	FindUserByID(ctx context.Context, userID string) (NotificationUser, error)
 }
 
+// NotificationSubscription holds worker-facing notification subscription data.
+type NotificationSubscription struct {
+	NotificationType string
+	Channels         []string
+}
+
 // NotificationUser holds the user fields needed for sending notification emails
 type NotificationUser struct {
-	ID                           string
-	Email                        string
-	FirstName                    string
-	LastName                     string
-	TaskAvailableEmailSubscribed bool
-	TaskDailyDigestSubscribed    bool
-	RiskNotificationsSubscribed  bool
+	ID                          string
+	Email                       string
+	FirstName                   string
+	LastName                    string
+	SlackUserID                 string
+	NotificationSubscriptions   []NotificationSubscription
+	TaskDailyDigestSubscribed   bool
+	RiskNotificationsSubscribed bool
 }
 
 func (u NotificationUser) FullName() string {
@@ -181,6 +196,36 @@ func (u NotificationUser) FullName() string {
 		return u.FirstName
 	}
 	return u.FirstName + " " + u.LastName
+}
+
+func (u NotificationUser) NotificationChannels(notificationType string) []string {
+	normalizedType, ok := notification.NormalizeNotificationType(notificationType)
+	if !ok {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	channels := make([]string, 0)
+	for _, subscription := range u.NotificationSubscriptions {
+		currentType, currentTypeOK := notification.NormalizeNotificationType(subscription.NotificationType)
+		if !currentTypeOK || currentType != normalizedType {
+			continue
+		}
+
+		for _, current := range subscription.Channels {
+			channel, channelOK := notification.NormalizeDeliveryChannel(current)
+			if !channelOK {
+				continue
+			}
+			if _, ok := seen[channel]; ok {
+				continue
+			}
+			seen[channel] = struct{}{}
+			channels = append(channels, channel)
+		}
+	}
+
+	return channels
 }
 
 // DigestService interface for dependency injection
@@ -392,15 +437,17 @@ func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGl
 // WorkflowTaskAssignedWorker handles new-task-assigned notification email jobs
 type WorkflowTaskAssignedWorker struct {
 	emailService EmailService
+	slackService SlackService
 	userRepo     UserRepository
 	webBaseURL   string
 	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowTaskAssignedWorker creates a new WorkflowTaskAssignedWorker
-func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskAssignedWorker {
+func NewWorkflowTaskAssignedWorker(emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskAssignedWorker {
 	return &WorkflowTaskAssignedWorker{
 		emailService: emailService,
+		slackService: slackService,
 		userRepo:     userRepo,
 		webBaseURL:   webBaseURL,
 		logger:       logger,
@@ -411,7 +458,7 @@ func NewWorkflowTaskAssignedWorker(emailService EmailService, userRepo UserRepos
 func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskAssignedArgs]) error {
 	args := job.Args
 
-	if args.AssignedToType == "email" {
+	if args.AssignedToType == notification.DeliveryChannelEmail {
 		return w.sendToEmailAddress(ctx, args)
 	}
 	return w.sendToUser(ctx, args)
@@ -429,7 +476,8 @@ func (w *WorkflowTaskAssignedWorker) sendToUser(ctx context.Context, args Workfl
 		return nil
 	}
 
-	if !user.TaskAvailableEmailSubscribed {
+	channels := user.NotificationChannels(notification.NotificationTypeTaskAvailable)
+	if len(channels) == 0 {
 		w.logger.Debugw("WorkflowTaskAssignedWorker: user not subscribed, skipping",
 			"step_execution_id", args.StepExecutionID,
 			"user_id", args.UserID,
@@ -437,7 +485,74 @@ func (w *WorkflowTaskAssignedWorker) sendToUser(ctx context.Context, args Workfl
 		return nil
 	}
 
-	return w.sendEmail(ctx, args, user.Email, user.FullName())
+	for _, channel := range channels {
+		switch channel {
+		case notification.DeliveryChannelEmail:
+			if err := w.sendEmail(ctx, args, user.Email, user.FullName()); err != nil {
+				return err
+			}
+		case notification.DeliveryChannelSlack:
+			if err := w.sendSlack(ctx, args, user); err != nil {
+				return err
+			}
+		default:
+			w.logger.Debugw("WorkflowTaskAssignedWorker: unsupported channel, skipping",
+				"step_execution_id", args.StepExecutionID,
+				"user_id", args.UserID,
+				"channel", channel,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (w *WorkflowTaskAssignedWorker) sendSlack(ctx context.Context, args WorkflowTaskAssignedArgs, user NotificationUser) error {
+	if w.slackService == nil || !w.slackService.IsEnabled() {
+		w.logger.Debugw("WorkflowTaskAssignedWorker: slack service not configured, skipping",
+			"step_execution_id", args.StepExecutionID,
+			"user_id", args.UserID,
+		)
+		return nil
+	}
+
+	slackUserID := strings.TrimSpace(user.SlackUserID)
+	if slackUserID == "" {
+		w.logger.Debugw("WorkflowTaskAssignedWorker: user has no Slack link, skipping",
+			"step_execution_id", args.StepExecutionID,
+			"user_id", args.UserID,
+		)
+		return nil
+	}
+
+	message, err := slackformatters.FormatWorkflowTaskAssignedMessage(
+		user.FullName(),
+		args.StepTitle,
+		args.WorkflowTitle,
+		args.WorkflowInstanceTitle,
+		resolveTaskURL(args.StepURL, w.webBaseURL),
+		formatDueDate(args.DueDate),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to format workflow-task-assigned slack message: %w", err)
+	}
+
+	result, err := w.slackService.SendMessage(ctx, slackUserID, message)
+	if err != nil {
+		return fmt.Errorf("failed to send workflow-task-assigned slack message: %w", err)
+	}
+	if !result.Success {
+		return fmt.Errorf("workflow-task-assigned slack message send failed: %s", result.Error)
+	}
+
+	w.logger.Infow("WorkflowTaskAssignedWorker: slack message sent",
+		"step_execution_id", args.StepExecutionID,
+		"user_id", args.UserID,
+		"slack_user_id", slackUserID,
+		"delivery_id", result.DeliveryID,
+	)
+
+	return nil
 }
 
 // sendToEmailAddress sends the notification directly to the email address assignee without a user lookup
@@ -536,7 +651,8 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 		return nil
 	}
 
-	if !user.TaskAvailableEmailSubscribed {
+	channels := user.NotificationChannels(notification.NotificationTypeTaskAvailable)
+	if len(channels) == 0 {
 		w.logger.Debugw("WorkflowTaskDueSoonWorker: user not subscribed, skipping",
 			"step_execution_id", args.StepExecutionID,
 			"user_id", args.UserID,
@@ -544,6 +660,25 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 		return nil
 	}
 
+	for _, channel := range channels {
+		switch channel {
+		case notification.DeliveryChannelEmail:
+			if err := w.sendEmail(ctx, args, user); err != nil {
+				return err
+			}
+		default:
+			w.logger.Debugw("WorkflowTaskDueSoonWorker: unsupported channel, skipping",
+				"step_execution_id", args.StepExecutionID,
+				"user_id", args.UserID,
+				"channel", channel,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (w *WorkflowTaskDueSoonWorker) sendEmail(ctx context.Context, args WorkflowTaskDueSoonArgs, user NotificationUser) error {
 	myTasksURL := resolveTaskURL(args.StepURL, w.webBaseURL)
 	templateData := map[string]interface{}{
 		"UserName":              user.FullName(),
@@ -641,7 +776,7 @@ func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts 
 }
 
 // Workers returns all workers as work functions with dependencies injected
-func Workers(emailService EmailService, digestService DigestService, userRepo UserRepository, db *gorm.DB, webBaseURL string, logger *zap.SugaredLogger) *river.Workers {
+func Workers(emailService EmailService, digestService DigestService, slackService SlackService, userRepo UserRepository, db *gorm.DB, webBaseURL string, logger *zap.SugaredLogger) *river.Workers {
 	workers := river.NewWorkers()
 
 	// Create worker instances with dependencies
@@ -671,7 +806,7 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 	// Register workflow notification workers if dependencies are available
 	if userRepo != nil {
-		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(emailService, userRepo, webBaseURL, logger)
+		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(emailService, slackService, userRepo, webBaseURL, logger)
 		river.AddWorker(workers, river.WorkFunc(workflowTaskAssignedWorker.Work))
 
 		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(emailService, userRepo, webBaseURL, logger)

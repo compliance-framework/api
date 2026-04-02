@@ -1474,22 +1474,30 @@ definitions:
     type: object
   handler.SubscriptionsResponse:
     properties:
+      notifications:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
       riskNotificationsSubscribed:
         type: boolean
       subscribed:
-        type: boolean
-      taskAvailableEmailSubscribed:
         type: boolean
       taskDailyDigestSubscribed:
         type: boolean
     type: object
   handler.UpdateSubscriptionsRequest:
     properties:
+      notifications:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
       riskNotificationsSubscribed:
         type: boolean
       subscribed:
-        type: boolean
-      taskAvailableEmailSubscribed:
         type: boolean
       taskDailyDigestSubscribed:
         type: boolean
@@ -7197,10 +7205,6 @@ definitions:
         description: |-
           RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.
           The DB default is intentionally true so existing users are opted in when the column is introduced.
-        type: boolean
-      taskAvailableEmailSubscribed:
-        description: TaskAvailableEmailSubscribed indicates if the user wants an email
-          when tasks become available
         type: boolean
       taskDailyDigestSubscribed:
         description: TaskDailyDigestSubscribed indicates if the user wants to receive

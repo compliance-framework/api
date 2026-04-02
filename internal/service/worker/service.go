@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -210,7 +211,16 @@ func NewServiceWithDigest(
 	if digestCfg != nil {
 		webBaseURL = digestCfg.WebBaseURL
 	}
-	workers := Workers(emailSvc, digestSvc, userRepo, db, webBaseURL, logger)
+
+	var slackService SlackService
+	if digestCfg != nil {
+		svc, slackErr := slacksvc.NewService(digestCfg.Slack, logger)
+		if slackErr != nil {
+			return nil, fmt.Errorf("failed to create slack service: %w", slackErr)
+		}
+		slackService = svc
+	}
+	workers := Workers(emailSvc, digestSvc, slackService, userRepo, db, webBaseURL, logger)
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
