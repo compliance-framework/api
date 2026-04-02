@@ -187,7 +187,6 @@ type NotificationUser struct {
 	LastName                    string
 	SlackUserID                 string
 	NotificationSubscriptions   []NotificationSubscription
-	TaskDailyDigestSubscribed   bool
 	RiskNotificationsSubscribed bool
 }
 
@@ -813,7 +812,7 @@ func Workers(emailService EmailService, digestService DigestService, slackServic
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
 
 		if db != nil {
-			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, userRepo, webBaseURL, logger)
+			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
 
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)

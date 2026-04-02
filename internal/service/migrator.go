@@ -178,6 +178,9 @@ func MigrateUp(db *gorm.DB) error {
 	if err := migrateLegacyDigestSubscriptions(db); err != nil {
 		return err
 	}
+	if err := migrateLegacyTaskDailyDigestSubscriptions(db); err != nil {
+		return err
+	}
 
 	// Create functional index for case-insensitive control_id lookups in filter_controls join table
 	// This improves performance of UPPER(control_id) queries in the suggestion service
@@ -319,6 +322,61 @@ func migrateLegacyDigestSubscriptions(db *gorm.DB) error {
 	}
 
 	return db.Migrator().DropColumn(&relational.User{}, "digest_subscribed")
+}
+
+func migrateLegacyTaskDailyDigestSubscriptions(db *gorm.DB) error {
+	// Nothing to migrate after the legacy column has been removed.
+	if !db.Migrator().HasColumn(&relational.User{}, "task_daily_digest_subscribed") {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy task daily digest subscription migration: ccf_users.task_daily_digest_subscribed is already absent",
+		)
+		return nil
+	}
+
+	// Backfill legacy task daily digest subscription into the notifications table.
+	type legacySubscribedUser struct {
+		ID string `gorm:"column:id"`
+	}
+
+	var subscribedUsers []legacySubscribedUser
+	if err := db.Table("ccf_users").
+		Select("id").
+		Where("task_daily_digest_subscribed = ?", true).
+		Scan(&subscribedUsers).Error; err != nil {
+		return err
+	}
+
+	for i := range subscribedUsers {
+		if subscribedUsers[i].ID == "" {
+			db.Logger.Warn(
+				context.Background(),
+				"Skipping legacy task daily digest subscription row with empty user ID (index=%d)",
+				i,
+			)
+			continue
+		}
+
+		var count int64
+		if err := db.Model(&relational.UserNotificationSubscription{}).
+			Where("user_id = ? AND notification_type = ?", subscribedUsers[i].ID, notification.NotificationTypeTaskDailyDigest).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+
+		if err := db.Create(&relational.UserNotificationSubscription{
+			UserID:           subscribedUsers[i].ID,
+			NotificationType: notification.NotificationTypeTaskDailyDigest,
+			Channels:         []string{notification.DeliveryChannelEmail},
+		}).Error; err != nil {
+			return err
+		}
+	}
+
+	return db.Migrator().DropColumn(&relational.User{}, "task_daily_digest_subscribed")
 }
 
 func MigrateDown(db *gorm.DB) error {

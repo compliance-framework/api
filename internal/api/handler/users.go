@@ -40,15 +40,17 @@ type publicUserResponse struct {
 }
 
 type SubscriptionsResponse struct {
-	TaskDailyDigestSubscribed   bool                `json:"taskDailyDigestSubscribed"`
-	RiskNotificationsSubscribed bool                `json:"riskNotificationsSubscribed"`
-	Notifications               map[string][]string `json:"notifications"`
+	RiskNotificationsSubscribed bool `json:"riskNotificationsSubscribed"`
+	// Notifications maps notification types to delivery channels.
+	// Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+	Notifications map[string][]string `json:"notifications"`
 }
 
 type UpdateSubscriptionsRequest struct {
-	TaskDailyDigestSubscribed   *bool               `json:"taskDailyDigestSubscribed"`
-	RiskNotificationsSubscribed *bool               `json:"riskNotificationsSubscribed"`
-	Notifications               map[string][]string `json:"notifications"`
+	RiskNotificationsSubscribed *bool `json:"riskNotificationsSubscribed"`
+	// Notifications maps notification types to delivery channels.
+	// Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+	Notifications map[string][]string `json:"notifications"`
 }
 
 const (
@@ -606,7 +608,6 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			TaskDailyDigestSubscribed:   user.TaskDailyDigestSubscribed,
 			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
 			Notifications:               notifications,
 		},
@@ -657,9 +658,6 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	if req.TaskDailyDigestSubscribed != nil {
-		user.TaskDailyDigestSubscribed = *req.TaskDailyDigestSubscribed
-	}
 	if req.RiskNotificationsSubscribed != nil {
 		user.RiskNotificationsSubscribed = *req.RiskNotificationsSubscribed
 	}
@@ -685,14 +683,12 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 	h.sugar.Debugw(
 		"User subscriptions updated",
 		"email", email,
-		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
 		"riskNotificationsSubscribed", user.RiskNotificationsSubscribed,
 		"notifications", notifications,
 	)
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			TaskDailyDigestSubscribed:   user.TaskDailyDigestSubscribed,
 			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
 			Notifications:               notifications,
 		},

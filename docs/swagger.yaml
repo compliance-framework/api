@@ -1479,10 +1479,11 @@ definitions:
           items:
             type: string
           type: array
+        description: |-
+          Notifications maps notification types to delivery channels.
+          Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
         type: object
       riskNotificationsSubscribed:
-        type: boolean
-      taskDailyDigestSubscribed:
         type: boolean
     type: object
   handler.UpdateSubscriptionsRequest:
@@ -1492,10 +1493,11 @@ definitions:
           items:
             type: string
           type: array
+        description: |-
+          Notifications maps notification types to delivery channels.
+          Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
         type: object
       riskNotificationsSubscribed:
-        type: boolean
-      taskDailyDigestSubscribed:
         type: boolean
     type: object
   handler.UserHandler:
@@ -7197,10 +7199,6 @@ definitions:
         description: |-
           RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.
           The DB default is intentionally true so existing users are opted in when the column is introduced.
-        type: boolean
-      taskDailyDigestSubscribed:
-        description: TaskDailyDigestSubscribed indicates if the user wants to receive
-          a daily task digest email
         type: boolean
       updatedAt:
         type: string

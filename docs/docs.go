@@ -28112,6 +28112,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "notifications": {
+                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, and taskDailyDigest.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -28121,9 +28122,6 @@ const docTemplate = `{
                     }
                 },
                 "riskNotificationsSubscribed": {
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
                     "type": "boolean"
                 }
             }
@@ -28132,6 +28130,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "notifications": {
+                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, and taskDailyDigest.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -28141,9 +28140,6 @@ const docTemplate = `{
                     }
                 },
                 "riskNotificationsSubscribed": {
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
                     "type": "boolean"
                 }
             }
@@ -36757,10 +36753,6 @@ const docTemplate = `{
                 },
                 "riskNotificationsSubscribed": {
                     "description": "RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.\nThe DB default is intentionally true so existing users are opted in when the column is introduced.",
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
-                    "description": "TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email",
                     "type": "boolean"
                 },
                 "updatedAt": {

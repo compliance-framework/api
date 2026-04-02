@@ -72,7 +72,6 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 		LastName:                    user.LastName,
 		SlackUserID:                 slackUserID,
 		NotificationSubscriptions:   subscriptions,
-		TaskDailyDigestSubscribed:   user.TaskDailyDigestSubscribed,
 		RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
 	}, nil
 }

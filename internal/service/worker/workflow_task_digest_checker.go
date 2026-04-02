@@ -3,8 +3,10 @@ package worker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
@@ -37,17 +39,58 @@ func NewWorkflowTaskDigestCheckerWorker(db *gorm.DB, client workflow.RiverClient
 	}
 }
 
-// Work queries all users with TaskDailyDigestSubscribed=true and enqueues a WorkflowTaskDigestArgs job for each
+// Work queries all users subscribed to task daily digest and enqueues a WorkflowTaskDigestArgs job for each.
 func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskDigestCheckerArgs]) error {
 	if w.db == nil {
 		return fmt.Errorf("WorkflowTaskDigestCheckerWorker: db is nil")
 	}
 
+	var subscriptions []relational.UserNotificationSubscription
+	if err := w.db.WithContext(ctx).
+		Where("notification_type = ?", notification.NotificationTypeTaskDailyDigest).
+		Find(&subscriptions).Error; err != nil {
+		return fmt.Errorf("workflow-task-digest-checker: failed to query task daily digest subscriptions: %w", err)
+	}
+
+	subscribedUserIDs := make(map[string]struct{}, len(subscriptions))
+	for i := range subscriptions {
+		userID := strings.TrimSpace(subscriptions[i].UserID)
+		if userID == "" {
+			continue
+		}
+
+		normalizedChannels, invalidChannels := notification.NormalizeDeliveryChannels(subscriptions[i].Channels)
+		if len(invalidChannels) > 0 {
+			w.logger.Warnw(
+				"WorkflowTaskDigestCheckerWorker: ignoring invalid delivery channels in task daily digest subscription",
+				"user_id", userID,
+				"invalid_channels", invalidChannels,
+				"channels", subscriptions[i].Channels,
+			)
+		}
+		if len(normalizedChannels) == 0 {
+			continue
+		}
+
+		subscribedUserIDs[userID] = struct{}{}
+	}
+
+	if len(subscribedUserIDs) == 0 {
+		w.logger.Infow("WorkflowTaskDigestCheckerWorker: no subscribed users found")
+		return nil
+	}
+
+	userIDs := make([]string, 0, len(subscribedUserIDs))
+	for userID := range subscribedUserIDs {
+		userIDs = append(userIDs, userID)
+	}
+
 	var users []relational.User
 	if err := w.db.WithContext(ctx).
-		Where("task_daily_digest_subscribed = ? AND deleted_at IS NULL", true).
+		Select("id").
+		Where("id IN ?", userIDs).
 		Find(&users).Error; err != nil {
-		return fmt.Errorf("workflow-task-digest-checker: failed to query subscribed users: %w", err)
+		return fmt.Errorf("workflow-task-digest-checker: failed to load subscribed users: %w", err)
 	}
 
 	if len(users) == 0 {

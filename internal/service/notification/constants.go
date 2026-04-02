@@ -6,29 +6,35 @@ import (
 )
 
 const (
-	NotificationTypeEvidenceDigest = "evidence_digest"
-	NotificationTypeTaskAvailable  = "task_available"
+	NotificationTypeEvidenceDigest  = "evidence_digest"
+	NotificationTypeTaskAvailable   = "task_available"
+	NotificationTypeTaskDailyDigest = "task_daily_digest"
 
-	NotificationTypeEvidenceDigestWire = "evidenceDigest"
-	NotificationTypeTaskAvailableWire  = "taskAvailable"
+	NotificationTypeEvidenceDigestWire  = "evidenceDigest"
+	NotificationTypeTaskAvailableWire   = "taskAvailable"
+	NotificationTypeTaskDailyDigestWire = "taskDailyDigest"
 
-	notificationTypeEvidenceDigestWireNormalized = "evidencedigest"
-	notificationTypeTaskAvailableWireNormalized  = "taskavailable"
+	notificationTypeEvidenceDigestWireNormalized  = "evidencedigest"
+	notificationTypeTaskAvailableWireNormalized   = "taskavailable"
+	notificationTypeTaskDailyDigestWireNormalized = "taskdailydigest"
 
 	DeliveryChannelEmail = "email"
 	DeliveryChannelSlack = "slack"
 )
 
 var notificationTypeInputAliases = map[string]string{
-	NotificationTypeEvidenceDigest:               NotificationTypeEvidenceDigest,
-	NotificationTypeTaskAvailable:                NotificationTypeTaskAvailable,
-	notificationTypeEvidenceDigestWireNormalized: NotificationTypeEvidenceDigest,
-	notificationTypeTaskAvailableWireNormalized:  NotificationTypeTaskAvailable,
+	NotificationTypeEvidenceDigest:                NotificationTypeEvidenceDigest,
+	NotificationTypeTaskAvailable:                 NotificationTypeTaskAvailable,
+	NotificationTypeTaskDailyDigest:               NotificationTypeTaskDailyDigest,
+	notificationTypeEvidenceDigestWireNormalized:  NotificationTypeEvidenceDigest,
+	notificationTypeTaskAvailableWireNormalized:   NotificationTypeTaskAvailable,
+	notificationTypeTaskDailyDigestWireNormalized: NotificationTypeTaskDailyDigest,
 }
 
 var notificationTypeWireValues = map[string]string{
-	NotificationTypeEvidenceDigest: NotificationTypeEvidenceDigestWire,
-	NotificationTypeTaskAvailable:  NotificationTypeTaskAvailableWire,
+	NotificationTypeEvidenceDigest:  NotificationTypeEvidenceDigestWire,
+	NotificationTypeTaskAvailable:   NotificationTypeTaskAvailableWire,
+	NotificationTypeTaskDailyDigest: NotificationTypeTaskDailyDigestWire,
 }
 
 func normalizeToken(value string) string {
