@@ -152,9 +152,9 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to get evidence summary", "error", err)
 	}
 
-	users, err := digestService.GetSubscribedUsers(ctx)
+	recipients, err := digestService.GetDigestRecipients(ctx)
 	if err != nil {
-		sugar.Fatalw("Failed to get subscribed users", "error", err)
+		sugar.Fatalw("Failed to get digest recipients", "error", err)
 	}
 
 	fmt.Println("\n=== Evidence Digest Preview ===")
@@ -163,7 +163,7 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 	fmt.Printf("Not Satisfied: %d\n", summary.NotSatisfiedCount)
 	fmt.Printf("Expired: %d\n", summary.ExpiredCount)
 	fmt.Printf("Other: %d\n", summary.OtherCount)
-	fmt.Printf("\nSubscribed Users: %d\n", len(users))
+	fmt.Printf("\nSubscribed Users: %d\n", len(recipients))
 
 	if len(summary.TopNotSatisfied) > 0 {
 		fmt.Println("\nTop Not Satisfied Evidence:")

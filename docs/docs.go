@@ -28123,9 +28123,6 @@ const docTemplate = `{
                 "riskNotificationsSubscribed": {
                     "type": "boolean"
                 },
-                "subscribed": {
-                    "type": "boolean"
-                },
                 "taskDailyDigestSubscribed": {
                     "type": "boolean"
                 }
@@ -28144,9 +28141,6 @@ const docTemplate = `{
                     }
                 },
                 "riskNotificationsSubscribed": {
-                    "type": "boolean"
-                },
-                "subscribed": {
                     "type": "boolean"
                 },
                 "taskDailyDigestSubscribed": {
@@ -36736,10 +36730,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/gorm.DeletedAt"
                         }
                     ]
-                },
-                "digestSubscribed": {
-                    "description": "DigestSubscribed indicates if the user wants to receive evidence digest emails",
-                    "type": "boolean"
                 },
                 "email": {
                     "type": "string"

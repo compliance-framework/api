@@ -28117,9 +28117,6 @@
                 "riskNotificationsSubscribed": {
                     "type": "boolean"
                 },
-                "subscribed": {
-                    "type": "boolean"
-                },
                 "taskDailyDigestSubscribed": {
                     "type": "boolean"
                 }
@@ -28138,9 +28135,6 @@
                     }
                 },
                 "riskNotificationsSubscribed": {
-                    "type": "boolean"
-                },
-                "subscribed": {
                     "type": "boolean"
                 },
                 "taskDailyDigestSubscribed": {
@@ -36730,10 +36724,6 @@
                             "$ref": "#/definitions/gorm.DeletedAt"
                         }
                     ]
-                },
-                "digestSubscribed": {
-                    "description": "DigestSubscribed indicates if the user wants to receive evidence digest emails",
-                    "type": "boolean"
                 },
                 "email": {
                     "type": "string"

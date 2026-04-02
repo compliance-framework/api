@@ -6,11 +6,30 @@ import (
 )
 
 const (
-	NotificationTypeTaskAvailable = "task_available"
+	NotificationTypeEvidenceDigest = "evidence_digest"
+	NotificationTypeTaskAvailable  = "task_available"
+
+	NotificationTypeEvidenceDigestWire = "evidenceDigest"
+	NotificationTypeTaskAvailableWire  = "taskAvailable"
+
+	notificationTypeEvidenceDigestWireNormalized = "evidencedigest"
+	notificationTypeTaskAvailableWireNormalized  = "taskavailable"
 
 	DeliveryChannelEmail = "email"
 	DeliveryChannelSlack = "slack"
 )
+
+var notificationTypeInputAliases = map[string]string{
+	NotificationTypeEvidenceDigest:               NotificationTypeEvidenceDigest,
+	NotificationTypeTaskAvailable:                NotificationTypeTaskAvailable,
+	notificationTypeEvidenceDigestWireNormalized: NotificationTypeEvidenceDigest,
+	notificationTypeTaskAvailableWireNormalized:  NotificationTypeTaskAvailable,
+}
+
+var notificationTypeWireValues = map[string]string{
+	NotificationTypeEvidenceDigest: NotificationTypeEvidenceDigestWire,
+	NotificationTypeTaskAvailable:  NotificationTypeTaskAvailableWire,
+}
 
 func normalizeToken(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
@@ -23,12 +42,27 @@ func NormalizeNotificationType(notificationType string) (string, bool) {
 		return "", false
 	}
 
-	switch normalized {
-	case NotificationTypeTaskAvailable:
-		return normalized, true
-	default:
+	canonical, ok := notificationTypeInputAliases[normalized]
+	if !ok {
 		return "", false
 	}
+
+	return canonical, true
+}
+
+// WireNotificationType returns camelCase for a supported notification type.
+func WireNotificationType(notificationType string) (string, bool) {
+	canonical, ok := NormalizeNotificationType(notificationType)
+	if !ok {
+		return "", false
+	}
+
+	wireValue, ok := notificationTypeWireValues[canonical]
+	if !ok {
+		return "", false
+	}
+
+	return wireValue, true
 }
 
 // NormalizeDeliveryChannel canonicalizes a channel name and verifies support.

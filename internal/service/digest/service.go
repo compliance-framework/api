@@ -3,11 +3,14 @@ package digest
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/service/slack/formatters"
@@ -47,6 +50,12 @@ type Service struct {
 	workerService *worker.Service
 	config        *config.Config
 	logger        *zap.SugaredLogger
+}
+
+type DigestRecipient struct {
+	User        relational.User
+	Channels    []string
+	SlackUserID string
 }
 
 // NewService creates a new digest service
@@ -165,13 +174,84 @@ func (s *Service) convertToEvidenceItems(evidences []relational.Evidence) []Evid
 	return items
 }
 
-// GetSubscribedUsers returns all active users who are subscribed to digest emails
-func (s *Service) GetSubscribedUsers(ctx context.Context) ([]relational.User, error) {
+// GetDigestRecipients returns active users and their evidence-digest channels.
+func (s *Service) GetDigestRecipients(ctx context.Context) ([]DigestRecipient, error) {
+	var subscriptions []relational.UserNotificationSubscription
+	if err := s.db.WithContext(ctx).
+		Where("notification_type = ?", notification.NotificationTypeEvidenceDigest).
+		Find(&subscriptions).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch evidence digest subscriptions: %w", err)
+	}
+
+	channelSetsByUserID := make(map[string]map[string]struct{}, len(subscriptions))
+	for i := range subscriptions {
+		userID := subscriptions[i].UserID
+		if userID == "" {
+			continue
+		}
+
+		for _, rawChannel := range subscriptions[i].Channels {
+			channel, ok := notification.NormalizeDeliveryChannel(rawChannel)
+			if !ok {
+				continue
+			}
+			if _, exists := channelSetsByUserID[userID]; !exists {
+				channelSetsByUserID[userID] = make(map[string]struct{})
+			}
+			channelSetsByUserID[userID][channel] = struct{}{}
+		}
+	}
+
+	if len(channelSetsByUserID) == 0 {
+		return []DigestRecipient{}, nil
+	}
+
+	subscribedUserIDs := make([]string, 0, len(channelSetsByUserID))
+	for userID := range channelSetsByUserID {
+		subscribedUserIDs = append(subscribedUserIDs, userID)
+	}
+
 	var users []relational.User
-	if err := s.db.Where("is_active = ? AND is_locked = ? AND digest_subscribed = ?", true, false, true).Find(&users).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Where("id IN ?", subscribedUserIDs).
+		Where("is_active = ? AND is_locked = ?", true, false).
+		Find(&users).Error; err != nil {
 		return nil, fmt.Errorf("failed to fetch subscribed users: %w", err)
 	}
-	return users, nil
+
+	var slackLinks []relational.SlackUserLink
+	if err := s.db.WithContext(ctx).
+		Where("user_id IN ?", subscribedUserIDs).
+		Find(&slackLinks).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch Slack links for digest recipients: %w", err)
+	}
+	slackUserIDByUserID := make(map[string]string, len(slackLinks))
+	for i := range slackLinks {
+		slackUserIDByUserID[slackLinks[i].UserID] = slackLinks[i].SlackUserID
+	}
+
+	recipients := make([]DigestRecipient, 0, len(users))
+	for i := range users {
+		userID := users[i].ID.String()
+		channelSet := channelSetsByUserID[userID]
+		if len(channelSet) == 0 {
+			continue
+		}
+
+		channels := make([]string, 0, len(channelSet))
+		for channel := range channelSet {
+			channels = append(channels, channel)
+		}
+		sort.Strings(channels)
+
+		recipients = append(recipients, DigestRecipient{
+			User:        users[i],
+			Channels:    channels,
+			SlackUserID: strings.TrimSpace(slackUserIDByUserID[userID]),
+		})
+	}
+
+	return recipients, nil
 }
 
 // GetAllActiveUsers returns all active users (for admin purposes)
@@ -192,9 +272,17 @@ func (s *Service) SendDigestSlack(ctx context.Context, summary *EvidenceSummary)
 		return nil
 	}
 
+	return s.sendDigestSlackToChannel(ctx, s.config.Slack.DigestChannel, summary)
+}
+
+func (s *Service) sendDigestSlackToChannel(ctx context.Context, channel string, summary *EvidenceSummary) error {
+	if strings.TrimSpace(channel) == "" {
+		return fmt.Errorf("slack channel is required")
+	}
+
 	slackService, err := slacksvc.NewService(s.config.Slack, s.logger)
 	if err != nil {
-		return fmt.Errorf("failed to initialize Slack service for global digest: %w", err)
+		return fmt.Errorf("failed to initialize Slack service for digest: %w", err)
 	}
 
 	data := formatters.DigestSummary{
@@ -208,12 +296,12 @@ func (s *Service) SendDigestSlack(ctx context.Context, summary *EvidenceSummary)
 	}
 	message, err := formatters.FormatDigestMessage(&data)
 	if err != nil {
-		return fmt.Errorf("failed to format Slack message for global digest: %w", err)
+		return fmt.Errorf("failed to format Slack message for digest: %w", err)
 	}
-	_, err = slackService.SendMessage(ctx, s.config.Slack.DigestChannel, message)
+	_, err = slackService.SendMessage(ctx, channel, message)
 
 	if err != nil {
-		return fmt.Errorf("failed to send Slack message from global digest: %w", err)
+		return fmt.Errorf("failed to send Slack message for digest: %w", err)
 	}
 	return nil
 }
@@ -322,13 +410,13 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 		return nil
 	}
 
-	users, err := s.GetSubscribedUsers(ctx)
+	recipients, err := s.GetDigestRecipients(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get subscribed users: %w", err)
+		return fmt.Errorf("failed to get digest recipients: %w", err)
 	}
 
-	if len(users) == 0 {
-		s.logger.Debug("No subscribed users found, skipping digest")
+	if len(recipients) == 0 {
+		s.logger.Debug("No digest recipients found, skipping digest")
 		return nil
 	}
 
@@ -336,14 +424,42 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 		"totalEvidence", summary.TotalCount,
 		"notSatisfied", summary.NotSatisfiedCount,
 		"expired", summary.ExpiredCount,
-		"userCount", len(users),
+		"userCount", len(recipients),
 	)
 
 	var sendErrors []error
-	for _, user := range users {
-		if err := s.SendDigestEmail(ctx, &user, summary); err != nil {
-			s.logger.Errorw("Failed to send digest to user", "user", user.Email, "error", err)
-			sendErrors = append(sendErrors, err)
+	for i := range recipients {
+		recipient := recipients[i]
+
+		for _, channel := range recipient.Channels {
+			switch channel {
+			case notification.DeliveryChannelEmail:
+				if err := s.SendDigestEmail(ctx, &recipient.User, summary); err != nil {
+					s.logger.Errorw("failed to send digest email to user", "user", recipient.User.Email, "error", err)
+					sendErrors = append(sendErrors, err)
+				}
+			case notification.DeliveryChannelSlack:
+				if recipient.SlackUserID == "" {
+					s.logger.Debugw("skipping digest Slack DM: user has no Slack link",
+						"user", recipient.User.Email,
+					)
+					continue
+				}
+
+				if err := s.sendDigestSlackToChannel(ctx, recipient.SlackUserID, summary); err != nil {
+					s.logger.Errorw("failed to send digest Slack DM to user",
+						"user", recipient.User.Email,
+						"slackUserID", recipient.SlackUserID,
+						"error", err,
+					)
+					sendErrors = append(sendErrors, err)
+				}
+			default:
+				s.logger.Debugw("skipping unsupported digest channel",
+					"user", recipient.User.Email,
+					"channel", channel,
+				)
+			}
 		}
 	}
 

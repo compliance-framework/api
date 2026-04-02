@@ -28,9 +28,6 @@ type User struct {
 	AuthMethod     string `json:"authMethod"`
 	UserAttributes string `json:"userAttributes"`
 
-	// DigestSubscribed indicates if the user wants to receive evidence digest emails
-	DigestSubscribed bool `json:"digestSubscribed" gorm:"default:false"`
-
 	// TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email
 	TaskDailyDigestSubscribed bool `json:"taskDailyDigestSubscribed" gorm:"default:false"`
 

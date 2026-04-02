@@ -40,14 +40,12 @@ type publicUserResponse struct {
 }
 
 type SubscriptionsResponse struct {
-	Subscribed                  bool                `json:"subscribed"`
 	TaskDailyDigestSubscribed   bool                `json:"taskDailyDigestSubscribed"`
 	RiskNotificationsSubscribed bool                `json:"riskNotificationsSubscribed"`
 	Notifications               map[string][]string `json:"notifications"`
 }
 
 type UpdateSubscriptionsRequest struct {
-	Subscribed                  *bool               `json:"subscribed"`
 	TaskDailyDigestSubscribed   *bool               `json:"taskDailyDigestSubscribed"`
 	RiskNotificationsSubscribed *bool               `json:"riskNotificationsSubscribed"`
 	Notifications               map[string][]string `json:"notifications"`
@@ -608,7 +606,6 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			Subscribed:                  user.DigestSubscribed,
 			TaskDailyDigestSubscribed:   user.TaskDailyDigestSubscribed,
 			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
 			Notifications:               notifications,
@@ -660,9 +657,6 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	if req.Subscribed != nil {
-		user.DigestSubscribed = *req.Subscribed
-	}
 	if req.TaskDailyDigestSubscribed != nil {
 		user.TaskDailyDigestSubscribed = *req.TaskDailyDigestSubscribed
 	}
@@ -691,7 +685,6 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 	h.sugar.Debugw(
 		"User subscriptions updated",
 		"email", email,
-		"subscribed", user.DigestSubscribed,
 		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
 		"riskNotificationsSubscribed", user.RiskNotificationsSubscribed,
 		"notifications", notifications,
@@ -699,7 +692,6 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			Subscribed:                  user.DigestSubscribed,
 			TaskDailyDigestSubscribed:   user.TaskDailyDigestSubscribed,
 			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
 			Notifications:               notifications,
@@ -719,7 +711,11 @@ func (h *UserHandler) loadUserNotificationSubscriptions(ctx context.Context, use
 	for i := range rows {
 		channels := make([]string, len(rows[i].Channels))
 		copy(channels, rows[i].Channels)
-		out[rows[i].NotificationType] = channels
+		wireType, ok := notification.WireNotificationType(rows[i].NotificationType)
+		if !ok {
+			wireType = rows[i].NotificationType
+		}
+		out[wireType] = channels
 	}
 
 	return out, nil

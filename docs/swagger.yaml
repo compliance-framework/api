@@ -1482,8 +1482,6 @@ definitions:
         type: object
       riskNotificationsSubscribed:
         type: boolean
-      subscribed:
-        type: boolean
       taskDailyDigestSubscribed:
         type: boolean
     type: object
@@ -1496,8 +1494,6 @@ definitions:
           type: array
         type: object
       riskNotificationsSubscribed:
-        type: boolean
-      subscribed:
         type: boolean
       taskDailyDigestSubscribed:
         type: boolean
@@ -7181,10 +7177,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/gorm.DeletedAt'
         description: Soft delete
-      digestSubscribed:
-        description: DigestSubscribed indicates if the user wants to receive evidence
-          digest emails
-        type: boolean
       email:
         type: string
       failedLogins:
