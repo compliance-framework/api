@@ -4,6 +4,8 @@ package tests
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
@@ -90,4 +92,36 @@ func (suite *IntegrationTestSuite) GetAuthToken() (*string, error) {
 	}
 
 	return authn.GenerateJWTToken(&dummyUser, suite.Config.JWTPrivateKey)
+}
+
+func (suite *IntegrationTestSuite) CreateAgent(name string) (*relational.Agent, error) {
+	agent := &relational.Agent{
+		Name:     name,
+		IsActive: true,
+	}
+	return agent, suite.DB.Create(agent).Error
+}
+
+func (suite *IntegrationTestSuite) CreateAgentKey(agent *relational.Agent, name string) (*relational.AgentServiceAccountKey, string, error) {
+	secret := fmt.Sprintf("secret-%d", time.Now().UnixNano())
+	key := &relational.AgentServiceAccountKey{
+		AgentID:  stringPtr(agent.ID.String()),
+		Name:     &name,
+		ClientID: fmt.Sprintf("client-%d", time.Now().UnixNano()),
+	}
+	if err := key.SetSecret(secret); err != nil {
+		return nil, "", err
+	}
+	if err := suite.DB.Create(key).Error; err != nil {
+		return nil, "", err
+	}
+	return key, secret, nil
+}
+
+func (suite *IntegrationTestSuite) GetAgentToken(agent *relational.Agent, key *relational.AgentServiceAccountKey) (*string, error) {
+	return authn.GenerateAgentJWTToken(agent, key, suite.Config.JWTPrivateKey)
+}
+
+func stringPtr(v string) *string {
+	return &v
 }

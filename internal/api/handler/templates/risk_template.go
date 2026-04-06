@@ -38,8 +38,8 @@ func (h *RiskTemplateHandler) Register(apiGroup *echo.Group) {
 	apiGroup.DELETE("/:id", h.Delete)
 }
 
-func (h *RiskTemplateHandler) RegisterAgent(apiGroup *echo.Group) {
-	apiGroup.POST("/batch", h.BatchUpsert)
+func (h *RiskTemplateHandler) RegisterAgent(apiGroup *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	apiGroup.POST("/batch", h.BatchUpsert, middlewares...)
 }
 
 type threatIDRequest struct {

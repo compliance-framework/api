@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/tests"
@@ -112,4 +114,121 @@ func (suite *AuthAPIIntegrationSuite) TestPublicKeyEndpoint() {
 
 	respKey, _ := pem.Decode(rec.Body.Bytes())
 	suite.Require().NotNil(respKey, "Expected PEM-encoded public key in response")
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenWithBasicAuth() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	agent, err := suite.CreateAgent("auth-agent")
+	suite.Require().NoError(err)
+	key, secret, err := suite.CreateAgentKey(agent, "auth-key")
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
+	req.SetBasicAuth(key.ClientID, secret)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+	suite.Contains(rec.Body.String(), "access_token")
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenWithFormCredentials() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	agent, err := suite.CreateAgent("form-agent")
+	suite.Require().NoError(err)
+	key, secret, err := suite.CreateAgentKey(agent, "form-key")
+	suite.Require().NoError(err)
+
+	form := url.Values{}
+	form.Set("client_id", key.ClientID)
+	form.Set("client_secret", secret)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", bytes.NewBufferString(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsBadSecret() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	agent, err := suite.CreateAgent("bad-secret-agent")
+	suite.Require().NoError(err)
+	key, _, err := suite.CreateAgentKey(agent, "bad-secret-key")
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
+	req.SetBasicAuth(key.ClientID, "wrong-secret")
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code)
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsUnknownClientID() {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
+	req.SetBasicAuth("missing-client-id", "wrong-secret")
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusUnauthorized, rec.Code)
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsRevokedKey() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	agent, err := suite.CreateAgent("revoked-agent")
+	suite.Require().NoError(err)
+	key, secret, err := suite.CreateAgentKey(agent, "revoked-key")
+	suite.Require().NoError(err)
+	now := time.Now().UTC()
+	key.RevokedAt = &now
+	suite.Require().NoError(suite.DB.Save(key).Error)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
+	req.SetBasicAuth(key.ClientID, secret)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusForbidden, rec.Code)
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsInactiveAgent() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	agent, err := suite.CreateAgent("inactive-agent")
+	suite.Require().NoError(err)
+	agent.IsActive = false
+	suite.Require().NoError(suite.DB.Save(agent).Error)
+	key, secret, err := suite.CreateAgentKey(agent, "inactive-key")
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
+	req.SetBasicAuth(key.ClientID, secret)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusForbidden, rec.Code)
+}
+
+func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsExpiredKey() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	agent, err := suite.CreateAgent("expired-agent")
+	suite.Require().NoError(err)
+	key, secret, err := suite.CreateAgentKey(agent, "expired-key")
+	suite.Require().NoError(err)
+	expiresAt := time.Now().UTC().Add(-time.Minute)
+	key.ExpiresAt = &expiresAt
+	suite.Require().NoError(suite.DB.Save(key).Error)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
+	req.SetBasicAuth(key.ClientID, secret)
+	suite.server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusForbidden, rec.Code)
 }

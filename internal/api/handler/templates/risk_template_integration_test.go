@@ -69,6 +69,11 @@ func (suite *RiskTemplateApiIntegrationSuite) SetupTest() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+	suite.setupServer()
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) setupServer() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
@@ -103,6 +108,27 @@ func (suite *RiskTemplateApiIntegrationSuite) unauthenticatedRequest(method, pat
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	return rec, req
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) agentRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {
+	agent, err := suite.CreateAgent("risk-template-agent")
+	suite.Require().NoError(err)
+	key, _, err := suite.CreateAgentKey(agent, "risk-template-key")
+	suite.Require().NoError(err)
+	token, err := suite.GetAgentToken(agent, key)
+	suite.Require().NoError(err)
+
+	payload := []byte{}
+	if body != nil {
+		data, marshalErr := json.Marshal(body)
+		suite.Require().NoError(marshalErr)
+		payload = data
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	return rec, req
 }
 
@@ -646,7 +672,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertCreateA
 		},
 	}
 
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", batchReq)
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/risk-templates/batch", batchReq)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -699,7 +725,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertCreateA
 		},
 	}
 
-	rec2, req2 := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", batchReq2)
+	rec2, req2 := suite.agentRequest(http.MethodPost, "/api/agent/risk-templates/batch", batchReq2)
 	suite.server.E().ServeHTTP(rec2, req2)
 	require.Equal(suite.T(), http.StatusOK, rec2.Code)
 
@@ -736,7 +762,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertEmptyPa
 	}
 
 	// Send empty template list — both should be deleted.
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
 		"plugin-id":      "batch-delete-plugin",
 		"policy-package": "compliance_framework.delete_test",
 		"templates":      []map[string]any{},
@@ -759,7 +785,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertEmptyPa
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertMissingIDReturns400() {
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
 		"plugin-id":      "batch-plugin",
 		"policy-package": "compliance_framework.batch_test",
 		"templates": []map[string]any{
@@ -776,7 +802,7 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertMissing
 }
 
 func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertValidationError() {
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
 		"plugin-id":      "batch-plugin",
 		"policy-package": "compliance_framework.batch_test",
 		"templates": []map[string]any{
@@ -792,7 +818,10 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertValidat
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
 
-func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertIsPublic() {
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertIsPublicWhenUnsafeFlagEnabled() {
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.setupServer()
+
 	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
 		"plugin-id":      "batch-plugin",
 		"policy-package": "compliance_framework.batch_test",
@@ -800,4 +829,14 @@ func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertIsPubli
 	})
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusOK, rec.Code)
+}
+
+func (suite *RiskTemplateApiIntegrationSuite) TestRiskTemplateBatchUpsertRequiresAgentAuthWhenUnsafeDisabled() {
+	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/risk-templates/batch", map[string]any{
+		"plugin-id":      "batch-plugin",
+		"policy-package": "compliance_framework.batch_test",
+		"templates":      []map[string]any{},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }

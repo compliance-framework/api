@@ -31,17 +31,23 @@ type HeartbeatApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 }
 
-func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreateValidation() {
-	err := suite.Migrator.Refresh()
-	suite.Require().NoError(err)
-
-	// Create two catalogs with the same group ID structure
-	heartbeat := HeartbeatCreateRequest{}
+func (suite *HeartbeatApiIntegrationSuite) setupServer() *api.Server {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
 	services := &APIServices{}
 	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+	return server
+}
+
+func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreateValidation() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	// Create two catalogs with the same group ID structure
+	heartbeat := HeartbeatCreateRequest{}
+	server := suite.setupServer()
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(heartbeat)
 	req := httptest.NewRequest(http.MethodPost, "/api/agent/heartbeat", bytes.NewReader(reqBody))
@@ -53,6 +59,7 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreateValidation() {
 func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreate() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
 
 	// Create two catalogs with the same group ID structure
 	heartbeat := HeartbeatCreateRequest{
@@ -60,11 +67,7 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreate() {
 		CreatedAt: time.Now(),
 	}
 
-	logger, _ := zap.NewDevelopment()
-	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := &APIServices{}
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+	server := suite.setupServer()
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(heartbeat)
 	req := httptest.NewRequest(http.MethodPost, "/api/agent/heartbeat", bytes.NewReader(reqBody))
@@ -81,6 +84,7 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreate() {
 func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatOverTime() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = true
 
 	// Seed some heartbeats
 	for range 3 {
@@ -94,14 +98,13 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatOverTime() {
 	}
 
 	// Create two catalogs with the same group ID structure
-	logger, _ := zap.NewDevelopment()
-	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := &APIServices{}
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+	server := suite.setupServer()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/agent/heartbeat/over-time/", nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -124,4 +127,18 @@ func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatOverTime() {
 	// The interval gap should be 2 minutes
 	suite.Equal(response.Data[0].Interval.Sub(response.Data[1].Interval).Abs(), 2*time.Minute)
 	suite.Equal(response.Data[1].Interval.Sub(response.Data[2].Interval).Abs(), 2*time.Minute)
+}
+
+func (suite *HeartbeatApiIntegrationSuite) TestHeartbeatCreateRequiresAgentAuthWhenUnsafeDisabled() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(HeartbeatCreateRequest{UUID: uuid.New(), CreatedAt: time.Now()})
+	req := httptest.NewRequest(http.MethodPost, "/api/agent/heartbeat", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }
