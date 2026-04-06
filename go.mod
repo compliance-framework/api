@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.59.0
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/defenseunicorns/go-oscal v0.7.0
-	github.com/go-jose/go-jose/v3 v3.0.4
+	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-playground/validator/v10 v10.28.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
