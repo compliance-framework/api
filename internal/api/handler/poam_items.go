@@ -77,20 +77,20 @@ func (h *PoamItemsHandler) registerRoutes(g *echo.Group) {
 // ---------------------------------------------------------------------------
 
 type createPoamItemRequest struct {
-	SspID                 string                   `json:"sspId"                 validate:"required"`
+	SspID                 string                   `json:"ssp-id"                 validate:"required"`
 	Title                 string                   `json:"title"                 validate:"required"`
 	Description           string                   `json:"description"`
 	Status                string                   `json:"status"`
-	SourceType            string                   `json:"sourceType"`
-	PrimaryOwnerUserID    *string                  `json:"primaryOwnerUserId"`
-	PlannedCompletionDate *time.Time               `json:"plannedCompletionDate"`
-	CreatedFromRiskID     *string                  `json:"createdFromRiskId"`
-	AcceptanceRationale   *string                  `json:"acceptanceRationale"`
-	ResourceRequired      *string                  `json:"resourceRequired"`
-	RiskIDs               []string                 `json:"riskIds"`
-	EvidenceIDs           []string                 `json:"evidenceIds"`
-	ControlRefs           []poamControlRefRequest  `json:"controlRefs"`
-	FindingIDs            []string                 `json:"findingIds"`
+	SourceType            string                   `json:"source-type"`
+	PrimaryOwnerUserID    *string                  `json:"primary-owner-user-id"`
+	PlannedCompletionDate *time.Time               `json:"planned-completion-date"`
+	CreatedFromRiskID     *string                  `json:"created-from-risk-id"`
+	AcceptanceRationale   *string                  `json:"acceptance-rationale"`
+	ResourceRequired      *string                  `json:"resource-required"`
+	RiskIDs               []string                 `json:"risk-ids"`
+	EvidenceIDs           []string                 `json:"evidence-ids"`
+	ControlRefs           []poamControlRefRequest  `json:"control-refs"`
+	FindingIDs            []string                 `json:"finding-ids"`
 	Milestones            []createMilestoneRequest `json:"milestones"`
 }
 
@@ -98,40 +98,40 @@ type updatePoamItemRequest struct {
 	Title                 *string    `json:"title"`
 	Description           *string    `json:"description"`
 	Status                *string    `json:"status"`
-	PrimaryOwnerUserID    *string    `json:"primaryOwnerUserId"`
-	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
-	AcceptanceRationale   *string    `json:"acceptanceRationale"`
+	PrimaryOwnerUserID    *string    `json:"primary-owner-user-id"`
+	PlannedCompletionDate *time.Time `json:"planned-completion-date"`
+	AcceptanceRationale   *string    `json:"acceptance-rationale"`
 	// Link management — add/remove in the same call as scalar updates.
-	AddRiskIDs        []string                `json:"addRiskIds"`
-	RemoveRiskIDs     []string                `json:"removeRiskIds"`
-	AddEvidenceIDs    []string                `json:"addEvidenceIds"`
-	RemoveEvidenceIDs []string                `json:"removeEvidenceIds"`
-	AddControlRefs    []poamControlRefRequest `json:"addControlRefs"`
-	RemoveControlRefs []poamControlRefRequest `json:"removeControlRefs"`
-	AddFindingIDs     []string                `json:"addFindingIds"`
-	RemoveFindingIDs  []string                `json:"removeFindingIds"`
+	AddRiskIDs        []string                `json:"add-risk-ids"`
+	RemoveRiskIDs     []string                `json:"remove-risk-ids"`
+	AddEvidenceIDs    []string                `json:"add-evidence-ids"`
+	RemoveEvidenceIDs []string                `json:"remove-evidence-ids"`
+	AddControlRefs    []poamControlRefRequest `json:"add-control-refs"`
+	RemoveControlRefs []poamControlRefRequest `json:"remove-control-refs"`
+	AddFindingIDs     []string                `json:"add-finding-ids"`
+	RemoveFindingIDs  []string                `json:"remove-finding-ids"`
 }
 
 type createMilestoneRequest struct {
 	Title                 string     `json:"title"    validate:"required"`
 	Description           string     `json:"description"`
 	Status                string     `json:"status"`
-	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
-	ResponsibleParty      *string    `json:"responsibleParty"`
+	PlannedCompletionDate *time.Time `json:"planned-completion-date"`
+	ResponsibleParty      *string    `json:"responsible-party"`
 	Remarks               *string    `json:"remarks"`
 	// OrderIndex is a pointer so that clients can explicitly set 0 without it
 	// being indistinguishable from an omitted field.
-	OrderIndex *int `json:"orderIndex"`
+	OrderIndex *int `json:"order-index"`
 }
 
 type updateMilestoneRequest struct {
 	Title                 *string    `json:"title"`
 	Description           *string    `json:"description"`
 	Status                *string    `json:"status"`
-	PlannedCompletionDate *time.Time `json:"plannedCompletionDate"`
-	ResponsibleParty      *string    `json:"responsibleParty"`
+	PlannedCompletionDate *time.Time `json:"planned-completion-date"`
+	ResponsibleParty      *string    `json:"responsible-party"`
 	Remarks               *string    `json:"remarks"`
-	OrderIndex            *int       `json:"orderIndex"`
+	OrderIndex            *int       `json:"order-index"`
 }
 
 type addLinkRequest struct {
@@ -146,28 +146,28 @@ type poamControlRefRequest struct {
 // Response types — thin wrappers that avoid exposing raw GORM models.
 
 type riskLinkResponse struct {
-	PoamItemID uuid.UUID `json:"poamItemId"`
-	RiskID     uuid.UUID `json:"riskId"`
-	CreatedAt  time.Time `json:"createdAt"`
+	PoamItemID uuid.UUID `json:"poam-item-id"`
+	RiskID     uuid.UUID `json:"risk-id"`
+	CreatedAt  time.Time `json:"created-at"`
 }
 
 type evidenceLinkResponse struct {
-	PoamItemID uuid.UUID `json:"poamItemId"`
-	EvidenceID uuid.UUID `json:"evidenceId"`
-	CreatedAt  time.Time `json:"createdAt"`
+	PoamItemID uuid.UUID `json:"poam-item-id"`
+	EvidenceID uuid.UUID `json:"evidence-id"`
+	CreatedAt  time.Time `json:"created-at"`
 }
 
 type controlLinkResponse struct {
-	PoamItemID uuid.UUID `json:"poamItemId"`
-	CatalogID  uuid.UUID `json:"catalogId"`
-	ControlID  string    `json:"controlId"`
-	CreatedAt  time.Time `json:"createdAt"`
+	PoamItemID uuid.UUID `json:"poam-item-id"`
+	CatalogID  uuid.UUID `json:"catalog-id"`
+	ControlID  string    `json:"control-id"`
+	CreatedAt  time.Time `json:"created-at"`
 }
 
 type findingLinkResponse struct {
-	PoamItemID uuid.UUID `json:"poamItemId"`
-	FindingID  uuid.UUID `json:"findingId"`
-	CreatedAt  time.Time `json:"createdAt"`
+	PoamItemID uuid.UUID `json:"poam-item-id"`
+	FindingID  uuid.UUID `json:"finding-id"`
+	CreatedAt  time.Time `json:"created-at"`
 }
 
 type poamItemResponse struct {
@@ -180,7 +180,6 @@ type poamItemResponse struct {
 	PrimaryOwnerUserID    *uuid.UUID             `json:"primaryOwnerUserId,omitempty"`
 	PlannedCompletionDate *time.Time             `json:"plannedCompletionDate,omitempty"`
 	CompletedAt           *time.Time             `json:"completedAt,omitempty"`
-	CreatedFromRiskID     *uuid.UUID             `json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string                `json:"acceptanceRationale,omitempty"`
 	ResourceRequired      *string                `json:"resourceRequired,omitempty"`
 	LastStatusChangeAt    time.Time              `json:"lastStatusChangeAt"`
@@ -195,7 +194,7 @@ type poamItemResponse struct {
 
 type milestoneResponse struct {
 	ID                    uuid.UUID  `json:"id"`
-	PoamItemID            uuid.UUID  `json:"poamItemId"`
+	PoamItemID            uuid.UUID  `json:"poam-item-id"`
 	Title                 string     `json:"title"`
 	Description           string     `json:"description"`
 	Status                string     `json:"status"`
@@ -219,7 +218,6 @@ func toPoamItemResponse(item *poamsvc.PoamItem) poamItemResponse {
 		PrimaryOwnerUserID:    item.PrimaryOwnerUserID,
 		PlannedCompletionDate: item.PlannedCompletionDate,
 		CompletedAt:           item.CompletedAt,
-		CreatedFromRiskID:     item.CreatedFromRiskID,
 		AcceptanceRationale:   item.AcceptanceRationale,
 		ResourceRequired:      item.ResourceRequired,
 		LastStatusChangeAt:    item.LastStatusChangeAt,
@@ -385,17 +383,16 @@ func (h *PoamItemsHandler) Create(c echo.Context) error {
 		}
 		params.PrimaryOwnerUserID = &ownerID
 	}
-	if in.CreatedFromRiskID != nil {
-		riskID, err := uuid.Parse(*in.CreatedFromRiskID)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("createdFromRiskId must be a valid UUID")))
-		}
-		params.CreatedFromRiskID = &riskID
-	}
-
 	riskIDs, err := parseUUIDs(in.RiskIDs, "riskIds")
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if in.CreatedFromRiskID != nil {
+		riskID, err := uuid.Parse(*in.CreatedFromRiskID)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, api.NewError(fmt.Errorf("created-from-risk-id must be a valid UUID")))
+		}
+		riskIDs = append(riskIDs, riskID)
 	}
 	params.RiskIDs = riskIDs
 
@@ -1252,10 +1249,14 @@ func parsePoamListFilters(c echo.Context) (poamsvc.ListFilters, error) {
 		f.SspID = &id
 	}
 
-	if s := c.QueryParam("riskId"); s != "" {
-		id, err := uuid.Parse(s)
+	riskIDParam := c.QueryParam("riskId")
+	if riskIDParam == "" {
+		riskIDParam = c.QueryParam("risk-id")
+	}
+	if riskIDParam != "" {
+		id, err := uuid.Parse(riskIDParam)
 		if err != nil {
-			return f, fmt.Errorf("riskId must be a valid UUID")
+			return f, fmt.Errorf("riskId/risk-id must be a valid UUID")
 		}
 		f.RiskID = &id
 	}

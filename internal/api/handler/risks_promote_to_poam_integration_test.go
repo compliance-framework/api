@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -28,12 +29,12 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 
 	// Create a risk directly in investigating status with an explicit owner.
 	created := suite.createRisk(map[string]any{
-		"title":                "Unencrypted data at rest",
-		"description":          "Sensitive data stored without encryption",
-		"ssp-id":               sspID,
-		"status":               "investigating",
-		"likelihood":           "high",
-		"impact":               "critical",
+		"title":                 "Unencrypted data at rest",
+		"description":           "Sensitive data stored without encryption",
+		"ssp-id":                sspID,
+		"status":                "investigating",
+		"likelihood":            "high",
+		"impact":                "critical",
 		"primary-owner-user-id": ownerID.String(),
 	})
 
@@ -59,8 +60,6 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_HappyPath() {
 	require.Equal(suite.T(), "Sensitive data stored without encryption", poamResp.Data.Description)
 	require.Equal(suite.T(), "open", poamResp.Data.Status)
 	require.Equal(suite.T(), "risk-promotion", poamResp.Data.SourceType)
-	require.NotNil(suite.T(), poamResp.Data.CreatedFromRiskID)
-	require.Equal(suite.T(), created.ID.String(), poamResp.Data.CreatedFromRiskID.String())
 	require.NotNil(suite.T(), poamResp.Data.PlannedCompletionDate)
 	require.WithinDuration(suite.T(), deadline, *poamResp.Data.PlannedCompletionDate, time.Second)
 	// PrimaryOwnerUserID should be inherited from the risk's explicit owner.
@@ -201,10 +200,10 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_SSPScoped_HappyPath() {
 	sspOwnerID := uuid.New()
 
 	created := suite.createRisk(map[string]any{
-		"title":                "SSP-scoped promotion risk",
-		"description":          "Testing SSP-scoped promote endpoint",
-		"ssp-id":               sspID,
-		"status":               "investigating",
+		"title":                 "SSP-scoped promotion risk",
+		"description":           "Testing SSP-scoped promote endpoint",
+		"ssp-id":                sspID,
+		"status":                "investigating",
 		"primary-owner-user-id": sspOwnerID.String(),
 	})
 
@@ -345,3 +344,76 @@ func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_CompletionAdvancesRiskSt
 	require.Equal(suite.T(), int64(1), completedEvents)
 }
 
+// TestPromoteToPoam_CompletionWaitsForAllLinkedPoamItems verifies that a risk
+// is only advanced once every linked POAM item is completed.
+func (suite *RiskApiIntegrationSuite) TestPromoteToPoam_CompletionWaitsForAllLinkedPoamItems() {
+	sspID := suite.newSSPID()
+	sspUUID, err := uuid.Parse(sspID)
+	require.NoError(suite.T(), err)
+
+	created := suite.createRisk(map[string]any{
+		"title":       "Multi-POAM risk",
+		"description": "Risk should wait for all linked POAM items",
+		"ssp-id":      sspID,
+		"status":      "investigating",
+	})
+
+	promoteRec, promoteReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/promote-to-poam", created.ID), map[string]any{})
+	suite.server.E().ServeHTTP(promoteRec, promoteReq)
+	require.Equal(suite.T(), http.StatusCreated, promoteRec.Code, "promote should succeed: %s", promoteRec.Body.String())
+
+	var firstPoamResp GenericDataResponse[poamItemResponse]
+	require.NoError(suite.T(), json.Unmarshal(promoteRec.Body.Bytes(), &firstPoamResp))
+
+	secondPoam := poamsvc.PoamItem{
+		ID:                 uuid.New(),
+		SspID:              sspUUID,
+		Title:              "Second linked POAM item",
+		Description:        "Still in progress",
+		Status:             string(poamsvc.PoamItemStatusOpen),
+		SourceType:         string(poamsvc.PoamItemSourceTypeManual),
+		LastStatusChangeAt: time.Now().UTC(),
+	}
+	require.NoError(suite.T(), suite.DB.Create(&secondPoam).Error)
+	require.NoError(suite.T(), suite.DB.Create(&poamsvc.PoamItemRiskLink{
+		PoamItemID: secondPoam.ID,
+		RiskID:     created.ID,
+	}).Error)
+
+	completeFirstRec, completeFirstReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", firstPoamResp.Data.ID), map[string]any{
+		"status": "completed",
+	})
+	suite.server.E().ServeHTTP(completeFirstRec, completeFirstReq)
+	require.Equal(suite.T(), http.StatusOK, completeFirstRec.Code, "first POAM completion should succeed: %s", completeFirstRec.Body.String())
+
+	getRec, getReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(getRec, getReq)
+	require.Equal(suite.T(), http.StatusOK, getRec.Code)
+	var riskResp GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec.Body.Bytes(), &riskResp))
+	require.Equal(suite.T(), "mitigating-planned", riskResp.Data.Status, "risk should remain mitigating-planned while another linked POAM item is still active")
+
+	var completedEvents int64
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", created.ID, string(riskrel.RiskEventTypePoamCompleted)).
+		Count(&completedEvents).Error)
+	require.Equal(suite.T(), int64(0), completedEvents)
+
+	completeSecondRec, completeSecondReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/poam-items/%s", secondPoam.ID), map[string]any{
+		"status": "completed",
+	})
+	suite.server.E().ServeHTTP(completeSecondRec, completeSecondReq)
+	require.Equal(suite.T(), http.StatusOK, completeSecondRec.Code, "second POAM completion should succeed: %s", completeSecondRec.Body.String())
+
+	getRec2, getReq2 := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s", created.ID), nil)
+	suite.server.E().ServeHTTP(getRec2, getReq2)
+	require.Equal(suite.T(), http.StatusOK, getRec2.Code)
+	var riskResp2 GenericDataResponse[riskResponse]
+	require.NoError(suite.T(), json.Unmarshal(getRec2.Body.Bytes(), &riskResp2))
+	require.Equal(suite.T(), "mitigating-implemented", riskResp2.Data.Status, "risk should advance only after all linked POAM items are completed")
+
+	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).
+		Where("risk_id = ? AND event_type = ?", created.ID, string(riskrel.RiskEventTypePoamCompleted)).
+		Count(&completedEvents).Error)
+	require.Equal(suite.T(), int64(1), completedEvents)
+}

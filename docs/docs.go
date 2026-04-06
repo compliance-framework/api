@@ -21970,7 +21970,7 @@ const docTemplate = `{
         },
         "/risks/{id}/review": {
             "post": {
-                "description": "Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented.",
+                "description": "Records a structured review. For decision=extend, nextReviewDeadline is required and risk must be risk-accepted. For decision=reopen, nextReviewDeadline must be omitted and risk must be risk-accepted. For decision=reassess, likelihood and impact are required, nextReviewDeadline must be omitted, and risk must be open/investigating/mitigating-implemented. For decision=implement, nextReviewDeadline must be omitted and risk must be mitigating-planned.",
                 "consumes": [
                     "application/json"
                 ],
@@ -28205,16 +28205,16 @@ const docTemplate = `{
         "handler.controlLinkResponse": {
             "type": "object",
             "properties": {
-                "catalogId": {
+                "catalog-id": {
                     "type": "string"
                 },
-                "controlId": {
+                "control-id": {
                     "type": "string"
                 },
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
-                "poamItemId": {
+                "poam-item-id": {
                     "type": "string"
                 }
             }
@@ -28255,17 +28255,17 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "orderIndex": {
+                "order-index": {
                     "description": "OrderIndex is a pointer so that clients can explicitly set 0 without it\nbeing indistinguishable from an omitted field.",
                     "type": "integer"
                 },
-                "plannedCompletionDate": {
+                "planned-completion-date": {
                     "type": "string"
                 },
                 "remarks": {
                     "type": "string"
                 },
-                "responsibleParty": {
+                "responsible-party": {
                     "type": "string"
                 },
                 "status": {
@@ -28279,32 +28279,32 @@ const docTemplate = `{
         "handler.createPoamItemRequest": {
             "type": "object",
             "required": [
-                "sspId",
+                "ssp-id",
                 "title"
             ],
             "properties": {
-                "acceptanceRationale": {
+                "acceptance-rationale": {
                     "type": "string"
                 },
-                "controlRefs": {
+                "control-refs": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.poamControlRefRequest"
                     }
                 },
-                "createdFromRiskId": {
+                "created-from-risk-id": {
                     "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
-                "evidenceIds": {
+                "evidence-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "findingIds": {
+                "finding-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -28316,25 +28316,25 @@ const docTemplate = `{
                         "$ref": "#/definitions/handler.createMilestoneRequest"
                     }
                 },
-                "plannedCompletionDate": {
+                "planned-completion-date": {
                     "type": "string"
                 },
-                "primaryOwnerUserId": {
+                "primary-owner-user-id": {
                     "type": "string"
                 },
-                "resourceRequired": {
+                "resource-required": {
                     "type": "string"
                 },
-                "riskIds": {
+                "risk-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "sourceType": {
+                "source-type": {
                     "type": "string"
                 },
-                "sspId": {
+                "ssp-id": {
                     "type": "string"
                 },
                 "status": {
@@ -28401,13 +28401,13 @@ const docTemplate = `{
         "handler.evidenceLinkResponse": {
             "type": "object",
             "properties": {
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
-                "evidenceId": {
+                "evidence-id": {
                     "type": "string"
                 },
-                "poamItemId": {
+                "poam-item-id": {
                     "type": "string"
                 }
             }
@@ -28415,13 +28415,13 @@ const docTemplate = `{
         "handler.findingLinkResponse": {
             "type": "object",
             "properties": {
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
-                "findingId": {
+                "finding-id": {
                     "type": "string"
                 },
-                "poamItemId": {
+                "poam-item-id": {
                     "type": "string"
                 }
             }
@@ -28447,7 +28447,7 @@ const docTemplate = `{
                 "plannedCompletionDate": {
                     "type": "string"
                 },
-                "poamItemId": {
+                "poam-item-id": {
                     "type": "string"
                 },
                 "remarks": {
@@ -28498,9 +28498,6 @@ const docTemplate = `{
                     }
                 },
                 "createdAt": {
-                    "type": "string"
-                },
-                "createdFromRiskId": {
                     "type": "string"
                 },
                 "description": {
@@ -28700,13 +28697,13 @@ const docTemplate = `{
         "handler.riskLinkResponse": {
             "type": "object",
             "properties": {
-                "createdAt": {
+                "created-at": {
                     "type": "string"
                 },
-                "poamItemId": {
+                "poam-item-id": {
                     "type": "string"
                 },
-                "riskId": {
+                "risk-id": {
                     "type": "string"
                 }
             }
@@ -28891,16 +28888,16 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "orderIndex": {
+                "order-index": {
                     "type": "integer"
                 },
-                "plannedCompletionDate": {
+                "planned-completion-date": {
                     "type": "string"
                 },
                 "remarks": {
                     "type": "string"
                 },
-                "responsibleParty": {
+                "responsible-party": {
                     "type": "string"
                 },
                 "status": {
@@ -28914,28 +28911,28 @@ const docTemplate = `{
         "handler.updatePoamItemRequest": {
             "type": "object",
             "properties": {
-                "acceptanceRationale": {
+                "acceptance-rationale": {
                     "type": "string"
                 },
-                "addControlRefs": {
+                "add-control-refs": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.poamControlRefRequest"
                     }
                 },
-                "addEvidenceIds": {
+                "add-evidence-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "addFindingIds": {
+                "add-finding-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "addRiskIds": {
+                "add-risk-ids": {
                     "description": "Link management — add/remove in the same call as scalar updates.",
                     "type": "array",
                     "items": {
@@ -28945,31 +28942,31 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "plannedCompletionDate": {
+                "planned-completion-date": {
                     "type": "string"
                 },
-                "primaryOwnerUserId": {
+                "primary-owner-user-id": {
                     "type": "string"
                 },
-                "removeControlRefs": {
+                "remove-control-refs": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.poamControlRefRequest"
                     }
                 },
-                "removeEvidenceIds": {
+                "remove-evidence-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "removeFindingIds": {
+                "remove-finding-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "removeRiskIds": {
+                "remove-risk-ids": {
                     "type": "array",
                     "items": {
                         "type": "string"
