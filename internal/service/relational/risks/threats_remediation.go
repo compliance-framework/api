@@ -142,8 +142,8 @@ func validateRiskRemediationTemplate(input *RiskRemediationTemplateInput) error 
 		if err := validateRiskAssociationText("remediationTemplate.tasks.title", task.Title); err != nil {
 			return err
 		}
-		if task.OrderIndex <= 0 {
-			return newValidationError("remediationTemplate.tasks.orderIndex must be greater than 0")
+		if task.OrderIndex < 0 {
+			return newValidationError("remediationTemplate.tasks.orderIndex must be greater than or equal to 0")
 		}
 		if _, exists := seenOrder[task.OrderIndex]; exists {
 			return newValidationError("remediationTemplate.tasks.orderIndex must be unique")

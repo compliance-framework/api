@@ -1,6 +1,6 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian.
-FROM golang:1.25 AS local
+FROM golang:1.26 AS local
 
 # Create and change to the app directory.
 WORKDIR /app
@@ -13,7 +13,7 @@ RUN make swag
 
 CMD ["go", "tool", "air"]
 
-FROM golang:1.25 AS builder
+FROM golang:1.26 AS builder
 
 # Create and change to the app directory.
 WORKDIR /app

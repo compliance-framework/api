@@ -76,7 +76,6 @@ type PoamItem struct {
 	PrimaryOwnerUserID    *uuid.UUID `gorm:"type:uuid"                                 json:"primaryOwnerUserId,omitempty"`
 	PlannedCompletionDate *time.Time `                                                 json:"plannedCompletionDate,omitempty"`
 	CompletedAt           *time.Time `                                                 json:"completedAt,omitempty"`
-	CreatedFromRiskID     *uuid.UUID `gorm:"type:uuid"                                 json:"createdFromRiskId,omitempty"`
 	AcceptanceRationale   *string    `                                                 json:"acceptanceRationale,omitempty"`
 	// ResourceRequired is a free-text planning field describing effort or budget needed.
 	// Point-of-contact identity is expressed via PrimaryOwnerUserID (a FK to the users table)
