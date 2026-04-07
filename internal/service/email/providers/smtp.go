@@ -185,47 +185,47 @@ func (p *smtpProvider) buildEmailMessage(from, fromName string, message *types.M
 
 	// Headers
 	if fromName != "" {
-		msg.WriteString(fmt.Sprintf("From: %s <%s>\r\n", fromName, from))
+		fmt.Fprintf(&msg, "From: %s <%s>\r\n", fromName, from)
 	} else {
-		msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
+		fmt.Fprintf(&msg, "From: %s\r\n", from)
 	}
 
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(message.To, ", ")))
+	fmt.Fprintf(&msg, "To: %s\r\n", strings.Join(message.To, ", "))
 
 	if len(message.Cc) > 0 {
-		msg.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(message.Cc, ", ")))
+		fmt.Fprintf(&msg, "Cc: %s\r\n", strings.Join(message.Cc, ", "))
 	}
 
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", message.Subject))
+	fmt.Fprintf(&msg, "Subject: %s\r\n", message.Subject)
 	msg.WriteString("MIME-Version: 1.0\r\n")
 
 	// Add custom headers
 	for key, value := range message.Headers {
-		msg.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+		fmt.Fprintf(&msg, "%s: %s\r\n", key, value)
 	}
 
 	// Build body
 	if message.HTMLBody != "" && message.TextBody != "" {
 		// Multipart message
 		boundary := fmt.Sprintf("boundary_%d", time.Now().UnixNano())
-		msg.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary))
+		fmt.Fprintf(&msg, "Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary)
 		msg.WriteString("\r\n")
 
 		// Text part
-		msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		fmt.Fprintf(&msg, "--%s\r\n", boundary)
 		msg.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
 		msg.WriteString("\r\n")
 		msg.WriteString(message.TextBody)
 		msg.WriteString("\r\n")
 
 		// HTML part
-		msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		fmt.Fprintf(&msg, "--%s\r\n", boundary)
 		msg.WriteString("Content-Type: text/html; charset=utf-8\r\n")
 		msg.WriteString("\r\n")
 		msg.WriteString(message.HTMLBody)
 		msg.WriteString("\r\n")
 
-		msg.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+		fmt.Fprintf(&msg, "--%s--\r\n", boundary)
 	} else if message.HTMLBody != "" {
 		// HTML only
 		msg.WriteString("Content-Type: text/html; charset=utf-8\r\n")

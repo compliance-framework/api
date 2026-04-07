@@ -297,6 +297,50 @@ func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByRiskId() {
 	assert.Equal(suite.T(), item1.ID, resp.Data[0].ID)
 }
 
+func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByRiskId_ReturnsAllMatchingItems() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	riskID := uuid.New()
+	item1 := suite.seedItem(sspID, "Linked item 1", "open")
+	item2 := suite.seedItem(sspID, "Linked item 2", "in-progress")
+	suite.seedItem(sspID, "Unlinked item", "open")
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item1.ID, RiskID: riskID}).Error)
+	suite.Require().NoError(suite.DB.Create(&poamsvc.PoamItemRiskLink{PoamItemID: item2.ID, RiskID: riskID}).Error)
+
+	rec, req := suite.authedReq(http.MethodGet, fmt.Sprintf("/api/poam-items?risk-id=%s", riskID), nil)
+	suite.newServer().E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusOK, rec.Code)
+
+	var resp GenericDataListResponse[poamItemResponse]
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Len(suite.T(), resp.Data, 2)
+	assert.ElementsMatch(suite.T(), []uuid.UUID{item1.ID, item2.ID}, []uuid.UUID{resp.Data[0].ID, resp.Data[1].ID})
+}
+
+func (suite *PoamItemsApiIntegrationSuite) TestCreate_CreatedFromRiskIdCreatesRiskLink() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+	sspID := uuid.New()
+	suite.ensureSSP(sspID)
+	riskID := uuid.New()
+	riskIDStr := riskID.String()
+
+	createdFromOnly := createPoamItemRequest{
+		SspID:             sspID.String(),
+		Title:             "Created from risk only",
+		Description:       "Created from a risk without an explicit risk link",
+		Status:            "open",
+		CreatedFromRiskID: &riskIDStr,
+	}
+	rawCreatedFromOnly, _ := json.Marshal(createdFromOnly)
+	recCreatedFromOnly, reqCreatedFromOnly := suite.authedReq(http.MethodPost, "/api/poam-items", rawCreatedFromOnly)
+	suite.newServer().E().ServeHTTP(recCreatedFromOnly, reqCreatedFromOnly)
+	assert.Equal(suite.T(), http.StatusCreated, recCreatedFromOnly.Code)
+	var resp GenericDataResponse[poamItemResponse]
+	suite.Require().NoError(json.Unmarshal(recCreatedFromOnly.Body.Bytes(), &resp))
+	assert.Len(suite.T(), resp.Data.RiskLinks, 1)
+	assert.Equal(suite.T(), riskID, resp.Data.RiskLinks[0].RiskID)
+}
+
 func (suite *PoamItemsApiIntegrationSuite) TestList_FilterByDueBefore() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 	sspID := uuid.New()
@@ -943,4 +987,3 @@ func (suite *PoamItemsApiIntegrationSuite) TestCreate_DuplicateRiskLink_IsIdempo
 	suite.DB.Model(&poamsvc.PoamItemRiskLink{}).Where("poam_item_id = ? AND risk_id = ?", item.ID, riskID).Count(&count)
 	assert.Equal(suite.T(), int64(1), count, "only one risk link should exist")
 }
-

@@ -134,7 +134,6 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 	}
 
 	// 7. Build the POAM item creation params.
-	riskID := params.RiskID
 	createParams := poamsvc.CreatePoamItemParams{
 		SspID:                 risk.SSPID,
 		Title:                 title,
@@ -143,7 +142,6 @@ func (s *RiskService) PromoteToPoam(poamSvc *poamsvc.PoamService, params Promote
 		SourceType:            string(poamsvc.PoamItemSourceTypeRiskPromotion),
 		PrimaryOwnerUserID:    coalesceUUID(params.PrimaryOwnerUserID, risk.PrimaryOwnerUserID),
 		PlannedCompletionDate: params.Deadline,
-		CreatedFromRiskID:     &riskID,
 		ResourceRequired:      params.ResourceRequired,
 		RiskIDs:               []uuid.UUID{params.RiskID},
 		Milestones:            templateMilestones,

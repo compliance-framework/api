@@ -43,6 +43,22 @@ func (h *EvidenceHandler) Register(api *echo.Group) {
 	api.GET("/compliance-by-filter/:id", h.ComplianceByFilter)
 }
 
+func (h *EvidenceHandler) RegisterCreate(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.POST("", h.Create, middlewares...)
+}
+
+func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group) {
+	api.GET("/:id", h.Get)
+	api.GET("/history/:id", h.History)
+	api.GET("/latest/:id", h.Latest)
+	api.POST("/search", h.Search)
+	api.GET("/for-control/:id", h.ForControl)
+	api.GET("/status-over-time/:id", h.StatusOverTimeByUUID)
+	api.POST("/status-over-time", h.StatusOverTime)
+	api.GET("/compliance-by-control/:id", h.ComplianceByControl)
+	api.GET("/compliance-by-filter/:id", h.ComplianceByFilter)
+}
+
 type EvidenceActivityStep struct {
 	UUID        uuid.UUID
 	Title       string

@@ -197,6 +197,18 @@ func (suite *RiskApiIntegrationSuite) TestRiskStatusTransitions() {
 	suite.server.E().ServeHTTP(toImplementedRec, toImplementedReq)
 	require.Equal(suite.T(), http.StatusOK, toImplementedRec.Code)
 
+	backToInvestigatingRec, backToInvestigatingReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "investigating"})
+	suite.server.E().ServeHTTP(backToInvestigatingRec, backToInvestigatingReq)
+	require.Equal(suite.T(), http.StatusOK, backToInvestigatingRec.Code)
+
+	toPlannedAgainRec, toPlannedAgainReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "mitigating-planned"})
+	suite.server.E().ServeHTTP(toPlannedAgainRec, toPlannedAgainReq)
+	require.Equal(suite.T(), http.StatusOK, toPlannedAgainRec.Code)
+
+	toImplementedAgainRec, toImplementedAgainReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "mitigating-implemented"})
+	suite.server.E().ServeHTTP(toImplementedAgainRec, toImplementedAgainReq)
+	require.Equal(suite.T(), http.StatusOK, toImplementedAgainRec.Code)
+
 	toClosedRec, toClosedReq := suite.authedRequest(http.MethodPut, fmt.Sprintf("/api/risks/%s", fullPathRisk.ID), map[string]any{"status": "closed"})
 	suite.server.E().ServeHTTP(toClosedRec, toClosedReq)
 	require.Equal(suite.T(), http.StatusOK, toClosedRec.Code)

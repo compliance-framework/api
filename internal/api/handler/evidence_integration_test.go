@@ -36,9 +36,21 @@ type EvidenceApiIntegrationSuite struct {
 	tests.IntegrationTestSuite
 }
 
+func (suite *EvidenceApiIntegrationSuite) setupServer() *api.Server {
+	logger, _ := zap.NewDevelopment()
+	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
+	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
+	services := &APIServices{}
+	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
+	services.EvidenceService = evidenceSvc
+	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+	return server
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
 
 	// Create two catalogs with the same group ID structure
 	evidence := EvidenceCreateRequest{
@@ -156,13 +168,7 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 		},
 	}
 
-	logger, _ := zap.NewDevelopment()
-	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
-	server := api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
-	services := &APIServices{}
-	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger.Sugar(), suite.Config, nil)
-	services.EvidenceService = evidenceSvc
-	RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+	server := suite.setupServer()
 	rec := httptest.NewRecorder()
 	reqBody, _ := json.Marshal(evidence)
 	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
@@ -174,6 +180,82 @@ func (suite *EvidenceApiIntegrationSuite) TestCreate() {
 	// Counting users with specific names
 	suite.DB.Model(&relational.Evidence{}).Count(&count)
 	suite.Equal(int64(1), count)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateRequiresAgentAuthWhenUnsafeDisabled() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateWithAgentTokenWhenUnsafeDisabled() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+
+	server := suite.setupServer()
+	agent, err := suite.CreateAgent("evidence-agent")
+	suite.Require().NoError(err)
+	key, _, err := suite.CreateAgentKey(agent, "evidence-key")
+	suite.Require().NoError(err)
+	token, err := suite.GetAgentToken(agent, key)
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateRejectsExpiredAgentKeyWhenUnsafeDisabled() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+
+	server := suite.setupServer()
+	agent, err := suite.CreateAgent("expired-evidence-agent")
+	suite.Require().NoError(err)
+	key, _, err := suite.CreateAgentKey(agent, "expired-evidence-key")
+	suite.Require().NoError(err)
+	expiresAt := time.Now().UTC().Add(-time.Minute)
+	key.ExpiresAt = &expiresAt
+	suite.Require().NoError(suite.DB.Save(key).Error)
+	token, err := suite.GetAgentToken(agent, key)
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusForbidden, rec.Code)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestSearch() {

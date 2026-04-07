@@ -46,10 +46,14 @@ func ApplyFilters(query *gorm.DB, filters ListFilters) *gorm.DB {
 		)
 	}
 	if filters.RiskID != nil {
-		q = q.Joins(
-			"JOIN ccf_poam_item_risk_links rl ON rl.poam_item_id = ccf_poam_items.id AND rl.risk_id = ?",
-			*filters.RiskID,
-		)
+		// Filter through a subquery so the list query still returns one row per
+		// POAM item even when multiple matches or future joins are involved.
+		riskLinkSubquery := query.
+			Session(&gorm.Session{NewDB: true}).
+			Table("ccf_poam_item_risk_links").
+			Select("poam_item_id").
+			Where("risk_id = ?", *filters.RiskID)
+		q = q.Where("ccf_poam_items.id IN (?)", riskLinkSubquery)
 	}
 
 	return q

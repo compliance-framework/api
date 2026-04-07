@@ -142,6 +142,9 @@ func MigrateUp(db *gorm.DB) error {
 		&poamrel.PoamItemControlLink{},
 		&poamrel.PoamItemFindingLink{},
 		&relational.User{},
+		&relational.Agent{},
+		&relational.AgentServiceAccountKey{},
+		&relational.AgentAuthEvent{},
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Labels{},
@@ -354,6 +357,9 @@ func MigrateDown(db *gorm.DB) error {
 		&poamrel.PoamItemMilestone{},
 		&poamrel.PoamItem{},
 
+		&relational.AgentAuthEvent{},
+		&relational.AgentServiceAccountKey{},
+		&relational.Agent{},
 		&relational.User{},
 
 		&Heartbeat{},
