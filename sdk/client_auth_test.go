@@ -26,6 +26,21 @@ func newAuthenticatedTestClient(handler roundTripFunc) *Client {
 	})
 }
 
+type trackingReader struct {
+	data  []byte
+	reads int
+}
+
+func (r *trackingReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	r.reads++
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
 func TestClientAgentAuthUsesTokenEndpointWithBasicAuth(t *testing.T) {
 	var (
 		mu                     sync.Mutex
@@ -104,6 +119,37 @@ func TestClientNewRequestLeavesRequestUnauthenticatedWithoutAgentAuth(t *testing
 
 	if authHeader != "" {
 		t.Fatalf("expected no authorization header, got %q", authHeader)
+	}
+}
+
+func TestClientNewRequestDoesNotPrebufferBodyWithoutAgentAuth(t *testing.T) {
+	reader := &trackingReader{data: []byte(`{"hello":"world"}`)}
+	readCountBeforeRoundTrip := -1
+
+	client := NewClient(&http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		readCountBeforeRoundTrip = reader.reads
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if string(body) != `{"hello":"world"}` {
+			t.Fatalf("unexpected body %q", string(body))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
+	})}, &Config{BaseURL: "http://example.test"})
+
+	resp, err := client.NewRequest(context.Background(), http.MethodPost, "/api/test", reader)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	closeResponseBody(resp, nil)
+
+	if readCountBeforeRoundTrip != 0 {
+		t.Fatalf("expected request body to remain unread before round trip, got %d reads", readCountBeforeRoundTrip)
 	}
 }
 

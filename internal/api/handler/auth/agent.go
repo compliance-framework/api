@@ -90,7 +90,7 @@ func (h *AuthHandler) GetAgentToken(ctx echo.Context) error {
 
 	return ctx.JSON(http.StatusOK, &agentTokenResponse{
 		AccessToken: *token,
-		TokenType:   "bearer",
+		TokenType:   "Bearer",
 		ExpiresIn:   86400,
 	})
 }

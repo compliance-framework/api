@@ -47,7 +47,7 @@ func AgentJWTOrPublicMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPubl
 				return err
 			}
 
-			c.Set("agent", claims)
+			c.Set("agent_claims", claims)
 			c.Set("agent_auth", &AgentAuthContext{
 				Claims: claims,
 				Agent:  agent,

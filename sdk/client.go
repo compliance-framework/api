@@ -70,6 +70,10 @@ func NewClient(client *http.Client, config *Config) *Client {
 }
 
 func (c *Client) NewRequest(ctx context.Context, method string, path string, reader io.Reader) (*http.Response, error) {
+	if !c.hasAgentAuth() {
+		return c.executeStreamingRequest(ctx, method, path, reader, "")
+	}
+
 	body, err := readRequestBody(reader)
 	if err != nil {
 		return nil, err
@@ -121,9 +125,13 @@ func (c *Client) doRequest(ctx context.Context, method string, path string, body
 }
 
 func (c *Client) executeRequest(ctx context.Context, method string, path string, body []byte, authorization string) (*http.Response, error) {
+	return c.executeStreamingRequest(ctx, method, path, bytes.NewReader(body), authorization)
+}
+
+func (c *Client) executeStreamingRequest(ctx context.Context, method string, path string, body io.Reader, authorization string) (*http.Response, error) {
 	path = strings.TrimPrefix(path, "/")
 	url := strings.TrimSuffix(c.config.BaseURL, "/")
-	req, err := http.NewRequestWithContext(ctx, method, fmt.Sprintf("%s/%s", url, path), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, fmt.Sprintf("%s/%s", url, path), body)
 	if err != nil {
 		return nil, err
 	}
