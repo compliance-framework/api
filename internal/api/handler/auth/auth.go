@@ -43,6 +43,7 @@ func NewAuthHandler(logger *zap.SugaredLogger, db *gorm.DB, config *config.Confi
 func (h *AuthHandler) Register(api *echo.Group) {
 	api.POST("/login", h.LoginUser)
 	api.POST("/token", h.GetOAuth2Token)
+	api.POST("/agent/token", h.GetAgentToken)
 	api.GET("/publickey.pub", h.GetPublicKeyPEM)
 	api.GET("/publickey", h.GetJWK)
 

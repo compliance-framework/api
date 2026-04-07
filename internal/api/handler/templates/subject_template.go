@@ -36,8 +36,8 @@ func (h *SubjectTemplateHandler) Register(apiGroup *echo.Group) {
 	apiGroup.PUT("/:id", h.Update)
 }
 
-func (h *SubjectTemplateHandler) RegisterAgent(apiGroup *echo.Group) {
-	apiGroup.POST("/batch", h.BatchUpsert)
+func (h *SubjectTemplateHandler) RegisterAgent(apiGroup *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	apiGroup.POST("/batch", h.BatchUpsert, middlewares...)
 }
 
 type subjectTemplateSelectorLabelRequest struct {

@@ -19,28 +19,29 @@ var (
 )
 
 type Config struct {
-	AppPort                     string
-	Environment                 string
-	DBDriver                    string
-	DBConnectionString          string
-	DBDebug                     bool
-	JWTSecret                   string
-	JWTPrivateKey               *rsa.PrivateKey
-	JWTPublicKey                *rsa.PublicKey
-	APIAllowedOrigins           []string
-	MetricsEnabled              bool
-	MetricsPort                 string
-	WebBaseURL                  string
-	SSO                         *SSOConfig
-	Email                       *EmailConfig
-	Worker                      *WorkerConfig
-	EvidenceDefaultExpiryMonths int    // Default expiration in months for evidence without explicit expiry
-	DigestEnabled               bool   // Enable or disable the digest scheduler
-	DigestSchedule              string // Cron schedule for digest emails
-	Workflow                    *WorkflowConfig
-	Risk                        *RiskConfig
-	PprofEnabled                bool   // Enable or disable pprof debugging server
-	PprofPort                   string // Port for pprof debugging server
+	AppPort                           string
+	Environment                       string
+	DBDriver                          string
+	DBConnectionString                string
+	DBDebug                           bool
+	JWTSecret                         string
+	JWTPrivateKey                     *rsa.PrivateKey
+	JWTPublicKey                      *rsa.PublicKey
+	APIAllowedOrigins                 []string
+	MetricsEnabled                    bool
+	MetricsPort                       string
+	WebBaseURL                        string
+	SSO                               *SSOConfig
+	Email                             *EmailConfig
+	Worker                            *WorkerConfig
+	EvidenceDefaultExpiryMonths       int    // Default expiration in months for evidence without explicit expiry
+	DigestEnabled                     bool   // Enable or disable the digest scheduler
+	DigestSchedule                    string // Cron schedule for digest emails
+	Workflow                          *WorkflowConfig
+	Risk                              *RiskConfig
+	PprofEnabled                      bool   // Enable or disable pprof debugging server
+	PprofPort                         string // Port for pprof debugging server
+	StrictDisablePublicAgentEndpoints bool
 }
 
 func NewConfig(logger *zap.SugaredLogger) *Config {
@@ -211,28 +212,29 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 	}
 
 	return &Config{
-		AppPort:                     appPort,
-		Environment:                 environment,
-		DBDriver:                    dbDriver,
-		DBConnectionString:          stripQuotes(viper.GetString("db_connection")),
-		DBDebug:                     viper.GetBool("db_debug"),
-		JWTSecret:                   stripQuotes(viper.GetString("jwt_secret")),
-		JWTPrivateKey:               jwtPrivateKey,
-		JWTPublicKey:                jwtPublicKey,
-		APIAllowedOrigins:           allowedOrigins,
-		MetricsEnabled:              metricsEnabled,
-		MetricsPort:                 metricsPort,
-		WebBaseURL:                  webBaseURL,
-		SSO:                         ssoConfig,
-		Email:                       emailConfig,
-		Worker:                      workerConfig,
-		EvidenceDefaultExpiryMonths: evidenceDefaultExpiryMonths,
-		DigestEnabled:               digestEnabled,
-		DigestSchedule:              digestSchedule,
-		Workflow:                    workflowConfig,
-		Risk:                        riskConfig,
-		PprofEnabled:                pprofEnabled,
-		PprofPort:                   pprofPort,
+		AppPort:                           appPort,
+		Environment:                       environment,
+		DBDriver:                          dbDriver,
+		DBConnectionString:                stripQuotes(viper.GetString("db_connection")),
+		DBDebug:                           viper.GetBool("db_debug"),
+		JWTSecret:                         stripQuotes(viper.GetString("jwt_secret")),
+		JWTPrivateKey:                     jwtPrivateKey,
+		JWTPublicKey:                      jwtPublicKey,
+		APIAllowedOrigins:                 allowedOrigins,
+		MetricsEnabled:                    metricsEnabled,
+		MetricsPort:                       metricsPort,
+		WebBaseURL:                        webBaseURL,
+		SSO:                               ssoConfig,
+		Email:                             emailConfig,
+		Worker:                            workerConfig,
+		EvidenceDefaultExpiryMonths:       evidenceDefaultExpiryMonths,
+		DigestEnabled:                     digestEnabled,
+		DigestSchedule:                    digestSchedule,
+		Workflow:                          workflowConfig,
+		Risk:                              riskConfig,
+		PprofEnabled:                      pprofEnabled,
+		PprofPort:                         pprofPort,
+		StrictDisablePublicAgentEndpoints: viper.GetBool("strict_disable_public_agent_endpoints"),
 	}
 
 }
