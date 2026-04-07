@@ -105,6 +105,13 @@ func (w *MilestoneOverdueScannerWorker) Work(
 			continue
 		}
 
+		// TODO(BCH-follow-on): Ideally notifications should be routed to the
+		// milestone's responsible party rather than the POAM item owner.
+		// Currently ccf_poam_item_milestones.responsible_party is a free-text
+		// string with no FK to the users table, so we cannot resolve a user
+		// email address from it. A follow-on schema migration to add a
+		// responsible_party_user_id uuid column is required before this can be
+		// changed. See: https://github.com/compliance-framework/api/pull/366#discussion
 		recipients := resolvePoamRecipientsFromOwner(row.ParentOwner)
 		if len(recipients) == 0 {
 			continue
