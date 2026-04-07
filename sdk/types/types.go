@@ -230,3 +230,8 @@ type SubjectTemplate struct {
 	SelectorLabels      []SubjectTemplateSelectorLabel `json:"selector-labels"`
 	LabelSchema         []SubjectTemplateLabelSchema   `json:"label-schema"`
 }
+
+type Heartbeat struct {
+	UUID      uuid.UUID `json:"uuid"`
+	CreatedAt time.Time `json:"created_at"`
+}

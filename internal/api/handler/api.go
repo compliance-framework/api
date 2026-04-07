@@ -45,10 +45,15 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	filterHandler.Register(server.API().Group("/filters"))
 
 	heartbeatHandler := NewHeartbeatHandler(logger, db)
-	heartbeatHandler.Register(server.API().Group("/agent/heartbeat"))
+	agentIngestMiddleware := middleware.AgentJWTOrPublicMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints)
+	heartbeatHandler.RegisterCreate(server.API().Group("/agent/heartbeat"), agentIngestMiddleware)
+	// Keep the legacy operator-facing metrics route stable while protecting it with user auth.
+	heartbeatHandler.RegisterOverTime(server.API().Group("/agent/heartbeat"), middleware.JWTMiddleware(config.JWTPublicKey))
 
 	evidenceHandler := NewEvidenceHandler(logger, services.EvidenceService)
-	evidenceHandler.Register(server.API().Group("/evidence"))
+	evidenceGroup := server.API().Group("/evidence")
+	evidenceHandler.RegisterCreate(evidenceGroup, agentIngestMiddleware)
+	evidenceHandler.RegisterReadRoutes(evidenceGroup)
 
 	poamService := poamsvc.NewPoamService(db)
 	riskService := riskrel.NewRiskService(db)
@@ -78,8 +83,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	riskTemplateHandler.Register(riskTemplateGroup)
 
 	agentRiskTemplateGroup := server.API().Group("/agent/risk-templates")
-	agentRiskTemplateGroup.Use(middleware.AgentJWTMiddleware(config.JWTPublicKey))
-	riskTemplateHandler.RegisterAgent(agentRiskTemplateGroup)
+	riskTemplateHandler.RegisterAgent(agentRiskTemplateGroup, agentIngestMiddleware)
 
 	subjectTemplateHandler := templatehandlers.NewSubjectTemplateHandler(logger, db)
 	subjectTemplateGroup := server.API().Group("/admin/subject-templates")
@@ -88,8 +92,13 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	subjectTemplateHandler.Register(subjectTemplateGroup)
 
 	agentSubjectTemplateGroup := server.API().Group("/agent/subject-templates")
-	agentSubjectTemplateGroup.Use(middleware.AgentJWTMiddleware(config.JWTPublicKey))
-	subjectTemplateHandler.RegisterAgent(agentSubjectTemplateGroup)
+	subjectTemplateHandler.RegisterAgent(agentSubjectTemplateGroup, agentIngestMiddleware)
+
+	agentHandler := NewAgentHandler(logger, db)
+	agentsGroup := server.API().Group("/admin/agents")
+	agentsGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	agentsGroup.Use(middleware.RequireAdminGroups(db, config, logger))
+	agentHandler.Register(agentsGroup)
 
 	userHandler := NewUserHandler(logger, db)
 
