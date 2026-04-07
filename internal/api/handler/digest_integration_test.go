@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -39,8 +40,11 @@ func (suite *DigestApiIntegrationSuite) SetupSuite() {
 	suite.Require().NoError(err, "Failed to create email service")
 	suite.emailService = emailService
 
+	slackService, err := slacksvc.NewService(suite.Config.Slack, suite.logger)
+	suite.Require().NoError(err, "Failed to create slack service")
+
 	// Create digest handler
-	digestService := digest.NewService(suite.DB, suite.emailService, nil, suite.Config, suite.logger)
+	digestService := digest.NewService(suite.DB, suite.emailService, slackService, nil, suite.Config, suite.logger)
 	suite.digestHandler = NewDigestHandler(digestService, suite.logger)
 
 	// Setup server

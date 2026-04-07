@@ -158,7 +158,7 @@ func TestWorkflowTaskAssignedWorker_TemplateError_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "workflow-task-assigned template")
 }
 
-func TestWorkflowTaskAssignedWorker_MultiChannel_IncludingEmail_SendsEmail(t *testing.T) {
+func TestWorkflowTaskAssignedWorker_MultiChannel_EmailChannelJob_SendsOnlyEmail(t *testing.T) {
 	ctx := context.Background()
 	dueDate := time.Now().Add(48 * time.Hour)
 
@@ -182,14 +182,11 @@ func TestWorkflowTaskAssignedWorker_MultiChannel_IncludingEmail_SendsEmail(t *te
 	mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
 		return msg.To[0] == "dora@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-4"}, nil).Once()
-	mockSlack.On("IsEnabled").Return(true).Once()
-	mockSlack.On("SendMessage", ctx, "U12345", mock.MatchedBy(func(msg *slacktypes.Message) bool {
-		return msg != nil && msg.Text != ""
-	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-1"}, nil).Once()
 
 	w := NewWorkflowTaskAssignedWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskAssignedArgs{
+		Channel:               notification.DeliveryChannelEmail,
 		UserID:                "user-4",
 		StepExecutionID:       "step-4",
 		StepTitle:             "Review Policy",
@@ -202,6 +199,52 @@ func TestWorkflowTaskAssignedWorker_MultiChannel_IncludingEmail_SendsEmail(t *te
 	err := w.Work(ctx, makeTaskAssignedJob(args))
 	assert.NoError(t, err)
 	mockEmail.AssertExpectations(t)
+	mockSlack.AssertNotCalled(t, "IsEnabled")
+	mockSlack.AssertNotCalled(t, "SendMessage", mock.Anything, mock.Anything, mock.Anything)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestWorkflowTaskAssignedWorker_MultiChannel_SlackChannelJob_SendsOnlySlack(t *testing.T) {
+	ctx := context.Background()
+	dueDate := time.Now().Add(48 * time.Hour)
+
+	mockEmail := &MockEmailService{}
+	mockSlack := &MockSlackService{}
+	mockRepo := &MockUserRepository{}
+	mockLog := zap.NewNop().Sugar()
+
+	user := NotificationUser{
+		ID:          "user-5",
+		Email:       "ella@example.com",
+		FirstName:   "Ella",
+		SlackUserID: "USLACK5",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack", "email"}},
+		},
+	}
+	mockRepo.On("FindUserByID", ctx, "user-5").Return(user, nil)
+	mockSlack.On("IsEnabled").Return(true).Once()
+	mockSlack.On("SendMessage", ctx, "USLACK5", mock.MatchedBy(func(msg *slacktypes.Message) bool {
+		return msg != nil && msg.Text != ""
+	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-5"}, nil).Once()
+
+	w := NewWorkflowTaskAssignedWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+
+	args := WorkflowTaskAssignedArgs{
+		Channel:               notification.DeliveryChannelSlack,
+		UserID:                "user-5",
+		StepExecutionID:       "step-5",
+		StepTitle:             "Review Policy",
+		WorkflowTitle:         "Annual Audit",
+		WorkflowInstanceTitle: "Audit 2026",
+		StepURL:               "https://app.example.com/steps/step-5",
+		DueDate:               &dueDate,
+	}
+
+	err := w.Work(ctx, makeTaskAssignedJob(args))
+	assert.NoError(t, err)
+	mockEmail.AssertNotCalled(t, "UseTemplate", mock.Anything, mock.Anything)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
 	mockSlack.AssertExpectations(t)
 	mockRepo.AssertExpectations(t)
 }

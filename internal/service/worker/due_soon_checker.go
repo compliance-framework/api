@@ -21,7 +21,7 @@ func (DueSoonCheckerArgs) Kind() string { return "workflow_due_soon_checker" }
 // Timeout returns the timeout for the due-soon checker job
 func (DueSoonCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
 
-// DueSoonCheckerWorker scans for step executions due in a week and enqueues reminder emails
+// DueSoonCheckerWorker scans for step executions due in a week and enqueues reminder notifications.
 type DueSoonCheckerWorker struct {
 	db     *gorm.DB
 	client workflow.RiverClient
@@ -37,7 +37,7 @@ func NewDueSoonCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *z
 	}
 }
 
-// Work scans for step executions due in ~1 week and enqueues WorkflowTaskDueSoonArgs jobs
+// Work scans for step executions due in ~1 week and enqueues WorkflowTaskDueSoonArgs jobs.
 func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonCheckerArgs]) error {
 	if w.db == nil {
 		return fmt.Errorf("DueSoonCheckerWorker: db is nil")
@@ -69,7 +69,8 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 		return nil
 	}
 
-	params := make([]river.InsertManyParams, 0, len(steps))
+	channels := allWorkflowNotificationChannels()
+	params := make([]river.InsertManyParams, 0, len(steps)*len(channels))
 	for i := range steps {
 		step := &steps[i]
 		if step.DueDate == nil {
@@ -78,7 +79,7 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 
 		titles := resolveStepTitles(step)
 
-		args := WorkflowTaskDueSoonArgs{
+		baseArgs := WorkflowTaskDueSoonArgs{
 			UserID:                step.AssignedToID,
 			StepExecutionID:       step.ID.String(),
 			StepTitle:             titles.Step,
@@ -87,15 +88,21 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 			StepURL:               "",
 			DueDate:               *step.DueDate,
 		}
-		insertOpts := JobInsertOptionsForWorkflowNotification()
-		insertOpts.UniqueOpts = river.UniqueOpts{
-			ByArgs:   true,
-			ByPeriod: 24 * time.Hour,
+		for _, channel := range channels {
+			args := baseArgs
+			args.Channel = channel
+
+			insertOpts := JobInsertOptionsForWorkflowNotification()
+			insertOpts.UniqueOpts = river.UniqueOpts{
+				ByArgs:   true,
+				ByPeriod: 24 * time.Hour,
+			}
+
+			params = append(params, river.InsertManyParams{
+				Args:       args,
+				InsertOpts: insertOpts,
+			})
 		}
-		params = append(params, river.InsertManyParams{
-			Args:       args,
-			InsertOpts: insertOpts,
-		})
 	}
 
 	if len(params) == 0 {

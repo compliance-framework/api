@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/digest"
 	"github.com/compliance-framework/api/internal/service/email"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -85,7 +86,12 @@ func runDigestTest(cmd *cobra.Command, args []string) {
 		sugar.Fatalw("Failed to initialize email service", "error", err)
 	}
 
-	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
+	slackService, err := slacksvc.NewService(cfg.Slack, sugar)
+	if err != nil {
+		sugar.Fatalw("Failed to initialize slack service", "error", err)
+	}
+
+	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
 
 	if dryRun {
 		sugar.Info("Running digest test in DRY-RUN mode (no emails will be sent)...")
@@ -145,7 +151,12 @@ func runDigestPreview(cmd *cobra.Command, args []string) {
 		sugar.Warnw("Failed to initialize email service", "error", err)
 	}
 
-	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
+	slackService, err := slacksvc.NewService(cfg.Slack, sugar)
+	if err != nil {
+		sugar.Warnw("Failed to initialize slack service", "error", err)
+	}
+
+	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
 
 	summary, err := digestService.GetGlobalEvidenceSummary(ctx)
 	if err != nil {

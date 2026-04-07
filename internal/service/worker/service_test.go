@@ -7,8 +7,10 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -62,6 +64,18 @@ func (m *MockSlackService) IsEnabled() bool {
 func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
+}
+
+func (m *MockDigestService) SendGlobalDigestDelivery(ctx context.Context, args SendGlobalDigestDeliveryArgs) error {
+	callArgs := m.Called(ctx, args)
+	return callArgs.Error(0)
+}
+
+func makeWorkerJob[T river.JobArgs](args T) *river.Job[T] {
+	return &river.Job[T]{
+		JobRow: &rivertype.JobRow{ID: 1},
+		Args:   args,
+	}
 }
 
 func TestNewServiceWithDigest_Disabled(t *testing.T) {
@@ -297,14 +311,45 @@ func TestNewSendGlobalDigestWorker(t *testing.T) {
 
 func TestSendGlobalDigestWorker_DigestCall(t *testing.T) {
 	mockDigestService := &MockDigestService{}
-
 	ctx := context.Background()
+	worker := NewSendGlobalDigestWorker(mockDigestService, zap.NewNop().Sugar())
 
-	// Set up mock expectations
 	mockDigestService.On("SendGlobalDigest", ctx).Return(nil)
 
-	// Call the mock service to verify it works
-	err := mockDigestService.SendGlobalDigest(ctx)
+	err := worker.Work(ctx, makeWorkerJob(SendGlobalDigestArgs{}))
+	assert.NoError(t, err)
+
+	mockDigestService.AssertExpectations(t)
+}
+
+func TestNewSendGlobalDigestDeliveryWorker(t *testing.T) {
+	mockDigestService := &MockDigestService{}
+	logger := zap.NewNop().Sugar()
+
+	worker := NewSendGlobalDigestDeliveryWorker(mockDigestService, logger)
+
+	assert.NotNil(t, worker)
+	assert.Equal(t, mockDigestService, worker.digestService)
+	assert.Equal(t, logger, worker.logger)
+}
+
+func TestSendGlobalDigestDeliveryWorker_DeliveryCall(t *testing.T) {
+	mockDigestService := &MockDigestService{}
+	ctx := context.Background()
+	worker := NewSendGlobalDigestDeliveryWorker(mockDigestService, zap.NewNop().Sugar())
+
+	args := SendGlobalDigestDeliveryArgs{
+		Channel: notification.DeliveryChannelEmail,
+		UserID:  "user-1",
+		Email:   "alice@example.com",
+		Summary: EvidenceDigestSummary{
+			TotalCount: 1,
+		},
+	}
+
+	mockDigestService.On("SendGlobalDigestDelivery", ctx, args).Return(nil)
+
+	err := worker.Work(ctx, makeWorkerJob(args))
 	assert.NoError(t, err)
 
 	mockDigestService.AssertExpectations(t)
@@ -317,6 +362,30 @@ func TestWorkers(t *testing.T) {
 	workers := Workers(mockEmailService, mockDigestService, nil, nil, nil, "", zap.NewNop().Sugar())
 
 	assert.NotNil(t, workers)
+}
+
+func TestGlobalDigestDeliveryInsertParams(t *testing.T) {
+	params := globalDigestDeliveryInsertParams([]SendGlobalDigestDeliveryArgs{
+		{
+			Channel: notification.DeliveryChannelEmail,
+			UserID:  "user-1",
+			Email:   "alice@example.com",
+			Summary: EvidenceDigestSummary{TotalCount: 2},
+		},
+		{
+			Channel:      notification.DeliveryChannelSlack,
+			UserID:       "user-1",
+			SlackChannel: "UALICE",
+			Summary:      EvidenceDigestSummary{TotalCount: 2},
+		},
+	})
+
+	assert.Len(t, params, 2)
+	for _, param := range params {
+		assert.NotNil(t, param.InsertOpts)
+		assert.Equal(t, "digest", param.InsertOpts.Queue)
+		assert.Equal(t, 3, param.InsertOpts.MaxAttempts)
+	}
 }
 
 func TestJobInsertOptionsForWorkflowTaskAssignedNotification(t *testing.T) {

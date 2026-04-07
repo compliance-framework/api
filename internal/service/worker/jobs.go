@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,9 +19,10 @@ import (
 
 // Job types for email processing
 const (
-	JobTypeSendEmail        = "send_email"
-	JobTypeSendEmailFrom    = "send_email_from"
-	JobTypeSendGlobalDigest = "send_global_digest"
+	JobTypeSendEmail                = "send_email"
+	JobTypeSendEmailFrom            = "send_email_from"
+	JobTypeSendGlobalDigest         = "send_global_digest"
+	JobTypeSendGlobalDigestDelivery = "send_global_digest_delivery"
 )
 
 // Job types for workflow notifications
@@ -36,9 +38,10 @@ const (
 	JobTypeRiskProcessEvidence = "risk_process_evidence"
 )
 
-// WorkflowTaskAssignedArgs represents the arguments for a new-task-assigned notification email
+// WorkflowTaskAssignedArgs represents the arguments for a new-task-assigned notification job.
 type WorkflowTaskAssignedArgs struct {
 	AssignedToType        string     `json:"assigned_to_type"`
+	Channel               string     `json:"channel,omitempty"`
 	UserID                string     `json:"user_id"`
 	StepExecutionID       string     `json:"step_execution_id"`
 	StepTitle             string     `json:"step_title"`
@@ -48,8 +51,9 @@ type WorkflowTaskAssignedArgs struct {
 	DueDate               *time.Time `json:"due_date,omitempty"`
 }
 
-// WorkflowTaskDueSoonArgs represents the arguments for a task-due-in-1-day reminder email
+// WorkflowTaskDueSoonArgs represents the arguments for a task-due-soon reminder notification job.
 type WorkflowTaskDueSoonArgs struct {
+	Channel               string    `json:"channel,omitempty"`
 	UserID                string    `json:"user_id"`
 	StepExecutionID       string    `json:"step_execution_id"`
 	StepTitle             string    `json:"step_title"`
@@ -59,9 +63,10 @@ type WorkflowTaskDueSoonArgs struct {
 	DueDate               time.Time `json:"due_date"`
 }
 
-// WorkflowTaskDigestArgs represents the arguments for a per-user task digest email
+// WorkflowTaskDigestArgs represents the arguments for a per-user task digest notification job.
 type WorkflowTaskDigestArgs struct {
-	UserID string `json:"user_id"`
+	Channel string `json:"channel,omitempty"`
+	UserID  string `json:"user_id"`
 }
 
 // WorkflowExecutionFailedArgs represents the arguments for a workflow-execution-failed notification email
@@ -146,6 +151,38 @@ type SendGlobalDigestArgs struct {
 	// No arguments needed - digest service will fetch data
 }
 
+// EvidenceDigestItem carries one evidence row for a digest delivery job.
+type EvidenceDigestItem struct {
+	ID          string   `json:"id"`
+	UUID        string   `json:"uuid"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	ExpiresAt   string   `json:"expires_at,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+}
+
+// EvidenceDigestSummary carries the evidence summary snapshot for a digest delivery job.
+type EvidenceDigestSummary struct {
+	TotalCount        int64                `json:"total_count"`
+	SatisfiedCount    int64                `json:"satisfied_count"`
+	NotSatisfiedCount int64                `json:"not_satisfied_count"`
+	ExpiredCount      int64                `json:"expired_count"`
+	OtherCount        int64                `json:"other_count"`
+	TopExpired        []EvidenceDigestItem `json:"top_expired,omitempty"`
+	TopNotSatisfied   []EvidenceDigestItem `json:"top_not_satisfied,omitempty"`
+}
+
+// SendGlobalDigestDeliveryArgs represents one recipient/channel evidence digest delivery.
+type SendGlobalDigestDeliveryArgs struct {
+	Channel      string                `json:"channel"`
+	UserID       string                `json:"user_id"`
+	UserName     string                `json:"user_name,omitempty"`
+	Email        string                `json:"email,omitempty"`
+	SlackChannel string                `json:"slack_channel,omitempty"`
+	Summary      EvidenceDigestSummary `json:"summary"`
+}
+
 // Kind returns the job kind for River
 func (SendEmailArgs) Kind() string { return JobTypeSendEmail }
 
@@ -154,6 +191,9 @@ func (SendEmailFromArgs) Kind() string { return JobTypeSendEmailFrom }
 
 // Kind returns the job kind for River
 func (SendGlobalDigestArgs) Kind() string { return JobTypeSendGlobalDigest }
+
+// Kind returns the job kind for River
+func (SendGlobalDigestDeliveryArgs) Kind() string { return JobTypeSendGlobalDigestDelivery }
 
 // EmailService interface for dependency injection
 type EmailService interface {
@@ -227,9 +267,48 @@ func (u NotificationUser) NotificationChannels(notificationType string) []string
 	return channels
 }
 
+func allWorkflowNotificationChannels() []string {
+	return []string{
+		notification.DeliveryChannelEmail,
+		notification.DeliveryChannelSlack,
+	}
+}
+
+func workflowDeliveryChannelsForAssignment(assignedToType string) []string {
+	if assignedToType == notification.DeliveryChannelEmail {
+		return []string{notification.DeliveryChannelEmail}
+	}
+	return allWorkflowNotificationChannels()
+}
+
+func normalizeRequestedDeliveryChannel(channel string) (string, bool) {
+	if strings.TrimSpace(channel) == "" {
+		return "", true
+	}
+	return notification.NormalizeDeliveryChannel(channel)
+}
+
+func selectUserNotificationChannels(user NotificationUser, notificationType string, requestedChannel string) ([]string, bool) {
+	channel, ok := normalizeRequestedDeliveryChannel(requestedChannel)
+	if !ok {
+		return nil, false
+	}
+
+	available := user.NotificationChannels(notificationType)
+	if channel == "" {
+		return available, true
+	}
+	if slices.Contains(available, channel) {
+		return []string{channel}, true
+	}
+
+	return nil, true
+}
+
 // DigestService interface for dependency injection
 type DigestService interface {
 	SendGlobalDigest(ctx context.Context) error
+	SendGlobalDigestDelivery(ctx context.Context, args SendGlobalDigestDeliveryArgs) error
 }
 
 // Timeout returns the timeout for email jobs
@@ -245,6 +324,11 @@ func (SendEmailFromArgs) Timeout() time.Duration {
 // Timeout returns the timeout for digest jobs (longer due to multiple emails)
 func (SendGlobalDigestArgs) Timeout() time.Duration {
 	return 5 * time.Minute
+}
+
+// Timeout returns the timeout for a single global digest delivery.
+func (SendGlobalDigestDeliveryArgs) Timeout() time.Duration {
+	return 2 * time.Minute
 }
 
 // SendEmailWorker handles sending email jobs
@@ -402,8 +486,14 @@ func (w *SendEmailFromWorker) Work(ctx context.Context, job *river.Job[SendEmail
 	return nil
 }
 
-// SendGlobalDigestWorker handles sending global digest jobs
+// SendGlobalDigestWorker handles scheduling global digest deliveries.
 type SendGlobalDigestWorker struct {
+	digestService DigestService
+	logger        *zap.SugaredLogger
+}
+
+// SendGlobalDigestDeliveryWorker handles a single global digest delivery job.
+type SendGlobalDigestDeliveryWorker struct {
 	digestService DigestService
 	logger        *zap.SugaredLogger
 }
@@ -416,11 +506,18 @@ func NewSendGlobalDigestWorker(digestService DigestService, logger *zap.SugaredL
 	}
 }
 
-// Work is the River work function for sending global digest
+// NewSendGlobalDigestDeliveryWorker creates a new SendGlobalDigestDeliveryWorker.
+func NewSendGlobalDigestDeliveryWorker(digestService DigestService, logger *zap.SugaredLogger) *SendGlobalDigestDeliveryWorker {
+	return &SendGlobalDigestDeliveryWorker{
+		digestService: digestService,
+		logger:        logger,
+	}
+}
+
+// Work is the River work function for scheduling global digest deliveries.
 func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGlobalDigestArgs]) error {
 	w.logger.Infow("Processing global digest job", "job_id", job.ID)
 
-	// Send the global digest
 	if err := w.digestService.SendGlobalDigest(ctx); err != nil {
 		w.logger.Errorw("Failed to send global digest",
 			"job_id", job.ID,
@@ -429,7 +526,38 @@ func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGl
 		return fmt.Errorf("failed to send global digest: %w", err)
 	}
 
-	w.logger.Infow("Global digest sent successfully", "job_id", job.ID)
+	w.logger.Infow("Global digest processed successfully", "job_id", job.ID)
+	return nil
+}
+
+// Work is the River work function for sending a single global digest delivery.
+func (w *SendGlobalDigestDeliveryWorker) Work(ctx context.Context, job *river.Job[SendGlobalDigestDeliveryArgs]) error {
+	args := job.Args
+
+	w.logger.Infow(
+		"Processing global digest delivery job",
+		"job_id", job.ID,
+		"user_id", args.UserID,
+		"channel", args.Channel,
+	)
+
+	if err := w.digestService.SendGlobalDigestDelivery(ctx, args); err != nil {
+		w.logger.Errorw(
+			"Failed to send global digest delivery",
+			"job_id", job.ID,
+			"user_id", args.UserID,
+			"channel", args.Channel,
+			"error", err,
+		)
+		return fmt.Errorf("failed to send global digest delivery: %w", err)
+	}
+
+	w.logger.Infow(
+		"Global digest delivery sent successfully",
+		"job_id", job.ID,
+		"user_id", args.UserID,
+		"channel", args.Channel,
+	)
 	return nil
 }
 
@@ -457,7 +585,25 @@ func NewWorkflowTaskAssignedWorker(emailService EmailService, slackService Slack
 func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskAssignedArgs]) error {
 	args := job.Args
 
+	channel, ok := normalizeRequestedDeliveryChannel(args.Channel)
+	if !ok {
+		w.logger.Warnw("WorkflowTaskAssignedWorker: invalid delivery channel, skipping",
+			"step_execution_id", args.StepExecutionID,
+			"user_id", args.UserID,
+			"channel", args.Channel,
+		)
+		return nil
+	}
+
 	if args.AssignedToType == notification.DeliveryChannelEmail {
+		if channel != "" && channel != notification.DeliveryChannelEmail {
+			w.logger.Debugw("WorkflowTaskAssignedWorker: unsupported channel for email assignee, skipping",
+				"step_execution_id", args.StepExecutionID,
+				"user_id", args.UserID,
+				"channel", channel,
+			)
+			return nil
+		}
 		return w.sendToEmailAddress(ctx, args)
 	}
 	return w.sendToUser(ctx, args)
@@ -475,11 +621,20 @@ func (w *WorkflowTaskAssignedWorker) sendToUser(ctx context.Context, args Workfl
 		return nil
 	}
 
-	channels := user.NotificationChannels(notification.NotificationTypeTaskAvailable)
-	if len(channels) == 0 {
-		w.logger.Debugw("WorkflowTaskAssignedWorker: user not subscribed, skipping",
+	channels, ok := selectUserNotificationChannels(user, notification.NotificationTypeTaskAvailable, args.Channel)
+	if !ok {
+		w.logger.Warnw("WorkflowTaskAssignedWorker: invalid delivery channel, skipping",
 			"step_execution_id", args.StepExecutionID,
 			"user_id", args.UserID,
+			"channel", args.Channel,
+		)
+		return nil
+	}
+	if len(channels) == 0 {
+		w.logger.Debugw("WorkflowTaskAssignedWorker: user not subscribed to requested channel, skipping",
+			"step_execution_id", args.StepExecutionID,
+			"user_id", args.UserID,
+			"channel", args.Channel,
 		)
 		return nil
 	}
@@ -652,11 +807,20 @@ func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[Wor
 		return nil
 	}
 
-	channels := user.NotificationChannels(notification.NotificationTypeTaskAvailable)
-	if len(channels) == 0 {
-		w.logger.Debugw("WorkflowTaskDueSoonWorker: user not subscribed, skipping",
+	channels, ok := selectUserNotificationChannels(user, notification.NotificationTypeTaskAvailable, args.Channel)
+	if !ok {
+		w.logger.Warnw("WorkflowTaskDueSoonWorker: invalid delivery channel, skipping",
 			"step_execution_id", args.StepExecutionID,
 			"user_id", args.UserID,
+			"channel", args.Channel,
+		)
+		return nil
+	}
+	if len(channels) == 0 {
+		w.logger.Debugw("WorkflowTaskDueSoonWorker: user not subscribed to requested channel, skipping",
+			"step_execution_id", args.StepExecutionID,
+			"user_id", args.UserID,
+			"channel", args.Channel,
 		)
 		return nil
 	}
@@ -843,6 +1007,9 @@ func Workers(emailService EmailService, digestService DigestService, slackServic
 	if digestService != nil {
 		sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestService, logger)
 		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
+
+		sendGlobalDigestDeliveryWorker := NewSendGlobalDigestDeliveryWorker(digestService, logger)
+		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestDeliveryWorker.Work))
 	}
 
 	// Register risk evidence worker — requires only db, independent of email/userRepo config.

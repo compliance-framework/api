@@ -17,7 +17,7 @@ type UserNotificationSubscription struct {
 
 	UserID string `json:"userId" gorm:"not null;uniqueIndex:idx_ccf_user_notification_subscriptions_unique,WHERE:deleted_at IS NULL"`
 
-	NotificationType string                      `json:"notificationType" gorm:"not null;uniqueIndex:idx_ccf_user_notification_subscriptions_unique,WHERE:deleted_at IS NULL"`
+	NotificationType string                      `json:"notificationType" gorm:"not null;uniqueIndex:idx_ccf_user_notification_subscriptions_unique,WHERE:deleted_at IS NULL;index:idx_ccf_user_notification_subscriptions_notification_type,WHERE:deleted_at IS NULL"`
 	Channels         datatypes.JSONSlice[string] `json:"channels"`
 }
 

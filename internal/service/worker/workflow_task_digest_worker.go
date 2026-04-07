@@ -78,10 +78,18 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		return nil
 	}
 
-	channels := user.NotificationChannels(notification.NotificationTypeTaskDailyDigest)
-	if len(channels) == 0 {
-		w.logger.Debugw("WorkflowTaskDigestWorker: user not subscribed to digest, skipping",
+	channels, ok := selectUserNotificationChannels(user, notification.NotificationTypeTaskDailyDigest, args.Channel)
+	if !ok {
+		w.logger.Warnw("WorkflowTaskDigestWorker: invalid delivery channel, skipping",
 			"user_id", args.UserID,
+			"channel", args.Channel,
+		)
+		return nil
+	}
+	if len(channels) == 0 {
+		w.logger.Debugw("WorkflowTaskDigestWorker: user not subscribed to requested digest channel, skipping",
+			"user_id", args.UserID,
+			"channel", args.Channel,
 		)
 		return nil
 	}

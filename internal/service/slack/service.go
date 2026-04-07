@@ -14,13 +14,18 @@ import (
 type Service struct {
 	config *config.SlackConfig
 	logger *zap.SugaredLogger
+	client *slack.Client
 }
 
 func NewService(cfg *config.SlackConfig, logger *zap.SugaredLogger) (*Service, error) {
-	return &Service{
+	service := &Service{
 		config: cfg,
 		logger: logger,
-	}, nil
+	}
+	if cfg != nil && strings.TrimSpace(cfg.Token) != "" {
+		service.client = slack.New(cfg.Token)
+	}
+	return service, nil
 }
 
 func (s *Service) SendMessage(ctx context.Context, channel string, message *types.Message) (*types.SendResult, error) {
@@ -36,7 +41,11 @@ func (s *Service) SendMessage(ctx context.Context, channel string, message *type
 		return sendFailureResult(err), err
 	}
 
-	api := slack.New(s.config.Token)
+	api := s.client
+	if api == nil {
+		api = slack.New(s.config.Token)
+		s.client = api
+	}
 
 	opts := []slack.MsgOption{
 		slack.MsgOptionText(message.Text, false),
