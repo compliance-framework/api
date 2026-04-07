@@ -683,6 +683,12 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(200, rec.Code, "Expected OK response for unsubscribe digest")
 
+		response = struct {
+			Data struct {
+				RiskNotificationsSubscribed bool                `json:"riskNotificationsSubscribed"`
+				Notifications               map[string][]string `json:"notifications"`
+			} `json:"data"`
+		}{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err, "Failed to unmarshal unsubscribe response")
 
@@ -708,6 +714,12 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		suite.server.E().ServeHTTP(rec, req)
 		suite.Equal(200, rec.Code, "Expected OK response when notifications are omitted")
 
+		response = struct {
+			Data struct {
+				RiskNotificationsSubscribed bool                `json:"riskNotificationsSubscribed"`
+				Notifications               map[string][]string `json:"notifications"`
+			} `json:"data"`
+		}{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err, "Failed to unmarshal response for request without notifications")
 

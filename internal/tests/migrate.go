@@ -165,7 +165,11 @@ func (t *TestMigrator) Up() error {
 		&relational.Agent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.AgentAuthEvent{},
+		&relational.SSOUserLink{},
+		&relational.SlackLinkAttempt{},
+		&relational.SlackUserLink{},
 		&relational.User{},
+		&relational.UserNotificationSubscription{},
 
 		&service.Heartbeat{},
 		&poamrel.PoamItem{},
@@ -363,7 +367,11 @@ func (t *TestMigrator) Down() error {
 		&relational.AgentAuthEvent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.Agent{},
+		&relational.SSOUserLink{},
+		&relational.SlackLinkAttempt{},
+		&relational.SlackUserLink{},
 		&relational.User{},
+		&relational.UserNotificationSubscription{},
 
 		&service.Heartbeat{},
 		&relational.Evidence{},

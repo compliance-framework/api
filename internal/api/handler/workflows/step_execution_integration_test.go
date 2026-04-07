@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -678,7 +679,9 @@ func TestStepExecutionHandler_ListMy(t *testing.T) {
 
 	t.Run("Success_FilterByDueBefore", func(t *testing.T) {
 		dueBefore := now.Format(time.RFC3339)
-		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?due_before="+dueBefore, nil)
+		query := url.Values{}
+		query.Set("due_before", dueBefore)
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?"+query.Encode(), nil)
 		rec := httptest.NewRecorder()
 		c := createContextWithClaims(req, rec, testUser1.Email)
 
@@ -694,7 +697,9 @@ func TestStepExecutionHandler_ListMy(t *testing.T) {
 
 	t.Run("Success_FilterByDueAfter", func(t *testing.T) {
 		dueAfter := now.Format(time.RFC3339)
-		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?due_after="+dueAfter, nil)
+		query := url.Values{}
+		query.Set("due_after", dueAfter)
+		req := httptest.NewRequest(http.MethodGet, "/workflows/step-executions/my?"+query.Encode(), nil)
 		rec := httptest.NewRecorder()
 		c := createContextWithClaims(req, rec, testUser1.Email)
 
