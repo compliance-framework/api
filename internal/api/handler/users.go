@@ -766,7 +766,7 @@ func quoteList(values []string) string {
 
 func (h *UserHandler) replaceUserNotificationSubscriptions(ctx context.Context, userID string, notifications map[string][]string) error {
 	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", userID).Delete(&relational.UserNotificationSubscription{}).Error; err != nil {
+		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&relational.UserNotificationSubscription{}).Error; err != nil {
 			return err
 		}
 

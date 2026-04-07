@@ -631,6 +631,23 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 	})
 
 	suite.Run("UpdateSubscriptions", func() {
+		var currentUser relational.User
+		suite.Require().NoError(
+			suite.DB.Where("email = ?", "dummy@example.com").First(&currentUser).Error,
+			"Failed to load current user for subscription persistence assertions",
+		)
+		countStoredSubscriptions := func() int64 {
+			var count int64
+			suite.Require().NoError(
+				suite.DB.Unscoped().
+					Model(&relational.UserNotificationSubscription{}).
+					Where("user_id = ?", currentUser.ID.String()).
+					Count(&count).Error,
+				"Failed to count stored notification subscriptions",
+			)
+			return count
+		}
+
 		// Test subscribing to digest notifications.
 		payload := map[string]interface{}{
 			"riskNotificationsSubscribed": false,
@@ -664,6 +681,7 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.NotificationTypeTaskAvailableWire], "Expected notifications to be normalized and persisted")
 		suite.Equal([]string{"email"}, response.Data.Notifications[notification.NotificationTypeEvidenceDigestWire], "Expected evidence digest notifications to be normalized and persisted")
 		suite.Equal([]string{"email"}, response.Data.Notifications[notification.NotificationTypeTaskDailyDigestWire], "Expected task daily digest notifications to be normalized and persisted")
+		suite.Equal(int64(3), countStoredSubscriptions(), "Expected exactly one stored row per active notification type")
 
 		// Test unsubscribing from digest by omitting taskDailyDigest from notifications map.
 		payload = map[string]interface{}{
@@ -698,6 +716,7 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		suite.False(hasDigestSubscription, "Expected digest subscription to be removed when evidence_digest is omitted")
 		_, hasTaskDailyDigestSubscription := response.Data.Notifications[notification.NotificationTypeTaskDailyDigestWire]
 		suite.False(hasTaskDailyDigestSubscription, "Expected task daily digest subscription to be removed when taskDailyDigest is omitted")
+		suite.Equal(int64(1), countStoredSubscriptions(), "Expected old notification rows to be replaced rather than soft-deleted")
 
 		// Test updating legacy booleans without changing notifications.
 		payload = map[string]interface{}{
@@ -726,6 +745,7 @@ func (suite *UserApiIntegrationSuite) TestSubscriptions() {
 		suite.Equal([]string{"email", "slack"}, response.Data.Notifications[notification.NotificationTypeTaskAvailableWire], "Expected notifications to remain unchanged when omitted")
 		_, hasDigestSubscription = response.Data.Notifications[notification.NotificationTypeEvidenceDigestWire]
 		suite.False(hasDigestSubscription, "Expected digest notification subscription to remain unchanged when notifications are omitted")
+		suite.Equal(int64(1), countStoredSubscriptions(), "Expected notification row count to remain stable when notifications are omitted")
 	})
 
 	suite.Run("UpdateSubscriptionsInvalidPayload", func() {

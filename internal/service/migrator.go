@@ -10,7 +10,14 @@ import (
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+const legacyNotificationBackfillBatchSize = 1000
+
+type legacySubscribedUser struct {
+	ID string `gorm:"column:id"`
+}
 
 func MigrateUp(db *gorm.DB) error {
 	workflowEntities := workflows.GetWorkflowEntities()
@@ -224,46 +231,13 @@ func migrateLegacyTaskAvailableEmailSubscriptions(db *gorm.DB) error {
 		return nil
 	}
 
-	// Backfill legacy task-available email subscription into the notifications table.
-	type legacySubscribedUser struct {
-		ID string `gorm:"column:id"`
-	}
-
-	var subscribedUsers []legacySubscribedUser
-	if err := db.Table("ccf_users").
-		Select("id").
-		Where("task_available_email_subscribed = ?", true).
-		Scan(&subscribedUsers).Error; err != nil {
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"task_available_email_subscribed",
+		notification.NotificationTypeTaskAvailable,
+		"task-available email",
+	); err != nil {
 		return err
-	}
-
-	for i := range subscribedUsers {
-		if subscribedUsers[i].ID == "" {
-			db.Logger.Warn(
-				context.Background(),
-				"Skipping legacy task-available email subscription row with empty user ID (index=%d)",
-				i,
-			)
-			continue
-		}
-
-		var count int64
-		if err := db.Model(&relational.UserNotificationSubscription{}).
-			Where("user_id = ? AND notification_type = ?", subscribedUsers[i].ID, notification.NotificationTypeTaskAvailable).
-			Count(&count).Error; err != nil {
-			return err
-		}
-		if count > 0 {
-			continue
-		}
-
-		if err := db.Create(&relational.UserNotificationSubscription{
-			UserID:           subscribedUsers[i].ID,
-			NotificationType: notification.NotificationTypeTaskAvailable,
-			Channels:         []string{notification.DeliveryChannelEmail},
-		}).Error; err != nil {
-			return err
-		}
 	}
 
 	return db.Migrator().DropColumn(&relational.User{}, "task_available_email_subscribed")
@@ -279,46 +253,13 @@ func migrateLegacyDigestSubscriptions(db *gorm.DB) error {
 		return nil
 	}
 
-	// Backfill legacy digest subscription into the notifications table.
-	type legacySubscribedUser struct {
-		ID string `gorm:"column:id"`
-	}
-
-	var subscribedUsers []legacySubscribedUser
-	if err := db.Table("ccf_users").
-		Select("id").
-		Where("digest_subscribed = ?", true).
-		Scan(&subscribedUsers).Error; err != nil {
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"digest_subscribed",
+		notification.NotificationTypeEvidenceDigest,
+		"evidence digest",
+	); err != nil {
 		return err
-	}
-
-	for i := range subscribedUsers {
-		if subscribedUsers[i].ID == "" {
-			db.Logger.Warn(
-				context.Background(),
-				"Skipping legacy evidence digest subscription row with empty user ID (index=%d)",
-				i,
-			)
-			continue
-		}
-
-		var count int64
-		if err := db.Model(&relational.UserNotificationSubscription{}).
-			Where("user_id = ? AND notification_type = ?", subscribedUsers[i].ID, notification.NotificationTypeEvidenceDigest).
-			Count(&count).Error; err != nil {
-			return err
-		}
-		if count > 0 {
-			continue
-		}
-
-		if err := db.Create(&relational.UserNotificationSubscription{
-			UserID:           subscribedUsers[i].ID,
-			NotificationType: notification.NotificationTypeEvidenceDigest,
-			Channels:         []string{notification.DeliveryChannelEmail},
-		}).Error; err != nil {
-			return err
-		}
 	}
 
 	return db.Migrator().DropColumn(&relational.User{}, "digest_subscribed")
@@ -334,49 +275,51 @@ func migrateLegacyTaskDailyDigestSubscriptions(db *gorm.DB) error {
 		return nil
 	}
 
-	// Backfill legacy task daily digest subscription into the notifications table.
-	type legacySubscribedUser struct {
-		ID string `gorm:"column:id"`
-	}
-
-	var subscribedUsers []legacySubscribedUser
-	if err := db.Table("ccf_users").
-		Select("id").
-		Where("task_daily_digest_subscribed = ?", true).
-		Scan(&subscribedUsers).Error; err != nil {
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"task_daily_digest_subscribed",
+		notification.NotificationTypeTaskDailyDigest,
+		"task daily digest",
+	); err != nil {
 		return err
 	}
 
-	for i := range subscribedUsers {
-		if subscribedUsers[i].ID == "" {
-			db.Logger.Warn(
-				context.Background(),
-				"Skipping legacy task daily digest subscription row with empty user ID (index=%d)",
-				i,
-			)
-			continue
-		}
-
-		var count int64
-		if err := db.Model(&relational.UserNotificationSubscription{}).
-			Where("user_id = ? AND notification_type = ?", subscribedUsers[i].ID, notification.NotificationTypeTaskDailyDigest).
-			Count(&count).Error; err != nil {
-			return err
-		}
-		if count > 0 {
-			continue
-		}
-
-		if err := db.Create(&relational.UserNotificationSubscription{
-			UserID:           subscribedUsers[i].ID,
-			NotificationType: notification.NotificationTypeTaskDailyDigest,
-			Channels:         []string{notification.DeliveryChannelEmail},
-		}).Error; err != nil {
-			return err
-		}
-	}
-
 	return db.Migrator().DropColumn(&relational.User{}, "task_daily_digest_subscribed")
+}
+
+func backfillLegacyNotificationSubscriptions(db *gorm.DB, legacyColumn string, notificationType string, legacyLabel string) error {
+	var subscribedUsers []legacySubscribedUser
+
+	return db.Table("ccf_users").
+		Select("id").
+		Where(legacyColumn+" = ?", true).
+		FindInBatches(&subscribedUsers, legacyNotificationBackfillBatchSize, func(_ *gorm.DB, batch int) error {
+			rows := make([]relational.UserNotificationSubscription, 0, len(subscribedUsers))
+			for i := range subscribedUsers {
+				if subscribedUsers[i].ID == "" {
+					db.Logger.Warn(
+						context.Background(),
+						"Skipping legacy %s subscription row with empty user ID (batch=%d index=%d)",
+						legacyLabel,
+						batch,
+						i,
+					)
+					continue
+				}
+
+				rows = append(rows, relational.UserNotificationSubscription{
+					UserID:           subscribedUsers[i].ID,
+					NotificationType: notificationType,
+					Channels:         []string{notification.DeliveryChannelEmail},
+				})
+			}
+
+			if len(rows) == 0 {
+				return nil
+			}
+
+			return db.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
+		}).Error
 }
 
 func MigrateDown(db *gorm.DB) error {

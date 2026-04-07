@@ -8,6 +8,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -42,7 +43,7 @@ func TestWorkflowTaskDueSoonWorker_SubscribedUser_SendsEmail(t *testing.T) {
 		return msg.To[0] == "alice@example.com" && msg.Subject != ""
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-2"}, nil)
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:                "user-1",
@@ -77,7 +78,7 @@ func TestWorkflowTaskDueSoonWorker_UnsubscribedUser_Skips(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "user-2",
@@ -101,7 +102,7 @@ func TestWorkflowTaskDueSoonWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing-user").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "missing-user",
@@ -133,7 +134,7 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockEmail.On("UseTemplate", "workflow-task-due-soon", mock.Anything).Return("", "", errors.New("template broken"))
 	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "user-3",
@@ -148,18 +149,20 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "workflow-task-due-soon template")
 }
 
-func TestWorkflowTaskDueSoonWorker_MultiChannel_IncludingEmail_SendsEmail(t *testing.T) {
+func TestWorkflowTaskDueSoonWorker_MultiChannel_IncludingEmail_SendsEmailAndSlack(t *testing.T) {
 	ctx := context.Background()
 	dueDate := time.Now().Add(24 * time.Hour)
 
 	mockEmail := &MockEmailService{}
+	mockSlack := &MockSlackService{}
 	mockRepo := &MockUserRepository{}
 	mockLog := zap.NewNop().Sugar()
 
 	user := NotificationUser{
-		ID:        "user-4",
-		Email:     "dora@example.com",
-		FirstName: "Dora",
+		ID:          "user-4",
+		Email:       "dora@example.com",
+		FirstName:   "Dora",
+		SlackUserID: "U12345",
 		NotificationSubscriptions: []NotificationSubscription{
 			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack", "email"}},
 		},
@@ -170,8 +173,12 @@ func TestWorkflowTaskDueSoonWorker_MultiChannel_IncludingEmail_SendsEmail(t *tes
 	mockEmail.On("Send", ctx, mock.MatchedBy(func(msg *types.Message) bool {
 		return msg.To[0] == "dora@example.com" && msg.Subject != ""
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-4"}, nil).Once()
+	mockSlack.On("IsEnabled").Return(true).Once()
+	mockSlack.On("SendMessage", ctx, "U12345", mock.MatchedBy(func(msg *slacktypes.Message) bool {
+		return msg != nil && msg.Text != ""
+	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-4"}, nil).Once()
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:                "user-4",
@@ -186,5 +193,50 @@ func TestWorkflowTaskDueSoonWorker_MultiChannel_IncludingEmail_SendsEmail(t *tes
 	err := w.Work(ctx, makeDueSoonJob(args))
 	assert.NoError(t, err)
 	mockEmail.AssertExpectations(t)
+	mockSlack.AssertExpectations(t)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestWorkflowTaskDueSoonWorker_SlackOnlyUser_SendsSlack(t *testing.T) {
+	ctx := context.Background()
+	dueDate := time.Now().Add(24 * time.Hour)
+
+	mockEmail := &MockEmailService{}
+	mockSlack := &MockSlackService{}
+	mockRepo := &MockUserRepository{}
+	mockLog := zap.NewNop().Sugar()
+
+	user := NotificationUser{
+		ID:          "user-5",
+		Email:       "eve@example.com",
+		FirstName:   "Eve",
+		SlackUserID: "USLACK1",
+		NotificationSubscriptions: []NotificationSubscription{
+			{NotificationType: notification.NotificationTypeTaskAvailable, Channels: []string{"slack"}},
+		},
+	}
+	mockRepo.On("FindUserByID", ctx, "user-5").Return(user, nil)
+	mockSlack.On("IsEnabled").Return(true).Once()
+	mockSlack.On("SendMessage", ctx, "USLACK1", mock.MatchedBy(func(msg *slacktypes.Message) bool {
+		return msg != nil && msg.Text != ""
+	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-5"}, nil).Once()
+
+	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+
+	args := WorkflowTaskDueSoonArgs{
+		UserID:                "user-5",
+		StepExecutionID:       "step-5",
+		StepTitle:             "Submit Evidence",
+		WorkflowTitle:         "SOC2 Audit",
+		WorkflowInstanceTitle: "SOC2 2026",
+		StepURL:               "https://app.example.com/steps/step-5",
+		DueDate:               dueDate,
+	}
+
+	err := w.Work(ctx, makeDueSoonJob(args))
+	assert.NoError(t, err)
+	mockEmail.AssertNotCalled(t, "UseTemplate", mock.Anything, mock.Anything)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+	mockSlack.AssertExpectations(t)
 	mockRepo.AssertExpectations(t)
 }
