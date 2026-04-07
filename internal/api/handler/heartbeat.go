@@ -29,6 +29,14 @@ func (h *HeartbeatHandler) Register(api *echo.Group) {
 	api.GET("/over-time", h.OverTime)
 }
 
+func (h *HeartbeatHandler) RegisterCreate(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.POST("", h.Create, middlewares...)
+}
+
+func (h *HeartbeatHandler) RegisterOverTime(api *echo.Group, middlewares ...echo.MiddlewareFunc) {
+	api.GET("/over-time", h.OverTime, middlewares...)
+}
+
 type HeartbeatCreateRequest struct {
 	UUID      uuid.UUID `json:"uuid,omitempty" validate:"required"`
 	CreatedAt time.Time `json:"created_at,omitempty" validate:"required"`

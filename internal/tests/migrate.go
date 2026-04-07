@@ -162,6 +162,9 @@ func (t *TestMigrator) Up() error {
 		&relational.AssessmentLog{},
 		&relational.AssessmentLogEntry{},
 		&relational.Attestation{},
+		&relational.Agent{},
+		&relational.AgentServiceAccountKey{},
+		&relational.AgentAuthEvent{},
 		&relational.User{},
 
 		&service.Heartbeat{},
@@ -357,6 +360,9 @@ func (t *TestMigrator) Down() error {
 		"poam_findings",
 		"poam_risks",
 
+		&relational.AgentAuthEvent{},
+		&relational.AgentServiceAccountKey{},
+		&relational.Agent{},
 		&relational.User{},
 
 		&service.Heartbeat{},

@@ -61,6 +61,11 @@ func (suite *SubjectTemplateApiIntegrationSuite) SetupTest() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
 
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+	suite.setupServer()
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) setupServer() {
 	logger, _ := zap.NewDevelopment()
 	metrics := api.NewMetricsHandler(context.Background(), logger.Sugar())
 	suite.server = api.NewServer(context.Background(), logger.Sugar(), suite.Config, metrics)
@@ -97,6 +102,28 @@ func (suite *SubjectTemplateApiIntegrationSuite) unauthenticatedRequest(method, 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	return rec, req
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) agentRequest(method, path string, body any) (*httptest.ResponseRecorder, *http.Request) {
+	agent, err := suite.CreateAgent("subject-template-agent")
+	suite.Require().NoError(err)
+	key, _, err := suite.CreateAgentKey(agent, "subject-template-key")
+	suite.Require().NoError(err)
+	token, err := suite.GetAgentToken(agent, key)
+	suite.Require().NoError(err)
+
+	payload := []byte{}
+	if body != nil {
+		data, marshalErr := json.Marshal(body)
+		suite.Require().NoError(marshalErr)
+		payload = data
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	return rec, req
 }
 
@@ -265,7 +292,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 		},
 	}
 
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq)
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq)
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusOK, rec.Code)
 
@@ -323,7 +350,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertC
 		},
 	}
 
-	rec2, req2 := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq2)
+	rec2, req2 := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", batchReq2)
 	suite.server.E().ServeHTTP(rec2, req2)
 	require.Equal(suite.T(), http.StatusOK, rec2.Code)
 
@@ -370,7 +397,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertE
 	}
 
 	// Send empty template list — both should be deleted.
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
 		"plugin-id": "delete-plugin",
 		"templates": []map[string]any{},
 	})
@@ -385,7 +412,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertE
 }
 
 func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertMissingIDReturns400() {
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
 		"plugin-id": "batch-plugin",
 		"templates": []map[string]any{
 			{
@@ -404,7 +431,7 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertM
 }
 
 func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertValidationError() {
-	rec, req := suite.authedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+	rec, req := suite.agentRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
 		"plugin-id": "batch-plugin",
 		"templates": []map[string]any{
 			{
@@ -422,11 +449,23 @@ func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertV
 	require.Equal(suite.T(), http.StatusBadRequest, rec.Code)
 }
 
-func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertIsPublic() {
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertIsPublicWhenUnsafeFlagEnabled() {
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+	suite.setupServer()
+
 	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
 		"plugin-id": "batch-plugin",
 		"templates": []map[string]any{},
 	})
 	suite.server.E().ServeHTTP(rec, req)
 	require.Equal(suite.T(), http.StatusOK, rec.Code)
+}
+
+func (suite *SubjectTemplateApiIntegrationSuite) TestSubjectTemplateBatchUpsertRequiresAgentAuthWhenUnsafeDisabled() {
+	rec, req := suite.unauthenticatedRequest(http.MethodPost, "/api/agent/subject-templates/batch", map[string]any{
+		"plugin-id": "batch-plugin",
+		"templates": []map[string]any{},
+	})
+	suite.server.E().ServeHTTP(rec, req)
+	require.Equal(suite.T(), http.StatusUnauthorized, rec.Code)
 }

@@ -4,13 +4,13 @@ package sdk_test
 
 import (
 	"context"
-	"fmt"
+	"testing"
+	"time"
+
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/sdk/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
-	"testing"
-	"time"
 )
 
 func TestEvidenceSDK(t *testing.T) {
@@ -23,8 +23,9 @@ type EvidenceSDKIntegrationSuite struct {
 
 func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 	suite.Run("Evidence can be created through the SDK", func() {
-		client := suite.GetSDKTestClient()
-		fmt.Println(client)
+		suite.Require().NoError(suite.Migrator.Refresh())
+		client, err := suite.GetAuthenticatedSDKTestClient()
+		suite.Require().NoError(err)
 		// Create two catalogs with the same group ID structure
 		evidence := types.Evidence{
 			UUID:    uuid.New(),
@@ -139,7 +140,7 @@ func (suite *EvidenceSDKIntegrationSuite) TestCreate() {
 				State:   "not-satisfied", // "satisfied" | "not-satisfied"
 			},
 		}
-		err := client.Evidence.Create(context.TODO(), evidence)
+		err = client.Evidence.Create(context.TODO(), evidence)
 		suite.NoError(err)
 	})
 }

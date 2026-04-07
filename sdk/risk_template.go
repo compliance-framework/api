@@ -1,9 +1,7 @@
 package sdk
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -11,8 +9,7 @@ import (
 )
 
 type riskTemplateClient struct {
-	httpClient *http.Client
-	config     *Config
+	client *Client
 }
 
 type upsertRiskTemplatesRequest struct {
@@ -31,27 +28,11 @@ func (r *riskTemplateClient) Upsert(ctx context.Context, pluginID string, policy
 		PolicyPackage: policyPackage,
 		Templates:     riskTemplates,
 	}
-	reqBody, err := json.Marshal(reqData)
+	response, err := r.client.doJSONRequest(ctx, http.MethodPost, "/api/agent/risk-templates/batch", reqData)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/agent/risk-templates/batch", r.config.BaseURL), bytes.NewReader(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	response, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := response.Body.Close()
-		if err != nil {
-			if r.config.Logger != nil {
-				r.config.Logger.Error("failed to close response body", "err", err)
-			}
-		}
-	}()
+	closeResponseBody(response, r.client.config.Logger)
 
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected api response status code: %d", response.StatusCode)
