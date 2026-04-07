@@ -359,6 +359,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Activities:     activities,
 		Subjects:       subjects,
 		Labels:         labels,
+		Signer:         signerContextFromEcho(ctx),
 	})
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

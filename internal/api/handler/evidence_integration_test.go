@@ -226,6 +226,11 @@ func (suite *EvidenceApiIntegrationSuite) TestCreateWithAgentTokenWhenUnsafeDisa
 	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+	suite.Require().NotNil(evidence.Signature)
+	suite.Equal(relational.AgentAuthMethodServiceAccount, evidence.Signature.Data().Claims.AuthMethod)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestCreateRejectsExpiredAgentKeyWhenUnsafeDisabled() {
@@ -256,6 +261,69 @@ func (suite *EvidenceApiIntegrationSuite) TestCreateRejectsExpiredAgentKeyWhenUn
 	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
 	server.E().ServeHTTP(rec, req)
 	assert.Equal(suite.T(), http.StatusForbidden, rec.Code)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreateWithUserTokenSignsEvidenceAndReturnsSignature() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Signed Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+	suite.Require().NotNil(evidence.Signature)
+	suite.Equal("dummy@example.com", evidence.Signature.Data().Claims.Subject)
+
+	var response map[string]any
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	data, ok := response["data"].(map[string]any)
+	suite.Require().True(ok)
+	suite.NotNil(data["signature"])
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestCreatePublicLeavesEvidenceUnsigned() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Unsigned Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+	suite.Nil(evidence.Signature)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestSearch() {

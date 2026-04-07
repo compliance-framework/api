@@ -49,6 +49,7 @@ func TestCanUserTransitionStep_QueryPath(t *testing.T) {
 		nil,
 		db,
 		nil,
+		nil,
 	)
 
 	workflowDef := &workflows.WorkflowDefinition{Name: "WF", Version: "1.0"}
@@ -116,6 +117,7 @@ func TestCanUserTransitionStep_FallbackWhenDBNil(t *testing.T) {
 		mockStepDef,
 		mockWorkflowExec,
 		mockRole,
+		nil,
 		nil,
 		nil,
 		nil,

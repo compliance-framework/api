@@ -6,10 +6,12 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal"
+	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/templates"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -128,6 +130,251 @@ func TestEvidenceService_Create_PreservesExplicitExpiry(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result.Expires)
 	require.WithinDuration(t, explicitExpiry, *result.Expires, time.Second)
+}
+
+func TestSigningService_CanonicalHashStableAcrossReorderedCollections(t *testing.T) {
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	signingSvc := NewSigningService(privateKey)
+	signingSvc.now = func() time.Time {
+		return time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+	}
+
+	now := time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC)
+	status := datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied})
+	paramsA := CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:   uuid.MustParse("f700fda2-e4b9-4f0c-b673-bcf9bb6dbfe8"),
+			Title:  "signed-evidence",
+			Start:  now.Add(-time.Hour),
+			End:    now,
+			Status: status,
+			Props: datatypes.NewJSONSlice([]relational.Prop{
+				{Name: "z", Value: "9"},
+				{Name: "a", Value: "1"},
+			}),
+		},
+		Activities: []relational.Activity{
+			{UUIDModel: relational.UUIDModel{ID: internal.Pointer(uuid.MustParse("45b8382d-127b-47cc-a2ef-053fa5a6b15f"))}, Title: internal.Pointer("B"), Description: "second"},
+			{UUIDModel: relational.UUIDModel{ID: internal.Pointer(uuid.MustParse("21569f93-ca01-428c-b877-d9c7e14d7bad"))}, Title: internal.Pointer("A"), Description: "first"},
+		},
+		Labels: []relational.Labels{
+			{Name: "env", Value: "prod"},
+			{Name: "service", Value: "api"},
+		},
+	}
+	paramsB := paramsA
+	paramsB.Activities = []relational.Activity{paramsA.Activities[1], paramsA.Activities[0]}
+	paramsB.Labels = []relational.Labels{paramsA.Labels[1], paramsA.Labels[0]}
+	paramsB.Evidence.Props = datatypes.NewJSONSlice([]relational.Prop{
+		{Name: "a", Value: "1"},
+		{Name: "z", Value: "9"},
+	})
+
+	signer := NewUserSignerContextFromClaims(&authn.UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: "signer@example.com",
+		},
+		GivenName:  "Signer",
+		FamilyName: "User",
+	})
+
+	sigA, err := signingSvc.SignEvidence(paramsA, signer)
+	require.NoError(t, err)
+	sigB, err := signingSvc.SignEvidence(paramsB, signer)
+	require.NoError(t, err)
+	require.NotNil(t, sigA)
+	require.NotNil(t, sigB)
+	require.Equal(t, sigA.Data().ContentHash.Value, sigB.Data().ContentHash.Value)
+}
+
+func TestSigningService_ContentHashChangesWhenEvidenceChanges(t *testing.T) {
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	signingSvc := NewSigningService(privateKey)
+	now := time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC)
+	signer := NewUserSignerContextFromClaims(&authn.UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "signer@example.com"},
+	})
+
+	base := CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:  uuid.MustParse("f700fda2-e4b9-4f0c-b673-bcf9bb6dbfe8"),
+			Title: "signed-evidence",
+			Start: now.Add(-time.Hour),
+			End:   now,
+			Props: datatypes.NewJSONSlice([]relational.Prop{
+				{Name: "check", Value: "baseline"},
+			}),
+			BackMatter: &relational.BackMatter{
+				Resources: []relational.BackMatterResource{
+					{
+						ID: uuid.MustParse("3d31fa64-edb4-4218-b242-bf03e3e6db77"),
+						Base64: internal.Pointer(datatypes.NewJSONType(relational.Base64{
+							Filename:  "evidence.txt",
+							MediaType: "text/plain",
+							Value:     "YmFzZQ==",
+						})),
+					},
+				},
+			},
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		},
+		Labels: []relational.Labels{{Name: "env", Value: "prod"}},
+	}
+
+	baseSig, err := signingSvc.SignEvidence(base, signer)
+	require.NoError(t, err)
+
+	withAttachmentChange := base
+	withAttachmentChange.Evidence.BackMatter = &relational.BackMatter{
+		Resources: []relational.BackMatterResource{
+			{
+				ID: uuid.MustParse("3d31fa64-edb4-4218-b242-bf03e3e6db77"),
+				Base64: internal.Pointer(datatypes.NewJSONType(relational.Base64{
+					Filename:  "evidence.txt",
+					MediaType: "text/plain",
+					Value:     "Y2hhbmdlZA==",
+				})),
+			},
+		},
+	}
+	attachmentSig, err := signingSvc.SignEvidence(withAttachmentChange, signer)
+	require.NoError(t, err)
+	require.NotEqual(t, baseSig.Data().ContentHash.Value, attachmentSig.Data().ContentHash.Value)
+
+	withStatusChange := base
+	withStatusChange.Evidence.Status = datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied})
+	statusSig, err := signingSvc.SignEvidence(withStatusChange, signer)
+	require.NoError(t, err)
+	require.NotEqual(t, baseSig.Data().ContentHash.Value, statusSig.Data().ContentHash.Value)
+
+	withPropChange := base
+	withPropChange.Evidence.Props = datatypes.NewJSONSlice([]relational.Prop{{Name: "check", Value: "different"}})
+	propSig, err := signingSvc.SignEvidence(withPropChange, signer)
+	require.NoError(t, err)
+	require.NotEqual(t, baseSig.Data().ContentHash.Value, propSig.Data().ContentHash.Value)
+
+	withLabelChange := base
+	withLabelChange.Labels = []relational.Labels{{Name: "env", Value: "staging"}}
+	labelSig, err := signingSvc.SignEvidence(withLabelChange, signer)
+	require.NoError(t, err)
+	require.NotEqual(t, baseSig.Data().ContentHash.Value, labelSig.Data().ContentHash.Value)
+}
+
+func TestEvidenceService_Create_SignsWithUserAndAgentContexts(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	svc := NewEvidenceService(db, logger.Sugar(), &config.Config{JWTPrivateKey: privateKey}, nil)
+	now := time.Now().UTC()
+
+	userResult, err := svc.Create(context.Background(), CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:   uuid.New(),
+			Title:  "signed-user",
+			Start:  now.Add(-time.Hour),
+			End:    now,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		},
+		Signer: NewUserSignerContextFromClaims(&authn.UserClaims{
+			RegisteredClaims: jwt.RegisteredClaims{Subject: "user@example.com"},
+			GivenName:        "User",
+			FamilyName:       "Signer",
+		}),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, userResult.Signature)
+	require.Equal(t, "user@example.com", userResult.Signature.Data().Claims.Subject)
+	require.Equal(t, authn.TokenKindUser, userResult.Signature.Data().Signer.Type)
+
+	agentID := uuid.New()
+	credentialID := uuid.New()
+	agentResult, err := svc.Create(context.Background(), CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:   uuid.New(),
+			Title:  "signed-agent",
+			Start:  now.Add(-time.Hour),
+			End:    now,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		},
+		Signer: NewAgentSignerContext(
+			&authn.AgentClaims{
+				RegisteredClaims: jwt.RegisteredClaims{Subject: "client-id"},
+				AgentID:          agentID.String(),
+				CredentialID:     credentialID.String(),
+				AuthMethod:       relational.AgentAuthMethodServiceAccount,
+			},
+			&relational.Agent{UUIDModel: relational.UUIDModel{ID: &agentID}, Name: "agent-one"},
+			&relational.AgentServiceAccountKey{UUIDModel: relational.UUIDModel{ID: &credentialID}},
+		),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, agentResult.Signature)
+	require.Equal(t, authn.TokenKindAgent, agentResult.Signature.Data().Signer.Type)
+	require.Equal(t, credentialID.String(), agentResult.Signature.Data().Signer.CredentialID)
+	require.Equal(t, relational.AgentAuthMethodServiceAccount, agentResult.Signature.Data().Claims.AuthMethod)
+}
+
+func TestEvidenceService_Create_LeavesSignatureNilWithoutSigner(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	svc := NewEvidenceService(db, logger.Sugar(), &config.Config{JWTPrivateKey: privateKey}, nil)
+	now := time.Now().UTC()
+
+	result, err := svc.Create(context.Background(), CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:   uuid.New(),
+			Title:  "unsigned",
+			Start:  now.Add(-time.Hour),
+			End:    now,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		},
+	})
+	require.NoError(t, err)
+	require.Nil(t, result.Signature)
+}
+
+func TestSigningService_AllowsSubjectsWithNilNestedRemarks(t *testing.T) {
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	signingSvc := NewSigningService(privateKey)
+	now := time.Now().UTC()
+	signer := NewUserSignerContextFromClaims(&authn.UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "user@example.com"},
+	})
+
+	signature, err := signingSvc.SignEvidence(CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:   uuid.New(),
+			Title:  "subject-nil-remarks",
+			Start:  now.Add(-time.Hour),
+			End:    now,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+		},
+		Subjects: []relational.AssessmentSubject{
+			{
+				Type: "inventory-item",
+				IncludeSubjects: []relational.SelectSubjectById{
+					{
+						SubjectUUID: uuid.New(),
+					},
+				},
+			},
+		},
+	}, signer)
+	require.NoError(t, err)
+	require.NotNil(t, signature)
 }
 
 func TestEvidenceService_Create_DuplicateLabelsAreIdempotent(t *testing.T) {

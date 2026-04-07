@@ -291,6 +291,10 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
 	}
+	signer := signerContextFromEcho(ctx)
+	if signer == nil {
+		return ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims")))
+	}
 
 	// Convert to workflow.StepTransitionRequest
 	transitionReq := &workflow.StepTransitionRequest{
@@ -299,6 +303,7 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 		Notes:    req.Notes,
 		UserID:   req.UserID,
 		UserType: req.UserType,
+		Signer:   signer,
 	}
 
 	// Perform the transition with role verification and evidence validation

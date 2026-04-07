@@ -37,10 +37,15 @@ type EvidenceService struct {
 	cfg          *config.Config
 	riskEnqueuer RiskJobEnqueuer
 	cdResolver   ComponentDefinitionResolver
+	signingSvc   *SigningService
 }
 
 func NewEvidenceService(db *gorm.DB, logger *zap.SugaredLogger, cfg *config.Config, riskEnqueuer RiskJobEnqueuer, opts ...EvidenceServiceOption) *EvidenceService {
-	svc := &EvidenceService{db: db, logger: logger, cfg: cfg, riskEnqueuer: riskEnqueuer}
+	var signingSvc *SigningService
+	if cfg != nil && cfg.JWTPrivateKey != nil {
+		signingSvc = NewSigningService(cfg.JWTPrivateKey)
+	}
+	svc := &EvidenceService{db: db, logger: logger, cfg: cfg, riskEnqueuer: riskEnqueuer, signingSvc: signingSvc}
 	for _, opt := range opts {
 		opt(svc)
 	}
@@ -62,6 +67,7 @@ type CreateEvidenceParams struct {
 	Activities     []relational.Activity
 	Subjects       []relational.AssessmentSubject
 	Labels         []relational.Labels
+	Signer         *SignerContext
 }
 
 func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParams) (*relational.Evidence, error) {
@@ -119,6 +125,14 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			}
 			expiryDate := baseDate.AddDate(0, s.cfg.EvidenceDefaultExpiryMonths, 0)
 			params.Evidence.Expires = &expiryDate
+		}
+
+		if s.signingSvc != nil {
+			signature, err := s.signingSvc.SignEvidence(params, params.Signer)
+			if err != nil {
+				return err
+			}
+			params.Evidence.Signature = signature
 		}
 
 		// Capture evidence status so we can enqueue a risk job after commit.

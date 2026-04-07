@@ -25826,6 +25826,9 @@ const docTemplate = `{
         "datatypes.JSONType-relational_CombinationRule": {
             "type": "object"
         },
+        "datatypes.JSONType-relational_EvidenceSignature": {
+            "type": "object"
+        },
         "datatypes.JSONType-relational_FlatWithoutGrouping": {
             "type": "object"
         },
@@ -28060,6 +28063,9 @@ const docTemplate = `{
                 },
                 "remarks": {
                     "type": "string"
+                },
+                "signature": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_EvidenceSignature"
                 },
                 "start": {
                     "description": "When did we start collecting the evidence, and when did the process end, and how long is it valid for ?",
@@ -34799,6 +34805,9 @@ const docTemplate = `{
                 },
                 "remarks": {
                     "type": "string"
+                },
+                "signature": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_EvidenceSignature"
                 },
                 "start": {
                     "description": "When did we start collecting the evidence, and when did the process end, and how long is it valid for ?",
