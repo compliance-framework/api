@@ -74,12 +74,7 @@ func (c *Client) NewRequest(ctx context.Context, method string, path string, rea
 		return c.executeStreamingRequest(ctx, method, path, reader, "")
 	}
 
-	body, err := readRequestBody(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.doRequest(ctx, method, path, body)
+	return c.doStreamingRequest(ctx, method, path, reader)
 }
 
 func (c *Client) doJSONRequest(ctx context.Context, method string, path string, payload any) (*http.Response, error) {
@@ -122,6 +117,41 @@ func (c *Client) doRequest(ctx context.Context, method string, path string, body
 	}
 
 	return c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken))
+}
+
+func (c *Client) doStreamingRequest(ctx context.Context, method string, path string, reader io.Reader) (*http.Response, error) {
+	bodyFactory, canRetry := makeReplayableRequestBody(reader)
+
+	tokenType, accessToken, err := c.getAgentAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	reqBody, err := bodyFactory()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.executeStreamingRequest(ctx, method, path, reqBody, formatAuthorizationHeader(tokenType, accessToken))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusUnauthorized || !canRetry {
+		return resp, nil
+	}
+
+	closeResponseBody(resp, c.config.Logger)
+	c.invalidateAgentAccessToken()
+
+	tokenType, accessToken, err = c.getAgentAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	reqBody, err = bodyFactory()
+	if err != nil {
+		return nil, err
+	}
+	return c.executeStreamingRequest(ctx, method, path, reqBody, formatAuthorizationHeader(tokenType, accessToken))
 }
 
 func (c *Client) executeRequest(ctx context.Context, method string, path string, body []byte, authorization string) (*http.Response, error) {
@@ -266,6 +296,43 @@ func readRequestBody(reader io.Reader) ([]byte, error) {
 	}
 
 	return io.ReadAll(reader)
+}
+
+func makeReplayableRequestBody(reader io.Reader) (func() (io.Reader, error), bool) {
+	if reader == nil {
+		return func() (io.Reader, error) { return nil, nil }, true
+	}
+
+	switch r := reader.(type) {
+	case *bytes.Reader:
+		payload := make([]byte, r.Len())
+		snapshot := *r
+		if _, err := snapshot.Read(payload); err != nil {
+			return func() (io.Reader, error) { return nil, err }, false
+		}
+		return func() (io.Reader, error) { return bytes.NewReader(payload), nil }, true
+	case *strings.Reader:
+		payload := make([]byte, r.Len())
+		snapshot := *r
+		if _, err := snapshot.Read(payload); err != nil {
+			return func() (io.Reader, error) { return nil, err }, false
+		}
+		return func() (io.Reader, error) { return strings.NewReader(string(payload)), nil }, true
+	case *bytes.Buffer:
+		payload := append([]byte(nil), r.Bytes()...)
+		return func() (io.Reader, error) { return bytes.NewReader(payload), nil }, true
+	case io.ReadSeeker:
+		payload, err := readRequestBody(r)
+		if err != nil {
+			return func() (io.Reader, error) { return nil, err }, false
+		}
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return func() (io.Reader, error) { return nil, err }, false
+		}
+		return func() (io.Reader, error) { return bytes.NewReader(payload), nil }, true
+	default:
+		return func() (io.Reader, error) { return reader, nil }, false
+	}
 }
 
 func closeResponseBody(resp *http.Response, logger *zap.SugaredLogger) {

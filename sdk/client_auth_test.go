@@ -153,6 +153,49 @@ func TestClientNewRequestDoesNotPrebufferBodyWithoutAgentAuth(t *testing.T) {
 	}
 }
 
+func TestClientNewRequestDoesNotPrebufferNonReplayableBodyWithAgentAuth(t *testing.T) {
+	reader := &trackingReader{data: []byte(`{"hello":"world"}`)}
+	readCountBeforeRoundTrip := -1
+
+	client := newAuthenticatedTestClient(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/auth/agent/token":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"access_token":"token-1","token_type":"bearer","expires_in":3600}`)),
+				Header:     make(http.Header),
+			}, nil
+		case "/api/test":
+			readCountBeforeRoundTrip = reader.reads
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			if string(body) != `{"hello":"world"}` {
+				t.Fatalf("unexpected body %q", string(body))
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("")),
+				Header:     make(http.Header),
+			}, nil
+		default:
+			t.Fatalf("unexpected path %q", r.URL.Path)
+			return nil, nil
+		}
+	})
+
+	resp, err := client.NewRequest(context.Background(), http.MethodPost, "/api/test", reader)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	closeResponseBody(resp, nil)
+
+	if readCountBeforeRoundTrip != 0 {
+		t.Fatalf("expected non-replayable request body to remain unread before round trip, got %d reads", readCountBeforeRoundTrip)
+	}
+}
+
 func TestClientReusesCachedAgentTokenUntilNearExpiry(t *testing.T) {
 	var (
 		tokenCalls     int
@@ -368,6 +411,48 @@ func TestClientDoesNotLoopOnSecond401(t *testing.T) {
 	}
 	if protectedCalls != 2 {
 		t.Fatalf("expected two protected requests, got %d", protectedCalls)
+	}
+}
+
+func TestClientDoesNotRetry401ForNonReplayableRequestBody(t *testing.T) {
+	var (
+		tokenCalls     int
+		protectedCalls int
+	)
+
+	client := newAuthenticatedTestClient(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/auth/agent/token":
+			tokenCalls++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"access_token":"token","token_type":"bearer","expires_in":3600}`)),
+				Header:     make(http.Header),
+			}, nil
+		case "/api/test":
+			protectedCalls++
+			return &http.Response{
+				StatusCode: http.StatusUnauthorized,
+				Body:       io.NopCloser(strings.NewReader("")),
+				Header:     make(http.Header),
+			}, nil
+		default:
+			t.Fatalf("unexpected path %q", r.URL.Path)
+			return nil, nil
+		}
+	})
+
+	resp, err := client.NewRequest(context.Background(), http.MethodPost, "/api/test", &trackingReader{data: []byte(`{}`)})
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	closeResponseBody(resp, nil)
+
+	if tokenCalls != 1 {
+		t.Fatalf("expected one token request, got %d", tokenCalls)
+	}
+	if protectedCalls != 1 {
+		t.Fatalf("expected one protected request, got %d", protectedCalls)
 	}
 }
 
