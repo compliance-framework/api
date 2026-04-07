@@ -291,9 +291,9 @@ func (h *SlackLinkHandler) fetchSlackUserInfo(ctx context.Context, accessToken s
 
 	if !userInfo.OK {
 		if strings.TrimSpace(userInfo.Error) != "" {
-			return nil, fmt.Errorf("Slack user info request failed: %s", userInfo.Error)
+			return nil, fmt.Errorf("slack user info request failed: %s", userInfo.Error)
 		}
-		return nil, fmt.Errorf("Slack user info request failed")
+		return nil, fmt.Errorf("slack user info request failed")
 	}
 
 	if strings.TrimSpace(userInfo.UserID) == "" {
