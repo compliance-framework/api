@@ -1,18 +1,31 @@
 package sdk
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
 
+const agentTokenExpirySkew = time.Minute
+
+type AgentAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+}
+
 type Config struct {
 	BaseURL string
 	Logger  *zap.SugaredLogger
+
+	AgentAuth *AgentAuthConfig
 }
 
 type Client struct {
@@ -20,39 +33,190 @@ type Client struct {
 
 	config *Config
 
+	tokenMu              sync.Mutex
+	cachedAccessToken    string
+	cachedTokenType      string
+	cachedTokenExpiresAt time.Time
+
 	Evidence *evidenceClient
 
 	RiskTemplate *riskTemplateClient
 
 	SubjectTemplate *subjectTemplateClient
+
+	Heartbeat *heartbeatClient
 }
 
 func NewClient(client *http.Client, config *Config) *Client {
-	return &Client{
+	if client == nil {
+		client = http.DefaultClient
+	}
+	if config == nil {
+		config = &Config{}
+	}
+
+	c := &Client{
 		httpClient: client,
 		config:     config,
-		Evidence: &evidenceClient{
-			httpClient: client,
-			config:     config,
-		},
-		RiskTemplate: &riskTemplateClient{
-			httpClient: client,
-			config:     config,
-		},
-		SubjectTemplate: &subjectTemplateClient{
-			httpClient: client,
-			config:     config,
-		},
 	}
+
+	c.Evidence = &evidenceClient{client: c}
+	c.RiskTemplate = &riskTemplateClient{client: c}
+	c.SubjectTemplate = &subjectTemplateClient{client: c}
+	c.Heartbeat = &heartbeatClient{client: c}
+
+	return c
 }
 
 func (c *Client) NewRequest(ctx context.Context, method string, path string, reader io.Reader) (*http.Response, error) {
+	body, err := readRequestBody(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.doRequest(ctx, method, path, body)
+}
+
+func (c *Client) doJSONRequest(ctx context.Context, method string, path string, payload any) (*http.Response, error) {
+	var body []byte
+	if payload != nil {
+		var err error
+		body, err = json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return c.doRequest(ctx, method, path, body)
+}
+
+func (c *Client) doRequest(ctx context.Context, method string, path string, body []byte) (*http.Response, error) {
+	if !c.hasAgentAuth() {
+		return c.executeRequest(ctx, method, path, body, "")
+	}
+
+	tokenType, accessToken, err := c.getAgentAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, nil
+	}
+
+	closeResponseBody(resp, c.config.Logger)
+	c.invalidateAgentAccessToken()
+
+	tokenType, accessToken, err = c.getAgentAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.executeRequest(ctx, method, path, body, formatAuthorizationHeader(tokenType, accessToken))
+}
+
+func (c *Client) executeRequest(ctx context.Context, method string, path string, body []byte, authorization string) (*http.Response, error) {
 	path = strings.TrimPrefix(path, "/")
 	url := strings.TrimSuffix(c.config.BaseURL, "/")
-	req, err := http.NewRequestWithContext(ctx, method, fmt.Sprintf("%s/%s", url, path), reader)
+	req, err := http.NewRequestWithContext(ctx, method, fmt.Sprintf("%s/%s", url, path), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
 	return c.httpClient.Do(req)
+}
+
+func (c *Client) hasAgentAuth() bool {
+	return c.config != nil &&
+		c.config.AgentAuth != nil &&
+		strings.TrimSpace(c.config.AgentAuth.ClientID) != "" &&
+		strings.TrimSpace(c.config.AgentAuth.ClientSecret) != ""
+}
+
+func (c *Client) getAgentAccessToken(ctx context.Context) (string, string, error) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	if c.cachedAccessToken != "" && time.Now().UTC().Add(agentTokenExpirySkew).Before(c.cachedTokenExpiresAt) {
+		return c.cachedTokenType, c.cachedAccessToken, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/auth/agent/token", strings.TrimSuffix(c.config.BaseURL, "/")), nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.SetBasicAuth(strings.TrimSpace(c.config.AgentAuth.ClientID), strings.TrimSpace(c.config.AgentAuth.ClientSecret))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer closeResponseBody(resp, c.config.Logger)
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("agent auth failed with status code: %d", resp.StatusCode)
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", "", err
+	}
+	if strings.TrimSpace(tokenResp.AccessToken) == "" {
+		return "", "", fmt.Errorf("agent auth response missing access_token")
+	}
+
+	c.cachedAccessToken = tokenResp.AccessToken
+	c.cachedTokenType = tokenResp.TokenType
+	c.cachedTokenExpiresAt = time.Now().UTC().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+	return c.cachedTokenType, c.cachedAccessToken, nil
+}
+
+func (c *Client) invalidateAgentAccessToken() {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	c.cachedAccessToken = ""
+	c.cachedTokenType = ""
+	c.cachedTokenExpiresAt = time.Time{}
+}
+
+func formatAuthorizationHeader(tokenType, accessToken string) string {
+	normalizedTokenType := strings.TrimSpace(tokenType)
+	if normalizedTokenType == "" {
+		normalizedTokenType = "Bearer"
+	} else if strings.EqualFold(normalizedTokenType, "bearer") {
+		normalizedTokenType = "Bearer"
+	}
+
+	return fmt.Sprintf("%s %s", normalizedTokenType, accessToken)
+}
+
+func readRequestBody(reader io.Reader) ([]byte, error) {
+	if reader == nil {
+		return nil, nil
+	}
+
+	return io.ReadAll(reader)
+}
+
+func closeResponseBody(resp *http.Response, logger *zap.SugaredLogger) {
+	if resp == nil || resp.Body == nil {
+		return
+	}
+
+	if err := resp.Body.Close(); err != nil && logger != nil {
+		logger.Errorw("failed to close response body", "err", err)
+	}
 }

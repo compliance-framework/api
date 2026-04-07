@@ -4,6 +4,7 @@ package sdk_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/api/handler"
+	authhandler "github.com/compliance-framework/api/internal/api/handler/auth"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -18,6 +20,7 @@ import (
 	"github.com/compliance-framework/api/internal/tests"
 
 	"github.com/compliance-framework/api/sdk"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -45,6 +48,37 @@ func (suite *IntegrationBaseTestSuite) GetSDKTestClient() *sdk.Client {
 	return sdk.NewClient(http.DefaultClient, config)
 }
 
+func (suite *IntegrationBaseTestSuite) GetAuthenticatedSDKTestClient() (*sdk.Client, error) {
+	agent := &relational.Agent{
+		Name:     fmt.Sprintf("sdk-agent-%d", time.Now().UnixNano()),
+		IsActive: true,
+	}
+	if err := suite.DB.Create(agent).Error; err != nil {
+		return nil, err
+	}
+
+	clientSecret := fmt.Sprintf("sdk-secret-%d", time.Now().UnixNano())
+	agentID := agent.ID.String()
+	key := &relational.AgentServiceAccountKey{
+		AgentID:  &agentID,
+		ClientID: uuid.NewString(),
+	}
+	if err := key.SetSecret(clientSecret); err != nil {
+		return nil, err
+	}
+	if err := suite.DB.Create(key).Error; err != nil {
+		return nil, err
+	}
+
+	return sdk.NewClient(http.DefaultClient, &sdk.Config{
+		BaseURL: "http://" + suite.Server.E().ListenerAddr().String(),
+		AgentAuth: &sdk.AgentAuthConfig{
+			ClientID:     key.ClientID,
+			ClientSecret: clientSecret,
+		},
+	}), nil
+}
+
 func (suite *IntegrationBaseTestSuite) SetupSuite() {
 	ctx := context.Background()
 
@@ -55,6 +89,7 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 
 	cfg.JWTPrivateKey = privKey
 	cfg.JWTPublicKey = pubKey
+	cfg.StrictDisablePublicAgentEndpoints = true
 	suite.Config = cfg
 
 	postgresContainer, err := postgresContainers.Run(ctx,
@@ -113,6 +148,7 @@ func (suite *IntegrationBaseTestSuite) SetupSuite() {
 	}
 
 	handler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, services)
+	authhandler.RegisterHandlers(server, logger.Sugar(), suite.DB, suite.Config, metrics, nil, nil)
 
 	suite.Server = server
 
