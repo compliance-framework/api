@@ -34,6 +34,7 @@ type Client struct {
 	config *Config
 
 	tokenMu              sync.Mutex
+	tokenRefreshCh       chan struct{}
 	cachedAccessToken    string
 	cachedTokenType      string
 	cachedTokenExpiresAt time.Time
@@ -141,46 +142,21 @@ func (c *Client) hasAgentAuth() bool {
 }
 
 func (c *Client) getAgentAccessToken(ctx context.Context) (string, string, error) {
-	c.tokenMu.Lock()
-	defer c.tokenMu.Unlock()
+	for {
+		tokenType, accessToken, refreshCh, shouldFetch := c.getAgentAccessTokenState()
+		if accessToken != "" {
+			return tokenType, accessToken, nil
+		}
+		if shouldFetch {
+			return c.fetchAndCacheAgentAccessToken(ctx, refreshCh)
+		}
 
-	if c.cachedAccessToken != "" && time.Now().UTC().Add(agentTokenExpirySkew).Before(c.cachedTokenExpiresAt) {
-		return c.cachedTokenType, c.cachedAccessToken, nil
+		select {
+		case <-refreshCh:
+		case <-ctx.Done():
+			return "", "", ctx.Err()
+		}
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/auth/agent/token", strings.TrimSuffix(c.config.BaseURL, "/")), nil)
-	if err != nil {
-		return "", "", err
-	}
-	req.SetBasicAuth(strings.TrimSpace(c.config.AgentAuth.ClientID), strings.TrimSpace(c.config.AgentAuth.ClientSecret))
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", "", err
-	}
-	defer closeResponseBody(resp, c.config.Logger)
-
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("agent auth failed with status code: %d", resp.StatusCode)
-	}
-
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return "", "", err
-	}
-	if strings.TrimSpace(tokenResp.AccessToken) == "" {
-		return "", "", fmt.Errorf("agent auth response missing access_token")
-	}
-
-	c.cachedAccessToken = tokenResp.AccessToken
-	c.cachedTokenType = tokenResp.TokenType
-	c.cachedTokenExpiresAt = time.Now().UTC().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-
-	return c.cachedTokenType, c.cachedAccessToken, nil
 }
 
 func (c *Client) invalidateAgentAccessToken() {
@@ -190,6 +166,79 @@ func (c *Client) invalidateAgentAccessToken() {
 	c.cachedAccessToken = ""
 	c.cachedTokenType = ""
 	c.cachedTokenExpiresAt = time.Time{}
+}
+
+func (c *Client) getAgentAccessTokenState() (string, string, chan struct{}, bool) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	if c.hasFreshAgentAccessTokenLocked() {
+		return c.cachedTokenType, c.cachedAccessToken, nil, false
+	}
+	if c.tokenRefreshCh != nil {
+		return "", "", c.tokenRefreshCh, false
+	}
+
+	c.tokenRefreshCh = make(chan struct{})
+	return "", "", c.tokenRefreshCh, true
+}
+
+func (c *Client) hasFreshAgentAccessTokenLocked() bool {
+	return c.cachedAccessToken != "" && time.Now().UTC().Add(agentTokenExpirySkew).Before(c.cachedTokenExpiresAt)
+}
+
+func (c *Client) fetchAndCacheAgentAccessToken(ctx context.Context, refreshCh chan struct{}) (string, string, error) {
+	tokenType, accessToken, expiresAt, err := c.fetchAgentAccessToken(ctx)
+
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	if err == nil {
+		c.cachedAccessToken = accessToken
+		c.cachedTokenType = tokenType
+		c.cachedTokenExpiresAt = expiresAt
+	}
+	if c.tokenRefreshCh == refreshCh {
+		close(c.tokenRefreshCh)
+		c.tokenRefreshCh = nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+
+	return c.cachedTokenType, c.cachedAccessToken, nil
+}
+
+func (c *Client) fetchAgentAccessToken(ctx context.Context) (string, string, time.Time, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/api/auth/agent/token", strings.TrimSuffix(c.config.BaseURL, "/")), nil)
+	if err != nil {
+		return "", "", time.Time{}, err
+	}
+	req.SetBasicAuth(strings.TrimSpace(c.config.AgentAuth.ClientID), strings.TrimSpace(c.config.AgentAuth.ClientSecret))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", "", time.Time{}, err
+	}
+	defer closeResponseBody(resp, c.config.Logger)
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", time.Time{}, fmt.Errorf("agent auth failed with status code: %d", resp.StatusCode)
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", "", time.Time{}, err
+	}
+	if strings.TrimSpace(tokenResp.AccessToken) == "" {
+		return "", "", time.Time{}, fmt.Errorf("agent auth response missing access_token")
+	}
+
+	return tokenResp.TokenType, tokenResp.AccessToken, time.Now().UTC().Add(time.Duration(tokenResp.ExpiresIn) * time.Second), nil
 }
 
 func formatAuthorizationHeader(tokenType, accessToken string) string {

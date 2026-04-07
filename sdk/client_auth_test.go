@@ -3,10 +3,12 @@ package sdk
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -320,6 +322,64 @@ func TestClientDoesNotLoopOnSecond401(t *testing.T) {
 	}
 	if protectedCalls != 2 {
 		t.Fatalf("expected two protected requests, got %d", protectedCalls)
+	}
+}
+
+func TestClientGetAgentAccessTokenWaitersRespectContextDuringRefresh(t *testing.T) {
+	var tokenCalls atomic.Int32
+	fetchStarted := make(chan struct{})
+	releaseFetch := make(chan struct{})
+	firstFetchDone := make(chan error, 1)
+
+	client := newAuthenticatedTestClient(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/auth/agent/token":
+			if tokenCalls.Add(1) == 1 {
+				close(fetchStarted)
+			}
+			<-releaseFetch
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"access_token":"token-1","token_type":"bearer","expires_in":3600}`)),
+				Header:     make(http.Header),
+			}, nil
+		default:
+			t.Fatalf("unexpected path %q", r.URL.Path)
+			return nil, nil
+		}
+	})
+
+	go func() {
+		_, _, err := client.getAgentAccessToken(context.Background())
+		firstFetchDone <- err
+	}()
+
+	select {
+	case <-fetchStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for token fetch to start")
+	}
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+
+	_, _, err := client.getAgentAccessToken(waitCtx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected waiter context deadline exceeded, got %v", err)
+	}
+	if tokenCalls.Load() != 1 {
+		t.Fatalf("expected one in-flight token request, got %d", tokenCalls.Load())
+	}
+
+	close(releaseFetch)
+
+	select {
+	case err := <-firstFetchDone:
+		if err != nil {
+			t.Fatalf("expected first token fetch to succeed, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first token fetch to finish")
 	}
 }
 

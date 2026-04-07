@@ -42,7 +42,7 @@ func AgentJWTOrPublicMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPubl
 				return echo.NewHTTPError(http.StatusUnauthorized, err)
 			}
 
-			claims, agent, key, err := verifyAgentRequest(db, tokenString, publicKey)
+			claims, agent, key, err := verifyAgentRequest(db, tokenString, publicKey, c)
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func AgentJWTOrPublicMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, allowPubl
 	}
 }
 
-func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKey) (*authn.AgentClaims, *relational.Agent, *relational.AgentServiceAccountKey, error) {
+func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKey, c echo.Context) (*authn.AgentClaims, *relational.Agent, *relational.AgentServiceAccountKey, error) {
 	claims, err := authn.VerifyAgentJWTToken(tokenString, publicKey)
 	if err != nil {
 		return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
@@ -69,7 +69,8 @@ func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKe
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 		}
-		return nil, nil, nil, echo.NewHTTPError(http.StatusInternalServerError, err)
+		c.Logger().Errorf("failed to load agent for authenticated agent request: %v (agent_id=%v)", err, claims.AgentID)
+		return nil, nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to load agent")
 	}
 	if !agent.IsActive {
 		return nil, nil, nil, echo.NewHTTPError(http.StatusForbidden, "agent is inactive")
@@ -80,7 +81,8 @@ func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKe
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 		}
-		return nil, nil, nil, echo.NewHTTPError(http.StatusInternalServerError, err)
+		c.Logger().Errorf("failed to load agent key for authenticated agent request: %v (agent_id=%v credential_id=%v)", err, agent.ID, claims.CredentialID)
+		return nil, nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to load agent key")
 	}
 	now := time.Now().UTC()
 	if key.IsRevoked(now) {
