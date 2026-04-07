@@ -19,10 +19,6 @@ type agentTokenResponse struct {
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-func (h *AuthHandler) RegisterAgent(api *echo.Group) {
-	api.POST("/agent/token", h.GetAgentToken)
-}
-
 func (h *AuthHandler) GetAgentToken(ctx echo.Context) error {
 	clientID, clientSecret, err := getAgentCredentials(ctx)
 	if err != nil {
@@ -32,18 +28,21 @@ func (h *AuthHandler) GetAgentToken(ctx echo.Context) error {
 	var key relational.AgentServiceAccountKey
 	if err := h.db.Where("client_id = ?", clientID).First(&key).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			h.logAgentAuthEvent(nil, nil, clientID, relational.AgentAuthEventOutcomeFailure, "unknown_client_id", ctx)
 			return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("invalid client credentials")))
 		}
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
 	if key.AgentID == nil {
+		h.logAgentAuthEvent(nil, &key, clientID, relational.AgentAuthEventOutcomeFailure, "missing_agent_id", ctx)
 		return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("invalid client credentials")))
 	}
 
 	var agent relational.Agent
 	if err := h.db.Where("id = ?", *key.AgentID).First(&agent).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			h.logAgentAuthEvent(nil, &key, clientID, relational.AgentAuthEventOutcomeFailure, "agent_not_found", ctx)
 			return ctx.JSON(http.StatusUnauthorized, api.NewError(errors.New("invalid client credentials")))
 		}
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -128,11 +127,11 @@ func (h *AuthHandler) newAgentAuthEvent(agent *relational.Agent, key *relational
 		Reason:     reason,
 	}
 	if agent != nil && agent.ID != nil {
-		agentID := agent.ID.String()
+		agentID := *agent.ID
 		event.AgentID = &agentID
 	}
 	if key != nil && key.ID != nil {
-		keyID := key.ID.String()
+		keyID := *key.ID
 		event.CredentialID = &keyID
 	}
 	if remoteAddr := strings.TrimSpace(ctx.RealIP()); remoteAddr != "" {

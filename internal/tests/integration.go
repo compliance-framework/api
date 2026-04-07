@@ -105,7 +105,7 @@ func (suite *IntegrationTestSuite) CreateAgent(name string) (*relational.Agent, 
 func (suite *IntegrationTestSuite) CreateAgentKey(agent *relational.Agent, name string) (*relational.AgentServiceAccountKey, string, error) {
 	secret := fmt.Sprintf("secret-%d", time.Now().UnixNano())
 	key := &relational.AgentServiceAccountKey{
-		AgentID:  stringPtr(agent.ID.String()),
+		AgentID:  agent.ID,
 		Name:     &name,
 		ClientID: fmt.Sprintf("client-%d", time.Now().UnixNano()),
 	}
@@ -120,8 +120,4 @@ func (suite *IntegrationTestSuite) CreateAgentKey(agent *relational.Agent, name 
 
 func (suite *IntegrationTestSuite) GetAgentToken(agent *relational.Agent, key *relational.AgentServiceAccountKey) (*string, error) {
 	return authn.GenerateAgentJWTToken(agent, key, suite.Config.JWTPrivateKey)
-}
-
-func stringPtr(v string) *string {
-	return &v
 }

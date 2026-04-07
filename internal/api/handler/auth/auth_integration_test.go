@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -170,11 +171,26 @@ func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsBadSecret() {
 }
 
 func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsUnknownClientID() {
+	err := suite.IntegrationTestSuite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/agent/token", nil)
 	req.SetBasicAuth("missing-client-id", "wrong-secret")
 	suite.server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusUnauthorized, rec.Code)
+
+	var events []relational.AgentAuthEvent
+	suite.Require().NoError(suite.DB.Order("created_at asc").Find(&events).Error)
+	suite.Require().Len(events, 1)
+	suite.Equal(relational.AgentAuthEventOutcomeFailure, events[0].Outcome)
+	suite.Equal(relational.AgentAuthMethodServiceAccount, events[0].AuthMethod)
+	suite.NotNil(events[0].Principal)
+	suite.Equal("missing-client-id", *events[0].Principal)
+	suite.NotNil(events[0].Reason)
+	suite.Equal("unknown_client_id", *events[0].Reason)
+	suite.Nil(events[0].AgentID)
+	suite.Nil(events[0].CredentialID)
 }
 
 func (suite *AuthAPIIntegrationSuite) TestAgentTokenRejectsRevokedKey() {

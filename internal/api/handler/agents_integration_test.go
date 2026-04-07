@@ -155,3 +155,24 @@ func (suite *AgentAPIIntegrationSuite) TestCreateAgentKeyWithExpiry() {
 	require.False(suite.T(), keyCreated.Data.NeverExpires)
 	require.NotNil(suite.T(), keyCreated.Data.ExpiresAt)
 }
+
+func (suite *AgentAPIIntegrationSuite) TestCreateAgentKeyRequiresExplicitExpiryDecision() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	createRec, createReq := suite.authedRequest(http.MethodPost, "/api/admin/agents", map[string]any{
+		"name": "agent-three",
+	})
+	suite.server.E().ServeHTTP(createRec, createReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created GenericDataResponse[agentResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+
+	keyCreateRec, keyCreateReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/admin/agents/%s/keys", created.Data.ID), map[string]any{
+		"name": "missing-expiry-choice",
+	})
+	suite.server.E().ServeHTTP(keyCreateRec, keyCreateReq)
+	require.Equal(suite.T(), http.StatusBadRequest, keyCreateRec.Code)
+	require.Contains(suite.T(), keyCreateRec.Body.String(), "expires-at is required unless never-expires is true")
+}

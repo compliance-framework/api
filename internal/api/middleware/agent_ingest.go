@@ -76,7 +76,7 @@ func verifyAgentRequest(db *gorm.DB, tokenString string, publicKey *rsa.PublicKe
 	}
 
 	var key relational.AgentServiceAccountKey
-	if err := db.Where("agent_id = ? AND id = ?", agent.ID.String(), claims.CredentialID).First(&key).Error; err != nil {
+	if err := db.Where("agent_id = ? AND id = ?", *agent.ID, claims.CredentialID).First(&key).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 		}

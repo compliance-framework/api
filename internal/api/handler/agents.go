@@ -89,12 +89,14 @@ func (h *AgentHandler) ListAgents(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
+	keyCounts, err := h.listAgentKeyCounts(agents)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
 	resp := make([]agentResponse, 0, len(agents))
 	for _, agent := range agents {
-		item, err := h.buildAgentResponse(&agent)
-		if err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
-		}
+		item := buildAgentResponse(&agent, keyCounts[agent.ID.String()])
 		resp = append(resp, item)
 	}
 
@@ -220,7 +222,7 @@ func (h *AgentHandler) CreateAgentKey(ctx echo.Context) error {
 	}
 
 	key := &relational.AgentServiceAccountKey{
-		AgentID:   stringPtr(agent.ID.String()),
+		AgentID:   agent.ID,
 		Name:      normalizeOptionalString(req.Name),
 		ClientID:  uuid.NewString(),
 		ExpiresAt: expiresAt,
@@ -250,7 +252,7 @@ func (h *AgentHandler) ListAgentKeys(ctx echo.Context) error {
 	}
 
 	var keys []relational.AgentServiceAccountKey
-	if err := h.db.Where("agent_id = ?", agent.ID.String()).Order("created_at asc").Find(&keys).Error; err != nil {
+	if err := h.db.Where("agent_id = ?", *agent.ID).Order("created_at asc").Find(&keys).Error; err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
@@ -310,7 +312,7 @@ func (h *AgentHandler) getAgentKey(agentID, keyID string) (*relational.AgentServ
 		return nil, http.StatusBadRequest, err
 	}
 	var key relational.AgentServiceAccountKey
-	if err := h.db.Where("agent_id = ?", agent.ID.String()).First(&key, keyUUID).Error; err != nil {
+	if err := h.db.Where("agent_id = ?", *agent.ID).First(&key, keyUUID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, http.StatusNotFound, err
 		}
@@ -320,13 +322,15 @@ func (h *AgentHandler) getAgentKey(agentID, keyID string) (*relational.AgentServ
 }
 
 func (h *AgentHandler) buildAgentResponse(agent *relational.Agent) (agentResponse, error) {
-	var keyCount int64
-	if err := h.db.Model(&relational.AgentServiceAccountKey{}).
-		Where("agent_id = ? AND revoked_at IS NULL", agent.ID.String()).
-		Count(&keyCount).Error; err != nil {
+	keyCounts, err := h.listAgentKeyCounts([]relational.Agent{*agent})
+	if err != nil {
 		return agentResponse{}, err
 	}
 
+	return buildAgentResponse(agent, keyCounts[agent.ID.String()]), nil
+}
+
+func buildAgentResponse(agent *relational.Agent, keyCount int64) agentResponse {
 	return agentResponse{
 		ID:                  agent.ID.String(),
 		CreatedAt:           agent.CreatedAt,
@@ -336,7 +340,46 @@ func (h *AgentHandler) buildAgentResponse(agent *relational.Agent) (agentRespons
 		IsActive:            agent.IsActive,
 		LastAuthenticatedAt: agent.LastAuthenticatedAt,
 		ServiceAccountKeys:  keyCount,
-	}, nil
+	}
+}
+
+func (h *AgentHandler) listAgentKeyCounts(agents []relational.Agent) (map[string]int64, error) {
+	counts := make(map[string]int64, len(agents))
+	if len(agents) == 0 {
+		return counts, nil
+	}
+
+	agentIDs := make([]uuid.UUID, 0, len(agents))
+	for _, agent := range agents {
+		if agent.ID == nil {
+			continue
+		}
+		agentIDs = append(agentIDs, *agent.ID)
+		counts[agent.ID.String()] = 0
+	}
+	if len(agentIDs) == 0 {
+		return counts, nil
+	}
+
+	type keyCountResult struct {
+		AgentID  uuid.UUID
+		KeyCount int64
+	}
+
+	var results []keyCountResult
+	if err := h.db.Model(&relational.AgentServiceAccountKey{}).
+		Select("agent_id, COUNT(*) AS key_count").
+		Where("agent_id IN ? AND revoked_at IS NULL", agentIDs).
+		Group("agent_id").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	for _, result := range results {
+		counts[result.AgentID.String()] = result.KeyCount
+	}
+
+	return counts, nil
 }
 
 func buildAgentKeyResponse(key *relational.AgentServiceAccountKey) agentKeyResponse {
@@ -361,10 +404,6 @@ func generateAgentSecret() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-func stringPtr(v string) *string {
-	return &v
-}
-
 func normalizeOptionalString(value *string) *string {
 	if value == nil {
 		return nil
@@ -383,7 +422,10 @@ func normalizeAgentKeyExpiry(expiresAt *time.Time, neverExpires bool) (*time.Tim
 		return nil, errors.New("expires-at cannot be combined with never-expires")
 	}
 	if expiresAt == nil {
-		return nil, nil
+		if neverExpires {
+			return nil, nil
+		}
+		return nil, errors.New("expires-at is required unless never-expires is true")
 	}
 
 	normalized := expiresAt.UTC()

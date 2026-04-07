@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -43,8 +44,8 @@ type AgentServiceAccountKey struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
 
-	AgentID *string `json:"agentId" gorm:"type:uuid;not null;index"`
-	Agent   Agent   `json:"-" gorm:"foreignKey:AgentID;references:ID"`
+	AgentID *uuid.UUID `json:"agentId" gorm:"type:uuid;not null;index"`
+	Agent   Agent      `json:"-" gorm:"foreignKey:AgentID;references:ID"`
 
 	Name       *string    `json:"name,omitempty"`
 	ClientID   string     `json:"clientId" gorm:"uniqueIndex;not null"`
@@ -101,14 +102,14 @@ type AgentAuthEvent struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 
-	AgentID      *string `json:"agentId,omitempty" gorm:"type:uuid;index"`
-	CredentialID *string `json:"credentialId,omitempty" gorm:"type:uuid;index"`
-	AuthMethod   string  `json:"authMethod" gorm:"type:varchar(64);not null;index"`
-	Outcome      string  `json:"outcome" gorm:"type:varchar(32);not null;index"`
-	Principal    *string `json:"principal,omitempty"`
-	Reason       *string `json:"reason,omitempty"`
-	RemoteAddr   *string `json:"remoteAddr,omitempty"`
-	UserAgent    *string `json:"userAgent,omitempty"`
+	AgentID      *uuid.UUID `json:"agentId,omitempty" gorm:"type:uuid;index"`
+	CredentialID *uuid.UUID `json:"credentialId,omitempty" gorm:"type:uuid;index"`
+	AuthMethod   string     `json:"authMethod" gorm:"type:varchar(64);not null;index"`
+	Outcome      string     `json:"outcome" gorm:"type:varchar(32);not null;index"`
+	Principal    *string    `json:"principal,omitempty"`
+	Reason       *string    `json:"reason,omitempty"`
+	RemoteAddr   *string    `json:"remoteAddr,omitempty"`
+	UserAgent    *string    `json:"userAgent,omitempty"`
 }
 
 func (AgentAuthEvent) TableName() string {

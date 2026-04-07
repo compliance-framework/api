@@ -58,9 +58,8 @@ func (suite *IntegrationBaseTestSuite) GetAuthenticatedSDKTestClient() (*sdk.Cli
 	}
 
 	clientSecret := fmt.Sprintf("sdk-secret-%d", time.Now().UnixNano())
-	agentID := agent.ID.String()
 	key := &relational.AgentServiceAccountKey{
-		AgentID:  &agentID,
+		AgentID:  agent.ID,
 		ClientID: uuid.NewString(),
 	}
 	if err := key.SetSecret(clientSecret); err != nil {
