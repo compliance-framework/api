@@ -20,6 +20,7 @@ const (
 	JobTypeRiskReconcileDuplicates     = "risk_reconcile_duplicates"
 	JobTypeRiskReviewOverdueReopen     = "risk_review_overdue_reopen"
 	JobTypeRiskOpenDigest              = "risk_open_digest"
+	JobTypeRiskOrphanedControls        = "risk_orphaned_controls"
 )
 
 type RiskReviewDeadlineReminderScannerArgs struct{}
@@ -59,6 +60,12 @@ type RiskReviewOverdueReopenArgs struct {
 	ThresholdDays  int       `json:"threshold_days"`
 }
 
+// RiskOrphanedControlsArgs is enqueued by the reconciliation scanner for each open
+// auto-generated risk that may have become orphaned after an SSP profile change.
+type RiskOrphanedControlsArgs struct {
+	RiskID uuid.UUID `json:"risk_id"`
+}
+
 type RiskOpenDigestArgs struct {
 	RecipientUserID uuid.UUID `json:"recipient_user_id"`
 	WindowStart     string    `json:"window_start"`
@@ -83,6 +90,7 @@ func (RiskStaleOpenReminderArgs) Kind() string       { return JobTypeRiskStaleOp
 func (RiskReconcileDuplicatesArgs) Kind() string     { return JobTypeRiskReconcileDuplicates }
 func (RiskReviewOverdueReopenArgs) Kind() string     { return JobTypeRiskReviewOverdueReopen }
 func (RiskOpenDigestArgs) Kind() string              { return JobTypeRiskOpenDigest }
+func (RiskOrphanedControlsArgs) Kind() string        { return JobTypeRiskOrphanedControls }
 
 func (RiskReviewDeadlineReminderScannerArgs) Timeout() time.Duration  { return 5 * time.Minute }
 func (RiskReviewOverdueEscalationScannerArgs) Timeout() time.Duration { return 5 * time.Minute }
@@ -95,6 +103,7 @@ func (RiskStaleOpenReminderArgs) Timeout() time.Duration              { return 3
 func (RiskReconcileDuplicatesArgs) Timeout() time.Duration            { return 2 * time.Minute }
 func (RiskReviewOverdueReopenArgs) Timeout() time.Duration            { return 30 * time.Second }
 func (RiskOpenDigestArgs) Timeout() time.Duration                     { return 30 * time.Second }
+func (RiskOrphanedControlsArgs) Timeout() time.Duration               { return 30 * time.Second }
 
 func JobInsertOptionsForRiskNotification(byPeriod time.Duration) *river.InsertOpts {
 	return &river.InsertOpts{

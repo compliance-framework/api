@@ -278,7 +278,7 @@ func NewRiskEvidenceReconciliationScannerWorker(db *gorm.DB, client workflow.Riv
 func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *river.Job[RiskEvidenceReconciliationScannerArgs]) error {
 	var params []river.InsertManyParams
 
-	// Duplicate active risks with same dedupe key.
+	// Pass 1: Duplicate active risks with same dedupe key.
 	var duplicateKeys []string
 	if err := w.db.WithContext(ctx).
 		Model(&riskrel.Risk{}).
@@ -296,6 +296,39 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 		})
 	}
 
+	// Pass 2: Orphaned controls — open auto-generated risks whose linked controls no
+	// longer exist in the SSP's current profile set (profile was swapped or unbound).
+	// Only auto-generated risks (risk_template_id IS NOT NULL) are candidates; manually
+	// created risks are not subject to automatic profile-binding cleanup.
+	var orphanCandidateIDs []string
+	if err := w.db.WithContext(ctx).
+		Table("risk_register_risks r").
+		Select("CAST(r.id AS TEXT)").
+		Joins("JOIN risk_control_links rcl ON rcl.risk_id = r.id").
+		Where(
+			"r.status NOT IN ? AND r.risk_template_id IS NOT NULL",
+			[]string{
+				string(riskrel.RiskStatusClosed),
+				string(riskrel.RiskStatusRemediated),
+			},
+		).
+		Group("r.id").
+		Pluck("CAST(r.id AS TEXT)", &orphanCandidateIDs).Error; err != nil {
+		return fmt.Errorf("risk reconciliation scanner: query orphan candidates failed: %w", err)
+	}
+	for _, idStr := range orphanCandidateIDs {
+		riskID, err := uuid.Parse(idStr)
+		if err != nil {
+			w.logger.Warnw("RiskEvidenceReconciliationScannerWorker: skipping unparseable risk ID",
+				"raw_id", idStr, "error", err)
+			continue
+		}
+		params = append(params, river.InsertManyParams{
+			Args:       RiskOrphanedControlsArgs{RiskID: riskID},
+			InsertOpts: JobInsertOptionsForRiskWorkerUnique(24 * time.Hour),
+		})
+	}
+
 	if len(params) == 0 {
 		w.logger.Infow("RiskEvidenceReconciliationScannerWorker: no reconciliation jobs to enqueue")
 		return nil
@@ -305,7 +338,11 @@ func (w *RiskEvidenceReconciliationScannerWorker) Work(ctx context.Context, _ *r
 		return fmt.Errorf("risk reconciliation scanner: enqueue failed: %w", err)
 	}
 
-	w.logger.Infow("RiskEvidenceReconciliationScannerWorker: enqueued reconciliation jobs", "count", len(params))
+	w.logger.Infow("RiskEvidenceReconciliationScannerWorker: enqueued reconciliation jobs",
+		"duplicate_count", len(duplicateKeys),
+		"orphan_candidate_count", len(orphanCandidateIDs),
+		"total", len(params),
+	)
 	return nil
 }
 
@@ -539,6 +576,124 @@ func (w *RiskReviewOverdueReopenWorker) Work(ctx context.Context, job *river.Job
 		"threshold_days", job.Args.ThresholdDays,
 	)
 	return nil
+}
+
+// RiskOrphanedControlsWorker checks whether a single open auto-generated risk has
+// become orphaned after its SSP's profile binding changed. A risk is considered
+// orphaned when none of its linked controls exist in the SSP's current profile
+// control set. Orphaned risks are transitioned to remediated with an
+// "orphaned_profile_change" audit event so they do not silently accumulate.
+type RiskOrphanedControlsWorker struct {
+	db     *gorm.DB
+	logger *zap.SugaredLogger
+}
+
+func NewRiskOrphanedControlsWorker(db *gorm.DB, logger *zap.SugaredLogger) *RiskOrphanedControlsWorker {
+	return &RiskOrphanedControlsWorker{db: db, logger: logger}
+}
+
+func (w *RiskOrphanedControlsWorker) Work(ctx context.Context, job *river.Job[RiskOrphanedControlsArgs]) error {
+	riskID := job.Args.RiskID
+
+	// Load the risk and verify it is still open and auto-generated.
+	var risk riskrel.Risk
+	if err := w.db.WithContext(ctx).First(&risk, "id = ?", riskID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // risk deleted between scan and execution
+		}
+		return fmt.Errorf("risk orphaned controls: load risk failed: %w", err)
+	}
+
+	// Skip if already terminal or manually created.
+	if risk.Status == string(riskrel.RiskStatusClosed) ||
+		risk.Status == string(riskrel.RiskStatusRemediated) ||
+		risk.RiskTemplateID == nil {
+		return nil
+	}
+
+	// Load the risk's linked control IDs (catalog_id + control_id pairs).
+	type controlKey struct {
+		CatalogID string
+		ControlID string
+	}
+	var riskControlLinks []struct {
+		CatalogID string `gorm:"column:catalog_id"`
+		ControlID string `gorm:"column:control_id"`
+	}
+	if err := w.db.WithContext(ctx).
+		Table("risk_control_links").
+		Select("CAST(catalog_id AS TEXT) AS catalog_id, UPPER(control_id) AS control_id").
+		Where("risk_id = ?", riskID).
+		Scan(&riskControlLinks).Error; err != nil {
+		return fmt.Errorf("risk orphaned controls: load control links failed: %w", err)
+	}
+	if len(riskControlLinks) == 0 {
+		// No control links — nothing to check against the profile.
+		return nil
+	}
+
+	riskControlSet := make(map[controlKey]struct{}, len(riskControlLinks))
+	for _, cl := range riskControlLinks {
+		riskControlSet[controlKey{CatalogID: cl.CatalogID, ControlID: cl.ControlID}] = struct{}{}
+	}
+
+	// Load the SSP's current profile control set via profile_controls.
+	var profileControls []struct {
+		CatalogID string `gorm:"column:control_catalog_id"`
+		ControlID string `gorm:"column:control_id"`
+	}
+	if err := w.db.WithContext(ctx).
+		Table("profile_controls pc").
+		Select("CAST(pc.control_catalog_id AS TEXT) AS control_catalog_id, UPPER(pc.control_id) AS control_id").
+		Joins("JOIN system_security_plans ssp ON CAST(ssp.profile_id AS TEXT) = CAST(pc.profile_id AS TEXT)").
+		Where("CAST(ssp.id AS TEXT) = CAST(? AS TEXT)", risk.SSPID).
+		Scan(&profileControls).Error; err != nil {
+		return fmt.Errorf("risk orphaned controls: load profile controls failed: %w", err)
+	}
+
+	// If the SSP has no profile (profile unbound entirely), all controls are orphaned.
+	// If the SSP has a profile, check for intersection.
+	if len(profileControls) > 0 {
+		for _, pc := range profileControls {
+			if _, exists := riskControlSet[controlKey{CatalogID: pc.CatalogID, ControlID: pc.ControlID}]; exists {
+				// At least one control still exists in the current profile — not orphaned.
+				return nil
+			}
+		}
+	}
+
+	// No intersection found — transition to remediated.
+	return w.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		oldStatus := risk.Status
+		if err := tx.Model(&risk).Update("status", string(riskrel.RiskStatusRemediated)).Error; err != nil {
+			return fmt.Errorf("risk orphaned controls: transition to remediated failed: %w", err)
+		}
+
+		occurredAt := time.Now().UTC()
+		payload := map[string]interface{}{
+			"from":   oldStatus,
+			"to":     string(riskrel.RiskStatusRemediated),
+			"reason": "orphaned_profile_change",
+		}
+		details := riskrel.BuildRiskEventDetails(string(riskrel.RiskEventTypeStatusChange), payload, occurredAt)
+		event := &riskrel.RiskEvent{
+			RiskID:     riskID,
+			EventType:  string(riskrel.RiskEventTypeStatusChange),
+			OccurredAt: occurredAt,
+			Details:    &details,
+			Payload:    payload,
+		}
+		if err := tx.Create(event).Error; err != nil {
+			return fmt.Errorf("risk orphaned controls: emit status change event failed: %w", err)
+		}
+
+		w.logger.Infow("RiskOrphanedControlsWorker: orphaned risk transitioned to remediated",
+			"risk_id", riskID,
+			"ssp_id", risk.SSPID,
+			"from_status", oldStatus,
+		)
+		return nil
+	})
 }
 
 func resolveRiskOwnerUserIDsBatch(ctx context.Context, db *gorm.DB, risks []riskrel.Risk) (map[uuid.UUID][]uuid.UUID, error) {
