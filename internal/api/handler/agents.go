@@ -191,7 +191,26 @@ func (h *AgentHandler) DeleteAgent(ctx echo.Context) error {
 	if agent == nil {
 		return ctx.JSON(http.StatusNotFound, api.NewError(gorm.ErrRecordNotFound))
 	}
-	if err := h.db.Delete(agent).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UTC()
+
+		if err := tx.Model(agent).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&relational.AgentServiceAccountKey{}).
+			Where("agent_id = ? AND revoked_at IS NULL", *agent.ID).
+			Update("revoked_at", now).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Delete(agent).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 	return ctx.NoContent(http.StatusNoContent)

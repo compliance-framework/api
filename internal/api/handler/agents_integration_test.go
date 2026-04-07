@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/tests"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
@@ -175,4 +176,41 @@ func (suite *AgentAPIIntegrationSuite) TestCreateAgentKeyRequiresExplicitExpiryD
 	suite.server.E().ServeHTTP(keyCreateRec, keyCreateReq)
 	require.Equal(suite.T(), http.StatusBadRequest, keyCreateRec.Code)
 	require.Contains(suite.T(), keyCreateRec.Body.String(), "expires-at is required unless never-expires is true")
+}
+
+func (suite *AgentAPIIntegrationSuite) TestDeleteAgentRevokesKeysAndDeactivatesAgent() {
+	createRec, createReq := suite.authedRequest(http.MethodPost, "/api/admin/agents", map[string]any{
+		"name": "agent-delete-test",
+	})
+	suite.server.E().ServeHTTP(createRec, createReq)
+	require.Equal(suite.T(), http.StatusCreated, createRec.Code)
+
+	var created GenericDataResponse[agentResponse]
+	require.NoError(suite.T(), json.Unmarshal(createRec.Body.Bytes(), &created))
+
+	keyCreateRec, keyCreateReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/admin/agents/%s/keys", created.Data.ID), map[string]any{
+		"name":          "primary",
+		"never-expires": true,
+	})
+	suite.server.E().ServeHTTP(keyCreateRec, keyCreateReq)
+	require.Equal(suite.T(), http.StatusCreated, keyCreateRec.Code)
+
+	var keyCreated GenericDataResponse[agentKeyCreateResponse]
+	require.NoError(suite.T(), json.Unmarshal(keyCreateRec.Body.Bytes(), &keyCreated))
+
+	deleteRec, deleteReq := suite.authedRequest(http.MethodDelete, fmt.Sprintf("/api/admin/agents/%s", created.Data.ID), nil)
+	suite.server.E().ServeHTTP(deleteRec, deleteReq)
+	require.Equal(suite.T(), http.StatusNoContent, deleteRec.Code)
+
+	var agent relational.Agent
+	err := suite.DB.Unscoped().First(&agent, "id = ?", created.Data.ID).Error
+	require.NoError(suite.T(), err)
+	require.False(suite.T(), agent.IsActive)
+	require.NotNil(suite.T(), agent.DeletedAt)
+	require.True(suite.T(), agent.DeletedAt.Valid)
+
+	var key relational.AgentServiceAccountKey
+	err = suite.DB.First(&key, "id = ?", keyCreated.Data.ID).Error
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), key.RevokedAt)
 }
