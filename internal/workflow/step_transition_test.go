@@ -216,6 +216,61 @@ func TestVerifyTransitionActorPermission_UnexpectedRoleLookupErrorBubbles(t *tes
 	mockRole.AssertExpectations(t)
 }
 
+func TestTransitionStepStatus_UnexpectedPermissionLookupErrorBubbles(t *testing.T) {
+	stepExecutionID := uuid.New()
+	stepDefID := uuid.New()
+	execID := uuid.New()
+	instanceID := uuid.New()
+
+	mockStepExec := &MockStepExecutionService{}
+	mockStepDef := &MockWorkflowStepDefinitionService{}
+	mockWorkflowExec := &MockWorkflowExecutionService{}
+	mockRole := &MockRoleAssignmentService{}
+
+	svc := NewStepTransitionService(
+		mockStepExec,
+		mockStepDef,
+		mockWorkflowExec,
+		mockRole,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	mockStepExec.On("GetByID", &stepExecutionID).Return(&workflows.StepExecution{
+		UUIDModel:                relational.UUIDModel{ID: &stepExecutionID},
+		WorkflowStepDefinitionID: &stepDefID,
+		WorkflowExecutionID:      &execID,
+		Status:                   workflows.StepStatusPending.String(),
+	}, nil).Once()
+	mockStepDef.On("GetByID", &stepDefID).Return(&workflows.WorkflowStepDefinition{
+		UUIDModel:       relational.UUIDModel{ID: &stepDefID},
+		ResponsibleRole: "engineer",
+	}, nil).Once()
+	mockWorkflowExec.On("GetByID", &execID).Return(&workflows.WorkflowExecution{
+		UUIDModel:          relational.UUIDModel{ID: &execID},
+		WorkflowInstanceID: &instanceID,
+	}, nil).Once()
+
+	expectedErr := errors.New("db unavailable")
+	mockRole.On("FindAssigneeForRole", &instanceID, "engineer").Return(nil, expectedErr).Once()
+
+	err := svc.TransitionStepStatus(context.Background(), &stepExecutionID, &StepTransitionRequest{
+		Status:             workflows.StepStatusInProgress.String(),
+		AuthenticatedEmail: "user@example.com",
+	})
+	require.ErrorIs(t, err, expectedErr)
+	require.NotContains(t, err.Error(), "permission denied")
+
+	mockStepExec.AssertExpectations(t)
+	mockStepDef.AssertExpectations(t)
+	mockWorkflowExec.AssertExpectations(t)
+	mockRole.AssertExpectations(t)
+}
+
 type mockStepAssignmentService struct {
 	called bool
 }

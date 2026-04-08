@@ -128,7 +128,10 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 
 	// Verify user has permission to transition this step
 	if err := s.verifyTransitionActorPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, request); err != nil {
-		return fmt.Errorf("permission denied: %w", err)
+		if errors.Is(err, errTransitionForbidden) || errors.Is(err, workflows.ErrRoleAssignmentNotFound) {
+			return fmt.Errorf("permission denied: %w", err)
+		}
+		return err
 	}
 
 	// Validate the transition based on current status
