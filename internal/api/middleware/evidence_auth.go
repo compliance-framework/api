@@ -45,6 +45,9 @@ func OptionalUserOrAgentJWTMiddleware(db *gorm.DB, publicKey *rsa.PublicKey, all
 			if authTokenCookie, err := c.Cookie("ccf_auth_token"); err == nil {
 				claims, verifyErr := authn.VerifyJWTToken(authTokenCookie.Value, publicKey)
 				if verifyErr != nil {
+					if allowPublic {
+						return next(c)
+					}
 					return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 				}
 				c.Set("user", claims)

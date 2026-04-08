@@ -328,6 +328,36 @@ func (suite *EvidenceApiIntegrationSuite) TestCreatePublicLeavesEvidenceUnsigned
 	suite.Nil(evidence.Signature)
 }
 
+func (suite *EvidenceApiIntegrationSuite) TestCreatePublicIgnoresInvalidUserCookie() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	rec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Unsigned Evidence With Invalid Cookie",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.AddCookie(&http.Cookie{
+		Name:  "ccf_auth_token",
+		Value: "invalid-token",
+	})
+	server.E().ServeHTTP(rec, req)
+	assert.Equal(suite.T(), http.StatusCreated, rec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+	suite.Nil(evidence.Signature)
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestSignatureEndpointsRequireUserAuth() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
@@ -1112,13 +1142,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearchPagination() {
 	server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusOK, rec.Code)
 
-	var response struct {
-		Data       []relational.Evidence `json:"data"`
-		Total      int64                 `json:"total"`
-		Page       int                   `json:"page"`
-		Limit      int                   `json:"limit"`
-		TotalPages int                   `json:"totalPages"`
-	}
+	var response svc.ListResponse[PublicEvidenceResponse]
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
 	suite.Len(response.Data, 2)
 	suite.Equal(int64(3), response.Total)
