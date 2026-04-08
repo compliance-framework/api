@@ -165,11 +165,16 @@ func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 			return nil, err
 		}
 	}
-
+	// Record a baseline score when the risk is created with both likelihood and impact set.
+	if risk.Likelihood != nil && risk.Impact != nil {
+		if err := s.insertRiskScore(tx, *risk.ID, risk.SSPID, RiskLevel(*risk.Likelihood), RiskLevel(*risk.Impact), params.ActorUserID, time.Now().UTC()); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
-
 	return s.GetByID(*risk.ID)
 }
 
@@ -574,6 +579,13 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		}, riskSnapshot); err != nil {
 			tx.Rollback()
 			return nil, err
+		}
+		// Record a residual score entry for this reassessment.
+		if reassessedLikelihood != nil && reassessedImpact != nil {
+			if err := s.insertRiskScore(tx, *risk.ID, risk.SSPID, RiskLevel(*reassessedLikelihood), RiskLevel(*reassessedImpact), params.ActorUserID, reviewedAt); err != nil {
+				tx.Rollback()
+				return nil, err
+			}
 		}
 	} else {
 		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeReviewed, params.ActorUserID, datatypes.JSONMap{
@@ -1360,4 +1372,56 @@ func rollbackTxOnPanic(tx *gorm.DB) {
 		tx.Rollback()
 		panic(r)
 	}
+}
+
+// insertRiskScore writes a RiskScore row within an existing transaction.
+// It determines whether the new row is a baseline (first score ever recorded
+// for this risk) or a residual (any subsequent reassessment) by counting
+// existing rows for the risk inside the same transaction.
+//
+// This method is called atomically alongside logRiskEventWithSnapshot so that
+// the score record and its corresponding audit event are always committed
+// together or not at all.
+func (s *RiskService) insertRiskScore(tx *gorm.DB, riskID, sspID uuid.UUID, likelihood, impact RiskLevel, actorUserID *uuid.UUID, occurredAt time.Time) error {
+score := NumericalRiskScore(likelihood, impact)
+if score == 0 {
+// Unrecognised level — skip silently; the event is still logged.
+return nil
+}
+
+var existingCount int64
+if err := tx.Model(&RiskScore{}).Where("risk_id = ?", riskID).Count(&existingCount).Error; err != nil {
+return err
+}
+
+scoreType := ScoreTypeResidual
+if existingCount == 0 {
+scoreType = ScoreTypeBaseline
+}
+
+row := RiskScore{
+RiskID:      riskID,
+SSPID:       sspID,
+ActorUserID: actorUserID,
+OccurredAt:  occurredAt,
+Likelihood:  string(likelihood),
+Impact:      string(impact),
+Score:       score,
+ScoreType:   string(scoreType),
+}
+return tx.Create(&row).Error
+}
+
+// ListScoreHistory returns all RiskScore rows for a risk ordered by
+// occurred_at ascending so callers receive a chronological time-series
+// suitable for rendering a score trend chart.
+func (s *RiskService) ListScoreHistory(riskID uuid.UUID) ([]RiskScore, error) {
+var scores []RiskScore
+if err := s.db.
+Where("risk_id = ?", riskID).
+Order("occurred_at ASC").
+Find(&scores).Error; err != nil {
+return nil, err
+}
+return scores, nil
 }

@@ -54,6 +54,7 @@ func (h *RiskHandler) Register(api *echo.Group) {
 	api.DELETE("/:id", h.Delete)
 	api.GET("/:id/events", h.GetEvents)
 	api.GET("/:id/reviews", h.GetReviews)
+	api.GET("/:id/score-history", h.GetScoreHistory)
 
 	api.GET("/:id/evidence", h.GetEvidenceLinks)
 	api.POST("/:id/evidence", h.AddEvidenceLink)
@@ -91,6 +92,7 @@ func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.DELETE("/:id", h.DeleteForSSP)
 	api.GET("/:id/events", h.GetEventsForSSP)
 	api.GET("/:id/reviews", h.GetReviewsForSSP)
+	api.GET("/:id/score-history", h.GetScoreHistoryForSSP)
 	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP)
 	api.POST("/:id/evidence", h.AddEvidenceLinkForSSP)
 	api.DELETE("/:id/evidence/:evidenceId", h.DeleteEvidenceLinkForSSP)
@@ -2363,4 +2365,67 @@ func (h *RiskHandler) PromoteToPoamForSSP(ctx echo.Context) error {
 		return h.internalServerError(ctx, "failed to validate scoped risk", err)
 	}
 	return h.PromoteToPoam(ctx)
+}
+
+// GetScoreHistoryForSSP godoc
+//
+//@SummaryList risk score history for SSP
+//@DescriptionReturns the chronological score history for a risk scoped to a specific SSP. Each entry records the numerical score (likelihood rank × impact rank), the score type (baseline or residual), and the timestamp at which it was recorded.
+//@TagsRisks
+//@Producejson
+//@ParamsspIdpathstringtrue"SSP ID"
+//@Paramidpathstringtrue"Risk ID"
+//@Success200{object}GenericDataResponse[[]risks.RiskScore]
+//@Failure400{object}api.Error
+//@Failure404{object}api.Error
+//@Failure500{object}api.Error
+//@SecurityOAuth2Password
+//@Router/oscal/system-security-plans/{sspId}/risks/{id}/score-history [get]
+func (h *RiskHandler) GetScoreHistoryForSSP(ctx echo.Context) error {
+sspID, err := parsePathUUID(ctx, "sspId")
+if err != nil {
+return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+}
+riskID, err := parsePathUUID(ctx, "id")
+if err != nil {
+return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+}
+if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+}
+return h.internalServerError(ctx, "failed to validate scoped risk", err)
+}
+return h.GetScoreHistory(ctx)
+}
+
+// GetScoreHistory godoc
+//
+//@SummaryList risk score history
+//@DescriptionReturns the chronological score history for a risk. Each entry records the numerical score (likelihood rank × impact rank), the score type (baseline or residual), and the timestamp at which it was recorded.
+//@TagsRisks
+//@Producejson
+//@Paramidpathstringtrue"Risk ID"
+//@Success200{object}GenericDataResponse[[]risks.RiskScore]
+//@Failure400{object}api.Error
+//@Failure404{object}api.Error
+//@Failure500{object}api.Error
+//@SecurityOAuth2Password
+//@Router/risks/{id}/score-history [get]
+func (h *RiskHandler) GetScoreHistory(ctx echo.Context) error {
+riskID, err := parsePathUUID(ctx, "id")
+if err != nil {
+return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+}
+if err := h.riskService.EnsureRiskExists(riskID); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+}
+return h.internalServerError(ctx, "failed to check risk existence", err)
+}
+scores, err := h.riskService.ListScoreHistory(riskID)
+if err != nil {
+return h.internalServerError(ctx, "failed to list risk score history", err)
+}
+return ctx.JSON(http.StatusOK, GenericDataResponse[[]riskrel.RiskScore]{Data: scores})
 }

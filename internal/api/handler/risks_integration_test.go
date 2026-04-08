@@ -1905,3 +1905,90 @@ func (suite *RiskApiIntegrationSuite) createRisk(reqBody map[string]any) riskRes
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
 	return created.Data
 }
+
+func (suite *RiskApiIntegrationSuite) TestScoreHistoryEndpoints() {
+sspID := suite.newSSPID()
+
+// Create a risk with likelihood+impact so a baseline score is written.
+created := suite.createRisk(map[string]any{
+"title":       "score-history integration risk",
+"description": "testing score history endpoint",
+"status":      "investigating",
+"likelihood":  "moderate",
+"impact":      "high",
+"ssp-id":      sspID,
+})
+
+// --- GET /risks/{id}/score-history ---
+scoreRec, scoreReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history", created.ID), nil)
+suite.server.E().ServeHTTP(scoreRec, scoreReq)
+require.Equal(suite.T(), http.StatusOK, scoreRec.Code)
+
+var scoreResp GenericDataResponse[[]riskrel.RiskScore]
+require.NoError(suite.T(), json.Unmarshal(scoreRec.Body.Bytes(), &scoreResp))
+require.Len(suite.T(), scoreResp.Data, 1, "one baseline score expected after create")
+require.Equal(suite.T(), string(riskrel.ScoreTypeBaseline), scoreResp.Data[0].ScoreType)
+require.Equal(suite.T(), riskrel.NumericalRiskScore(riskrel.RiskLevelModerate, riskrel.RiskLevelHigh), scoreResp.Data[0].Score)
+require.Equal(suite.T(), string(riskrel.RiskLevelModerate), scoreResp.Data[0].Likelihood)
+require.Equal(suite.T(), string(riskrel.RiskLevelHigh), scoreResp.Data[0].Impact)
+require.False(suite.T(), scoreResp.Data[0].OccurredAt.IsZero())
+
+// Reassess the risk to generate a residual score.
+reassessRec, reassessReq := suite.authedRequest(http.MethodPost, fmt.Sprintf("/api/risks/%s/review", created.ID), map[string]any{
+"decision":   "reassess",
+"likelihood": "low",
+"impact":     "low",
+})
+suite.server.E().ServeHTTP(reassessRec, reassessReq)
+require.Equal(suite.T(), http.StatusOK, reassessRec.Code)
+
+// Score history should now have 2 entries: baseline then residual.
+scoreRec2, scoreReq2 := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history", created.ID), nil)
+suite.server.E().ServeHTTP(scoreRec2, scoreReq2)
+require.Equal(suite.T(), http.StatusOK, scoreRec2.Code)
+
+var scoreResp2 GenericDataResponse[[]riskrel.RiskScore]
+require.NoError(suite.T(), json.Unmarshal(scoreRec2.Body.Bytes(), &scoreResp2))
+require.Len(suite.T(), scoreResp2.Data, 2)
+require.Equal(suite.T(), string(riskrel.ScoreTypeBaseline), scoreResp2.Data[0].ScoreType)
+require.Equal(suite.T(), string(riskrel.ScoreTypeResidual), scoreResp2.Data[1].ScoreType)
+require.Equal(suite.T(), riskrel.NumericalRiskScore(riskrel.RiskLevelLow, riskrel.RiskLevelLow), scoreResp2.Data[1].Score)
+// Chronological order: baseline must not be after residual.
+require.False(suite.T(), scoreResp2.Data[0].OccurredAt.After(scoreResp2.Data[1].OccurredAt))
+
+// --- GET /oscal/system-security-plans/{sspId}/risks/{id}/score-history ---
+sspScoreRec, sspScoreReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/score-history", sspID, created.ID), nil)
+suite.server.E().ServeHTTP(sspScoreRec, sspScoreReq)
+require.Equal(suite.T(), http.StatusOK, sspScoreRec.Code)
+
+var sspScoreResp GenericDataResponse[[]riskrel.RiskScore]
+require.NoError(suite.T(), json.Unmarshal(sspScoreRec.Body.Bytes(), &sspScoreResp))
+require.Len(suite.T(), sspScoreResp.Data, 2, "SSP-scoped endpoint must return the same score history")
+
+// --- 404 for unknown risk ---
+missingRiskID := uuid.New()
+missingRec, missingReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history", missingRiskID), nil)
+suite.server.E().ServeHTTP(missingRec, missingReq)
+require.Equal(suite.T(), http.StatusNotFound, missingRec.Code)
+
+// --- 404 for SSP-scoped with wrong SSP ---
+wrongSSPID := suite.newSSPID()
+wrongSSPRec, wrongSSPReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/score-history", wrongSSPID, created.ID), nil)
+suite.server.E().ServeHTTP(wrongSSPRec, wrongSSPReq)
+require.Equal(suite.T(), http.StatusNotFound, wrongSSPRec.Code)
+
+// --- Empty score history for a risk created without likelihood/impact ---
+noScoreRisk := suite.createRisk(map[string]any{
+"title":       "no-score risk",
+"description": "created without likelihood/impact",
+"status":      "open",
+"ssp-id":      sspID,
+})
+emptyRec, emptyReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history", noScoreRisk.ID), nil)
+suite.server.E().ServeHTTP(emptyRec, emptyReq)
+require.Equal(suite.T(), http.StatusOK, emptyRec.Code)
+
+var emptyResp GenericDataResponse[[]riskrel.RiskScore]
+require.NoError(suite.T(), json.Unmarshal(emptyRec.Body.Bytes(), &emptyResp))
+require.Empty(suite.T(), emptyResp.Data)
+}

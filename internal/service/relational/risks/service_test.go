@@ -1358,6 +1358,7 @@ func newRiskServiceTestDB(t *testing.T) *gorm.DB {
 		&Risk{},
 		&RiskEvent{},
 		&RiskReview{},
+		&RiskScore{},
 		&RiskEvidenceLink{},
 		&RiskControlLink{},
 		&RiskComponentLink{},
