@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/compliance-framework/api/internal/service/sso"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -22,6 +23,14 @@ var (
 // BaseHandler provides common functionality for workflow handlers
 type BaseHandler struct {
 	sugar *zap.SugaredLogger
+}
+
+type ActorIdentity struct {
+	UserID        *uuid.UUID
+	Email         string
+	Groups        []string
+	Identifiers   []string
+	SSOExternalID string
 }
 
 // HandleError checks if the error is ErrResponseSent and returns nil to Echo
@@ -120,12 +129,21 @@ func isNotFoundError(err error) bool {
 
 // GetActorFromClaims resolves the authenticated actor from JWT claims.
 func (b *BaseHandler) GetActorFromClaims(ctx echo.Context, db *gorm.DB) (*uuid.UUID, string, error) {
+	identity, err := b.GetActorIdentityFromClaims(ctx, db)
+	if err != nil {
+		return nil, "", err
+	}
+	return identity.UserID, identity.Email, nil
+}
+
+// GetActorIdentityFromClaims resolves the authenticated actor and any known group memberships.
+func (b *BaseHandler) GetActorIdentityFromClaims(ctx echo.Context, db *gorm.DB) (*ActorIdentity, error) {
 	userClaims, ok := ctx.Get("user").(*authn.UserClaims)
 	if !ok || userClaims == nil {
 		if err := ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims"))); err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return nil, "", ErrResponseSent
+		return nil, ErrResponseSent
 	}
 
 	email := userClaims.Subject
@@ -133,16 +151,55 @@ func (b *BaseHandler) GetActorFromClaims(ctx echo.Context, db *gorm.DB) (*uuid.U
 	if err := db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := ctx.JSON(http.StatusNotFound, api.NewError(echo.NewHTTPError(http.StatusNotFound, "user not found"))); err != nil {
-				return nil, "", err
+				return nil, err
 			}
-			return nil, "", ErrResponseSent
+			return nil, ErrResponseSent
 		}
 		b.sugar.Errorw("Failed to get user by email", "error", err)
 		if err := ctx.JSON(http.StatusInternalServerError, api.NewError(err)); err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		return nil, "", ErrResponseSent
+		return nil, ErrResponseSent
 	}
 
-	return user.ID, email, nil
+	identity := &ActorIdentity{
+		UserID: user.ID,
+		Email:  email,
+		Identifiers: uniqueStringsFold([]string{
+			email,
+		}),
+	}
+	if user.ID != nil {
+		identity.Identifiers = uniqueStringsFold(append(identity.Identifiers, user.ID.String()))
+	}
+
+	var link relational.SSOUserLink
+	if err := db.
+		Where("user_id = ? AND deleted_at IS NULL", user.ID.String()).
+		Order("last_sync DESC").
+		First(&link).Error; err == nil {
+		identity.Groups = sso.DeserializeStringArray(link.Groups)
+		identity.SSOExternalID = link.ExternalID
+		identity.Identifiers = uniqueStringsFold(append(identity.Identifiers, link.ExternalID))
+	}
+
+	return identity, nil
+}
+
+func uniqueStringsFold(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }

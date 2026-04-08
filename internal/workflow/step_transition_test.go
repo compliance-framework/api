@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -48,6 +49,7 @@ func TestCanUserTransitionStep_QueryPath(t *testing.T) {
 		workflowDefinitionService,
 		nil,
 		db,
+		nil,
 		nil,
 	)
 
@@ -121,6 +123,7 @@ func TestCanUserTransitionStep_FallbackWhenDBNil(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	mockStepExec.On("GetByID", &stepExecID).Return(&workflows.StepExecution{
@@ -145,6 +148,122 @@ func TestCanUserTransitionStep_FallbackWhenDBNil(t *testing.T) {
 	can, err := svc.CanUserTransitionStep(&stepExecID, "user-1", workflows.AssignmentTypeUser.String())
 	require.NoError(t, err)
 	assert.True(t, can)
+
+	mockStepExec.AssertExpectations(t)
+	mockStepDef.AssertExpectations(t)
+	mockWorkflowExec.AssertExpectations(t)
+	mockRole.AssertExpectations(t)
+}
+
+func TestVerifyTransitionActorPermission_UserAssignmentSupportsLegacyIdentifiers(t *testing.T) {
+	instanceID := uuid.New()
+
+	mockRole := &MockRoleAssignmentService{}
+	svc := NewStepTransitionService(
+		nil,
+		nil,
+		nil,
+		mockRole,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	mockRole.On("FindAssigneeForRole", &instanceID, "engineer").Return(&workflows.RoleAssignment{
+		AssignedToType: workflows.AssignmentTypeUser.String(),
+		AssignedToID:   "legacy-external-id",
+		IsActive:       true,
+	}, nil).Once()
+
+	err := svc.verifyTransitionActorPermission(&instanceID, "engineer", &StepTransitionRequest{
+		AuthenticatedIdentifiers: []string{"3f0d6c58-9e64-4e04-8bc1-a3d4a8dd3d26", "user@example.com", "legacy-external-id"},
+		AuthenticatedEmail:       "user@example.com",
+	})
+	require.NoError(t, err)
+
+	mockRole.AssertExpectations(t)
+}
+
+func TestVerifyTransitionActorPermission_UnexpectedRoleLookupErrorBubbles(t *testing.T) {
+	instanceID := uuid.New()
+
+	mockRole := &MockRoleAssignmentService{}
+	svc := NewStepTransitionService(
+		nil,
+		nil,
+		nil,
+		mockRole,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	expectedErr := errors.New("db unavailable")
+	mockRole.On("FindAssigneeForRole", &instanceID, "engineer").Return(nil, expectedErr).Once()
+
+	err := svc.verifyTransitionActorPermission(&instanceID, "engineer", &StepTransitionRequest{
+		AuthenticatedIdentifiers: []string{"user@example.com"},
+		AuthenticatedEmail:       "user@example.com",
+	})
+	require.ErrorIs(t, err, expectedErr)
+
+	mockRole.AssertExpectations(t)
+}
+
+func TestTransitionStepStatus_UnexpectedPermissionLookupErrorBubbles(t *testing.T) {
+	stepExecutionID := uuid.New()
+	stepDefID := uuid.New()
+	execID := uuid.New()
+	instanceID := uuid.New()
+
+	mockStepExec := &MockStepExecutionService{}
+	mockStepDef := &MockWorkflowStepDefinitionService{}
+	mockWorkflowExec := &MockWorkflowExecutionService{}
+	mockRole := &MockRoleAssignmentService{}
+
+	svc := NewStepTransitionService(
+		mockStepExec,
+		mockStepDef,
+		mockWorkflowExec,
+		mockRole,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	mockStepExec.On("GetByID", &stepExecutionID).Return(&workflows.StepExecution{
+		UUIDModel:                relational.UUIDModel{ID: &stepExecutionID},
+		WorkflowStepDefinitionID: &stepDefID,
+		WorkflowExecutionID:      &execID,
+		Status:                   workflows.StepStatusPending.String(),
+	}, nil).Once()
+	mockStepDef.On("GetByID", &stepDefID).Return(&workflows.WorkflowStepDefinition{
+		UUIDModel:       relational.UUIDModel{ID: &stepDefID},
+		ResponsibleRole: "engineer",
+	}, nil).Once()
+	mockWorkflowExec.On("GetByID", &execID).Return(&workflows.WorkflowExecution{
+		UUIDModel:          relational.UUIDModel{ID: &execID},
+		WorkflowInstanceID: &instanceID,
+	}, nil).Once()
+
+	expectedErr := errors.New("db unavailable")
+	mockRole.On("FindAssigneeForRole", &instanceID, "engineer").Return(nil, expectedErr).Once()
+
+	err := svc.TransitionStepStatus(context.Background(), &stepExecutionID, &StepTransitionRequest{
+		Status:             workflows.StepStatusInProgress.String(),
+		AuthenticatedEmail: "user@example.com",
+	})
+	require.ErrorIs(t, err, expectedErr)
+	require.NotContains(t, err.Error(), "permission denied")
 
 	mockStepExec.AssertExpectations(t)
 	mockStepDef.AssertExpectations(t)

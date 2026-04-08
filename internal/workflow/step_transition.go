@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
 	"github.com/google/uuid"
@@ -25,10 +26,12 @@ type StepTransitionService struct {
 	workflowDefinitionService WorkflowDefinitionServiceInterface
 	executor                  *DAGExecutor
 	db                        *gorm.DB
+	evidenceService           *evidencesvc.EvidenceService
 	evidenceIntegration       *EvidenceIntegration
 }
 
 var ErrInvalidStepTransition = errors.New("invalid step transition")
+var errTransitionForbidden = errors.New("forbidden")
 
 // WorkflowDefinitionServiceInterface defines the interface for workflow definition operations
 type WorkflowDefinitionServiceInterface interface {
@@ -51,6 +54,7 @@ func NewStepTransitionService(
 	workflowDefinitionService WorkflowDefinitionServiceInterface,
 	executor *DAGExecutor,
 	db *gorm.DB,
+	evidenceService *evidencesvc.EvidenceService,
 	evidenceIntegration *EvidenceIntegration,
 ) *StepTransitionService {
 	return &StepTransitionService{
@@ -62,6 +66,7 @@ func NewStepTransitionService(
 		workflowDefinitionService: workflowDefinitionService,
 		executor:                  executor,
 		db:                        db,
+		evidenceService:           evidenceService,
 		evidenceIntegration:       evidenceIntegration,
 	}
 }
@@ -75,11 +80,16 @@ type EvidenceRequirement struct {
 
 // StepTransitionRequest represents a request to transition a step
 type StepTransitionRequest struct {
-	Status   string               `json:"status"` // "in_progress" or "completed"
-	Evidence []EvidenceSubmission `json:"evidence,omitempty"`
-	Notes    string               `json:"notes,omitempty"`
-	UserID   string               `json:"user_id"`   // ID of the user making the transition
-	UserType string               `json:"user_type"` // "user", "group", "email"
+	Status                   string                     `json:"status"` // "in_progress" or "completed"
+	Evidence                 []EvidenceSubmission       `json:"evidence,omitempty"`
+	Notes                    string                     `json:"notes,omitempty"`
+	UserID                   string                     `json:"user_id"`   // Legacy compatibility field; not trusted for authz.
+	UserType                 string                     `json:"user_type"` // Legacy compatibility field; not trusted for authz.
+	AuthenticatedUserID      string                     `json:"-"`
+	AuthenticatedEmail       string                     `json:"-"`
+	AuthenticatedIdentifiers []string                   `json:"-"`
+	AuthenticatedGroups      []string                   `json:"-"`
+	Signer                   *evidencesvc.SignerContext `json:"-"`
 }
 
 // EvidenceSubmission represents evidence being submitted with a step transition
@@ -117,8 +127,11 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 	}
 
 	// Verify user has permission to transition this step
-	if err := s.verifyUserPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, request.UserID, request.UserType); err != nil {
-		return fmt.Errorf("permission denied: %w", err)
+	if err := s.verifyTransitionActorPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, request); err != nil {
+		if errors.Is(err, errTransitionForbidden) || errors.Is(err, workflows.ErrRoleAssignmentNotFound) {
+			return fmt.Errorf("permission denied: %w", err)
+		}
+		return err
 	}
 
 	// Validate the transition based on current status
@@ -145,7 +158,7 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 	// If transitioning to completed, process the completion
 	if request.Status == StatusCompleted.String() {
 		// Store submitted evidence
-		if err := s.storeStepEvidence(ctx, stepExecution, stepDef, workflowExecution, request.Evidence, request.UserID); err != nil {
+		if err := s.storeStepEvidence(ctx, stepExecution, stepDef, workflowExecution, request.Evidence, request.UserID, request.Signer); err != nil {
 			return fmt.Errorf("failed to store evidence: %w", err)
 		}
 
@@ -197,6 +210,54 @@ func (s *StepTransitionService) verifyUserPermission(instanceID *uuid.UUID, resp
 	}
 
 	return nil
+}
+
+func (s *StepTransitionService) verifyTransitionActorPermission(instanceID *uuid.UUID, responsibleRole string, request *StepTransitionRequest) error {
+	if request == nil {
+		return fmt.Errorf("missing transition request")
+	}
+
+	assignment, err := s.roleAssignmentService.FindAssigneeForRole(instanceID, responsibleRole)
+	if err != nil {
+		if errors.Is(err, workflows.ErrRoleAssignmentNotFound) {
+			return errTransitionForbidden
+		}
+		return err
+	}
+
+	if !assignment.IsActive {
+		return errTransitionForbidden
+	}
+
+	switch assignment.AssignedToType {
+	case workflows.AssignmentTypeUser.String():
+		if !containsStringFold(request.AuthenticatedIdentifiers, assignment.AssignedToID) {
+			return errTransitionForbidden
+		}
+	case workflows.AssignmentTypeEmail.String():
+		if !strings.EqualFold(assignment.AssignedToID, request.AuthenticatedEmail) {
+			return errTransitionForbidden
+		}
+	case workflows.AssignmentTypeGroup.String():
+		if !containsStringFold(request.AuthenticatedGroups, assignment.AssignedToID) {
+			return errTransitionForbidden
+		}
+	default:
+		if assignment.AssignedToType != request.UserType || assignment.AssignedToID != request.UserID {
+			return errTransitionForbidden
+		}
+	}
+
+	return nil
+}
+
+func containsStringFold(values []string, target string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(target)) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateTransition validates that the requested status transition is allowed
@@ -261,6 +322,7 @@ func (s *StepTransitionService) storeStepEvidence(
 	workflowExecution *workflows.WorkflowExecution,
 	evidenceSubmissions []EvidenceSubmission,
 	completedBy string,
+	signer *evidencesvc.SignerContext,
 ) error {
 	if len(evidenceSubmissions) == 0 {
 		return nil
@@ -283,16 +345,20 @@ func (s *StepTransitionService) storeStepEvidence(
 
 	// Create the evidence record
 	evidence := s.createEvidenceRecord(workflowCtx, stream, backMatter, evidenceLinks, len(evidenceSubmissions))
-
-	// Save evidence to database
-	if err := s.db.Create(evidence).Error; err != nil {
-		return fmt.Errorf("failed to create step evidence: %w", err)
+	if signer != nil && signer.SubmittedByValue() != "" {
+		completedBy = signer.SubmittedByValue()
 	}
-
-	// Build and attach labels
 	labels := s.buildEvidenceLabels(workflowCtx, completedBy, len(evidenceSubmissions))
-	if err := s.db.Model(evidence).Association("Labels").Append(labels); err != nil {
-		return fmt.Errorf("failed to add labels to evidence: %w", err)
+
+	if s.evidenceService == nil {
+		return fmt.Errorf("failed to create step evidence: evidence service is not configured")
+	}
+	if _, err := s.evidenceService.Create(ctx, evidencesvc.CreateEvidenceParams{
+		Evidence: evidence,
+		Labels:   labels,
+		Signer:   signer,
+	}); err != nil {
+		return fmt.Errorf("failed to create step evidence: %w", err)
 	}
 
 	return nil
@@ -421,7 +487,7 @@ func (s *StepTransitionService) createBackMatterResource(ev EvidenceSubmission, 
 }
 
 // createEvidenceRecord creates the evidence record with all required fields
-func (s *StepTransitionService) createEvidenceRecord(ctx *workflowContext, stream *relational.Evidence, backMatter *relational.BackMatter, evidenceLinks []relational.Link, submissionCount int) *relational.Evidence {
+func (s *StepTransitionService) createEvidenceRecord(ctx *workflowContext, stream *relational.Evidence, backMatter *relational.BackMatter, evidenceLinks []relational.Link, submissionCount int) relational.Evidence {
 	description := fmt.Sprintf("Step '%s' completed successfully with %d evidence submission(s)",
 		ctx.stepDef.Name, submissionCount)
 
@@ -436,19 +502,21 @@ func (s *StepTransitionService) createEvidenceRecord(ctx *workflowContext, strea
 	}
 
 	// Create the evidence record
-	evidence := &relational.Evidence{
+	evidence := relational.Evidence{
 		UUID:        stream.UUID,
 		Title:       fmt.Sprintf("Step '%s' completed successfully", ctx.stepDef.Name),
 		Description: description,
 		Start:       startTime,
 		End:         endTime,
 		BackMatter:  backMatter,
-		Props:       datatypes.JSONSlice[relational.Prop]{},
+		Props:       datatypes.NewJSONSlice([]relational.Prop{}),
+		Links:       datatypes.NewJSONSlice([]relational.Link{}),
+		Origins:     datatypes.NewJSONSlice([]relational.Origin{}),
 	}
 
 	// Add Links if we have resources
 	if len(evidenceLinks) > 0 {
-		evidence.Links = evidenceLinks
+		evidence.Links = datatypes.NewJSONSlice(evidenceLinks)
 	}
 
 	// Set status based on step execution status
@@ -459,11 +527,6 @@ func (s *StepTransitionService) createEvidenceRecord(ctx *workflowContext, strea
 		status.State = "not-satisfied"
 	}
 	evidence.Status = datatypes.NewJSONType(status)
-
-	// Generate unique ID
-	id := uuid.New()
-	evidence.ID = &id
-
 	return evidence
 }
 

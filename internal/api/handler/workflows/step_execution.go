@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/authcontext"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
@@ -66,8 +67,8 @@ type TransitionStepRequest struct {
 	Status   string                        `json:"status" validate:"required,oneof=in_progress completed"`
 	Evidence []workflow.EvidenceSubmission `json:"evidence,omitempty"`
 	Notes    string                        `json:"notes,omitempty"`
-	UserID   string                        `json:"user-id" validate:"required"`
-	UserType string                        `json:"user-type" validate:"required,oneof=user group email"`
+	UserID   string                        `json:"user-id"`
+	UserType string                        `json:"user-type" validate:"omitempty,oneof=user group email"`
 }
 
 type FailStepRequest struct {
@@ -291,14 +292,37 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 	if err := h.BindAndValidate(ctx, &req); err != nil {
 		return HandleError(err)
 	}
+	signer := authcontext.SignerContextFromEcho(ctx)
+	if signer == nil {
+		return ctx.JSON(http.StatusUnauthorized, api.NewError(echo.NewHTTPError(http.StatusUnauthorized, "missing authentication claims")))
+	}
+
+	actor, err := h.GetActorIdentityFromClaims(ctx, h.db)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	authenticatedUserID := ""
+	resolvedUserID := actor.Email
+	resolvedUserType := workflows.AssignmentTypeEmail.String()
+	if actor.UserID != nil {
+		authenticatedUserID = actor.UserID.String()
+		resolvedUserID = actor.UserID.String()
+		resolvedUserType = workflows.AssignmentTypeUser.String()
+	}
 
 	// Convert to workflow.StepTransitionRequest
 	transitionReq := &workflow.StepTransitionRequest{
-		Status:   req.Status,
-		Evidence: req.Evidence,
-		Notes:    req.Notes,
-		UserID:   req.UserID,
-		UserType: req.UserType,
+		Status:                   req.Status,
+		Evidence:                 req.Evidence,
+		Notes:                    req.Notes,
+		UserID:                   resolvedUserID,
+		UserType:                 resolvedUserType,
+		AuthenticatedUserID:      authenticatedUserID,
+		AuthenticatedEmail:       actor.Email,
+		AuthenticatedIdentifiers: actor.Identifiers,
+		AuthenticatedGroups:      actor.Groups,
+		Signer:                   signer,
 	}
 
 	// Perform the transition with role verification and evidence validation
@@ -321,7 +345,7 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 		return h.HandleServiceError(ctx, err, "get", "step execution after transition")
 	}
 
-	h.sugar.Infow("Step execution transitioned", "id", id, "status", req.Status, "user", req.UserID)
+	h.sugar.Infow("Step execution transitioned", "id", id, "status", req.Status, "user", actor.Email)
 	return h.RespondOK(ctx, StepExecutionResponse{Data: stepExecution})
 }
 
