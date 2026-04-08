@@ -1310,7 +1310,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Evidence"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_CreatedEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1497,7 +1497,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.ListResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/service.ListResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1544,7 +1544,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1608,7 +1608,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.ListResponse-relational_Evidence"
+                            "$ref": "#/definitions/service.ListResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "422": {
@@ -1760,7 +1760,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "400": {
@@ -26150,6 +26150,92 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.CreatedEvidenceResponse": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
+                    }
+                },
+                "back-matter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inventory-items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                    }
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Labels"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "signature": {
+                    "$ref": "#/definitions/relational.EvidenceSignature"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.EvidenceActivity": {
             "type": "object",
             "properties": {
@@ -26523,7 +26609,7 @@ const docTemplate = `{
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        "$ref": "#/definitions/handler.PublicEvidenceResponse"
                     }
                 },
                 "metadata": {
@@ -27180,6 +27266,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-handler_CreatedEvidenceResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.CreatedEvidenceResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_FilterImportResponse": {
             "type": "object",
             "properties": {
@@ -27206,14 +27305,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_OscalLikeEvidence": {
+        "handler.GenericDataResponse-handler_PublicEvidenceResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.OscalLikeEvidence"
+                            "$ref": "#/definitions/handler.PublicEvidenceResponse"
                         }
                     ]
                 }
@@ -28090,19 +28189,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-relational_Evidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/relational.Evidence"
-                        }
-                    ]
-                }
-            }
-        },
         "handler.GenericDataResponse-relational_Filter": {
             "type": "object",
             "properties": {
@@ -28205,7 +28291,18 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.OscalLikeEvidence": {
+        "handler.OverTime.HeartbeatInterval": {
+            "type": "object",
+            "properties": {
+                "interval": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.PublicEvidenceResponse": {
             "type": "object",
             "properties": {
                 "activities": {
@@ -28242,7 +28339,6 @@ const docTemplate = `{
                     }
                 },
                 "labels": {
-                    "description": "Assigning labels to Evidence makes it searchable and easily usable in the UI",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Labels"
@@ -28269,11 +28365,7 @@ const docTemplate = `{
                 "remarks": {
                     "type": "string"
                 },
-                "signature": {
-                    "$ref": "#/definitions/datatypes.JSONType-relational_EvidenceSignature"
-                },
                 "start": {
-                    "description": "When did we start collecting the evidence, and when did the process end, and how long is it valid for ?",
                     "type": "string"
                 },
                 "status": {
@@ -28289,19 +28381,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
-                    "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same observation being made over time.",
                     "type": "string"
-                }
-            }
-        },
-        "handler.OverTime.HeartbeatInterval": {
-            "type": "object",
-            "properties": {
-                "interval": {
-                    "type": "string"
-                },
-                "total": {
-                    "type": "integer"
                 }
             }
         },
@@ -37213,13 +37293,13 @@ const docTemplate = `{
                 }
             }
         },
-        "service.ListResponse-handler_OscalLikeEvidence": {
+        "service.ListResponse-handler_PublicEvidenceResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        "$ref": "#/definitions/handler.PublicEvidenceResponse"
                     }
                 },
                 "limit": {
@@ -37266,29 +37346,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.threatIDResponse"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "totalPages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "service.ListResponse-relational_Evidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/relational.Evidence"
                     }
                 },
                 "limit": {

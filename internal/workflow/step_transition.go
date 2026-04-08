@@ -31,6 +31,7 @@ type StepTransitionService struct {
 }
 
 var ErrInvalidStepTransition = errors.New("invalid step transition")
+var errTransitionForbidden = errors.New("forbidden")
 
 // WorkflowDefinitionServiceInterface defines the interface for workflow definition operations
 type WorkflowDefinitionServiceInterface interface {
@@ -215,32 +216,29 @@ func (s *StepTransitionService) verifyTransitionActorPermission(instanceID *uuid
 
 	assignment, err := s.roleAssignmentService.FindAssigneeForRole(instanceID, responsibleRole)
 	if err != nil {
-		return fmt.Errorf("no assignment found for role %s: %w", responsibleRole, err)
+		return errTransitionForbidden
 	}
 
 	if !assignment.IsActive {
-		return fmt.Errorf("role assignment for %s is not active", responsibleRole)
+		return errTransitionForbidden
 	}
 
 	switch assignment.AssignedToType {
 	case workflows.AssignmentTypeUser.String():
 		if !containsStringFold(request.AuthenticatedIdentifiers, assignment.AssignedToID) {
-			return fmt.Errorf("authenticated user identifiers %v are not assigned to role %s (assigned to: %s %s)",
-				request.AuthenticatedIdentifiers, responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+			return errTransitionForbidden
 		}
 	case workflows.AssignmentTypeEmail.String():
 		if !strings.EqualFold(assignment.AssignedToID, request.AuthenticatedEmail) {
-			return fmt.Errorf("authenticated email %s is not assigned to role %s (assigned to: %s %s)",
-				request.AuthenticatedEmail, responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+			return errTransitionForbidden
 		}
 	case workflows.AssignmentTypeGroup.String():
 		if !containsStringFold(request.AuthenticatedGroups, assignment.AssignedToID) {
-			return fmt.Errorf("authenticated user is not a member of assigned group %s for role %s", assignment.AssignedToID, responsibleRole)
+			return errTransitionForbidden
 		}
 	default:
 		if assignment.AssignedToType != request.UserType || assignment.AssignedToID != request.UserID {
-			return fmt.Errorf("authenticated actor is not assigned to role %s (assigned to: %s %s)",
-				responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+			return errTransitionForbidden
 		}
 	}
 
@@ -505,11 +503,14 @@ func (s *StepTransitionService) createEvidenceRecord(ctx *workflowContext, strea
 		Start:       startTime,
 		End:         endTime,
 		BackMatter:  backMatter,
+		Props:       datatypes.NewJSONSlice([]relational.Prop{}),
+		Links:       datatypes.NewJSONSlice([]relational.Link{}),
+		Origins:     datatypes.NewJSONSlice([]relational.Origin{}),
 	}
 
 	// Add Links if we have resources
 	if len(evidenceLinks) > 0 {
-		evidence.Links = evidenceLinks
+		evidence.Links = datatypes.NewJSONSlice(evidenceLinks)
 	}
 
 	// Set status based on step execution status

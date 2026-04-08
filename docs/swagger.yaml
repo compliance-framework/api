@@ -163,6 +163,63 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  handler.CreatedEvidenceResponse:
+    properties:
+      activities:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
+        type: array
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
+      description:
+        type: string
+      end:
+        type: string
+      expires:
+        type: string
+      id:
+        type: string
+      inventory-items:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+        type: array
+      labels:
+        items:
+          $ref: '#/definitions/relational.Labels'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      signature:
+        $ref: '#/definitions/relational.EvidenceSignature'
+      start:
+        type: string
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
   handler.EvidenceActivity:
     properties:
       description:
@@ -446,7 +503,7 @@ definitions:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.OscalLikeEvidence'
+          $ref: '#/definitions/handler.PublicEvidenceResponse'
         type: array
       metadata:
         $ref: '#/definitions/handler.ForControl.responseMetadata'
@@ -880,6 +937,13 @@ definitions:
         - $ref: '#/definitions/digest.EvidenceSummary'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_CreatedEvidenceResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.CreatedEvidenceResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
     properties:
       data:
@@ -894,11 +958,11 @@ definitions:
         - $ref: '#/definitions/handler.FilterWithAssociations'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_OscalLikeEvidence:
+  handler.GenericDataResponse-handler_PublicEvidenceResponse:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.OscalLikeEvidence'
+        - $ref: '#/definitions/handler.PublicEvidenceResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_SubscriptionsResponse:
@@ -1370,13 +1434,6 @@ definitions:
         - $ref: '#/definitions/poam.PoamItemRiskLink'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-relational_Evidence:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/relational.Evidence'
-        description: Items from the list response
-    type: object
   handler.GenericDataResponse-relational_Filter:
     properties:
       data:
@@ -1435,7 +1492,14 @@ definitions:
     - created_at
     - uuid
     type: object
-  handler.OscalLikeEvidence:
+  handler.OverTime.HeartbeatInterval:
+    properties:
+      interval:
+        type: string
+      total:
+        type: integer
+    type: object
+  handler.PublicEvidenceResponse:
     properties:
       activities:
         items:
@@ -1460,8 +1524,6 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
         type: array
       labels:
-        description: Assigning labels to Evidence makes it searchable and easily usable
-          in the UI
         items:
           $ref: '#/definitions/relational.Labels'
         type: array
@@ -1479,11 +1541,7 @@ definitions:
         type: array
       remarks:
         type: string
-      signature:
-        $ref: '#/definitions/datatypes.JSONType-relational_EvidenceSignature'
       start:
-        description: When did we start collecting the evidence, and when did the process
-          end, and how long is it valid for ?
         type: string
       status:
         $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
@@ -1494,17 +1552,7 @@ definitions:
       title:
         type: string
       uuid:
-        description: |-
-          UUID needs to remain consistent when automation runs again, but unique for each subject.
-          It represents the "stream" of the same observation being made over time.
         type: string
-    type: object
-  handler.OverTime.HeartbeatInterval:
-    properties:
-      interval:
-        type: string
-      total:
-        type: integer
     type: object
   handler.StatusInterval:
     properties:
@@ -7405,11 +7453,11 @@ definitions:
       subjectId:
         type: string
     type: object
-  service.ListResponse-handler_OscalLikeEvidence:
+  service.ListResponse-handler_PublicEvidenceResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/handler.OscalLikeEvidence'
+          $ref: '#/definitions/handler.PublicEvidenceResponse'
         type: array
       limit:
         type: integer
@@ -7440,21 +7488,6 @@ definitions:
       data:
         items:
           $ref: '#/definitions/handler.threatIDResponse'
-        type: array
-      limit:
-        type: integer
-      page:
-        type: integer
-      total:
-        type: integer
-      totalPages:
-        type: integer
-    type: object
-  service.ListResponse-relational_Evidence:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/relational.Evidence'
         type: array
       limit:
         type: integer
@@ -9764,7 +9797,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-relational_Evidence'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_CreatedEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -9794,7 +9827,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -9996,7 +10029,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/service.ListResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -10029,7 +10062,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -10071,7 +10104,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/service.ListResponse-relational_Evidence'
+            $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
         "422":
           description: Unprocessable Entity
           schema:

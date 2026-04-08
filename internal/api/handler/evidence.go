@@ -192,7 +192,7 @@ type EvidenceCreateRequest struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			evidence	body		EvidenceCreateRequest	true	"Evidence create request"
-//	@Success		201			{object}	GenericDataResponse[relational.Evidence]
+//	@Success		201			{object}	GenericDataResponse[CreatedEvidenceResponse]
 //	@Failure		400			{object}	api.Error
 //	@Failure		500			{object}	api.Error
 //	@Security		OAuth2Password
@@ -374,7 +374,12 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusCreated, GenericDataResponse[relational.Evidence]{Data: *created})
+	output, err := newCreatedEvidenceResponse(created)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusCreated, GenericDataResponse[*CreatedEvidenceResponse]{Data: output})
 }
 
 // Search godoc
@@ -387,7 +392,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Param			filter	body		labelfilter.Filter	true	"Label filter"
 //	@Param			page	query		int					false	"Page number"
 //	@Param			limit	query		int					false	"Page size"
-//	@Success		200		{object}	svc.ListResponse[relational.Evidence]
+//	@Success		200		{object}	svc.ListResponse[PublicEvidenceResponse]
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/evidence/search [post]
@@ -409,11 +414,28 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, svc.NewListResponse(results, total, pagination.Page, pagination.Limit))
+	output := make([]*PublicEvidenceResponse, 0, len(results))
+	for _, evidence := range results {
+		out, err := newPublicEvidenceResponse(&evidence)
+		if err != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+		output = append(output, out)
+	}
+
+	return ctx.JSON(http.StatusOK, svc.NewListResponse(output, total, pagination.Page, pagination.Limit))
 }
 
-type OscalLikeEvidence struct {
-	relational.Evidence
+type EvidenceFields struct {
+	ID             *uuid.UUID                           `json:"id"`
+	UUID           uuid.UUID                            `json:"uuid,omitempty"`
+	Title          string                               `json:"title"`
+	Description    string                               `json:"description"`
+	Remarks        *string                              `json:"remarks,omitempty"`
+	Labels         []relational.Labels                  `json:"labels"`
+	Start          time.Time                            `json:"start"`
+	End            time.Time                            `json:"end"`
+	Expires        *time.Time                           `json:"expires,omitempty"`
 	BackMatter     *oscalTypes_1_1_3.BackMatter         `json:"back-matter,omitempty"`
 	Props          []oscalTypes_1_1_3.Property          `json:"props"`
 	Links          []oscalTypes_1_1_3.Link              `json:"links"`
@@ -425,47 +447,80 @@ type OscalLikeEvidence struct {
 	Status         oscalTypes_1_1_3.ObjectiveStatus     `json:"status"`
 }
 
+type PublicEvidenceResponse struct {
+	EvidenceFields
+}
+
+type CreatedEvidenceResponse struct {
+	EvidenceFields
+	Signature *relational.EvidenceSignature `json:"signature,omitempty"`
+}
+
 type EvidenceSignatureResponse = GenericDataResponse[*evidencesvc.SignatureDetail]
 
 type EvidenceSignatureVerificationResponse = GenericDataResponse[*evidencesvc.VerificationResult]
 
-func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
-	o.ID = evidence.ID
-	o.UUID = evidence.UUID
-	o.Title = evidence.Title
-	o.Description = evidence.Description
-	o.Remarks = evidence.Remarks
-	o.Labels = evidence.Labels
-	o.Start = evidence.Start
-	o.End = evidence.End
-	o.Expires = evidence.Expires
-	o.Props = *relational.ConvertPropsToOscal(evidence.Props)
-	o.Links = *relational.ConvertLinksToOscal(evidence.Links)
-	o.Subjects = relational.ConvertList(&evidence.Subjects, func(in relational.AssessmentSubject) oscalTypes_1_1_3.AssessmentSubject {
+func buildEvidenceFields(evidence *relational.Evidence) (*EvidenceFields, error) {
+	out := &EvidenceFields{
+		ID:          evidence.ID,
+		UUID:        evidence.UUID,
+		Title:       evidence.Title,
+		Description: evidence.Description,
+		Remarks:     evidence.Remarks,
+		Labels:      evidence.Labels,
+		Start:       evidence.Start,
+		End:         evidence.End,
+		Expires:     evidence.Expires,
+		Props:       *relational.ConvertPropsToOscal(evidence.Props),
+		Links:       *relational.ConvertLinksToOscal(evidence.Links),
+	}
+	out.Subjects = relational.ConvertList(&evidence.Subjects, func(in relational.AssessmentSubject) oscalTypes_1_1_3.AssessmentSubject {
 		return *in.MarshalOscal()
 	})
-	o.Components = relational.ConvertList(&evidence.Components, func(in relational.SystemComponent) oscalTypes_1_1_3.SystemComponent {
+	out.Components = relational.ConvertList(&evidence.Components, func(in relational.SystemComponent) oscalTypes_1_1_3.SystemComponent {
 		return *in.MarshalOscal()
 	})
-	o.Activities = relational.ConvertList(&evidence.Activities, func(in relational.Activity) oscalTypes_1_1_3.Activity {
+	out.Activities = relational.ConvertList(&evidence.Activities, func(in relational.Activity) oscalTypes_1_1_3.Activity {
 		return *in.MarshalOscal()
 	})
-	o.InventoryItems = relational.ConvertList(&evidence.InventoryItems, func(in relational.InventoryItem) oscalTypes_1_1_3.InventoryItem {
+	out.InventoryItems = relational.ConvertList(&evidence.InventoryItems, func(in relational.InventoryItem) oscalTypes_1_1_3.InventoryItem {
 		return in.MarshalOscal()
 	})
-	o.Origins = func() []oscalTypes_1_1_3.Origin {
+	out.Origins = func() []oscalTypes_1_1_3.Origin {
 		out := make([]oscalTypes_1_1_3.Origin, 0)
 		for _, v := range evidence.Origins {
 			out = append(out, oscalTypes_1_1_3.Origin(v))
 		}
 		return out
 	}()
-	o.BackMatter = &oscalTypes_1_1_3.BackMatter{}
+	out.BackMatter = &oscalTypes_1_1_3.BackMatter{}
 	if evidence.BackMatter != nil {
-		o.BackMatter = evidence.BackMatter.MarshalOscal()
+		out.BackMatter = evidence.BackMatter.MarshalOscal()
 	}
-	o.Status = evidence.Status.Data()
-	return nil
+	out.Status = evidence.Status.Data()
+	return out, nil
+}
+
+func newPublicEvidenceResponse(evidence *relational.Evidence) (*PublicEvidenceResponse, error) {
+	fields, err := buildEvidenceFields(evidence)
+	if err != nil {
+		return nil, err
+	}
+	return &PublicEvidenceResponse{EvidenceFields: *fields}, nil
+}
+
+func newCreatedEvidenceResponse(evidence *relational.Evidence) (*CreatedEvidenceResponse, error) {
+	fields, err := buildEvidenceFields(evidence)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreatedEvidenceResponse{EvidenceFields: *fields}
+	if evidence.Signature != nil {
+		signature := evidence.Signature.Data()
+		response.Signature = &signature
+	}
+	return response, nil
 }
 
 func parseEvidenceID(ctx echo.Context) (uuid.UUID, error) {
@@ -479,7 +534,7 @@ func parseEvidenceID(ctx echo.Context) (uuid.UUID, error) {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Evidence ID"
-//	@Success		200	{object}	GenericDataResponse[OscalLikeEvidence]
+//	@Success		200	{object}	GenericDataResponse[PublicEvidenceResponse]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -501,12 +556,12 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	output := &OscalLikeEvidence{}
-	if err = output.FromEvidence(evidence); err != nil {
+	output, err := newPublicEvidenceResponse(evidence)
+	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataResponse[*OscalLikeEvidence]{Data: output})
+	return ctx.JSON(http.StatusOK, GenericDataResponse[*PublicEvidenceResponse]{Data: output})
 }
 
 // History godoc
@@ -518,7 +573,7 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 //	@Param			id		path		string	true	"Evidence UUID"
 //	@Param			page	query		int		false	"Page number"
 //	@Param			limit	query		int		false	"Page size"
-//	@Success		200		{object}	svc.ListResponse[OscalLikeEvidence]
+//	@Success		200		{object}	svc.ListResponse[PublicEvidenceResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -545,11 +600,11 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	output := []*OscalLikeEvidence{}
+	output := []*PublicEvidenceResponse{}
 	for _, e := range evidences {
-		out := &OscalLikeEvidence{}
-		if err = out.FromEvidence(&e); err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		out, convErr := newPublicEvidenceResponse(&e)
+		if convErr != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(convErr))
 		}
 		output = append(output, out)
 	}
@@ -564,7 +619,7 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Evidence UUID"
-//	@Success		200	{object}	GenericDataResponse[OscalLikeEvidence]
+//	@Success		200	{object}	GenericDataResponse[PublicEvidenceResponse]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -586,12 +641,12 @@ func (h *EvidenceHandler) Latest(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	output := &OscalLikeEvidence{}
-	if err = output.FromEvidence(evidence); err != nil {
+	output, err := newPublicEvidenceResponse(evidence)
+	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataResponse[*OscalLikeEvidence]{Data: output})
+	return ctx.JSON(http.StatusOK, GenericDataResponse[*PublicEvidenceResponse]{Data: output})
 }
 
 // GetSignature godoc
@@ -683,7 +738,7 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 	type EvidenceDataListResponse struct {
 		Metadata responseMetadata `json:"metadata"`
 		// Items from the list response
-		Data []OscalLikeEvidence `json:"data" yaml:"data"`
+		Data []PublicEvidenceResponse `json:"data" yaml:"data"`
 	}
 
 	id := ctx.Param("id")
@@ -715,11 +770,11 @@ func (h *EvidenceHandler) ForControl(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	response.Data = []OscalLikeEvidence{}
+	response.Data = []PublicEvidenceResponse{}
 	for _, e := range evidenceList {
-		out := &OscalLikeEvidence{}
-		if err = out.FromEvidence(&e); err != nil {
-			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		out, convErr := newPublicEvidenceResponse(&e)
+		if convErr != nil {
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(convErr))
 		}
 		response.Data = append(response.Data, *out)
 	}

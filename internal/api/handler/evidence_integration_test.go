@@ -479,20 +479,25 @@ func (suite *EvidenceApiIntegrationSuite) TestPublicEvidenceReadsDoNotExposeSign
 	server.E().ServeHTTP(getRec, getReq)
 	suite.Equal(http.StatusOK, getRec.Code)
 
-	var getResp GenericDataResponse[OscalLikeEvidence]
+	var getResp map[string]any
 	suite.Require().NoError(json.Unmarshal(getRec.Body.Bytes(), &getResp))
-	suite.Require().NotNil(getResp.Data.ID)
-	suite.Nil(getResp.Data.Signature)
+	getData, ok := getResp["data"].(map[string]any)
+	suite.Require().True(ok)
+	suite.NotContains(getData, "signature")
 
 	historyReq := httptest.NewRequest(http.MethodGet, "/api/evidence/history/"+evidence.UUID.String(), nil)
 	historyRec := httptest.NewRecorder()
 	server.E().ServeHTTP(historyRec, historyReq)
 	suite.Equal(http.StatusOK, historyRec.Code)
 
-	var historyResp svc.ListResponse[OscalLikeEvidence]
+	var historyResp map[string]any
 	suite.Require().NoError(json.Unmarshal(historyRec.Body.Bytes(), &historyResp))
-	suite.Require().Len(historyResp.Data, 1)
-	suite.Nil(historyResp.Data[0].Signature)
+	historyData, ok := historyResp["data"].([]any)
+	suite.Require().True(ok)
+	suite.Require().Len(historyData, 1)
+	firstItem, ok := historyData[0].(map[string]any)
+	suite.Require().True(ok)
+	suite.NotContains(firstItem, "signature")
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestVerifyUnsignedEvidenceReturnsFailureResult() {
@@ -669,7 +674,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		response := &GenericDataListResponse[relational.Evidence]{}
+		response := &svc.ListResponse[PublicEvidenceResponse]{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
 
@@ -725,7 +730,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		response := &GenericDataListResponse[relational.Evidence]{}
+		response := &svc.ListResponse[PublicEvidenceResponse]{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
 
@@ -791,7 +796,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		response := &GenericDataListResponse[relational.Evidence]{}
+		response := &svc.ListResponse[PublicEvidenceResponse]{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
 
@@ -858,7 +863,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		response := &GenericDataListResponse[relational.Evidence]{}
+		response := &svc.ListResponse[PublicEvidenceResponse]{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
 
@@ -961,7 +966,7 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 		server.E().ServeHTTP(rec, req)
 		assert.Equal(suite.T(), http.StatusOK, rec.Code)
 
-		response := &GenericDataListResponse[relational.Evidence]{}
+		response := &svc.ListResponse[PublicEvidenceResponse]{}
 		err = json.Unmarshal(rec.Body.Bytes(), &response)
 		suite.Require().NoError(err)
 
@@ -1006,11 +1011,11 @@ func (suite *EvidenceApiIntegrationSuite) TestHistoryPagination() {
 	suite.Equal(http.StatusOK, rec.Code)
 
 	var response struct {
-		Data       []OscalLikeEvidence `json:"data"`
-		Total      int64               `json:"total"`
-		Page       int                 `json:"page"`
-		Limit      int                 `json:"limit"`
-		TotalPages int                 `json:"totalPages"`
+		Data       []PublicEvidenceResponse `json:"data"`
+		Total      int64                    `json:"total"`
+		Page       int                      `json:"page"`
+		Limit      int                      `json:"limit"`
+		TotalPages int                      `json:"totalPages"`
 	}
 	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
 	suite.Len(response.Data, 2)
