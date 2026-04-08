@@ -385,8 +385,8 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			filter	body		labelfilter.Filter	true	"Label filter"
-//	@Param			page	query		int		false	"Page number"
-//	@Param			limit	query		int		false	"Page size"
+//	@Param			page	query		int					false	"Page number"
+//	@Param			limit	query		int					false	"Page size"
 //	@Success		200		{object}	svc.ListResponse[relational.Evidence]
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -515,13 +515,13 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 //	@Description	Retrieves a the history for a Evidence record by its UUID, including associated activities, inventory items, components, subjects, and labels.
 //	@Tags			Evidence
 //	@Produce		json
-//	@Param			id	path		string	true	"Evidence UUID"
+//	@Param			id		path		string	true	"Evidence UUID"
 //	@Param			page	query		int		false	"Page number"
 //	@Param			limit	query		int		false	"Page size"
-//	@Success		200	{object}	svc.ListResponse[OscalLikeEvidence]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
+//	@Success		200		{object}	svc.ListResponse[OscalLikeEvidence]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Router			/evidence/history/{id} [get]
 func (h *EvidenceHandler) History(ctx echo.Context) error {
 	idParam := ctx.Param("id")

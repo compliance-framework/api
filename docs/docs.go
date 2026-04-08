@@ -1479,13 +1479,25 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/service.ListResponse-handler_OscalLikeEvidence"
                         }
                     },
                     "400": {
@@ -1578,13 +1590,25 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/labelfilter.Filter"
                         }
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_Evidence"
+                            "$ref": "#/definitions/service.ListResponse-relational_Evidence"
                         }
                     },
                     "422": {
@@ -26554,18 +26578,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-handler_OscalLikeEvidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.OscalLikeEvidence"
-                    }
-                }
-            }
-        },
         "handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval": {
             "type": "object",
             "properties": {
@@ -27078,18 +27090,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/poam.PoamItemRiskLink"
-                    }
-                }
-            }
-        },
-        "handler.GenericDataListResponse-relational_Evidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/relational.Evidence"
                     }
                 }
             }
@@ -37213,6 +37213,29 @@ const docTemplate = `{
                 }
             }
         },
+        "service.ListResponse-handler_OscalLikeEvidence": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.OscalLikeEvidence"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-handler_riskResponse": {
             "type": "object",
             "properties": {
@@ -37243,6 +37266,29 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.threatIDResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.ListResponse-relational_Evidence": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Evidence"
                     }
                 },
                 "limit": {
@@ -38922,9 +38968,7 @@ const docTemplate = `{
         "workflows.TransitionStepRequest": {
             "type": "object",
             "required": [
-                "status",
-                "user-id",
-                "user-type"
+                "status"
             ],
             "properties": {
                 "evidence": {

@@ -482,14 +482,6 @@ definitions:
           $ref: '#/definitions/handler.FilterWithAssociations'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_OscalLikeEvidence:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/handler.OscalLikeEvidence'
-        type: array
-    type: object
   handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval:
     properties:
       data:
@@ -832,14 +824,6 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/poam.PoamItemRiskLink'
-        type: array
-    type: object
-  handler.GenericDataListResponse-relational_Evidence:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/relational.Evidence'
         type: array
     type: object
   handler.GenericDataListResponse-relational_SystemComponentSuggestion:
@@ -7421,6 +7405,21 @@ definitions:
       subjectId:
         type: string
     type: object
+  service.ListResponse-handler_OscalLikeEvidence:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.OscalLikeEvidence'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-handler_riskResponse:
     properties:
       data:
@@ -7441,6 +7440,21 @@ definitions:
       data:
         items:
           $ref: '#/definitions/handler.threatIDResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-relational_Evidence:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/relational.Evidence'
         type: array
       limit:
         type: integer
@@ -8573,8 +8587,6 @@ definitions:
         type: string
     required:
     - status
-    - user-id
-    - user-type
     type: object
   workflows.UpdateControlRelationshipRequest:
     properties:
@@ -9970,13 +9982,21 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/service.ListResponse-handler_OscalLikeEvidence'
         "400":
           description: Bad Request
           schema:
@@ -10037,13 +10057,21 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/labelfilter.Filter'
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-relational_Evidence'
+            $ref: '#/definitions/service.ListResponse-relational_Evidence'
         "422":
           description: Unprocessable Entity
           schema:
