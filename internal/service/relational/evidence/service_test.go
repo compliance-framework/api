@@ -18,6 +18,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func newEvidenceServiceTestDB(t *testing.T) *gorm.DB {
@@ -34,6 +35,8 @@ func newEvidenceServiceTestDB(t *testing.T) *gorm.DB {
 		&relational.SystemComponent{},
 		&relational.InventoryItem{},
 		&relational.AssessmentSubject{},
+		&relational.SelectSubjectById{},
+		&relational.ImplementedComponent{},
 	))
 	return db
 }
@@ -584,4 +587,392 @@ func TestEvidenceService_Create_DeduplicatesResolverSystemComponents(t *testing.
 	var linkCount int64
 	require.NoError(t, db.Table("evidence_components").Where("evidence_id = ?", *result.ID).Count(&linkCount).Error)
 	require.Equal(t, int64(1), linkCount)
+}
+
+func newVerificationService(t *testing.T) (*EvidenceService, *gorm.DB) {
+	t.Helper()
+
+	db := newEvidenceServiceTestDB(t)
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	privateKey, publicKey, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	svc := NewEvidenceService(db, logger.Sugar(), &config.Config{
+		JWTPrivateKey: privateKey,
+		JWTPublicKey:  publicKey,
+	}, nil)
+	return svc, db
+}
+
+func newVerificationParams(now time.Time) CreateEvidenceParams {
+	return CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:   uuid.New(),
+			Title:  "verification-evidence",
+			Start:  now.Add(-time.Hour),
+			End:    now,
+			Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusSatisfied}),
+			Props: datatypes.NewJSONSlice([]relational.Prop{
+				{Name: "check", Value: "baseline"},
+			}),
+			BackMatter: &relational.BackMatter{
+				Resources: []relational.BackMatterResource{
+					{
+						ID: uuid.MustParse("3d31fa64-edb4-4218-b242-bf03e3e6db77"),
+						Base64: internal.Pointer(datatypes.NewJSONType(relational.Base64{
+							Filename:  "evidence.txt",
+							MediaType: "text/plain",
+							Value:     "YmFzZQ==",
+						})),
+					},
+				},
+			},
+		},
+		Labels: []relational.Labels{{Name: "env", Value: "prod"}},
+	}
+}
+
+func newVerificationSigner(subject string, issuedAt, notBefore, expiresAt time.Time) *SignerContext {
+	return NewUserSignerContextFromClaims(&authn.UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "compliance-framework",
+			Subject:   subject,
+			IssuedAt:  jwt.NewNumericDate(issuedAt),
+			NotBefore: jwt.NewNumericDate(notBefore),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+		},
+		GivenName:  "Verifier",
+		FamilyName: "User",
+	})
+}
+
+func createSignedEvidenceForVerification(t *testing.T, svc *EvidenceService, params CreateEvidenceParams, signedAt time.Time, signer *SignerContext) *relational.Evidence {
+	t.Helper()
+
+	svc.signingSvc.now = func() time.Time { return signedAt }
+	params.Signer = signer
+	created, err := svc.Create(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, created.Signature)
+	return created
+}
+
+func TestEvidenceService_VerifyByID_ValidSignedEvidence(t *testing.T) {
+	svc, _ := newVerificationService(t)
+	signedAt := time.Date(2026, 4, 7, 13, 0, 0, 0, time.UTC)
+
+	created := createSignedEvidenceForVerification(
+		t,
+		svc,
+		newVerificationParams(signedAt),
+		signedAt,
+		newVerificationSigner(
+			"signer@example.com",
+			signedAt.Add(-time.Hour),
+			signedAt.Add(-30*time.Minute),
+			signedAt.Add(time.Hour),
+		),
+	)
+
+	result, err := svc.VerifyByID(*created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, SignatureStatusSigned, result.Status)
+	require.NotNil(t, result.Signature)
+	require.True(t, result.IsValid)
+	require.True(t, result.Checks.HashMatch)
+	require.True(t, result.Checks.SignatureValid)
+	require.True(t, result.Checks.TemporalValid)
+	require.True(t, result.Checks.SignedContentMatches)
+	require.Empty(t, result.Errors)
+}
+
+func TestEvidenceService_CreateThenVerify_RichEvidenceMatchesPersistedShape(t *testing.T) {
+	svc, _ := newVerificationService(t)
+	signedAt := time.Date(2026, 4, 8, 8, 58, 58, 809770958, time.UTC)
+
+	componentID := uuid.MustParse("a8e9c3fc-dbdb-4887-a66b-6c2d160134fa")
+	activityID := uuid.MustParse("e87b7310-bcb8-423f-a025-2335f7fc3aa2")
+	stepID := uuid.MustParse("a9a74277-b63f-4ad4-abde-9d953067a9b0")
+	subjectComponentID := componentID
+
+	created := createSignedEvidenceForVerification(
+		t,
+		svc,
+		CreateEvidenceParams{
+			Evidence: relational.Evidence{
+				UUID:        uuid.MustParse("1aadb125-7df3-4699-b1fe-adb12eb50492"),
+				Title:       "Kubernetes AZ Coverage Check",
+				Description: "Evaluated AZ/region coverage across 1 cluster(s).\nFailed apps: 1\n  default/nginx = only 1/2 AZs; only 1/2 regions",
+				Remarks:     internal.Pointer(""),
+				Start:       time.Date(2026, 4, 8, 8, 57, 0, 77820000, time.UTC),
+				End:         time.Date(2026, 4, 8, 8, 57, 0, 77820000, time.UTC),
+				Expires:     internal.Pointer(time.Unix(0, 0).UTC()),
+				Origins: datatypes.NewJSONSlice([]relational.Origin{
+					relational.Origin(oscalTypes_1_1_3.Origin{
+						Actors: []oscalTypes_1_1_3.OriginActor{
+							{
+								Type:  "assessment-platform",
+								Props: &[]oscalTypes_1_1_3.Property{},
+								Links: &[]oscalTypes_1_1_3.Link{{Href: "https://compliance-framework.github.io/docs/", Rel: "reference", Text: "The Continuous Compliance Framework"}},
+							},
+							{
+								Type:  "tool",
+								Props: &[]oscalTypes_1_1_3.Property{},
+								Links: &[]oscalTypes_1_1_3.Link{{Href: "https://github.com/compliance-framework/plugin-kubernetes", Rel: "reference", Text: "The Continuous Compliance Framework Kubernetes Plugin"}},
+							},
+						},
+					}),
+				}),
+				Status: datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{
+					Reason:  "fail",
+					Remarks: "Kubernetes AZ Coverage Check",
+					State:   relational.EvidenceStatusNotSatisfied,
+				}),
+			},
+			Labels: []relational.Labels{
+				{Name: "_agent", Value: "concom"},
+				{Name: "_plugin", Value: "k8s"},
+				{Name: "_policy", Value: "compliance_framework.k8s_az_coverage"},
+				{Name: "provider", Value: "kubernetes"},
+				{Name: "source", Value: "plugin-kubernetes"},
+				{Name: "tool", Value: "plugin-kubernetes"},
+			},
+			Activities: []relational.Activity{
+				{
+					UUIDModel:   relational.UUIDModel{ID: &activityID},
+					Title:       internal.Pointer("Collect Kubernetes Cluster Resources"),
+					Description: "",
+					Steps: []relational.Step{
+						{
+							UUIDModel:   relational.UUIDModel{ID: &stepID},
+							Title:       internal.Pointer("Authenticate"),
+							Description: "Authenticate to each Kubernetes cluster using the configured provider.",
+						},
+					},
+				},
+			},
+			Components: []relational.SystemComponent{
+				{
+					UUIDModel:   relational.UUIDModel{ID: &componentID},
+					Type:        "service",
+					Title:       "Kubernetes Cluster: kind",
+					Description: "Kubernetes cluster \"\" in region local",
+					Purpose:     "Kubernetes cluster providing resource data for compliance evaluation.",
+					Status:      datatypes.NewJSONType(relational.SystemComponentStatus{State: ""}),
+				},
+			},
+			Subjects: []relational.AssessmentSubject{
+				{
+					Type: "Component",
+					IncludeSubjects: []relational.SelectSubjectById{
+						{SubjectUUID: subjectComponentID},
+					},
+					ExcludeSubjects: []relational.SelectSubjectById{
+						{SubjectUUID: subjectComponentID},
+					},
+				},
+			},
+		},
+		signedAt,
+		newVerificationSigner(
+			"gusfcarvalho@gmail.com",
+			time.Date(2026, 4, 8, 8, 56, 57, 0, time.UTC),
+			time.Date(2026, 4, 8, 8, 56, 57, 0, time.UTC),
+			time.Date(2026, 4, 9, 8, 56, 57, 0, time.UTC),
+		),
+	)
+
+	result, err := svc.VerifyByID(*created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.IsValid)
+	require.True(t, result.Checks.HashMatch)
+	require.True(t, result.Checks.SignedContentMatches)
+}
+
+func TestEvidenceService_VerifyByID_FailsWhenSignedContentChanges(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(t *testing.T, db *gorm.DB, evidenceID uuid.UUID)
+	}{
+		{
+			name: "status",
+			mutate: func(t *testing.T, db *gorm.DB, evidenceID uuid.UUID) {
+				t.Helper()
+				require.NoError(t, db.Model(&relational.Evidence{}).
+					Where("id = ?", evidenceID).
+					Update("status", datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied})).Error)
+			},
+		},
+		{
+			name: "props",
+			mutate: func(t *testing.T, db *gorm.DB, evidenceID uuid.UUID) {
+				t.Helper()
+				require.NoError(t, db.Model(&relational.Evidence{}).
+					Where("id = ?", evidenceID).
+					Update("props", datatypes.NewJSONSlice([]relational.Prop{{Name: "check", Value: "changed"}})).Error)
+			},
+		},
+		{
+			name: "labels",
+			mutate: func(t *testing.T, db *gorm.DB, evidenceID uuid.UUID) {
+				t.Helper()
+				label := relational.Labels{Name: "env", Value: "staging"}
+				require.NoError(t, db.Clauses(clause.OnConflict{DoNothing: true}).Create(&label).Error)
+
+				var evidence relational.Evidence
+				require.NoError(t, db.First(&evidence, "id = ?", evidenceID).Error)
+				require.NoError(t, db.Model(&evidence).Association("Labels").Replace([]relational.Labels{label}))
+			},
+		},
+		{
+			name: "back_matter_attachment",
+			mutate: func(t *testing.T, db *gorm.DB, evidenceID uuid.UUID) {
+				t.Helper()
+				var evidence relational.Evidence
+				require.NoError(t, db.Preload("BackMatter").Preload("BackMatter.Resources").First(&evidence, "id = ?", evidenceID).Error)
+				require.NotNil(t, evidence.BackMatter)
+				require.NotEmpty(t, evidence.BackMatter.Resources)
+
+				resource := evidence.BackMatter.Resources[0]
+				resource.Base64 = internal.Pointer(datatypes.NewJSONType(relational.Base64{
+					Filename:  "evidence.txt",
+					MediaType: "text/plain",
+					Value:     "Y2hhbmdlZA==",
+				}))
+				require.NoError(t, db.Save(&resource).Error)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, db := newVerificationService(t)
+			signedAt := time.Date(2026, 4, 7, 13, 0, 0, 0, time.UTC)
+			created := createSignedEvidenceForVerification(
+				t,
+				svc,
+				newVerificationParams(signedAt),
+				signedAt,
+				newVerificationSigner(
+					"signer@example.com",
+					signedAt.Add(-time.Hour),
+					signedAt.Add(-30*time.Minute),
+					signedAt.Add(time.Hour),
+				),
+			)
+
+			tt.mutate(t, db, *created.ID)
+
+			result, err := svc.VerifyByID(*created.ID)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsValid)
+			require.False(t, result.Checks.HashMatch)
+			require.True(t, result.Checks.SignatureValid)
+			require.True(t, result.Checks.TemporalValid)
+			require.False(t, result.Checks.SignedContentMatches)
+			require.NotEmpty(t, result.Errors)
+		})
+	}
+}
+
+func TestEvidenceService_VerifyByID_FailsWhenJWSIsTampered(t *testing.T) {
+	svc, db := newVerificationService(t)
+	signedAt := time.Date(2026, 4, 7, 13, 0, 0, 0, time.UTC)
+	created := createSignedEvidenceForVerification(
+		t,
+		svc,
+		newVerificationParams(signedAt),
+		signedAt,
+		newVerificationSigner(
+			"signer@example.com",
+			signedAt.Add(-time.Hour),
+			signedAt.Add(-30*time.Minute),
+			signedAt.Add(time.Hour),
+		),
+	)
+
+	signature := created.Signature.Data()
+	signature.JWS = signature.JWS + "tampered"
+	updated := datatypes.NewJSONType(signature)
+	require.NoError(t, db.Model(&relational.Evidence{}).Where("id = ?", *created.ID).Update("signature", updated).Error)
+
+	result, err := svc.VerifyByID(*created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsValid)
+	require.True(t, result.Checks.HashMatch)
+	require.False(t, result.Checks.SignatureValid)
+	require.False(t, result.Checks.SignedContentMatches)
+	require.NotEmpty(t, result.Errors)
+}
+
+func TestEvidenceService_VerifyByID_UnsignedEvidenceReturnsClearFailure(t *testing.T) {
+	svc, _ := newVerificationService(t)
+	now := time.Date(2026, 4, 7, 13, 0, 0, 0, time.UTC)
+
+	created, err := svc.Create(context.Background(), newVerificationParams(now))
+	require.NoError(t, err)
+	require.Nil(t, created.Signature)
+
+	result, err := svc.VerifyByID(*created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, SignatureStatusUnsigned, result.Status)
+	require.Nil(t, result.Signature)
+	require.False(t, result.IsValid)
+	require.False(t, result.Checks.HashMatch)
+	require.False(t, result.Checks.SignatureValid)
+	require.False(t, result.Checks.TemporalValid)
+	require.False(t, result.Checks.SignedContentMatches)
+	require.Empty(t, result.Errors)
+}
+
+func TestEvidenceService_VerifyByID_FailsTemporalChecks(t *testing.T) {
+	testCases := []struct {
+		name      string
+		issuedAt  time.Time
+		notBefore time.Time
+		expiresAt time.Time
+	}{
+		{
+			name:      "signed_before_not_before",
+			issuedAt:  time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC),
+			notBefore: time.Date(2026, 4, 7, 13, 30, 0, 0, time.UTC),
+			expiresAt: time.Date(2026, 4, 7, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "signed_after_expiration",
+			issuedAt:  time.Date(2026, 4, 7, 11, 0, 0, 0, time.UTC),
+			notBefore: time.Date(2026, 4, 7, 11, 0, 0, 0, time.UTC),
+			expiresAt: time.Date(2026, 4, 7, 12, 30, 0, 0, time.UTC),
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _ := newVerificationService(t)
+			signedAt := time.Date(2026, 4, 7, 13, 0, 0, 0, time.UTC)
+			created := createSignedEvidenceForVerification(
+				t,
+				svc,
+				newVerificationParams(signedAt),
+				signedAt,
+				newVerificationSigner("signer@example.com", tt.issuedAt, tt.notBefore, tt.expiresAt),
+			)
+
+			result, err := svc.VerifyByID(*created.ID)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsValid)
+			require.True(t, result.Checks.HashMatch)
+			require.True(t, result.Checks.SignatureValid)
+			require.False(t, result.Checks.TemporalValid)
+			require.True(t, result.Checks.SignedContentMatches)
+			require.NotEmpty(t, result.Errors)
+		})
+	}
 }

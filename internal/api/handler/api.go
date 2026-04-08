@@ -57,6 +57,9 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 		middleware.OptionalUserOrAgentJWTMiddleware(db, config.JWTPublicKey, !config.StrictDisablePublicAgentEndpoints),
 	)
 	evidenceHandler.RegisterReadRoutes(evidenceGroup)
+	evidenceSignatureGroup := server.API().Group("/evidence")
+	evidenceSignatureGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
+	evidenceHandler.RegisterSignatureRoutes(evidenceSignatureGroup)
 
 	poamService := poamsvc.NewPoamService(db)
 	riskService := riskrel.NewRiskService(db)

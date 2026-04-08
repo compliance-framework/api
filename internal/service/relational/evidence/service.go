@@ -127,14 +127,6 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			params.Evidence.Expires = &expiryDate
 		}
 
-		if s.signingSvc != nil {
-			signature, err := s.signingSvc.SignEvidence(params, params.Signer)
-			if err != nil {
-				return err
-			}
-			params.Evidence.Signature = signature
-		}
-
 		// Capture evidence status so we can enqueue a risk job after commit.
 		statusData := params.Evidence.Status.Data()
 
@@ -182,6 +174,25 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			}
 		}
 
+		if s.signingSvc != nil && params.Signer != nil && !params.Signer.IsEmpty() {
+			var persisted relational.Evidence
+			if err := s.evidenceQuery(tx).
+				First(&persisted, "id = ?", *params.Evidence.ID).Error; err != nil {
+				return err
+			}
+
+			signature, err := s.signingSvc.SignEvidence(createEvidenceParamsFromModel(&persisted), params.Signer)
+			if err != nil {
+				return err
+			}
+
+			if err := tx.Model(&params.Evidence).
+				Update("signature", signature).Error; err != nil {
+				return err
+			}
+			params.Evidence.Signature = signature
+		}
+
 		return nil
 	})
 
@@ -209,15 +220,7 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 
 func (s *EvidenceService) GetByID(id uuid.UUID) (*relational.Evidence, error) {
 	var evidence relational.Evidence
-	if err := s.db.
-		Preload("Labels").
-		Preload("BackMatter").
-		Preload("BackMatter.Resources").
-		Preload("Activities").
-		Preload("Activities.Steps").
-		Preload("InventoryItems").
-		Preload("Components").
-		Preload("Subjects").
+	if err := s.evidenceQuery(s.db).
 		First(&evidence, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
@@ -226,13 +229,7 @@ func (s *EvidenceService) GetByID(id uuid.UUID) (*relational.Evidence, error) {
 
 func (s *EvidenceService) GetHistory(streamUUID uuid.UUID) ([]relational.Evidence, error) {
 	var evidences []relational.Evidence
-	if err := s.db.
-		Preload("Labels").
-		Preload("Activities").
-		Preload("Activities.Steps").
-		Preload("InventoryItems").
-		Preload("Components").
-		Preload("Subjects").
+	if err := s.evidenceQuery(s.db).
 		Order("evidences.end DESC").
 		Find(&evidences, "uuid = ?", streamUUID).Error; err != nil {
 		return nil, err
@@ -242,18 +239,27 @@ func (s *EvidenceService) GetHistory(streamUUID uuid.UUID) ([]relational.Evidenc
 
 func (s *EvidenceService) GetLatestByUUID(streamUUID uuid.UUID) (*relational.Evidence, error) {
 	var evidence relational.Evidence
-	if err := s.db.
-		Preload("Labels").
-		Preload("Activities").
-		Preload("Activities.Steps").
-		Preload("InventoryItems").
-		Preload("Components").
-		Preload("Subjects").
+	if err := s.evidenceQuery(s.db).
 		Order("evidences.end DESC").
 		First(&evidence, "uuid = ?", streamUUID).Error; err != nil {
 		return nil, err
 	}
 	return &evidence, nil
+}
+
+func (s *EvidenceService) evidenceQuery(db *gorm.DB) *gorm.DB {
+	return db.
+		Preload("Labels").
+		Preload("BackMatter").
+		Preload("BackMatter.Resources").
+		Preload("Activities").
+		Preload("Activities.Steps").
+		Preload("InventoryItems").
+		Preload("InventoryItems.ImplementedComponents").
+		Preload("Components").
+		Preload("Subjects").
+		Preload("Subjects.IncludeSubjects").
+		Preload("Subjects.ExcludeSubjects")
 }
 
 func (s *EvidenceService) Search(filter labelfilter.Filter) ([]relational.Evidence, error) {

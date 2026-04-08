@@ -59,6 +59,11 @@ func (h *EvidenceHandler) RegisterReadRoutes(api *echo.Group) {
 	api.GET("/compliance-by-filter/:id", h.ComplianceByFilter)
 }
 
+func (h *EvidenceHandler) RegisterSignatureRoutes(api *echo.Group) {
+	api.GET("/:id/signature", h.GetSignature)
+	api.POST("/:id/verify", h.VerifySignature)
+}
+
 type EvidenceActivityStep struct {
 	UUID        uuid.UUID
 	Title       string
@@ -409,12 +414,18 @@ type OscalLikeEvidence struct {
 	Status         oscalTypes_1_1_3.ObjectiveStatus     `json:"status"`
 }
 
+type EvidenceSignatureResponse = GenericDataResponse[*evidencesvc.SignatureDetail]
+
+type EvidenceSignatureVerificationResponse = GenericDataResponse[*evidencesvc.VerificationResult]
+
 func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
 	o.ID = evidence.ID
 	o.UUID = evidence.UUID
+	o.Signature = evidence.Signature
 	o.Title = evidence.Title
 	o.Description = evidence.Description
 	o.Remarks = evidence.Remarks
+	o.Labels = evidence.Labels
 	o.Start = evidence.Start
 	o.End = evidence.End
 	o.Expires = evidence.Expires
@@ -448,6 +459,10 @@ func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
 	return nil
 }
 
+func parseEvidenceID(ctx echo.Context) (uuid.UUID, error) {
+	return uuid.Parse(ctx.Param("id"))
+}
+
 // Get godoc
 //
 //	@Summary		Get Evidence by ID
@@ -462,7 +477,7 @@ func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
 //	@Router			/evidence/{id} [get]
 func (h *EvidenceHandler) Get(ctx echo.Context) error {
 	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := parseEvidenceID(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -499,7 +514,7 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 //	@Router			/evidence/history/{id} [get]
 func (h *EvidenceHandler) History(ctx echo.Context) error {
 	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := parseEvidenceID(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -540,7 +555,7 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 //	@Router			/evidence/latest/{id} [get]
 func (h *EvidenceHandler) Latest(ctx echo.Context) error {
 	idParam := ctx.Param("id")
-	id, err := uuid.Parse(idParam)
+	id, err := parseEvidenceID(ctx)
 	if err != nil {
 		h.sugar.Warnw("Invalid evidence uuid", "id", idParam, "error", err)
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
@@ -561,6 +576,76 @@ func (h *EvidenceHandler) Latest(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, GenericDataResponse[*OscalLikeEvidence]{Data: output})
+}
+
+// GetSignature godoc
+//
+//	@Summary		Get Evidence signature by ID
+//	@Description	Retrieves the stored signature envelope for a single Evidence record.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Evidence ID"
+//	@Success		200	{object}	handler.EvidenceSignatureResponse
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/evidence/{id}/signature [get]
+func (h *EvidenceHandler) GetSignature(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := parseEvidenceID(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	signature, err := h.evidenceService.GetSignatureByID(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		default:
+			h.sugar.Warnw("Failed to load evidence signature", "id", idParam, "error", err)
+			return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+		}
+	}
+
+	return ctx.JSON(http.StatusOK, EvidenceSignatureResponse{Data: signature})
+}
+
+// VerifySignature godoc
+//
+//	@Summary		Verify Evidence signature by ID
+//	@Description	Recomputes the current evidence content hash and verifies the stored signed payload.
+//	@Tags			Evidence
+//	@Produce		json
+//	@Param			id	path		string	true	"Evidence ID"
+//	@Success		200	{object}	handler.EvidenceSignatureVerificationResponse
+//	@Failure		400	{object}	api.Error
+//	@Failure		401	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/evidence/{id}/verify [post]
+func (h *EvidenceHandler) VerifySignature(ctx echo.Context) error {
+	idParam := ctx.Param("id")
+	id, err := parseEvidenceID(ctx)
+	if err != nil {
+		h.sugar.Warnw("Invalid evidence id", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	result, err := h.evidenceService.VerifyByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(err))
+		}
+		h.sugar.Warnw("Failed to verify evidence signature", "id", idParam, "error", err)
+		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	return ctx.JSON(http.StatusOK, EvidenceSignatureVerificationResponse{Data: result})
 }
 
 // ForControl godoc

@@ -14,6 +14,7 @@ import (
 
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
@@ -324,6 +325,245 @@ func (suite *EvidenceApiIntegrationSuite) TestCreatePublicLeavesEvidenceUnsigned
 	var evidence relational.Evidence
 	suite.Require().NoError(suite.DB.First(&evidence).Error)
 	suite.Nil(evidence.Signature)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSignatureEndpointsRequireUserAuth() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	createRec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Signed Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	createReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	createReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+
+	signatureReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidence.ID.String()+"/signature", nil)
+	signatureRec := httptest.NewRecorder()
+	server.E().ServeHTTP(signatureRec, signatureReq)
+	suite.Equal(http.StatusUnauthorized, signatureRec.Code)
+
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	verifyRec := httptest.NewRecorder()
+	server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusUnauthorized, verifyRec.Code)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSignatureEndpointsWithUserAuth() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	createRec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Signed Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+		Props: []oscalTypes_1_1_3.Property{{Name: "check", Value: "baseline"}},
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	createReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	createReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+
+	signatureReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidence.ID.String()+"/signature", nil)
+	signatureReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	signatureRec := httptest.NewRecorder()
+	server.E().ServeHTTP(signatureRec, signatureReq)
+	suite.Equal(http.StatusOK, signatureRec.Code)
+
+	var signatureResp EvidenceSignatureResponse
+	suite.Require().NoError(json.Unmarshal(signatureRec.Body.Bytes(), &signatureResp))
+	suite.Require().NotNil(signatureResp.Data)
+	suite.Equal(evidencesvc.SignatureStatusSigned, signatureResp.Data.Status)
+	suite.Require().NotNil(signatureResp.Data.Signature)
+	suite.NotEmpty(signatureResp.Data.Signature.JWS)
+	suite.Equal("dummy@example.com", signatureResp.Data.Signature.Claims.Subject)
+
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	verifyReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	verifyRec := httptest.NewRecorder()
+	server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusOK, verifyRec.Code)
+
+	var verifyResp EvidenceSignatureVerificationResponse
+	suite.Require().NoError(json.Unmarshal(verifyRec.Body.Bytes(), &verifyResp))
+	suite.Require().NotNil(verifyResp.Data)
+	suite.Equal(evidencesvc.SignatureStatusSigned, verifyResp.Data.Status)
+	suite.Require().NotNil(verifyResp.Data.Signature)
+	suite.True(verifyResp.Data.IsValid)
+
+	suite.Require().NoError(
+		suite.DB.Model(&relational.Evidence{}).
+			Where("id = ?", evidence.ID).
+			Update("status", datatypes.NewJSONType(oscalTypes_1_1_3.ObjectiveStatus{State: relational.EvidenceStatusNotSatisfied})).Error,
+	)
+
+	verifyReq = httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	verifyReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	verifyRec = httptest.NewRecorder()
+	server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusOK, verifyRec.Code)
+
+	suite.Require().NoError(json.Unmarshal(verifyRec.Body.Bytes(), &verifyResp))
+	suite.Require().NotNil(verifyResp.Data)
+	suite.False(verifyResp.Data.IsValid)
+	suite.False(verifyResp.Data.Checks.HashMatch)
+	suite.False(verifyResp.Data.Checks.SignedContentMatches)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestVerifyUnsignedEvidenceReturnsFailureResult() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	userToken, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	createRec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Unsigned Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	createReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	verifyReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *userToken))
+	verifyRec := httptest.NewRecorder()
+	server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusOK, verifyRec.Code)
+
+	var verifyResp EvidenceSignatureVerificationResponse
+	suite.Require().NoError(json.Unmarshal(verifyRec.Body.Bytes(), &verifyResp))
+	suite.Require().NotNil(verifyResp.Data)
+	suite.Equal(evidencesvc.SignatureStatusUnsigned, verifyResp.Data.Status)
+	suite.Nil(verifyResp.Data.Signature)
+	suite.False(verifyResp.Data.IsValid)
+	suite.Empty(verifyResp.Data.Errors)
+
+	signatureReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidence.ID.String()+"/signature", nil)
+	signatureReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *userToken))
+	signatureRec := httptest.NewRecorder()
+	server.E().ServeHTTP(signatureRec, signatureReq)
+	suite.Equal(http.StatusOK, signatureRec.Code)
+
+	var signatureResp EvidenceSignatureResponse
+	suite.Require().NoError(json.Unmarshal(signatureRec.Body.Bytes(), &signatureResp))
+	suite.Require().NotNil(signatureResp.Data)
+	suite.Equal(evidencesvc.SignatureStatusUnsigned, signatureResp.Data.Status)
+	suite.Nil(signatureResp.Data.Signature)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestVerifyAgentCreatedEvidenceWithUserAuth() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = true
+
+	server := suite.setupServer()
+	userToken, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	agent, err := suite.CreateAgent("verify-agent")
+	suite.Require().NoError(err)
+	key, _, err := suite.CreateAgentKey(agent, "verify-key")
+	suite.Require().NoError(err)
+	agentToken, err := suite.GetAgentToken(agent, key)
+	suite.Require().NoError(err)
+
+	createRec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Agent Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	createReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	createReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *agentToken))
+	server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/evidence/"+evidence.ID.String()+"/verify", nil)
+	verifyReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *userToken))
+	verifyRec := httptest.NewRecorder()
+	server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusOK, verifyRec.Code)
+
+	var verifyResp EvidenceSignatureVerificationResponse
+	suite.Require().NoError(json.Unmarshal(verifyRec.Body.Bytes(), &verifyResp))
+	suite.Require().NotNil(verifyResp.Data)
+	suite.Equal(evidencesvc.SignatureStatusSigned, verifyResp.Data.Status)
+	suite.Require().NotNil(verifyResp.Data.Signature)
+	suite.True(verifyResp.Data.IsValid)
+	suite.Equal(authn.TokenKindAgent, verifyResp.Data.Signer.Type)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSignatureEndpointsReturnNotFoundForMissingEvidence() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+	missingID := uuid.New()
+
+	signatureReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+missingID.String()+"/signature", nil)
+	signatureReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	signatureRec := httptest.NewRecorder()
+	server.E().ServeHTTP(signatureRec, signatureReq)
+	suite.Equal(http.StatusNotFound, signatureRec.Code)
+
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/evidence/"+missingID.String()+"/verify", nil)
+	verifyReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	verifyRec := httptest.NewRecorder()
+	server.E().ServeHTTP(verifyRec, verifyReq)
+	suite.Equal(http.StatusNotFound, verifyRec.Code)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestSearch() {

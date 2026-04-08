@@ -1760,6 +1760,122 @@ const docTemplate = `{
                 }
             }
         },
+        "/evidence/{id}/signature": {
+            "get": {
+                "description": "Retrieves the stored signature envelope for a single Evidence record.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get Evidence signature by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.EvidenceSignatureResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/evidence/{id}/verify": {
+            "post": {
+                "description": "Recomputes the current evidence content hash and verifies the stored signed payload.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Verify Evidence signature by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.EvidenceSignatureVerificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/filters": {
             "get": {
                 "description": "Retrieves all filters, optionally filtered by controlId or componentId.",
@@ -25924,11 +26040,74 @@ const docTemplate = `{
                 }
             }
         },
+        "evidence.SignatureDetail": {
+            "type": "object",
+            "properties": {
+                "signature": {
+                    "$ref": "#/definitions/relational.EvidenceSignature"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "evidence.StatusCount": {
             "type": "object",
             "properties": {
                 "count": {
                     "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "evidence.VerificationChecks": {
+            "type": "object",
+            "properties": {
+                "hash_match": {
+                    "type": "boolean"
+                },
+                "signature_valid": {
+                    "type": "boolean"
+                },
+                "signed_content_matches": {
+                    "type": "boolean"
+                },
+                "temporal_valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "evidence.VerificationResult": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "$ref": "#/definitions/evidence.VerificationChecks"
+                },
+                "claims": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureClaims"
+                },
+                "content_hash": {
+                    "$ref": "#/definitions/relational.Hash"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_valid": {
+                    "type": "boolean"
+                },
+                "signature": {
+                    "$ref": "#/definitions/relational.EvidenceSignature"
+                },
+                "signed_at": {
+                    "type": "string"
+                },
+                "signer": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureSigner"
                 },
                 "status": {
                     "type": "string"
@@ -26188,6 +26367,32 @@ const docTemplate = `{
                 "type": {
                     "description": "\"operating-system\"\tdescription=\"System software that manages computer hardware, software resources, and provides common services for computer programs.\"\n\"database\"\t\t\tdescription=\"An electronic collection of data, or information, that is specially organized for rapid search and retrieval.\"\n\"web-server\"\t\t\tdescription=\"A system that delivers content or services to end users over the Internet or an intranet.\"\n\"dns-server\"\t\t\tdescription=\"A system that resolves domain names to internet protocol (IP) addresses.\"\n\"email-server\"\t\tdescription=\"A computer system that sends and receives electronic mail messages.\"\n\"directory-server\"\tdescription=\"A system that stores, organizes and provides access to directory information in order to unify network resources.\"\n\"pbx\"\t\t\t\tdescription=\"A private branch exchange (PBX) provides a a private telephone switchboard.\"\n\"firewall\"\t\t\tdescription=\"A network security system that monitors and controls incoming and outgoing network traffic based on predetermined security rules.\"\n\"router\"\t\t\t\tdescription=\"A physical or virtual networking device that forwards data packets between computer networks.\"\n\"switch\"\t\t\t\tdescription=\"A physical or virtual networking device that connects devices within a computer network by using packet switching to receive and forward data to the destination device.\"\n\"storage-array\"\t\tdescription=\"A consolidated, block-level data storage capability.\"\n\"appliance\"\t\t\tdescription=\"A physical or virtual machine that centralizes hardware, software, or services for a specific purpose.\"",
                     "type": "string"
+                }
+            }
+        },
+        "handler.EvidenceSignatureResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/evidence.SignatureDetail"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.EvidenceSignatureVerificationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/evidence.VerificationResult"
+                        }
+                    ]
                 }
             }
         },
@@ -34833,6 +35038,90 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same observation being made over time.",
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSignature": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureClaims"
+                },
+                "content_hash": {
+                    "$ref": "#/definitions/relational.Hash"
+                },
+                "jws": {
+                    "type": "string"
+                },
+                "signature_algorithm": {
+                    "type": "string"
+                },
+                "signed_at": {
+                    "type": "string"
+                },
+                "signer": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureSigner"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSignatureClaims": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "auth_method": {
+                    "type": "string"
+                },
+                "credential_id": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "family_name": {
+                    "type": "string"
+                },
+                "given_name": {
+                    "type": "string"
+                },
+                "issued_at": {
+                    "type": "string"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "not_before": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                },
+                "token_kind": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSignatureSigner": {
+            "type": "object",
+            "properties": {
+                "credential_id": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }

@@ -141,29 +141,49 @@ func (s *SigningService) SignEvidence(params CreateEvidenceParams, signer *Signe
 		return nil, errors.New("evidence signing key is not configured")
 	}
 
-	canonical, err := canonicalizeEvidence(params)
+	contentHash, err := computeEvidenceContentHash(params)
 	if err != nil {
-		return nil, fmt.Errorf("canonicalize evidence: %w", err)
+		return nil, err
 	}
-	payload, err := json.Marshal(canonical)
-	if err != nil {
-		return nil, fmt.Errorf("marshal canonical evidence: %w", err)
-	}
-
-	sum := sha256.Sum256(payload)
 	signature := relational.EvidenceSignature{
 		Version:            evidenceSignatureVersion,
 		SignatureAlgorithm: jwt.SigningMethodRS256.Alg(),
 		SignedAt:           s.now().UTC(),
-		ContentHash: relational.Hash{
-			Algorithm: relational.HashAlgorithmSHA_256,
-			Value:     hex.EncodeToString(sum[:]),
-		},
-		Signer: signer.signerSnapshot(),
-		Claims: signer.claimsSnapshot(),
+		ContentHash:        contentHash,
+		Signer:             signer.signerSnapshot(),
+		Claims:             signer.claimsSnapshot(),
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, buildSignatureTokenClaims(signature))
+	jws, err := token.SignedString(s.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("sign evidence payload: %w", err)
+	}
+	signature.JWS = jws
+
+	data := datatypes.NewJSONType(signature)
+	return &data, nil
+}
+
+func computeEvidenceContentHash(params CreateEvidenceParams) (relational.Hash, error) {
+	canonical, err := canonicalizeEvidence(params)
+	if err != nil {
+		return relational.Hash{}, fmt.Errorf("canonicalize evidence: %w", err)
+	}
+	payload, err := json.Marshal(canonical)
+	if err != nil {
+		return relational.Hash{}, fmt.Errorf("marshal canonical evidence: %w", err)
+	}
+
+	sum := sha256.Sum256(payload)
+	return relational.Hash{
+		Algorithm: relational.HashAlgorithmSHA_256,
+		Value:     hex.EncodeToString(sum[:]),
+	}, nil
+}
+
+func buildSignatureTokenClaims(signature relational.EvidenceSignature) jwt.MapClaims {
+	return jwt.MapClaims{
 		"version":             signature.Version,
 		"signature_algorithm": signature.SignatureAlgorithm,
 		"signed_at":           signature.SignedAt.Format(time.RFC3339Nano),
@@ -173,15 +193,7 @@ func (s *SigningService) SignEvidence(params CreateEvidenceParams, signer *Signe
 		},
 		"signer": signature.Signer,
 		"claims": signature.Claims,
-	})
-	jws, err := token.SignedString(s.privateKey)
-	if err != nil {
-		return nil, fmt.Errorf("sign evidence payload: %w", err)
 	}
-	signature.JWS = jws
-
-	data := datatypes.NewJSONType(signature)
-	return &data, nil
 }
 
 type canonicalEvidence struct {

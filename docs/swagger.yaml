@@ -107,10 +107,51 @@ definitions:
         format: int64
         type: integer
     type: object
+  evidence.SignatureDetail:
+    properties:
+      signature:
+        $ref: '#/definitions/relational.EvidenceSignature'
+      status:
+        type: string
+    type: object
   evidence.StatusCount:
     properties:
       count:
         type: integer
+      status:
+        type: string
+    type: object
+  evidence.VerificationChecks:
+    properties:
+      hash_match:
+        type: boolean
+      signature_valid:
+        type: boolean
+      signed_content_matches:
+        type: boolean
+      temporal_valid:
+        type: boolean
+    type: object
+  evidence.VerificationResult:
+    properties:
+      checks:
+        $ref: '#/definitions/evidence.VerificationChecks'
+      claims:
+        $ref: '#/definitions/relational.EvidenceSignatureClaims'
+      content_hash:
+        $ref: '#/definitions/relational.Hash'
+      errors:
+        items:
+          type: string
+        type: array
+      is_valid:
+        type: boolean
+      signature:
+        $ref: '#/definitions/relational.EvidenceSignature'
+      signed_at:
+        type: string
+      signer:
+        $ref: '#/definitions/relational.EvidenceSignatureSigner'
       status:
         type: string
     type: object
@@ -320,6 +361,20 @@ definitions:
           physical or virtual machine that centralizes hardware, software, or services
           for a specific purpose.\""
         type: string
+    type: object
+  handler.EvidenceSignatureResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/evidence.SignatureDetail'
+        description: Items from the list response
+    type: object
+  handler.EvidenceSignatureVerificationResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/evidence.VerificationResult'
+        description: Items from the list response
     type: object
   handler.EvidenceSubject:
     properties:
@@ -5914,6 +5969,61 @@ definitions:
           It represents the "stream" of the same observation being made over time.
         type: string
     type: object
+  relational.EvidenceSignature:
+    properties:
+      claims:
+        $ref: '#/definitions/relational.EvidenceSignatureClaims'
+      content_hash:
+        $ref: '#/definitions/relational.Hash'
+      jws:
+        type: string
+      signature_algorithm:
+        type: string
+      signed_at:
+        type: string
+      signer:
+        $ref: '#/definitions/relational.EvidenceSignatureSigner'
+      version:
+        type: string
+    type: object
+  relational.EvidenceSignatureClaims:
+    properties:
+      agent_id:
+        type: string
+      auth_method:
+        type: string
+      credential_id:
+        type: string
+      expires_at:
+        type: string
+      family_name:
+        type: string
+      given_name:
+        type: string
+      issued_at:
+        type: string
+      issuer:
+        type: string
+      not_before:
+        type: string
+      subject:
+        type: string
+      token_kind:
+        type: string
+    type: object
+  relational.EvidenceSignatureSigner:
+    properties:
+      credential_id:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
   relational.Export:
     properties:
       byComponentId:
@@ -9686,6 +9796,81 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get Evidence by ID
+      tags:
+      - Evidence
+  /evidence/{id}/signature:
+    get:
+      description: Retrieves the stored signature envelope for a single Evidence record.
+      parameters:
+      - description: Evidence ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.EvidenceSignatureResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get Evidence signature by ID
+      tags:
+      - Evidence
+  /evidence/{id}/verify:
+    post:
+      description: Recomputes the current evidence content hash and verifies the stored
+        signed payload.
+      parameters:
+      - description: Evidence ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.EvidenceSignatureVerificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Verify Evidence signature by ID
       tags:
       - Evidence
   /evidence/compliance-by-control/{id}:
