@@ -1,4 +1,4 @@
-package handler
+package authcontext
 
 import (
 	"github.com/compliance-framework/api/internal/api/middleware"
@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func signerContextFromEcho(ctx echo.Context) *evidencesvc.SignerContext {
+func SignerContextFromEcho(ctx echo.Context) *evidencesvc.SignerContext {
 	if claims, ok := ctx.Get("user").(*authn.UserClaims); ok && claims != nil {
 		return evidencesvc.NewUserSignerContextFromClaims(claims)
 	}

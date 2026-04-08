@@ -7,6 +7,7 @@ import (
 
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/authcontext"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
 	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -367,7 +368,7 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 		Activities:     activities,
 		Subjects:       subjects,
 		Labels:         labels,
-		Signer:         signerContextFromEcho(ctx),
+		Signer:         authcontext.SignerContextFromEcho(ctx),
 	})
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
@@ -431,7 +432,6 @@ type EvidenceSignatureVerificationResponse = GenericDataResponse[*evidencesvc.Ve
 func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
 	o.ID = evidence.ID
 	o.UUID = evidence.UUID
-	o.Signature = evidence.Signature
 	o.Title = evidence.Title
 	o.Description = evidence.Description
 	o.Remarks = evidence.Remarks
@@ -439,7 +439,6 @@ func (o *OscalLikeEvidence) FromEvidence(evidence *relational.Evidence) error {
 	o.Start = evidence.Start
 	o.End = evidence.End
 	o.Expires = evidence.Expires
-	o.Labels = evidence.Labels
 	o.Props = *relational.ConvertPropsToOscal(evidence.Props)
 	o.Links = *relational.ConvertLinksToOscal(evidence.Links)
 	o.Subjects = relational.ConvertList(&evidence.Subjects, func(in relational.AssessmentSubject) oscalTypes_1_1_3.AssessmentSubject {

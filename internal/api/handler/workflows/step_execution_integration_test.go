@@ -245,12 +245,19 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 	}
 	require.NoError(t, db.Create(stepDef).Error)
 
+	testUser := &relational.User{
+		Email:     "test-user@example.com",
+		FirstName: "Test",
+		LastName:  "User",
+	}
+	require.NoError(t, db.Create(testUser).Error)
+
 	// Create role assignment for the user
 	roleAssignment := &workflows.RoleAssignment{
 		WorkflowInstanceID: instance.ID,
 		RoleName:           "engineer",
 		AssignedToType:     "user",
-		AssignedToID:       "test-user",
+		AssignedToID:       testUser.ID.String(),
 		IsActive:           true,
 	}
 	require.NoError(t, db.Create(roleAssignment).Error)
@@ -269,8 +276,8 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		// First transition from pending to in_progress
 		reqBody := TransitionStepRequest{
 			Status:   "in_progress",
-			UserID:   "test-user",
-			UserType: "user",
+			UserID:   "spoofed-user",
+			UserType: "group",
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -291,8 +298,8 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		// Then transition from in_progress to completed
 		reqBody = TransitionStepRequest{
 			Status:   "completed",
-			UserID:   "test-user",
-			UserType: "user",
+			UserID:   "spoofed-user",
+			UserType: "group",
 			Evidence: []workflow.EvidenceSubmission{
 				{
 					EvidenceType: "document",
@@ -375,8 +382,8 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 
 		reqBody := TransitionStepRequest{
 			Status:   "in_progress",
-			UserID:   "test-user",
-			UserType: "user",
+			UserID:   "spoofed-user",
+			UserType: "group",
 		}
 
 		body, err := json.Marshal(reqBody)

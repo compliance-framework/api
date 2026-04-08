@@ -79,12 +79,15 @@ type EvidenceRequirement struct {
 
 // StepTransitionRequest represents a request to transition a step
 type StepTransitionRequest struct {
-	Status   string                     `json:"status"` // "in_progress" or "completed"
-	Evidence []EvidenceSubmission       `json:"evidence,omitempty"`
-	Notes    string                     `json:"notes,omitempty"`
-	UserID   string                     `json:"user_id"`   // ID of the user making the transition
-	UserType string                     `json:"user_type"` // "user", "group", "email"
-	Signer   *evidencesvc.SignerContext `json:"-"`
+	Status              string                     `json:"status"` // "in_progress" or "completed"
+	Evidence            []EvidenceSubmission       `json:"evidence,omitempty"`
+	Notes               string                     `json:"notes,omitempty"`
+	UserID              string                     `json:"user_id"`   // Legacy compatibility field; not trusted for authz.
+	UserType            string                     `json:"user_type"` // Legacy compatibility field; not trusted for authz.
+	AuthenticatedUserID string                     `json:"-"`
+	AuthenticatedEmail  string                     `json:"-"`
+	AuthenticatedGroups []string                   `json:"-"`
+	Signer              *evidencesvc.SignerContext `json:"-"`
 }
 
 // EvidenceSubmission represents evidence being submitted with a step transition
@@ -122,7 +125,7 @@ func (s *StepTransitionService) TransitionStepStatus(ctx context.Context, stepEx
 	}
 
 	// Verify user has permission to transition this step
-	if err := s.verifyUserPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, request.UserID, request.UserType); err != nil {
+	if err := s.verifyTransitionActorPermission(workflowExecution.WorkflowInstanceID, stepDef.ResponsibleRole, request); err != nil {
 		return fmt.Errorf("permission denied: %w", err)
 	}
 
@@ -202,6 +205,54 @@ func (s *StepTransitionService) verifyUserPermission(instanceID *uuid.UUID, resp
 	}
 
 	return nil
+}
+
+func (s *StepTransitionService) verifyTransitionActorPermission(instanceID *uuid.UUID, responsibleRole string, request *StepTransitionRequest) error {
+	if request == nil {
+		return fmt.Errorf("missing transition request")
+	}
+
+	assignment, err := s.roleAssignmentService.FindAssigneeForRole(instanceID, responsibleRole)
+	if err != nil {
+		return fmt.Errorf("no assignment found for role %s: %w", responsibleRole, err)
+	}
+
+	if !assignment.IsActive {
+		return fmt.Errorf("role assignment for %s is not active", responsibleRole)
+	}
+
+	switch assignment.AssignedToType {
+	case workflows.AssignmentTypeUser.String():
+		if assignment.AssignedToID != request.AuthenticatedUserID {
+			return fmt.Errorf("authenticated user %s is not assigned to role %s (assigned to: %s %s)",
+				request.AuthenticatedUserID, responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+		}
+	case workflows.AssignmentTypeEmail.String():
+		if !strings.EqualFold(assignment.AssignedToID, request.AuthenticatedEmail) {
+			return fmt.Errorf("authenticated email %s is not assigned to role %s (assigned to: %s %s)",
+				request.AuthenticatedEmail, responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+		}
+	case workflows.AssignmentTypeGroup.String():
+		if !containsStringFold(request.AuthenticatedGroups, assignment.AssignedToID) {
+			return fmt.Errorf("authenticated user is not a member of assigned group %s for role %s", assignment.AssignedToID, responsibleRole)
+		}
+	default:
+		if assignment.AssignedToType != request.UserType || assignment.AssignedToID != request.UserID {
+			return fmt.Errorf("authenticated actor is not assigned to role %s (assigned to: %s %s)",
+				responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+		}
+	}
+
+	return nil
+}
+
+func containsStringFold(values []string, target string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(target)) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateTransition validates that the requested status transition is allowed

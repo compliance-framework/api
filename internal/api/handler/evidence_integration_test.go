@@ -16,6 +16,7 @@ import (
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
+	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -442,6 +443,56 @@ func (suite *EvidenceApiIntegrationSuite) TestSignatureEndpointsWithUserAuth() {
 	suite.False(verifyResp.Data.IsValid)
 	suite.False(verifyResp.Data.Checks.HashMatch)
 	suite.False(verifyResp.Data.Checks.SignedContentMatches)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestPublicEvidenceReadsDoNotExposeSignature() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+	suite.Config.StrictDisablePublicAgentEndpoints = false
+
+	server := suite.setupServer()
+	token, err := suite.GetAuthToken()
+	suite.Require().NoError(err)
+
+	createRec := httptest.NewRecorder()
+	reqBody, _ := json.Marshal(EvidenceCreateRequest{
+		UUID:  uuid.New(),
+		Title: "Signed Evidence",
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now().Add(-time.Minute),
+		Status: oscalTypes_1_1_3.ObjectiveStatus{
+			State: relational.EvidenceStatusSatisfied,
+		},
+	})
+	createReq := httptest.NewRequest(http.MethodPost, "/api/evidence", bytes.NewReader(reqBody))
+	createReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	createReq.Header.Set(echo.HeaderAuthorization, fmt.Sprintf("Bearer %s", *token))
+	server.E().ServeHTTP(createRec, createReq)
+	suite.Equal(http.StatusCreated, createRec.Code)
+
+	var evidence relational.Evidence
+	suite.Require().NoError(suite.DB.First(&evidence).Error)
+	suite.Require().NotNil(evidence.Signature)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/evidence/"+evidence.ID.String(), nil)
+	getRec := httptest.NewRecorder()
+	server.E().ServeHTTP(getRec, getReq)
+	suite.Equal(http.StatusOK, getRec.Code)
+
+	var getResp GenericDataResponse[OscalLikeEvidence]
+	suite.Require().NoError(json.Unmarshal(getRec.Body.Bytes(), &getResp))
+	suite.Require().NotNil(getResp.Data.ID)
+	suite.Nil(getResp.Data.Signature)
+
+	historyReq := httptest.NewRequest(http.MethodGet, "/api/evidence/history/"+evidence.UUID.String(), nil)
+	historyRec := httptest.NewRecorder()
+	server.E().ServeHTTP(historyRec, historyReq)
+	suite.Equal(http.StatusOK, historyRec.Code)
+
+	var historyResp svc.ListResponse[OscalLikeEvidence]
+	suite.Require().NoError(json.Unmarshal(historyRec.Body.Bytes(), &historyResp))
+	suite.Require().Len(historyResp.Data, 1)
+	suite.Nil(historyResp.Data[0].Signature)
 }
 
 func (suite *EvidenceApiIntegrationSuite) TestVerifyUnsignedEvidenceReturnsFailureResult() {
