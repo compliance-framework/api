@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -182,6 +183,35 @@ func TestVerifyTransitionActorPermission_UserAssignmentSupportsLegacyIdentifiers
 		AuthenticatedEmail:       "user@example.com",
 	})
 	require.NoError(t, err)
+
+	mockRole.AssertExpectations(t)
+}
+
+func TestVerifyTransitionActorPermission_UnexpectedRoleLookupErrorBubbles(t *testing.T) {
+	instanceID := uuid.New()
+
+	mockRole := &MockRoleAssignmentService{}
+	svc := NewStepTransitionService(
+		nil,
+		nil,
+		nil,
+		mockRole,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	expectedErr := errors.New("db unavailable")
+	mockRole.On("FindAssigneeForRole", &instanceID, "engineer").Return(nil, expectedErr).Once()
+
+	err := svc.verifyTransitionActorPermission(&instanceID, "engineer", &StepTransitionRequest{
+		AuthenticatedIdentifiers: []string{"user@example.com"},
+		AuthenticatedEmail:       "user@example.com",
+	})
+	require.ErrorIs(t, err, expectedErr)
 
 	mockRole.AssertExpectations(t)
 }

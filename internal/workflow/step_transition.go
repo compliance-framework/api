@@ -216,7 +216,10 @@ func (s *StepTransitionService) verifyTransitionActorPermission(instanceID *uuid
 
 	assignment, err := s.roleAssignmentService.FindAssigneeForRole(instanceID, responsibleRole)
 	if err != nil {
-		return errTransitionForbidden
+		if errors.Is(err, workflows.ErrRoleAssignmentNotFound) {
+			return errTransitionForbidden
+		}
+		return err
 	}
 
 	if !assignment.IsActive {
