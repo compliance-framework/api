@@ -378,3 +378,91 @@ func TestTemplateService_ListTemplates(t *testing.T) {
 	}
 	require.True(t, found, "Should contain 'forgot-password' template")
 }
+
+// ─── POAM notification template tests ────────────────────────────────────────
+
+func TestTemplateService_PoamOverdueNotification(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName": "Alice Smith",
+		"PoamTitle":     "Implement MFA for Admin Accounts",
+		"SSPName":       "GoodRead SSP",
+		"Deadline":      "2026-03-01T00:00:00Z",
+		"PoamURL":       "https://app.example.com/poam/123",
+	}
+
+	html, text, err := service.Use("poam-overdue-notification", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Alice Smith")
+	require.Contains(t, html, "Implement MFA for Admin Accounts")
+	require.Contains(t, html, "GoodRead SSP")
+	require.Contains(t, html, "2026-03-01T00:00:00Z")
+	require.Contains(t, html, "https://app.example.com/poam/123")
+	require.Contains(t, text, "Alice Smith")
+	require.Contains(t, text, "Implement MFA for Admin Accounts")
+	require.Contains(t, text, "GoodRead SSP")
+	require.Contains(t, text, "https://app.example.com/poam/123")
+}
+
+func TestTemplateService_PoamDeadlineReminder(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName":  "Bob Jones",
+		"PoamTitle":      "Patch Vulnerable Dependencies",
+		"SSPName":        "CoreBanking SSP",
+		"CurrentStatus":  "in-progress",
+		"Deadline":       "2026-04-15T00:00:00Z",
+		"MilestoneCount": 3,
+		"PoamURL":        "https://app.example.com/poam/456",
+	}
+
+	html, text, err := service.Use("poam-deadline-reminder", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Bob Jones")
+	require.Contains(t, html, "Patch Vulnerable Dependencies")
+	require.Contains(t, html, "CoreBanking SSP")
+	require.Contains(t, html, "in-progress")
+	require.Contains(t, html, "2026-04-15T00:00:00Z")
+	require.Contains(t, html, "https://app.example.com/poam/456")
+	require.Contains(t, text, "Bob Jones")
+	require.Contains(t, text, "Patch Vulnerable Dependencies")
+	require.Contains(t, text, "in-progress")
+	require.Contains(t, text, "https://app.example.com/poam/456")
+}
+
+func TestTemplateService_PoamMilestoneOverdueReminder(t *testing.T) {
+	service, err := NewTemplateService()
+	require.NoError(t, err)
+
+	data := TemplateData{
+		"RecipientName":  "Carol White",
+		"MilestoneTitle": "Deploy WAF ruleset",
+		"PoamTitle":      "Harden Perimeter Controls",
+		"SSPName":        "Payments SSP",
+		"DueDate":        "2026-02-28T00:00:00Z",
+		"PoamURL":        "https://app.example.com/poam/789",
+	}
+
+	html, text, err := service.Use("poam-milestone-overdue-reminder", data)
+	require.NoError(t, err)
+	require.NotEmpty(t, html)
+	require.NotEmpty(t, text)
+	require.Contains(t, html, "Carol White")
+	require.Contains(t, html, "Deploy WAF ruleset")
+	require.Contains(t, html, "Harden Perimeter Controls")
+	require.Contains(t, html, "Payments SSP")
+	require.Contains(t, html, "2026-02-28T00:00:00Z")
+	require.Contains(t, html, "https://app.example.com/poam/789")
+	require.Contains(t, text, "Carol White")
+	require.Contains(t, text, "Deploy WAF ruleset")
+	require.Contains(t, text, "Harden Perimeter Controls")
+	require.Contains(t, text, "https://app.example.com/poam/789")
+}
