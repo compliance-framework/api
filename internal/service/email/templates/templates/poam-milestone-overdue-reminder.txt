@@ -1,0 +1,13 @@
+Hello {{.RecipientName}},
+
+A milestone within a Plan of Action & Milestones item has passed its due date without being completed. Please review and take action.
+
+Milestone: {{.MilestoneTitle}}
+Due Date: {{.DueDate}}
+
+POAM Item: {{.PoamTitle}}
+SSP: {{.SSPName}}
+
+Open POAM item: {{.PoamURL}}
+
+You are receiving this notification because you are an owner or point of contact for the associated POAM item.
