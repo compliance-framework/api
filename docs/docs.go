@@ -1310,7 +1310,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-relational_Evidence"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_CreatedEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1479,13 +1479,25 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/service.ListResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1532,7 +1544,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1578,13 +1590,25 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/labelfilter.Filter"
                         }
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataListResponse-relational_Evidence"
+                            "$ref": "#/definitions/service.ListResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "422": {
@@ -1736,7 +1760,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence"
+                            "$ref": "#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse"
                         }
                     },
                     "400": {
@@ -1758,6 +1782,122 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/evidence/{id}/signature": {
+            "get": {
+                "description": "Retrieves the stored signature envelope for a single Evidence record.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Get Evidence signature by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.EvidenceSignatureResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/evidence/{id}/verify": {
+            "post": {
+                "description": "Recomputes the current evidence content hash and verifies the stored signed payload.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Evidence"
+                ],
+                "summary": "Verify Evidence signature by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Evidence ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.EvidenceSignatureVerificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
             }
         },
         "/filters": {
@@ -25826,6 +25966,9 @@ const docTemplate = `{
         "datatypes.JSONType-relational_CombinationRule": {
             "type": "object"
         },
+        "datatypes.JSONType-relational_EvidenceSignature": {
+            "type": "object"
+        },
         "datatypes.JSONType-relational_FlatWithoutGrouping": {
             "type": "object"
         },
@@ -25921,11 +26064,74 @@ const docTemplate = `{
                 }
             }
         },
+        "evidence.SignatureDetail": {
+            "type": "object",
+            "properties": {
+                "signature": {
+                    "$ref": "#/definitions/relational.EvidenceSignature"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "evidence.StatusCount": {
             "type": "object",
             "properties": {
                 "count": {
                     "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "evidence.VerificationChecks": {
+            "type": "object",
+            "properties": {
+                "hash_match": {
+                    "type": "boolean"
+                },
+                "signature_valid": {
+                    "type": "boolean"
+                },
+                "signed_content_matches": {
+                    "type": "boolean"
+                },
+                "temporal_valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "evidence.VerificationResult": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "$ref": "#/definitions/evidence.VerificationChecks"
+                },
+                "claims": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureClaims"
+                },
+                "content_hash": {
+                    "$ref": "#/definitions/relational.Hash"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_valid": {
+                    "type": "boolean"
+                },
+                "signature": {
+                    "$ref": "#/definitions/relational.EvidenceSignature"
+                },
+                "signed_at": {
+                    "type": "string"
+                },
+                "signer": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureSigner"
                 },
                 "status": {
                     "type": "string"
@@ -25941,6 +26147,92 @@ const docTemplate = `{
                 "valid": {
                     "description": "Valid is true if Time is not NULL",
                     "type": "boolean"
+                }
+            }
+        },
+        "handler.CreatedEvidenceResponse": {
+            "type": "object",
+            "properties": {
+                "activities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Activity"
+                    }
+                },
+                "back-matter": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.BackMatter"
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.SystemComponent"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "expires": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "inventory-items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.InventoryItem"
+                    }
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/relational.Labels"
+                    }
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Link"
+                    }
+                },
+                "origins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Origin"
+                    }
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.Property"
+                    }
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "signature": {
+                    "$ref": "#/definitions/relational.EvidenceSignature"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/oscalTypes_1_1_3.ObjectiveStatus"
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/oscalTypes_1_1_3.AssessmentSubject"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
                 }
             }
         },
@@ -26188,6 +26480,32 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.EvidenceSignatureResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/evidence.SignatureDetail"
+                        }
+                    ]
+                }
+            }
+        },
+        "handler.EvidenceSignatureVerificationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/evidence.VerificationResult"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.EvidenceSubject": {
             "type": "object",
             "properties": {
@@ -26291,7 +26609,7 @@ const docTemplate = `{
                     "description": "Items from the list response",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.OscalLikeEvidence"
+                        "$ref": "#/definitions/handler.PublicEvidenceResponse"
                     }
                 },
                 "metadata": {
@@ -26342,18 +26660,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.FilterWithAssociations"
-                    }
-                }
-            }
-        },
-        "handler.GenericDataListResponse-handler_OscalLikeEvidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handler.OscalLikeEvidence"
                     }
                 }
             }
@@ -26874,18 +27180,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataListResponse-relational_Evidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/relational.Evidence"
-                    }
-                }
-            }
-        },
         "handler.GenericDataListResponse-relational_SystemComponentSuggestion": {
             "type": "object",
             "properties": {
@@ -26972,6 +27266,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataResponse-handler_CreatedEvidenceResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/handler.CreatedEvidenceResponse"
+                        }
+                    ]
+                }
+            }
+        },
         "handler.GenericDataResponse-handler_FilterImportResponse": {
             "type": "object",
             "properties": {
@@ -26998,14 +27305,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-handler_OscalLikeEvidence": {
+        "handler.GenericDataResponse-handler_PublicEvidenceResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "description": "Items from the list response",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/handler.OscalLikeEvidence"
+                            "$ref": "#/definitions/handler.PublicEvidenceResponse"
                         }
                     ]
                 }
@@ -27882,19 +28189,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.GenericDataResponse-relational_Evidence": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "description": "Items from the list response",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/relational.Evidence"
-                        }
-                    ]
-                }
-            }
-        },
         "handler.GenericDataResponse-relational_Filter": {
             "type": "object",
             "properties": {
@@ -27997,7 +28291,18 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.OscalLikeEvidence": {
+        "handler.OverTime.HeartbeatInterval": {
+            "type": "object",
+            "properties": {
+                "interval": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.PublicEvidenceResponse": {
             "type": "object",
             "properties": {
                 "activities": {
@@ -28034,7 +28339,6 @@ const docTemplate = `{
                     }
                 },
                 "labels": {
-                    "description": "Assigning labels to Evidence makes it searchable and easily usable in the UI",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/relational.Labels"
@@ -28062,7 +28366,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start": {
-                    "description": "When did we start collecting the evidence, and when did the process end, and how long is it valid for ?",
                     "type": "string"
                 },
                 "status": {
@@ -28078,19 +28381,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
-                    "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same observation being made over time.",
                     "type": "string"
-                }
-            }
-        },
-        "handler.OverTime.HeartbeatInterval": {
-            "type": "object",
-            "properties": {
-                "interval": {
-                    "type": "string"
-                },
-                "total": {
-                    "type": "integer"
                 }
             }
         },
@@ -34802,6 +35093,9 @@ const docTemplate = `{
                 "remarks": {
                     "type": "string"
                 },
+                "signature": {
+                    "$ref": "#/definitions/datatypes.JSONType-relational_EvidenceSignature"
+                },
                 "start": {
                     "description": "When did we start collecting the evidence, and when did the process end, and how long is it valid for ?",
                     "type": "string"
@@ -34826,6 +35120,90 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "description": "UUID needs to remain consistent when automation runs again, but unique for each subject.\nIt represents the \"stream\" of the same observation being made over time.",
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSignature": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureClaims"
+                },
+                "content_hash": {
+                    "$ref": "#/definitions/relational.Hash"
+                },
+                "jws": {
+                    "type": "string"
+                },
+                "signature_algorithm": {
+                    "type": "string"
+                },
+                "signed_at": {
+                    "type": "string"
+                },
+                "signer": {
+                    "$ref": "#/definitions/relational.EvidenceSignatureSigner"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSignatureClaims": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "auth_method": {
+                    "type": "string"
+                },
+                "credential_id": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "family_name": {
+                    "type": "string"
+                },
+                "given_name": {
+                    "type": "string"
+                },
+                "issued_at": {
+                    "type": "string"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "not_before": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                },
+                "token_kind": {
+                    "type": "string"
+                }
+            }
+        },
+        "relational.EvidenceSignatureSigner": {
+            "type": "object",
+            "properties": {
+                "credential_id": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -36905,6 +37283,29 @@ const docTemplate = `{
                 }
             }
         },
+        "service.ListResponse-handler_PublicEvidenceResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.PublicEvidenceResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
         "service.ListResponse-handler_riskResponse": {
             "type": "object",
             "properties": {
@@ -38614,9 +39015,7 @@ const docTemplate = `{
         "workflows.TransitionStepRequest": {
             "type": "object",
             "required": [
-                "status",
-                "user-id",
-                "user-type"
+                "status"
             ],
             "properties": {
                 "evidence": {

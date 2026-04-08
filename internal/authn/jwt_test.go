@@ -5,6 +5,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -43,5 +44,20 @@ func TestUserAndAgentTokensAreSeparated(t *testing.T) {
 	require.Equal(t, TokenKindAgent, agentClaims.TokenKind)
 
 	_, err = VerifyAgentJWTToken(*userToken, publicKey)
+	require.Error(t, err)
+}
+
+func TestVerifyJWTToken_RejectsEvidenceSignatureToken(t *testing.T) {
+	privateKey, publicKey, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"token_kind": TokenKindEvidenceSignature,
+		"version":    "v1",
+	})
+	tokenString, err := token.SignedString(privateKey)
+	require.NoError(t, err)
+
+	_, err = VerifyJWTToken(tokenString, publicKey)
 	require.Error(t, err)
 }

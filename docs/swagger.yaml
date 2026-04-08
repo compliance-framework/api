@@ -40,6 +40,8 @@ definitions:
     type: object
   datatypes.JSONType-relational_CombinationRule:
     type: object
+  datatypes.JSONType-relational_EvidenceSignature:
+    type: object
   datatypes.JSONType-relational_FlatWithoutGrouping:
     type: object
   datatypes.JSONType-relational_ImplementationStatus:
@@ -105,10 +107,51 @@ definitions:
         format: int64
         type: integer
     type: object
+  evidence.SignatureDetail:
+    properties:
+      signature:
+        $ref: '#/definitions/relational.EvidenceSignature'
+      status:
+        type: string
+    type: object
   evidence.StatusCount:
     properties:
       count:
         type: integer
+      status:
+        type: string
+    type: object
+  evidence.VerificationChecks:
+    properties:
+      hash_match:
+        type: boolean
+      signature_valid:
+        type: boolean
+      signed_content_matches:
+        type: boolean
+      temporal_valid:
+        type: boolean
+    type: object
+  evidence.VerificationResult:
+    properties:
+      checks:
+        $ref: '#/definitions/evidence.VerificationChecks'
+      claims:
+        $ref: '#/definitions/relational.EvidenceSignatureClaims'
+      content_hash:
+        $ref: '#/definitions/relational.Hash'
+      errors:
+        items:
+          type: string
+        type: array
+      is_valid:
+        type: boolean
+      signature:
+        $ref: '#/definitions/relational.EvidenceSignature'
+      signed_at:
+        type: string
+      signer:
+        $ref: '#/definitions/relational.EvidenceSignatureSigner'
       status:
         type: string
     type: object
@@ -119,6 +162,63 @@ definitions:
       valid:
         description: Valid is true if Time is not NULL
         type: boolean
+    type: object
+  handler.CreatedEvidenceResponse:
+    properties:
+      activities:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Activity'
+        type: array
+      back-matter:
+        $ref: '#/definitions/oscalTypes_1_1_3.BackMatter'
+      components:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.SystemComponent'
+        type: array
+      description:
+        type: string
+      end:
+        type: string
+      expires:
+        type: string
+      id:
+        type: string
+      inventory-items:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
+        type: array
+      labels:
+        items:
+          $ref: '#/definitions/relational.Labels'
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Link'
+        type: array
+      origins:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Origin'
+        type: array
+      props:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.Property'
+        type: array
+      remarks:
+        type: string
+      signature:
+        $ref: '#/definitions/relational.EvidenceSignature'
+      start:
+        type: string
+      status:
+        $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
+      subjects:
+        items:
+          $ref: '#/definitions/oscalTypes_1_1_3.AssessmentSubject'
+        type: array
+      title:
+        type: string
+      uuid:
+        type: string
     type: object
   handler.EvidenceActivity:
     properties:
@@ -319,6 +419,20 @@ definitions:
           for a specific purpose.\""
         type: string
     type: object
+  handler.EvidenceSignatureResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/evidence.SignatureDetail'
+        description: Items from the list response
+    type: object
+  handler.EvidenceSignatureVerificationResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/evidence.VerificationResult'
+        description: Items from the list response
+    type: object
   handler.EvidenceSubject:
     properties:
       description:
@@ -389,7 +503,7 @@ definitions:
       data:
         description: Items from the list response
         items:
-          $ref: '#/definitions/handler.OscalLikeEvidence'
+          $ref: '#/definitions/handler.PublicEvidenceResponse'
         type: array
       metadata:
         $ref: '#/definitions/handler.ForControl.responseMetadata'
@@ -423,14 +537,6 @@ definitions:
         description: Items from the list response
         items:
           $ref: '#/definitions/handler.FilterWithAssociations'
-        type: array
-    type: object
-  handler.GenericDataListResponse-handler_OscalLikeEvidence:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/handler.OscalLikeEvidence'
         type: array
     type: object
   handler.GenericDataListResponse-handler_OverTime_HeartbeatInterval:
@@ -777,14 +883,6 @@ definitions:
           $ref: '#/definitions/poam.PoamItemRiskLink'
         type: array
     type: object
-  handler.GenericDataListResponse-relational_Evidence:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/relational.Evidence'
-        type: array
-    type: object
   handler.GenericDataListResponse-relational_SystemComponentSuggestion:
     properties:
       data:
@@ -839,6 +937,13 @@ definitions:
         - $ref: '#/definitions/digest.EvidenceSummary'
         description: Items from the list response
     type: object
+  handler.GenericDataResponse-handler_CreatedEvidenceResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/handler.CreatedEvidenceResponse'
+        description: Items from the list response
+    type: object
   handler.GenericDataResponse-handler_FilterImportResponse:
     properties:
       data:
@@ -853,11 +958,11 @@ definitions:
         - $ref: '#/definitions/handler.FilterWithAssociations'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-handler_OscalLikeEvidence:
+  handler.GenericDataResponse-handler_PublicEvidenceResponse:
     properties:
       data:
         allOf:
-        - $ref: '#/definitions/handler.OscalLikeEvidence'
+        - $ref: '#/definitions/handler.PublicEvidenceResponse'
         description: Items from the list response
     type: object
   handler.GenericDataResponse-handler_SubscriptionsResponse:
@@ -1329,13 +1434,6 @@ definitions:
         - $ref: '#/definitions/poam.PoamItemRiskLink'
         description: Items from the list response
     type: object
-  handler.GenericDataResponse-relational_Evidence:
-    properties:
-      data:
-        allOf:
-        - $ref: '#/definitions/relational.Evidence'
-        description: Items from the list response
-    type: object
   handler.GenericDataResponse-relational_Filter:
     properties:
       data:
@@ -1394,7 +1492,14 @@ definitions:
     - created_at
     - uuid
     type: object
-  handler.OscalLikeEvidence:
+  handler.OverTime.HeartbeatInterval:
+    properties:
+      interval:
+        type: string
+      total:
+        type: integer
+    type: object
+  handler.PublicEvidenceResponse:
     properties:
       activities:
         items:
@@ -1419,8 +1524,6 @@ definitions:
           $ref: '#/definitions/oscalTypes_1_1_3.InventoryItem'
         type: array
       labels:
-        description: Assigning labels to Evidence makes it searchable and easily usable
-          in the UI
         items:
           $ref: '#/definitions/relational.Labels'
         type: array
@@ -1439,8 +1542,6 @@ definitions:
       remarks:
         type: string
       start:
-        description: When did we start collecting the evidence, and when did the process
-          end, and how long is it valid for ?
         type: string
       status:
         $ref: '#/definitions/oscalTypes_1_1_3.ObjectiveStatus'
@@ -1451,17 +1552,7 @@ definitions:
       title:
         type: string
       uuid:
-        description: |-
-          UUID needs to remain consistent when automation runs again, but unique for each subject.
-          It represents the "stream" of the same observation being made over time.
         type: string
-    type: object
-  handler.OverTime.HeartbeatInterval:
-    properties:
-      interval:
-        type: string
-      total:
-        type: integer
     type: object
   handler.StatusInterval:
     properties:
@@ -5893,6 +5984,8 @@ definitions:
         type: array
       remarks:
         type: string
+      signature:
+        $ref: '#/definitions/datatypes.JSONType-relational_EvidenceSignature'
       start:
         description: When did we start collecting the evidence, and when did the process
           end, and how long is it valid for ?
@@ -5912,6 +6005,61 @@ definitions:
         description: |-
           UUID needs to remain consistent when automation runs again, but unique for each subject.
           It represents the "stream" of the same observation being made over time.
+        type: string
+    type: object
+  relational.EvidenceSignature:
+    properties:
+      claims:
+        $ref: '#/definitions/relational.EvidenceSignatureClaims'
+      content_hash:
+        $ref: '#/definitions/relational.Hash'
+      jws:
+        type: string
+      signature_algorithm:
+        type: string
+      signed_at:
+        type: string
+      signer:
+        $ref: '#/definitions/relational.EvidenceSignatureSigner'
+      version:
+        type: string
+    type: object
+  relational.EvidenceSignatureClaims:
+    properties:
+      agent_id:
+        type: string
+      auth_method:
+        type: string
+      credential_id:
+        type: string
+      expires_at:
+        type: string
+      family_name:
+        type: string
+      given_name:
+        type: string
+      issued_at:
+        type: string
+      issuer:
+        type: string
+      not_before:
+        type: string
+      subject:
+        type: string
+      token_kind:
+        type: string
+    type: object
+  relational.EvidenceSignatureSigner:
+    properties:
+      credential_id:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
         type: string
     type: object
   relational.Export:
@@ -7299,6 +7447,21 @@ definitions:
       subjectId:
         type: string
     type: object
+  service.ListResponse-handler_PublicEvidenceResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.PublicEvidenceResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
   service.ListResponse-handler_riskResponse:
     properties:
       data:
@@ -8451,8 +8614,6 @@ definitions:
         type: string
     required:
     - status
-    - user-id
-    - user-type
     type: object
   workflows.UpdateControlRelationshipRequest:
     properties:
@@ -9630,7 +9791,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-relational_Evidence'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_CreatedEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -9660,7 +9821,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -9674,6 +9835,81 @@ paths:
           schema:
             $ref: '#/definitions/api.Error'
       summary: Get Evidence by ID
+      tags:
+      - Evidence
+  /evidence/{id}/signature:
+    get:
+      description: Retrieves the stored signature envelope for a single Evidence record.
+      parameters:
+      - description: Evidence ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.EvidenceSignatureResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Get Evidence signature by ID
+      tags:
+      - Evidence
+  /evidence/{id}/verify:
+    post:
+      description: Recomputes the current evidence content hash and verifies the stored
+        signed payload.
+      parameters:
+      - description: Evidence ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.EvidenceSignatureVerificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - OAuth2Password: []
+      summary: Verify Evidence signature by ID
       tags:
       - Evidence
   /evidence/compliance-by-control/{id}:
@@ -9773,13 +10009,21 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -9812,7 +10056,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataResponse-handler_OscalLikeEvidence'
+            $ref: '#/definitions/handler.GenericDataResponse-handler_PublicEvidenceResponse'
         "400":
           description: Bad Request
           schema:
@@ -9840,13 +10084,21 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/labelfilter.Filter'
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-relational_Evidence'
+            $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
         "422":
           description: Unprocessable Entity
           schema:

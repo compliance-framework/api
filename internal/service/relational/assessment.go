@@ -1337,7 +1337,9 @@ func (i *SelectSubjectById) UnmarshalOscal(op oscalTypes_1_1_3.SelectSubjectById
 func (i *SelectSubjectById) MarshalOscal() *oscalTypes_1_1_3.SelectSubjectById {
 	ret := &oscalTypes_1_1_3.SelectSubjectById{
 		SubjectUuid: i.SubjectUUID.String(),
-		Remarks:     *i.Remarks,
+	}
+	if i.Remarks != nil {
+		ret.Remarks = *i.Remarks
 	}
 	if len(i.Props) > 0 {
 		ret.Props = ConvertPropsToOscal(i.Props)
