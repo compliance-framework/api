@@ -135,6 +135,33 @@ func TestEvidenceService_Create_PreservesExplicitExpiry(t *testing.T) {
 	require.WithinDuration(t, explicitExpiry, *result.Expires, time.Second)
 }
 
+func TestEvidenceService_Create_TreatsUnixEpochExpiryAsUnset(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	svc := NewEvidenceService(db, logger.Sugar(), &config.Config{EvidenceDefaultExpiryMonths: 1}, nil)
+
+	now := time.Now().UTC()
+	epoch := time.Unix(0, 0).UTC()
+
+	params := CreateEvidenceParams{
+		Evidence: relational.Evidence{
+			UUID:    uuid.New(),
+			Title:   "epoch-expiry",
+			Start:   now.Add(-time.Hour),
+			End:     now.Add(-time.Minute),
+			Expires: &epoch,
+		},
+	}
+
+	result, err := svc.Create(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, result.Expires)
+	require.False(t, result.Expires.Equal(epoch))
+	expected := params.Evidence.End.AddDate(0, 1, 0)
+	require.WithinDuration(t, expected, *result.Expires, time.Second)
+}
+
 func TestSigningService_CanonicalHashStableAcrossReorderedCollections(t *testing.T) {
 	privateKey, _, err := config.GenerateKeyPair(2048)
 	require.NoError(t, err)
@@ -485,6 +512,49 @@ func TestEvidenceService_GetHistory_EmptyForUnknownStream(t *testing.T) {
 	results, err := svc.GetHistory(uuid.New())
 	require.NoError(t, err)
 	require.Empty(t, results)
+}
+
+func TestEvidenceService_GetHistoryPaginated(t *testing.T) {
+	db := newEvidenceServiceTestDB(t)
+	svc := NewEvidenceService(db, nil, nil, nil)
+
+	streamUUID := uuid.New()
+	now := time.Now().UTC()
+
+	evidences := []relational.Evidence{
+		{
+			UUID:  streamUUID,
+			Title: "newest",
+			Start: now.Add(-2 * time.Minute),
+			End:   now.Add(-1 * time.Minute),
+		},
+		{
+			UUID:  streamUUID,
+			Title: "middle",
+			Start: now.Add(-12 * time.Minute),
+			End:   now.Add(-10 * time.Minute),
+		},
+		{
+			UUID:  streamUUID,
+			Title: "oldest",
+			Start: now.Add(-22 * time.Minute),
+			End:   now.Add(-20 * time.Minute),
+		},
+	}
+	require.NoError(t, db.Create(&evidences).Error)
+
+	results, total, err := svc.GetHistoryPaginated(streamUUID, 2, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), total)
+	require.Len(t, results, 2)
+	require.Equal(t, "newest", results[0].Title)
+	require.Equal(t, "middle", results[1].Title)
+
+	secondPage, total, err := svc.GetHistoryPaginated(streamUUID, 2, 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), total)
+	require.Len(t, secondPage, 1)
+	require.Equal(t, "oldest", secondPage[0].Title)
 }
 
 // mockCDResolver is a mock implementation of ComponentDefinitionResolver for testing.

@@ -8,6 +8,7 @@ import (
 	"github.com/compliance-framework/api/internal"
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/converters/labelfilter"
+	svc "github.com/compliance-framework/api/internal/service"
 	"github.com/compliance-framework/api/internal/service/relational"
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	oscalTypes_1_1_3 "github.com/defenseunicorns/go-oscal/src/types/oscal-1-1-3"
@@ -20,12 +21,14 @@ import (
 
 type EvidenceHandler struct {
 	evidenceService *evidencesvc.EvidenceService
+	pagination      *svc.PaginationConfig
 	sugar           *zap.SugaredLogger
 }
 
 func NewEvidenceHandler(sugar *zap.SugaredLogger, evidenceService *evidencesvc.EvidenceService) *EvidenceHandler {
 	return &EvidenceHandler{
 		evidenceService: evidenceService,
+		pagination:      svc.NewPaginationConfig(),
 		sugar:           sugar,
 	}
 }
@@ -381,7 +384,9 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			filter	body		labelfilter.Filter	true	"Label filter"
-//	@Success		200		{object}	GenericDataListResponse[relational.Evidence]
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[relational.Evidence]
 //	@Failure		422		{object}	api.Error
 //	@Failure		500		{object}	api.Error
 //	@Router			/evidence/search [post]
@@ -393,12 +398,17 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnprocessableEntity, api.NewError(err))
 	}
 
-	results, err := h.evidenceService.Search(*filter)
+	pagination, err := h.pagination.ParseParams(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	results, total, err := h.evidenceService.SearchPaginated(*filter, pagination.Limit, pagination.Offset)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[relational.Evidence]{results})
+	return ctx.JSON(http.StatusOK, svc.NewListResponse(results, total, pagination.Page, pagination.Limit))
 }
 
 type OscalLikeEvidence struct {
@@ -507,7 +517,9 @@ func (h *EvidenceHandler) Get(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Produce		json
 //	@Param			id	path		string	true	"Evidence UUID"
-//	@Success		200	{object}	GenericDataListResponse[OscalLikeEvidence]
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200	{object}	svc.ListResponse[OscalLikeEvidence]
 //	@Failure		400	{object}	api.Error
 //	@Failure		404	{object}	api.Error
 //	@Failure		500	{object}	api.Error
@@ -520,7 +532,12 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	evidences, err := h.evidenceService.GetHistory(id)
+	pagination, err := h.pagination.ParseParams(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	evidences, total, err := h.evidenceService.GetHistoryPaginated(id, pagination.Limit, pagination.Offset)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ctx.JSON(http.StatusNotFound, api.NewError(err))
@@ -538,7 +555,7 @@ func (h *EvidenceHandler) History(ctx echo.Context) error {
 		output = append(output, out)
 	}
 
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[*OscalLikeEvidence]{Data: output})
+	return ctx.JSON(http.StatusOK, svc.NewListResponse(output, total, pagination.Page, pagination.Limit))
 }
 
 // Latest godoc

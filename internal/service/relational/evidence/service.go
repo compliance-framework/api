@@ -40,6 +40,8 @@ type EvidenceService struct {
 	signingSvc   *SigningService
 }
 
+var unixEpochUTC = time.Unix(0, 0).UTC()
+
 func NewEvidenceService(db *gorm.DB, logger *zap.SugaredLogger, cfg *config.Config, riskEnqueuer RiskJobEnqueuer, opts ...EvidenceServiceOption) *EvidenceService {
 	var signingSvc *SigningService
 	if cfg != nil && cfg.JWTPrivateKey != nil {
@@ -115,6 +117,10 @@ func (s *EvidenceService) Create(ctx context.Context, params CreateEvidenceParam
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&params.Labels[i]).Error; err != nil {
 				return err
 			}
+		}
+
+		if params.Evidence.Expires != nil && params.Evidence.Expires.UTC().Equal(unixEpochUTC) {
+			params.Evidence.Expires = nil
 		}
 
 		// Set expiry if not provided
@@ -237,6 +243,26 @@ func (s *EvidenceService) GetHistory(streamUUID uuid.UUID) ([]relational.Evidenc
 	return evidences, nil
 }
 
+func (s *EvidenceService) GetHistoryPaginated(streamUUID uuid.UUID, limit, offset int) ([]relational.Evidence, int64, error) {
+	query := s.evidenceQuery(s.db).Where("uuid = ?", streamUUID)
+
+	var total int64
+	if err := query.Model(&relational.Evidence{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var evidences []relational.Evidence
+	if err := query.
+		Order("evidences.end DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&evidences).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return evidences, total, nil
+}
+
 func (s *EvidenceService) GetLatestByUUID(streamUUID uuid.UUID) (*relational.Evidence, error) {
 	var evidence relational.Evidence
 	if err := s.evidenceQuery(s.db).
@@ -272,6 +298,31 @@ func (s *EvidenceService) Search(filter labelfilter.Filter) ([]relational.Eviden
 		return nil, err
 	}
 	return results, nil
+}
+
+func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, limit, offset int) ([]relational.Evidence, int64, error) {
+	query, err := relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(s.db), s.db, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := query.Model(&relational.Evidence{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var results []relational.Evidence
+	if err := query.
+		Preload("Labels").
+		Order("l.end DESC").
+		Order("l.uuid ASC").
+		Limit(limit).
+		Offset(offset).
+		Find(&results).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return results, total, nil
 }
 
 func (s *EvidenceService) GetLatestForFilters(filters ...labelfilter.Filter) ([]relational.Evidence, error) {

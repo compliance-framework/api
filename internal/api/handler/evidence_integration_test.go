@@ -919,6 +919,193 @@ func (suite *EvidenceApiIntegrationSuite) TestSearch() {
 	})
 }
 
+func (suite *EvidenceApiIntegrationSuite) TestHistoryPagination() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	streamUUID := uuid.New()
+	now := time.Now().UTC()
+	evidences := []relational.Evidence{
+		{
+			UUID:  streamUUID,
+			Title: "Newest",
+			Start: now.Add(-2 * time.Minute),
+			End:   now.Add(-1 * time.Minute),
+		},
+		{
+			UUID:  streamUUID,
+			Title: "Middle",
+			Start: now.Add(-12 * time.Minute),
+			End:   now.Add(-10 * time.Minute),
+		},
+		{
+			UUID:  streamUUID,
+			Title: "Oldest",
+			Start: now.Add(-22 * time.Minute),
+			End:   now.Add(-20 * time.Minute),
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidences).Error)
+
+	server := suite.setupServer()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/evidence/history/"+streamUUID.String()+"?page=1&limit=2", nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+
+	var response struct {
+		Data       []OscalLikeEvidence `json:"data"`
+		Total      int64               `json:"total"`
+		Page       int                 `json:"page"`
+		Limit      int                 `json:"limit"`
+		TotalPages int                 `json:"totalPages"`
+	}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Len(response.Data, 2)
+	suite.Equal(int64(3), response.Total)
+	suite.Equal(1, response.Page)
+	suite.Equal(2, response.Limit)
+	suite.Equal(2, response.TotalPages)
+	suite.Equal("Newest", response.Data[0].Title)
+	suite.Equal("Middle", response.Data[1].Title)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/evidence/history/"+streamUUID.String()+"?page=2&limit=2", nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Len(response.Data, 1)
+	suite.Equal(2, response.Page)
+	suite.Equal("Oldest", response.Data[0].Title)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestHistoryPaginationRejectsInvalidParams() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := suite.setupServer()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/evidence/history/"+uuid.New().String()+"?page=0&limit=10", nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/evidence/history/"+uuid.New().String()+"?page=1&limit=0", nil)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSearchPagination() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	now := time.Now().UTC()
+	evidences := []relational.Evidence{
+		{
+			UUID:  uuid.New(),
+			Title: "Newest",
+			Start: now.Add(-2 * time.Minute),
+			End:   now.Add(-1 * time.Minute),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+		{
+			UUID:  uuid.New(),
+			Title: "Middle",
+			Start: now.Add(-12 * time.Minute),
+			End:   now.Add(-10 * time.Minute),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+		{
+			UUID:  uuid.New(),
+			Title: "Oldest",
+			Start: now.Add(-22 * time.Minute),
+			End:   now.Add(-20 * time.Minute),
+			Labels: []relational.Labels{
+				{Name: "provider", Value: "AWS"},
+			},
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidences).Error)
+
+	server := suite.setupServer()
+
+	reqBody, _ := json.Marshal(struct {
+		Filter labelfilter.Filter
+	}{
+		Filter: labelfilter.Filter{
+			Scope: &labelfilter.Scope{
+				Condition: &labelfilter.Condition{
+					Label:    "provider",
+					Operator: "=",
+					Value:    "aws",
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence/search?page=1&limit=2", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+
+	var response struct {
+		Data       []relational.Evidence `json:"data"`
+		Total      int64                 `json:"total"`
+		Page       int                   `json:"page"`
+		Limit      int                   `json:"limit"`
+		TotalPages int                   `json:"totalPages"`
+	}
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Len(response.Data, 2)
+	suite.Equal(int64(3), response.Total)
+	suite.Equal(1, response.Page)
+	suite.Equal(2, response.Limit)
+	suite.Equal(2, response.TotalPages)
+	suite.Equal("Newest", response.Data[0].Title)
+	suite.Equal("Middle", response.Data[1].Title)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence/search?page=2&limit=2", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusOK, rec.Code)
+
+	suite.Require().NoError(json.Unmarshal(rec.Body.Bytes(), &response))
+	suite.Len(response.Data, 1)
+	suite.Equal(2, response.Page)
+	suite.Equal("Oldest", response.Data[0].Title)
+}
+
+func (suite *EvidenceApiIntegrationSuite) TestSearchPaginationRejectsInvalidParams() {
+	err := suite.Migrator.Refresh()
+	suite.Require().NoError(err)
+
+	server := suite.setupServer()
+	reqBody, _ := json.Marshal(struct {
+		Filter labelfilter.Filter
+	}{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/evidence/search?page=0&limit=10", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/evidence/search?page=1&limit=0", bytes.NewReader(reqBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	server.E().ServeHTTP(rec, req)
+	suite.Equal(http.StatusBadRequest, rec.Code)
+}
+
 func (suite *EvidenceApiIntegrationSuite) TestStatusOverTime() {
 	err := suite.Migrator.Refresh()
 	suite.Require().NoError(err)
