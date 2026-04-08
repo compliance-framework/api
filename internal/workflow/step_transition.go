@@ -79,15 +79,16 @@ type EvidenceRequirement struct {
 
 // StepTransitionRequest represents a request to transition a step
 type StepTransitionRequest struct {
-	Status              string                     `json:"status"` // "in_progress" or "completed"
-	Evidence            []EvidenceSubmission       `json:"evidence,omitempty"`
-	Notes               string                     `json:"notes,omitempty"`
-	UserID              string                     `json:"user_id"`   // Legacy compatibility field; not trusted for authz.
-	UserType            string                     `json:"user_type"` // Legacy compatibility field; not trusted for authz.
-	AuthenticatedUserID string                     `json:"-"`
-	AuthenticatedEmail  string                     `json:"-"`
-	AuthenticatedGroups []string                   `json:"-"`
-	Signer              *evidencesvc.SignerContext `json:"-"`
+	Status                   string                     `json:"status"` // "in_progress" or "completed"
+	Evidence                 []EvidenceSubmission       `json:"evidence,omitempty"`
+	Notes                    string                     `json:"notes,omitempty"`
+	UserID                   string                     `json:"user_id"`   // Legacy compatibility field; not trusted for authz.
+	UserType                 string                     `json:"user_type"` // Legacy compatibility field; not trusted for authz.
+	AuthenticatedUserID      string                     `json:"-"`
+	AuthenticatedEmail       string                     `json:"-"`
+	AuthenticatedIdentifiers []string                   `json:"-"`
+	AuthenticatedGroups      []string                   `json:"-"`
+	Signer                   *evidencesvc.SignerContext `json:"-"`
 }
 
 // EvidenceSubmission represents evidence being submitted with a step transition
@@ -223,9 +224,9 @@ func (s *StepTransitionService) verifyTransitionActorPermission(instanceID *uuid
 
 	switch assignment.AssignedToType {
 	case workflows.AssignmentTypeUser.String():
-		if assignment.AssignedToID != request.AuthenticatedUserID {
-			return fmt.Errorf("authenticated user %s is not assigned to role %s (assigned to: %s %s)",
-				request.AuthenticatedUserID, responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
+		if !containsStringFold(request.AuthenticatedIdentifiers, assignment.AssignedToID) {
+			return fmt.Errorf("authenticated user identifiers %v are not assigned to role %s (assigned to: %s %s)",
+				request.AuthenticatedIdentifiers, responsibleRole, assignment.AssignedToType, assignment.AssignedToID)
 		}
 	case workflows.AssignmentTypeEmail.String():
 		if !strings.EqualFold(assignment.AssignedToID, request.AuthenticatedEmail) {

@@ -154,6 +154,38 @@ func TestCanUserTransitionStep_FallbackWhenDBNil(t *testing.T) {
 	mockRole.AssertExpectations(t)
 }
 
+func TestVerifyTransitionActorPermission_UserAssignmentSupportsLegacyIdentifiers(t *testing.T) {
+	instanceID := uuid.New()
+
+	mockRole := &MockRoleAssignmentService{}
+	svc := NewStepTransitionService(
+		nil,
+		nil,
+		nil,
+		mockRole,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	mockRole.On("FindAssigneeForRole", &instanceID, "engineer").Return(&workflows.RoleAssignment{
+		AssignedToType: workflows.AssignmentTypeUser.String(),
+		AssignedToID:   "legacy-external-id",
+		IsActive:       true,
+	}, nil).Once()
+
+	err := svc.verifyTransitionActorPermission(&instanceID, "engineer", &StepTransitionRequest{
+		AuthenticatedIdentifiers: []string{"3f0d6c58-9e64-4e04-8bc1-a3d4a8dd3d26", "user@example.com", "legacy-external-id"},
+		AuthenticatedEmail:       "user@example.com",
+	})
+	require.NoError(t, err)
+
+	mockRole.AssertExpectations(t)
+}
+
 type mockStepAssignmentService struct {
 	called bool
 }

@@ -184,6 +184,7 @@ func computeEvidenceContentHash(params CreateEvidenceParams) (relational.Hash, e
 
 func buildSignatureTokenClaims(signature relational.EvidenceSignature) jwt.MapClaims {
 	return jwt.MapClaims{
+		"token_kind":          authn.TokenKindEvidenceSignature,
 		"version":             signature.Version,
 		"signature_algorithm": signature.SignatureAlgorithm,
 		"signed_at":           signature.SignedAt.Format(time.RFC3339Nano),

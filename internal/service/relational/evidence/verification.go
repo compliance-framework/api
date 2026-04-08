@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compliance-framework/api/internal/authn"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -126,6 +127,9 @@ func (s *EvidenceService) parseSignedPayload(jws string) (*relational.EvidenceSi
 	}
 	if !token.Valid {
 		return nil, jwt.ErrSignatureInvalid
+	}
+	if tokenKind, _ := claims["token_kind"].(string); tokenKind != authn.TokenKindEvidenceSignature {
+		return nil, errors.New("unexpected token kind")
 	}
 
 	var payload relational.EvidenceSignature

@@ -313,15 +313,16 @@ func (h *StepExecutionHandler) TransitionStep(ctx echo.Context) error {
 
 	// Convert to workflow.StepTransitionRequest
 	transitionReq := &workflow.StepTransitionRequest{
-		Status:              req.Status,
-		Evidence:            req.Evidence,
-		Notes:               req.Notes,
-		UserID:              resolvedUserID,
-		UserType:            resolvedUserType,
-		AuthenticatedUserID: authenticatedUserID,
-		AuthenticatedEmail:  actor.Email,
-		AuthenticatedGroups: actor.Groups,
-		Signer:              signer,
+		Status:                   req.Status,
+		Evidence:                 req.Evidence,
+		Notes:                    req.Notes,
+		UserID:                   resolvedUserID,
+		UserType:                 resolvedUserType,
+		AuthenticatedUserID:      authenticatedUserID,
+		AuthenticatedEmail:       actor.Email,
+		AuthenticatedIdentifiers: actor.Identifiers,
+		AuthenticatedGroups:      actor.Groups,
+		Signer:                   signer,
 	}
 
 	// Perform the transition with role verification and evidence validation

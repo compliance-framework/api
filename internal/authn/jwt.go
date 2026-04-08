@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	TokenKindUser  = "user"
-	TokenKindAgent = "agent"
+	TokenKindUser              = "user"
+	TokenKindAgent             = "agent"
+	TokenKindEvidenceSignature = "evidence_signature"
 )
 
 type UserClaims struct {
@@ -110,7 +111,7 @@ func VerifyJWTToken(tokenString string, publicKey *rsa.PublicKey) (*UserClaims, 
 		return nil, err
 	}
 	if claims, ok := token.Claims.(*UserClaims); ok && token.Valid {
-		if claims.TokenKind != "" && claims.TokenKind != TokenKindUser {
+		if claims.TokenKind != TokenKindUser {
 			return nil, errors.New("unexpected token kind")
 		}
 		return claims, nil

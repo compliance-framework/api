@@ -26,9 +26,11 @@ type BaseHandler struct {
 }
 
 type ActorIdentity struct {
-	UserID *uuid.UUID
-	Email  string
-	Groups []string
+	UserID        *uuid.UUID
+	Email         string
+	Groups        []string
+	Identifiers   []string
+	SSOExternalID string
 }
 
 // HandleError checks if the error is ErrResponseSent and returns nil to Echo
@@ -163,6 +165,12 @@ func (b *BaseHandler) GetActorIdentityFromClaims(ctx echo.Context, db *gorm.DB) 
 	identity := &ActorIdentity{
 		UserID: user.ID,
 		Email:  email,
+		Identifiers: uniqueStringsFold([]string{
+			email,
+		}),
+	}
+	if user.ID != nil {
+		identity.Identifiers = uniqueStringsFold(append(identity.Identifiers, user.ID.String()))
 	}
 
 	var link relational.SSOUserLink
@@ -171,7 +179,27 @@ func (b *BaseHandler) GetActorIdentityFromClaims(ctx echo.Context, db *gorm.DB) 
 		Order("last_sync DESC").
 		First(&link).Error; err == nil {
 		identity.Groups = sso.DeserializeStringArray(link.Groups)
+		identity.SSOExternalID = link.ExternalID
+		identity.Identifiers = uniqueStringsFold(append(identity.Identifiers, link.ExternalID))
 	}
 
 	return identity, nil
+}
+
+func uniqueStringsFold(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
