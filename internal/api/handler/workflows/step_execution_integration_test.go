@@ -8,12 +8,15 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
+	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -41,6 +44,9 @@ func setupStepExecutionTestHandler(t *testing.T) (*StepExecutionHandler, *gorm.D
 
 	// Create assignment service
 	assignmentService := workflow.NewAssignmentService(roleAssignmentService, stepExecService, db, zap.NewNop().Sugar(), nil)
+	privateKey, _, err := config.GenerateKeyPair(2048)
+	require.NoError(t, err)
+	evidenceService := evidencesvc.NewEvidenceService(db, logger, &config.Config{JWTPrivateKey: privateKey}, nil)
 
 	// Create executor for step transition coordination
 	stdLogger := log.Default()
@@ -63,6 +69,7 @@ func setupStepExecutionTestHandler(t *testing.T) (*StepExecutionHandler, *gorm.D
 		workflowDefinitionService,
 		executor,
 		db,
+		evidenceService,
 		evidenceIntegration,
 	)
 
@@ -238,12 +245,19 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 	}
 	require.NoError(t, db.Create(stepDef).Error)
 
+	testUser := &relational.User{
+		Email:     "test-user@example.com",
+		FirstName: "Test",
+		LastName:  "User",
+	}
+	require.NoError(t, db.Create(testUser).Error)
+
 	// Create role assignment for the user
 	roleAssignment := &workflows.RoleAssignment{
 		WorkflowInstanceID: instance.ID,
 		RoleName:           "engineer",
 		AssignedToType:     "user",
-		AssignedToID:       "test-user",
+		AssignedToID:       testUser.ID.String(),
 		IsActive:           true,
 	}
 	require.NoError(t, db.Create(roleAssignment).Error)
@@ -256,11 +270,14 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 	require.NoError(t, db.Create(stepExec).Error)
 
 	t.Run("Success", func(t *testing.T) {
+		claims := &authn.UserClaims{GivenName: "Test", FamilyName: "User"}
+		claims.Subject = "test-user@example.com"
+
 		// First transition from pending to in_progress
 		reqBody := TransitionStepRequest{
 			Status:   "in_progress",
-			UserID:   "test-user",
-			UserType: "user",
+			UserID:   "spoofed-user",
+			UserType: "group",
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -272,6 +289,7 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		c := e.NewContext(req, rec)
 		c.SetParamNames("id")
 		c.SetParamValues(stepExec.ID.String())
+		c.Set("user", claims)
 
 		err = handler.TransitionStep(c)
 		require.NoError(t, err)
@@ -280,8 +298,20 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		// Then transition from in_progress to completed
 		reqBody = TransitionStepRequest{
 			Status:   "completed",
-			UserID:   "test-user",
-			UserType: "user",
+			UserID:   "spoofed-user",
+			UserType: "group",
+			Evidence: []workflow.EvidenceSubmission{
+				{
+					EvidenceType: "document",
+					Name:         "attestation.pdf",
+					Description:  "Signed attestation",
+					FilePath:     "/tmp/attestation.pdf",
+					FileHash:     "abc123",
+					FileContent:  "ZmFrZS1wZGY=",
+					MediaType:    "application/pdf",
+					Metadata:     "{\"kind\":\"attestation\"}",
+				},
+			},
 		}
 
 		body, err = json.Marshal(reqBody)
@@ -293,6 +323,7 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		c = e.NewContext(req, rec)
 		c.SetParamNames("id")
 		c.SetParamValues(stepExec.ID.String())
+		c.Set("user", claims)
 
 		err = handler.TransitionStep(c)
 		require.NoError(t, err)
@@ -304,9 +335,36 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		require.NotNil(t, response)
 		require.NotNil(t, response.Data)
 		assert.Equal(t, "completed", response.Data.Status)
+
+		var evidences []relational.Evidence
+		require.NoError(t, db.Preload("Labels").Preload("BackMatter").Preload("BackMatter.Resources").Find(&evidences).Error)
+
+		var completedEvidence *relational.Evidence
+		for i := range evidences {
+			if strings.Contains(evidences[i].Title, "completed successfully") {
+				completedEvidence = &evidences[i]
+				break
+			}
+		}
+		require.NotNil(t, completedEvidence)
+		require.NotNil(t, completedEvidence.Signature)
+		require.NotNil(t, completedEvidence.BackMatter)
+		require.Len(t, completedEvidence.BackMatter.Resources, 1)
+
+		foundSubmittedBy := false
+		for _, label := range completedEvidence.Labels {
+			if label.Name == "evidence.submitted_by" && label.Value == claims.Subject {
+				foundSubmittedBy = true
+				break
+			}
+		}
+		require.True(t, foundSubmittedBy)
 	})
 
 	t.Run("OverdueToInProgressReturnsBadRequest", func(t *testing.T) {
+		claims := &authn.UserClaims{GivenName: "Test", FamilyName: "User"}
+		claims.Subject = "test-user@example.com"
+
 		overdueStepDef := &workflows.WorkflowStepDefinition{
 			WorkflowDefinitionID: workflowDef.ID,
 			Name:                 "Overdue Step",
@@ -324,8 +382,8 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 
 		reqBody := TransitionStepRequest{
 			Status:   "in_progress",
-			UserID:   "test-user",
-			UserType: "user",
+			UserID:   "spoofed-user",
+			UserType: "group",
 		}
 
 		body, err := json.Marshal(reqBody)
@@ -337,6 +395,7 @@ func TestStepExecutionHandler_TransitionStep(t *testing.T) {
 		c := e.NewContext(req, rec)
 		c.SetParamNames("id")
 		c.SetParamValues(overdueStep.ID.String())
+		c.Set("user", claims)
 
 		err = handler.TransitionStep(c)
 		require.NoError(t, err)
