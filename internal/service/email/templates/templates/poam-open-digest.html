@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POAM Digest</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; color: #0f172a; }
+    .email-container { max-width: 680px; margin: 32px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 36px 32px; color: #ffffff; }
+    .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .header p { font-size: 14px; opacity: 0.85; }
+    .content { padding: 32px; }
+    .greeting { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .message { font-size: 14px; color: #475569; margin-bottom: 28px; line-height: 1.6; }
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 12px; border-radius: 6px; margin-bottom: 12px; display: inline-block; background-color: #e0e7ff; color: #3730a3; }
+    .section-title.warning  { background-color: #fef3c7; color: #92400e; }
+    .section-title.critical { background-color: #fee2e2; color: #991b1b; }
+    .section-title.neutral  { background-color: #f1f5f9; color: #475569; }
+    .section-title.milestone { background-color: #ecfdf5; color: #065f46; }
+    .poam-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 10px; background: #f8fafc; }
+    .poam-card.warning  { border-color: #fde68a; background-color: #fffbeb; }
+    .poam-card.critical { border-color: #fca5a5; background-color: #fff1f2; }
+    .poam-card.neutral  { border-color: #cbd5e1; background-color: #f8fafc; }
+    .poam-card.milestone { border-color: #6ee7b7; background-color: #f0fdfa; }
+    .poam-title { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+    .poam-meta  { font-size: 13px; color: #475569; margin-bottom: 2px; }
+    .poam-link  { display: inline-block; margin-top: 10px; font-size: 13px; color: #4f46e5; text-decoration: none; font-weight: 600; }
+    .footer { padding: 24px 32px 32px; border-top: 1px solid #e2e8f0; background-color: #f8fafc; text-align: center; }
+    .footer a { color: #4f46e5; text-decoration: none; font-weight: 600; }
+    .footer p { font-size: 13px; color: #64748b; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="header">
+      <h1>POAM Digest</h1>
+      <p>{{.PeriodLabel}}</p>
+    </div>
+    <div class="content">
+      <p class="greeting">Hello {{.RecipientName}},</p>
+      <p class="message">Here is the latest summary of the Plan of Action &amp; Milestones items that need your attention.</p>
+
+      {{if .NewSinceLastDigest}}
+      <div class="section">
+        <div class="section-title">New Since Last Digest ({{len .NewSinceLastDigest}})</div>
+        {{range .NewSinceLastDigest}}
+        <div class="poam-card">
+          <div class="poam-title">{{.Title}}</div>
+          <div class="poam-meta">SSP: {{.SSPName}}</div>
+          <div class="poam-meta">Status: {{.Status}}</div>
+          {{if .Deadline}}<div class="poam-meta">Deadline: {{.Deadline}}</div>{{end}}
+          {{if .POCName}}<div class="poam-meta">Owner: {{.POCName}}</div>{{end}}
+          <div class="poam-meta">Milestones: {{.MilestoneCount}}</div>
+          <a href="{{.PoamURL}}" class="poam-link">Open POAM item &rarr;</a>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .Overdue}}
+      <div class="section">
+        <div class="section-title critical">Overdue ({{len .Overdue}})</div>
+        {{range .Overdue}}
+        <div class="poam-card critical">
+          <div class="poam-title">{{.Title}}</div>
+          <div class="poam-meta">SSP: {{.SSPName}}</div>
+          <div class="poam-meta">Status: {{.Status}}</div>
+          {{if .Deadline}}<div class="poam-meta">Deadline: {{.Deadline}}</div>{{end}}
+          {{if .POCName}}<div class="poam-meta">Owner: {{.POCName}}</div>{{end}}
+          <div class="poam-meta">Milestones: {{.MilestoneCount}}</div>
+          <a href="{{.PoamURL}}" class="poam-link">Open POAM item &rarr;</a>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .ApproachingDeadline}}
+      <div class="section">
+        <div class="section-title warning">Approaching Deadline ({{len .ApproachingDeadline}})</div>
+        {{range .ApproachingDeadline}}
+        <div class="poam-card warning">
+          <div class="poam-title">{{.Title}}</div>
+          <div class="poam-meta">SSP: {{.SSPName}}</div>
+          <div class="poam-meta">Status: {{.Status}}</div>
+          {{if .Deadline}}<div class="poam-meta">Deadline: {{.Deadline}}</div>{{end}}
+          {{if .POCName}}<div class="poam-meta">Owner: {{.POCName}}</div>{{end}}
+          <div class="poam-meta">Milestones: {{.MilestoneCount}}</div>
+          <a href="{{.PoamURL}}" class="poam-link">Open POAM item &rarr;</a>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .MilestonesDueSoon}}
+      <div class="section">
+        <div class="section-title milestone">Milestones Due Soon ({{len .MilestonesDueSoon}})</div>
+        {{range .MilestonesDueSoon}}
+        <div class="poam-card milestone">
+          <div class="poam-title">{{.MilestoneTitle}}</div>
+          <div class="poam-meta">POAM: {{.PoamTitle}}</div>
+          <div class="poam-meta">SSP: {{.SSPName}}</div>
+          <div class="poam-meta">Due: {{.DueDate}}</div>
+          <a href="{{.PoamURL}}" class="poam-link">Open POAM item &rarr;</a>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .Stale}}
+      <div class="section">
+        <div class="section-title neutral">Stale — No Update in 30+ Days ({{len .Stale}})</div>
+        {{range .Stale}}
+        <div class="poam-card neutral">
+          <div class="poam-title">{{.Title}}</div>
+          <div class="poam-meta">SSP: {{.SSPName}}</div>
+          <div class="poam-meta">Status: {{.Status}}</div>
+          {{if .Deadline}}<div class="poam-meta">Deadline: {{.Deadline}}</div>{{end}}
+          {{if .POCName}}<div class="poam-meta">Owner: {{.POCName}}</div>{{end}}
+          <a href="{{.PoamURL}}" class="poam-link">Open POAM item &rarr;</a>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+
+    </div>
+    <div class="footer">
+      <a href="{{.PoamListURL}}">View all POAM items &rarr;</a>
+      <p>This is an automated digest from Compliance Framework.</p>
+    </div>
+  </div>
+</body>
+</html>

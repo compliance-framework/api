@@ -1,0 +1,53 @@
+Hello {{.RecipientName}},
+{{.PeriodLabel}}
+
+Here is the latest summary of the Plan of Action & Milestones items that need your attention.
+{{if .NewSinceLastDigest}}
+NEW SINCE LAST DIGEST
+{{range .NewSinceLastDigest}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  {{if .Deadline}}Deadline: {{.Deadline}}
+  {{end}}{{if .POCName}}Owner: {{.POCName}}
+  {{end}}Milestones: {{.MilestoneCount}}
+  Open POAM item: {{.PoamURL}}
+{{end}}
+{{end}}{{if .Overdue}}
+OVERDUE
+{{range .Overdue}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  {{if .Deadline}}Deadline: {{.Deadline}}
+  {{end}}{{if .POCName}}Owner: {{.POCName}}
+  {{end}}Milestones: {{.MilestoneCount}}
+  Open POAM item: {{.PoamURL}}
+{{end}}
+{{end}}{{if .ApproachingDeadline}}
+APPROACHING DEADLINE
+{{range .ApproachingDeadline}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  {{if .Deadline}}Deadline: {{.Deadline}}
+  {{end}}{{if .POCName}}Owner: {{.POCName}}
+  {{end}}Milestones: {{.MilestoneCount}}
+  Open POAM item: {{.PoamURL}}
+{{end}}
+{{end}}{{if .MilestonesDueSoon}}
+MILESTONES DUE SOON
+{{range .MilestonesDueSoon}}- {{.MilestoneTitle}} (POAM: {{.PoamTitle}})
+  SSP: {{.SSPName}}
+  Due: {{.DueDate}}
+  Open POAM item: {{.PoamURL}}
+{{end}}
+{{end}}{{if .Stale}}
+STALE — NO UPDATE IN 30+ DAYS
+{{range .Stale}}- {{.Title}}
+  SSP: {{.SSPName}}
+  Status: {{.Status}}
+  {{if .Deadline}}Deadline: {{.Deadline}}
+  {{end}}{{if .POCName}}Owner: {{.POCName}}
+  {{end}}Open POAM item: {{.PoamURL}}
+{{end}}
+{{end}}
+View all POAM items: {{.PoamListURL}}
+This is an automated digest from Compliance Framework.

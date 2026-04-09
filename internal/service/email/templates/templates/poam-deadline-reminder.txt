@@ -1,0 +1,13 @@
+Hello {{.RecipientName}},
+
+A Plan of Action & Milestones item assigned to you has an upcoming planned completion date. Please ensure all required actions and milestones are on track.
+
+POAM Item: {{.PoamTitle}}
+SSP: {{.SSPName}}
+Current Status: {{.CurrentStatus}}
+Planned Completion: {{.Deadline}}
+Milestones: {{.MilestoneCount}}
+
+Open POAM item: {{.PoamURL}}
+
+You are receiving this reminder because you are an owner or point of contact for this POAM item.

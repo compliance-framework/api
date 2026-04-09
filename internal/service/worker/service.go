@@ -294,6 +294,25 @@ func NewServiceWithDigest(
 	riskOpenDigestSchedulerWorker := NewRiskOpenDigestSchedulerWorker(db, clientProxy, riskCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(riskOpenDigestSchedulerWorker.Work))
 
+	// Add POAM scanner workers (BCH-1186 Phase 3)
+	poamCfg := config.DefaultPoamConfig()
+	if digestCfg != nil && digestCfg.Poam != nil {
+		poamCfg = digestCfg.Poam
+	}
+	poamReminderWindow := time.Duration(poamCfg.ReminderWindowDays) * 24 * time.Hour
+	poamDeadlineScannerWorker := NewPoamDeadlineReminderScannerWorker(db, clientProxy, userRepo, webBaseURL, poamReminderWindow, logger)
+	river.AddWorker(workers, river.WorkFunc(poamDeadlineScannerWorker.Work))
+
+	poamOverdueTransitionScannerWorker := NewPoamOverdueTransitionScannerWorker(db, clientProxy, userRepo, webBaseURL, logger)
+	river.AddWorker(workers, river.WorkFunc(poamOverdueTransitionScannerWorker.Work))
+
+	milestoneOverdueScannerWorker := NewMilestoneOverdueScannerWorker(db, clientProxy, userRepo, webBaseURL, logger)
+	river.AddWorker(workers, river.WorkFunc(milestoneOverdueScannerWorker.Work))
+
+	// POAM digest scheduler worker (BCH-1186 Phase 4)
+	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamCfg.OpenDigestWindow, logger)
+	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
+
 	// Configure periodic jobs
 	periodicJobs := periodicJobsFromConfig(digestCfg, logger)
 
@@ -657,6 +676,20 @@ func periodicJobsFromConfig(cfg *config.Config, logger *zap.SugaredLogger) []*ri
 	if cfg.Risk != nil && cfg.Risk.OpenDigestEnabled {
 		periodicJobs = append(periodicJobs, NewRiskOpenDigestPeriodicJob(cfg.Risk.OpenDigestSchedule, cfg.Risk.OpenDigestWindow, logger))
 	}
+	// POAM periodic jobs (BCH-1186 Phase 3)
+	if cfg.Poam != nil && cfg.Poam.DeadlineReminderEnabled {
+		periodicJobs = append(periodicJobs, NewPoamDeadlineReminderPeriodicJob(cfg.Poam.DeadlineReminderSchedule, logger))
+	}
+	if cfg.Poam != nil && cfg.Poam.OverdueTransitionEnabled {
+		periodicJobs = append(periodicJobs, NewPoamOverdueTransitionPeriodicJob(cfg.Poam.OverdueTransitionSchedule, logger))
+	}
+	if cfg.Poam != nil && cfg.Poam.MilestoneOverdueEnabled {
+		periodicJobs = append(periodicJobs, NewMilestoneOverduePeriodicJob(cfg.Poam.MilestoneOverdueSchedule, logger))
+	}
+	// POAM digest periodic job (BCH-1186 Phase 4)
+	if cfg.Poam != nil && cfg.Poam.OpenDigestEnabled {
+		periodicJobs = append(periodicJobs, NewPoamOpenDigestPeriodicJob(cfg.Poam.OpenDigestSchedule, logger))
+	}
 	return periodicJobs
 }
 
@@ -680,6 +713,9 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 			},
 			"risk": {
 				MaxWorkers: 20,
+			},
+			"poam": {
+				MaxWorkers: 10,
 			},
 		},
 		Workers:      workers,

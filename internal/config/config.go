@@ -40,6 +40,7 @@ type Config struct {
 	DigestSchedule                    string // Cron schedule for digest emails
 	Workflow                          *WorkflowConfig
 	Risk                              *RiskConfig
+	Poam                              *PoamConfig
 	PprofEnabled                      bool   // Enable or disable pprof debugging server
 	PprofPort                         string // Port for pprof debugging server
 	StrictDisablePublicAgentEndpoints bool
@@ -199,6 +200,16 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		riskConfig = DefaultRiskConfig()
 	}
 
+	poamConfigPath := viper.GetString("poam_config")
+	if poamConfigPath == "" {
+		poamConfigPath = "poam.yaml"
+	}
+	poamConfig, err := LoadPoamConfig(poamConfigPath)
+	if err != nil {
+		logger.Warnw("Failed to load poam config, poam jobs will be disabled", "error", err, "path", poamConfigPath)
+		poamConfig = DefaultPoamConfig()
+	}
+
 	// Worker configuration
 	workerConfig := DefaultWorkerConfig()
 	if viper.IsSet("worker_enabled") {
@@ -244,6 +255,7 @@ func NewConfig(logger *zap.SugaredLogger) *Config {
 		DigestSchedule:                    digestSchedule,
 		Workflow:                          workflowConfig,
 		Risk:                              riskConfig,
+		Poam:                              poamConfig,
 		PprofEnabled:                      pprofEnabled,
 		PprofPort:                         pprofPort,
 		StrictDisablePublicAgentEndpoints: viper.GetBool("strict_disable_public_agent_endpoints"),
