@@ -667,10 +667,6 @@ func Workers(emailService EmailService, digestService DigestService, userRepo Us
 
 		riskReviewOverdueReopenWorker := NewRiskReviewOverdueReopenWorker(db, logger)
 		river.AddWorker(workers, river.WorkFunc(riskReviewOverdueReopenWorker.Work))
-
-		// Orphaned controls worker: cleans up open auto-generated risks whose SSP profile was changed/unbound.
-		riskOrphanedControlsWorker := NewRiskOrphanedControlsWorker(db, logger)
-		river.AddWorker(workers, river.WorkFunc(riskOrphanedControlsWorker.Work))
 	}
 
 	// Register workflow notification workers if dependencies are available
