@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -56,6 +57,39 @@ func (p *riverClientProxy) InsertMany(ctx context.Context, params []river.Insert
 
 type notificationEnqueuerProxy struct {
 	enqueuer workflow.NotificationEnqueuer
+}
+
+func workflowTaskAssignedInsertParams(args WorkflowTaskAssignedArgs) []river.InsertManyParams {
+	channels := workflowDeliveryChannelsForAssignment(args.AssignedToType)
+	params := make([]river.InsertManyParams, 0, len(channels))
+
+	for _, channel := range channels {
+		jobArgs := args
+		jobArgs.Channel = channel
+		params = append(params, river.InsertManyParams{
+			Args:       jobArgs,
+			InsertOpts: JobInsertOptionsForWorkflowTaskAssignedNotification(),
+		})
+	}
+
+	return params
+}
+
+func globalDigestDeliveryInsertParams(args []SendGlobalDigestDeliveryArgs) []river.InsertManyParams {
+	params := make([]river.InsertManyParams, 0, len(args))
+
+	for i := range args {
+		jobArgs := args[i]
+		params = append(params, river.InsertManyParams{
+			Args: jobArgs,
+			InsertOpts: &river.InsertOpts{
+				Queue:       "digest",
+				MaxAttempts: 3,
+			},
+		})
+	}
+
+	return params
 }
 
 func (p *notificationEnqueuerProxy) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
@@ -210,7 +244,16 @@ func NewServiceWithDigest(
 	if digestCfg != nil {
 		webBaseURL = digestCfg.WebBaseURL
 	}
-	workers := Workers(emailSvc, digestSvc, userRepo, db, webBaseURL, logger)
+
+	var slackService SlackService
+	if digestCfg != nil {
+		svc, slackErr := slacksvc.NewService(digestCfg.Slack, logger)
+		if slackErr != nil {
+			return nil, fmt.Errorf("failed to create slack service: %w", slackErr)
+		}
+		slackService = svc
+	}
+	workers := Workers(emailSvc, digestSvc, slackService, userRepo, db, webBaseURL, logger)
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
@@ -710,7 +753,7 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 
 	titles := resolveStepTitles(stepExecution)
 
-	args := &WorkflowTaskAssignedArgs{
+	args := WorkflowTaskAssignedArgs{
 		AssignedToType:        stepExecution.AssignedToType,
 		UserID:                stepExecution.AssignedToID,
 		StepExecutionID:       stepExecution.ID.String(),
@@ -721,9 +764,7 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 		DueDate:               stepExecution.DueDate,
 	}
 
-	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptionsForWorkflowTaskAssignedNotification()},
-	})
+	_, err := s.client.InsertMany(ctx, workflowTaskAssignedInsertParams(args))
 	if err != nil {
 		return fmt.Errorf("failed to enqueue workflow-task-assigned job: %w", err)
 	}
@@ -785,6 +826,28 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send email job: %w", err)
 	}
+	return nil
+}
+
+// EnqueueSendGlobalDigestDeliveries enqueues per-recipient global digest delivery jobs.
+func (s *Service) EnqueueSendGlobalDigestDeliveries(ctx context.Context, args []SendGlobalDigestDeliveryArgs) error {
+	if !s.config.Enabled {
+		return fmt.Errorf("worker service is disabled")
+	}
+
+	if s.client == nil {
+		return fmt.Errorf("worker client is not initialized")
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	_, err := s.client.InsertMany(ctx, globalDigestDeliveryInsertParams(args))
+	if err != nil {
+		return fmt.Errorf("failed to enqueue global digest delivery jobs: %w", err)
+	}
+
 	return nil
 }
 

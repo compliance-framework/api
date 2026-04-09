@@ -28,14 +28,6 @@ type User struct {
 	AuthMethod     string `json:"authMethod"`
 	UserAttributes string `json:"userAttributes"`
 
-	// DigestSubscribed indicates if the user wants to receive evidence digest emails
-	DigestSubscribed bool `json:"digestSubscribed" gorm:"default:false"`
-
-	// TaskAvailableEmailSubscribed indicates if the user wants an email when tasks become available
-	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed" gorm:"default:false"`
-	// TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email
-	TaskDailyDigestSubscribed bool `json:"taskDailyDigestSubscribed" gorm:"default:false"`
-
 	// RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.
 	// The DB default is intentionally true so existing users are opted in when the column is introduced.
 	RiskNotificationsSubscribed bool `json:"riskNotificationsSubscribed" gorm:"default:true"`

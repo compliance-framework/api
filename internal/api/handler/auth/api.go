@@ -2,6 +2,7 @@ package auth
 
 import (
 	"github.com/compliance-framework/api/internal/api"
+	"github.com/compliance-framework/api/internal/api/middleware"
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/sso"
@@ -25,6 +26,9 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 
 	authHandler := NewAuthHandler(logger, db, cfg, metrics, emailService, workerService)
 	authHandler.Register(authGroup)
+
+	slackLinkHandler := NewSlackLinkHandler(logger, db, cfg)
+	slackLinkHandler.Register(authGroup, middleware.JWTMiddleware(cfg.JWTPublicKey))
 
 	ssoService, err := sso.NewService(cfg.SSO, logger)
 	if err != nil {

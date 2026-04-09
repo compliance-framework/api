@@ -51,6 +51,8 @@ func newRiskWorkersTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
 		&relational.User{},
+		&relational.SlackUserLink{},
+		&relational.UserNotificationSubscription{},
 		&relational.SystemSecurityPlan{},
 		&relational.SystemCharacteristics{},
 		&relational.Evidence{},

@@ -27,3 +27,4 @@ api
 # Ignore compiled binary
 main
 /api
+oscal-content

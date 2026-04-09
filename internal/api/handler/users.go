@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/compliance-framework/api/internal/api"
 	"github.com/compliance-framework/api/internal/authn"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -37,23 +40,26 @@ type publicUserResponse struct {
 }
 
 type SubscriptionsResponse struct {
-	Subscribed                   bool `json:"subscribed"`
-	TaskAvailableEmailSubscribed bool `json:"taskAvailableEmailSubscribed"`
-	TaskDailyDigestSubscribed    bool `json:"taskDailyDigestSubscribed"`
-	RiskNotificationsSubscribed  bool `json:"riskNotificationsSubscribed"`
+	RiskNotificationsSubscribed bool `json:"riskNotificationsSubscribed"`
+	// Notifications maps notification types to delivery channels.
+	// Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+	Notifications map[string][]string `json:"notifications"`
 }
 
 type UpdateSubscriptionsRequest struct {
-	Subscribed                   *bool `json:"subscribed"`
-	TaskAvailableEmailSubscribed *bool `json:"taskAvailableEmailSubscribed"`
-	TaskDailyDigestSubscribed    *bool `json:"taskDailyDigestSubscribed"`
-	RiskNotificationsSubscribed  *bool `json:"riskNotificationsSubscribed"`
+	RiskNotificationsSubscribed *bool `json:"riskNotificationsSubscribed"`
+	// Notifications maps notification types to delivery channels.
+	// Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+	Notifications map[string][]string `json:"notifications"`
 }
 
 const (
 	defaultSelectableUsersLimit = 100
 	maxSelectableUsersLimit     = 1000
 )
+
+var errInvalidNotificationChannels = errors.New("invalid notification channels")
+var errInvalidNotificationTypes = errors.New("invalid notification types")
 
 func NewUserHandler(sugar *zap.SugaredLogger, db *gorm.DB) *UserHandler {
 	return &UserHandler{
@@ -501,6 +507,16 @@ func (h *UserHandler) DeleteUser(ctx echo.Context) error {
 		Delete(&relational.SSOUserLink{}).Error; err != nil {
 		h.sugar.Warnw("Failed to remove SSO bindings for deleted user", "userID", userUUID.String(), "error", err)
 	}
+	if err := h.db.Unscoped().
+		Where("user_id = ?", userUUID.String()).
+		Delete(&relational.SlackUserLink{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove Slack bindings for deleted user", "userID", userUUID.String(), "error", err)
+	}
+	if err := h.db.Unscoped().
+		Where("user_id = ?", userUUID.String()).
+		Delete(&relational.SlackLinkAttempt{}).Error; err != nil {
+		h.sugar.Warnw("Failed to remove Slack link attempts for deleted user", "userID", userUUID.String(), "error", err)
+	}
 
 	return ctx.NoContent(204)
 }
@@ -584,12 +600,16 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
+	notifications, err := h.loadUserNotificationSubscriptions(ctx.Request().Context(), user.ID.String())
+	if err != nil {
+		h.sugar.Errorw("Failed to load user notifications", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			Subscribed:                   user.DigestSubscribed,
-			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
-			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
-			RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
+			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
+			Notifications:               notifications,
 		},
 	})
 }
@@ -618,6 +638,16 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(400, api.NewError(err))
 	}
 
+	var normalizedNotifications map[string][]string
+	if req.Notifications != nil {
+		normalized, err := normalizeNotificationSubscriptions(req.Notifications)
+		if err != nil {
+			h.sugar.Warnw("Rejected invalid notification channels", "error", err)
+			return ctx.JSON(400, api.NewError(err))
+		}
+		normalizedNotifications = normalized
+	}
+
 	email := userClaims.Subject
 	var user relational.User
 	if err := h.db.Where("email = ?", email).First(&user).Error; err != nil {
@@ -628,15 +658,6 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	if req.Subscribed != nil {
-		user.DigestSubscribed = *req.Subscribed
-	}
-	if req.TaskAvailableEmailSubscribed != nil {
-		user.TaskAvailableEmailSubscribed = *req.TaskAvailableEmailSubscribed
-	}
-	if req.TaskDailyDigestSubscribed != nil {
-		user.TaskDailyDigestSubscribed = *req.TaskDailyDigestSubscribed
-	}
 	if req.RiskNotificationsSubscribed != nil {
 		user.RiskNotificationsSubscribed = *req.RiskNotificationsSubscribed
 	}
@@ -646,22 +667,136 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
+	if req.Notifications != nil {
+		if err := h.replaceUserNotificationSubscriptions(ctx.Request().Context(), user.ID.String(), normalizedNotifications); err != nil {
+			h.sugar.Errorw("Failed to update user notifications", "error", err)
+			return ctx.JSON(500, api.NewError(err))
+		}
+	}
+
+	notifications, err := h.loadUserNotificationSubscriptions(ctx.Request().Context(), user.ID.String())
+	if err != nil {
+		h.sugar.Errorw("Failed to load user notifications", "error", err)
+		return ctx.JSON(500, api.NewError(err))
+	}
+
 	h.sugar.Debugw(
 		"User subscriptions updated",
 		"email", email,
-		"subscribed", user.DigestSubscribed,
-		"taskAvailableEmailSubscribed", user.TaskAvailableEmailSubscribed,
-		"taskDailyDigestSubscribed", user.TaskDailyDigestSubscribed,
 		"riskNotificationsSubscribed", user.RiskNotificationsSubscribed,
+		"notifications", notifications,
 	)
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			Subscribed:                   user.DigestSubscribed,
-			TaskAvailableEmailSubscribed: user.TaskAvailableEmailSubscribed,
-			TaskDailyDigestSubscribed:    user.TaskDailyDigestSubscribed,
-			RiskNotificationsSubscribed:  user.RiskNotificationsSubscribed,
+			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
+			Notifications:               notifications,
 		},
+	})
+}
+
+func (h *UserHandler) loadUserNotificationSubscriptions(ctx context.Context, userID string) (map[string][]string, error) {
+	var rows []relational.UserNotificationSubscription
+	if err := h.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	out := make(map[string][]string, len(rows))
+	for i := range rows {
+		channels := make([]string, len(rows[i].Channels))
+		copy(channels, rows[i].Channels)
+		wireType, ok := notification.WireNotificationType(rows[i].NotificationType)
+		if !ok {
+			wireType = rows[i].NotificationType
+		}
+		out[wireType] = channels
+	}
+
+	return out, nil
+}
+
+func normalizeNotificationSubscriptions(notifications map[string][]string) (map[string][]string, error) {
+	if notifications == nil {
+		return nil, nil
+	}
+
+	channelSets := make(map[string]map[string]struct{}, len(notifications))
+	for notificationType, channels := range notifications {
+		normalizedType, ok := notification.NormalizeNotificationType(notificationType)
+		if !ok {
+			invalidType := strings.ToLower(strings.TrimSpace(notificationType))
+			return nil, fmt.Errorf("%w: %q", errInvalidNotificationTypes, invalidType)
+		}
+
+		normalizedChannels, invalidChannels := notification.NormalizeDeliveryChannels(channels)
+		if len(invalidChannels) > 0 {
+			return nil, fmt.Errorf("%w for %q: %s", errInvalidNotificationChannels, normalizedType, quoteList(invalidChannels))
+		}
+
+		if _, exists := channelSets[normalizedType]; !exists {
+			channelSets[normalizedType] = make(map[string]struct{}, len(normalizedChannels))
+		}
+		for _, channel := range normalizedChannels {
+			channelSets[normalizedType][channel] = struct{}{}
+		}
+	}
+
+	out := make(map[string][]string, len(channelSets))
+	for normalizedType, set := range channelSets {
+		channels := make([]string, 0, len(set))
+		for channel := range set {
+			channels = append(channels, channel)
+		}
+		sort.Strings(channels)
+		out[normalizedType] = channels
+	}
+
+	return out, nil
+}
+
+func quoteList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, v := range values {
+		quoted = append(quoted, strconv.Quote(v))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func (h *UserHandler) replaceUserNotificationSubscriptions(ctx context.Context, userID string, notifications map[string][]string) error {
+	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&relational.UserNotificationSubscription{}).Error; err != nil {
+			return err
+		}
+
+		if len(notifications) == 0 {
+			return nil
+		}
+
+		types := make([]string, 0, len(notifications))
+		for notificationType := range notifications {
+			notificationType = strings.TrimSpace(notificationType)
+			if notificationType != "" {
+				types = append(types, notificationType)
+			}
+		}
+		sort.Strings(types)
+
+		rows := make([]relational.UserNotificationSubscription, 0, len(types))
+		for _, notificationType := range types {
+			rows = append(rows, relational.UserNotificationSubscription{
+				UserID:           userID,
+				NotificationType: notificationType,
+				Channels:         notifications[notificationType],
+			})
+		}
+
+		if len(rows) == 0 {
+			return nil
+		}
+
+		return tx.Create(&rows).Error
 	})
 }
 

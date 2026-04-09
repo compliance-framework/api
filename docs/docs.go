@@ -28402,16 +28402,17 @@ const docTemplate = `{
         "handler.SubscriptionsResponse": {
             "type": "object",
             "properties": {
+                "notifications": {
+                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, and taskDailyDigest.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "riskNotificationsSubscribed": {
-                    "type": "boolean"
-                },
-                "subscribed": {
-                    "type": "boolean"
-                },
-                "taskAvailableEmailSubscribed": {
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
                     "type": "boolean"
                 }
             }
@@ -28419,16 +28420,17 @@ const docTemplate = `{
         "handler.UpdateSubscriptionsRequest": {
             "type": "object",
             "properties": {
+                "notifications": {
+                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, and taskDailyDigest.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "riskNotificationsSubscribed": {
-                    "type": "boolean"
-                },
-                "subscribed": {
-                    "type": "boolean"
-                },
-                "taskAvailableEmailSubscribed": {
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
                     "type": "boolean"
                 }
             }
@@ -37103,10 +37105,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "digestSubscribed": {
-                    "description": "DigestSubscribed indicates if the user wants to receive evidence digest emails",
-                    "type": "boolean"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -37133,14 +37131,6 @@ const docTemplate = `{
                 },
                 "riskNotificationsSubscribed": {
                     "description": "RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.\nThe DB default is intentionally true so existing users are opted in when the column is introduced.",
-                    "type": "boolean"
-                },
-                "taskAvailableEmailSubscribed": {
-                    "description": "TaskAvailableEmailSubscribed indicates if the user wants an email when tasks become available",
-                    "type": "boolean"
-                },
-                "taskDailyDigestSubscribed": {
-                    "description": "TaskDailyDigestSubscribed indicates if the user wants to receive a daily task digest email",
                     "type": "boolean"
                 },
                 "updatedAt": {

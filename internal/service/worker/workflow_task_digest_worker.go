@@ -3,10 +3,13 @@ package worker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -21,27 +24,48 @@ type DigestTask struct {
 	StepURL               string
 }
 
+type digestNotificationData struct {
+	UserName     string
+	PeriodLabel  string
+	PendingTasks []DigestTask
+	OverdueTasks []DigestTask
+	MyTasksURL   string
+	GeneratedAt  time.Time
+}
+
+func (d digestNotificationData) templateData() map[string]interface{} {
+	return map[string]interface{}{
+		"UserName":     d.UserName,
+		"PeriodLabel":  d.PeriodLabel,
+		"PendingTasks": d.PendingTasks,
+		"OverdueTasks": d.OverdueTasks,
+		"MyTasksURL":   d.MyTasksURL,
+	}
+}
+
 // WorkflowTaskDigestWorker sends a per-user digest of pending and overdue workflow tasks
 type WorkflowTaskDigestWorker struct {
 	db           *gorm.DB
 	emailService EmailService
+	slackService SlackService
 	userRepo     UserRepository
 	webBaseURL   string
 	logger       *zap.SugaredLogger
 }
 
 // NewWorkflowTaskDigestWorker creates a new WorkflowTaskDigestWorker
-func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskDigestWorker {
+func NewWorkflowTaskDigestWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskDigestWorker {
 	return &WorkflowTaskDigestWorker{
 		db:           db,
 		emailService: emailService,
+		slackService: slackService,
 		userRepo:     userRepo,
 		webBaseURL:   webBaseURL,
 		logger:       logger,
 	}
 }
 
-// Work sends a digest email for the user identified by job.Args.UserID
+// Work sends digest notifications for the user identified by job.Args.UserID.
 func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskDigestArgs]) error {
 	args := job.Args
 
@@ -54,9 +78,18 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		return nil
 	}
 
-	if !user.TaskDailyDigestSubscribed {
-		w.logger.Debugw("WorkflowTaskDigestWorker: user not subscribed to digest, skipping",
+	channels, ok := selectUserNotificationChannels(user, notification.NotificationTypeTaskDailyDigest, args.Channel)
+	if !ok {
+		w.logger.Warnw("WorkflowTaskDigestWorker: invalid delivery channel, skipping",
 			"user_id", args.UserID,
+			"channel", args.Channel,
+		)
+		return nil
+	}
+	if len(channels) == 0 {
+		w.logger.Debugw("WorkflowTaskDigestWorker: user not subscribed to requested digest channel, skipping",
+			"user_id", args.UserID,
+			"channel", args.Channel,
 		)
 		return nil
 	}
@@ -106,20 +139,53 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 		}
 	}
 
-	periodLabel := "Daily digest — " + now.Format("Monday, 2 January 2006")
-
-	templateData := map[string]interface{}{
-		"UserName":     user.FullName(),
-		"PeriodLabel":  periodLabel,
-		"PendingTasks": pendingTasks,
-		"OverdueTasks": overdueTasks,
-		"MyTasksURL":   w.webBaseURL + "/my-tasks",
+	data := digestNotificationData{
+		UserName:     user.FullName(),
+		PeriodLabel:  "Daily digest — " + now.Format("Monday, 2 January 2006"),
+		PendingTasks: pendingTasks,
+		OverdueTasks: overdueTasks,
+		MyTasksURL:   w.webBaseURL + "/my-tasks",
+		GeneratedAt:  now,
 	}
 
-	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-digest", templateData)
+	for _, channel := range channels {
+		switch channel {
+		case notification.DeliveryChannelEmail:
+			if err := w.sendEmail(ctx, args.UserID, user.Email, data); err != nil {
+				return err
+			}
+		case notification.DeliveryChannelSlack:
+			if err := w.sendSlack(ctx, args.UserID, user, data); err != nil {
+				return err
+			}
+		default:
+			w.logger.Debugw("WorkflowTaskDigestWorker: unsupported channel, skipping",
+				"user_id", args.UserID,
+				"channel", channel,
+			)
+		}
+	}
+
+	w.logger.Infow("WorkflowTaskDigestWorker: digest notifications sent",
+		"user_id", args.UserID,
+		"pending", len(pendingTasks),
+		"overdue", len(overdueTasks),
+		"channels", channels,
+	)
+
+	return nil
+}
+
+func (w *WorkflowTaskDigestWorker) sendEmail(
+	ctx context.Context,
+	userID string,
+	toAddress string,
+	data digestNotificationData,
+) error {
+	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-digest", data.templateData())
 	if err != nil {
 		w.logger.Errorw("WorkflowTaskDigestWorker: failed to render template",
-			"user_id", args.UserID,
+			"user_id", userID,
 			"error", err,
 		)
 		return fmt.Errorf("failed to render workflow-task-digest template: %w", err)
@@ -127,8 +193,8 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 	message := &types.Message{
 		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("Your workflow task summary — %s", formatDate(now)),
+		To:       []string{toAddress},
+		Subject:  fmt.Sprintf("Your workflow task summary — %s", formatDate(data.GeneratedAt)),
 		HTMLBody: htmlBody,
 		TextBody: textBody,
 	}
@@ -136,7 +202,7 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 	result, err := w.emailService.Send(ctx, message)
 	if err != nil {
 		w.logger.Errorw("WorkflowTaskDigestWorker: failed to send email",
-			"user_id", args.UserID,
+			"user_id", userID,
 			"error", err,
 		)
 		return fmt.Errorf("failed to send workflow-task-digest email: %w", err)
@@ -144,20 +210,89 @@ func (w *WorkflowTaskDigestWorker) Work(ctx context.Context, job *river.Job[Work
 
 	if !result.Success {
 		w.logger.Errorw("WorkflowTaskDigestWorker: email send reported failure",
-			"user_id", args.UserID,
+			"user_id", userID,
 			"error", result.Error,
 		)
 		return fmt.Errorf("workflow-task-digest email send failed: %s", result.Error)
 	}
 
 	w.logger.Infow("WorkflowTaskDigestWorker: digest email sent",
-		"user_id", args.UserID,
-		"pending", len(pendingTasks),
-		"overdue", len(overdueTasks),
+		"user_id", userID,
 		"message_id", result.MessageID,
 	)
 
 	return nil
+}
+
+func (w *WorkflowTaskDigestWorker) sendSlack(
+	ctx context.Context,
+	userID string,
+	user NotificationUser,
+	data digestNotificationData,
+) error {
+	if w.slackService == nil || !w.slackService.IsEnabled() {
+		w.logger.Debugw("WorkflowTaskDigestWorker: slack service not configured, skipping",
+			"user_id", userID,
+		)
+		return nil
+	}
+
+	slackUserID := strings.TrimSpace(user.SlackUserID)
+	if slackUserID == "" {
+		w.logger.Debugw("WorkflowTaskDigestWorker: user has no Slack link, skipping",
+			"user_id", userID,
+		)
+		return nil
+	}
+
+	message, err := slackformatters.FormatWorkflowTaskDigestMessage(
+		user.FullName(),
+		data.PeriodLabel,
+		toSlackDigestTasks(data.PendingTasks),
+		toSlackDigestTasks(data.OverdueTasks),
+		data.MyTasksURL,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to format workflow-task-digest slack message for user_id=%s: %w", userID, err)
+	}
+
+	result, err := w.slackService.SendMessage(ctx, slackUserID, message)
+	if err != nil {
+		return fmt.Errorf("failed to send workflow-task-digest slack message: %w", err)
+	}
+	if !result.Success {
+		return fmt.Errorf("workflow-task-digest slack message send failed: %s", result.Error)
+	}
+
+	w.logger.Infow("WorkflowTaskDigestWorker: digest Slack message sent",
+		"user_id", userID,
+		"slack_user_id", slackUserID,
+		"delivery_id", result.DeliveryID,
+	)
+
+	return nil
+}
+
+func toSlackDigestTasks(tasks []DigestTask) []slackformatters.WorkflowTaskDigestItem {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	out := make([]slackformatters.WorkflowTaskDigestItem, 0, len(tasks))
+	for _, task := range tasks {
+		dueDate := ""
+		if task.DueDate != nil {
+			dueDate = *task.DueDate
+		}
+		out = append(out, slackformatters.WorkflowTaskDigestItem{
+			StepTitle:             task.StepTitle,
+			WorkflowTitle:         task.WorkflowTitle,
+			WorkflowInstanceTitle: task.WorkflowInstanceTitle,
+			DueDate:               dueDate,
+			StepURL:               task.StepURL,
+		})
+	}
+	return out
 }
 
 func buildDigestTask(step *workflows.StepExecution) DigestTask {

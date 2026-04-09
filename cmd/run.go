@@ -17,6 +17,7 @@ import (
 	evidencesvc "github.com/compliance-framework/api/internal/service/relational/evidence"
 	templatesvc "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
+	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/service/worker"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/spf13/cobra"
@@ -90,8 +91,13 @@ func RunServer(cmd *cobra.Command, args []string) {
 		sugar.Warnw("Failed to initialize email service, digests will be disabled", "error", err)
 	}
 
+	slackService, err := slacksvc.NewService(cfg.Slack, sugar)
+	if err != nil {
+		sugar.Warnw("Failed to initialize slack service, Slack digests will be disabled", "error", err)
+	}
+
 	// Initialize digest service (without worker service initially)
-	digestService := digest.NewService(db, emailService, nil, cfg, sugar)
+	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
 
 	// Initialize worker service with digest support
 	workerService, err := worker.NewServiceWithDigest(cfg.Worker, db, emailService, digestService, cfg, sugar)

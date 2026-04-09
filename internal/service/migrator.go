@@ -1,13 +1,23 @@
 package service
 
 import (
+	"context"
+
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	poamrel "github.com/compliance-framework/api/internal/service/relational/poam"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	templaterel "github.com/compliance-framework/api/internal/service/relational/templates"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+const legacyNotificationBackfillBatchSize = 1000
+
+type legacySubscribedUser struct {
+	ID string `gorm:"column:id"`
+}
 
 func MigrateUp(db *gorm.DB) error {
 	workflowEntities := workflows.GetWorkflowEntities()
@@ -135,6 +145,8 @@ func MigrateUp(db *gorm.DB) error {
 
 		// Compliance-Framework - not related to OSCAL
 		&relational.SSOUserLink{},
+		&relational.SlackLinkAttempt{},
+		&relational.SlackUserLink{},
 		&poamrel.PoamItem{},
 		&poamrel.PoamItemMilestone{},
 		&poamrel.PoamItemRiskLink{},
@@ -145,6 +157,7 @@ func MigrateUp(db *gorm.DB) error {
 		&relational.Agent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.AgentAuthEvent{},
+		&relational.UserNotificationSubscription{},
 		&Heartbeat{},
 		&relational.Evidence{},
 		&relational.Labels{},
@@ -163,6 +176,16 @@ func MigrateUp(db *gorm.DB) error {
 		}
 	}
 	if err := riskrel.EnsureIndexes(db); err != nil {
+		return err
+	}
+
+	if err := migrateLegacyTaskAvailableEmailSubscriptions(db); err != nil {
+		return err
+	}
+	if err := migrateLegacyDigestSubscriptions(db); err != nil {
+		return err
+	}
+	if err := migrateLegacyTaskDailyDigestSubscriptions(db); err != nil {
 		return err
 	}
 
@@ -196,6 +219,107 @@ func MigrateUp(db *gorm.DB) error {
 	// is typically not used for expression predicates like UPPER(control_id) without an expression index.
 
 	return err
+}
+
+func migrateLegacyTaskAvailableEmailSubscriptions(db *gorm.DB) error {
+	// Nothing to migrate after the legacy column has been removed.
+	if !db.Migrator().HasColumn(&relational.User{}, "task_available_email_subscribed") {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy task-available email subscription migration: ccf_users.task_available_email_subscribed is already absent",
+		)
+		return nil
+	}
+
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"task_available_email_subscribed",
+		notification.NotificationTypeTaskAvailable,
+		"task-available email",
+	); err != nil {
+		return err
+	}
+
+	return db.Migrator().DropColumn(&relational.User{}, "task_available_email_subscribed")
+}
+
+func migrateLegacyDigestSubscriptions(db *gorm.DB) error {
+	// Nothing to migrate after the legacy column has been removed.
+	if !db.Migrator().HasColumn(&relational.User{}, "digest_subscribed") {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy evidence digest subscription migration: ccf_users.digest_subscribed is already absent",
+		)
+		return nil
+	}
+
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"digest_subscribed",
+		notification.NotificationTypeEvidenceDigest,
+		"evidence digest",
+	); err != nil {
+		return err
+	}
+
+	return db.Migrator().DropColumn(&relational.User{}, "digest_subscribed")
+}
+
+func migrateLegacyTaskDailyDigestSubscriptions(db *gorm.DB) error {
+	// Nothing to migrate after the legacy column has been removed.
+	if !db.Migrator().HasColumn(&relational.User{}, "task_daily_digest_subscribed") {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy task daily digest subscription migration: ccf_users.task_daily_digest_subscribed is already absent",
+		)
+		return nil
+	}
+
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"task_daily_digest_subscribed",
+		notification.NotificationTypeTaskDailyDigest,
+		"task daily digest",
+	); err != nil {
+		return err
+	}
+
+	return db.Migrator().DropColumn(&relational.User{}, "task_daily_digest_subscribed")
+}
+
+func backfillLegacyNotificationSubscriptions(db *gorm.DB, legacyColumn string, notificationType string, legacyLabel string) error {
+	var subscribedUsers []legacySubscribedUser
+
+	return db.Table("ccf_users").
+		Select("id").
+		Where(legacyColumn+" = ?", true).
+		FindInBatches(&subscribedUsers, legacyNotificationBackfillBatchSize, func(_ *gorm.DB, batch int) error {
+			rows := make([]relational.UserNotificationSubscription, 0, len(subscribedUsers))
+			for i := range subscribedUsers {
+				if subscribedUsers[i].ID == "" {
+					db.Logger.Warn(
+						context.Background(),
+						"Skipping legacy %s subscription row with empty user ID (batch=%d index=%d)",
+						legacyLabel,
+						batch,
+						i,
+					)
+					continue
+				}
+
+				rows = append(rows, relational.UserNotificationSubscription{
+					UserID:           subscribedUsers[i].ID,
+					NotificationType: notificationType,
+					Channels:         []string{notification.DeliveryChannelEmail},
+				})
+			}
+
+			if len(rows) == 0 {
+				return nil
+			}
+
+			return db.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
+		}).Error
 }
 
 func MigrateDown(db *gorm.DB) error {
@@ -360,7 +484,10 @@ func MigrateDown(db *gorm.DB) error {
 		&relational.AgentAuthEvent{},
 		&relational.AgentServiceAccountKey{},
 		&relational.Agent{},
+		&relational.SlackLinkAttempt{},
+		&relational.SlackUserLink{},
 		&relational.User{},
+		&relational.UserNotificationSubscription{},
 
 		&Heartbeat{},
 		&relational.Evidence{},
