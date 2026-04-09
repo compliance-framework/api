@@ -19,12 +19,12 @@ import (
 // is approaching within the configured window and enqueues per-item per-recipient
 // reminder jobs. Mirrors the Risk Review Deadline Reminder scanner pattern.
 type PoamDeadlineReminderScannerWorker struct {
-	db              *gorm.DB
-	client          workflow.RiverClient
-	webBaseURL      string
-	userRepo        UserRepository
-	reminderWindow  time.Duration
-	logger          *zap.SugaredLogger
+	db             *gorm.DB
+	client         workflow.RiverClient
+	webBaseURL     string
+	userRepo       UserRepository
+	reminderWindow time.Duration
+	logger         *zap.SugaredLogger
 }
 
 // NewPoamDeadlineReminderScannerWorker constructs a PoamDeadlineReminderScannerWorker.
