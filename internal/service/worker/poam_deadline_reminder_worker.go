@@ -13,40 +13,45 @@ import (
 	"gorm.io/gorm"
 )
 
-// poamDeadlineReminderWindow is the look-ahead horizon for deadline reminders.
-const poamDeadlineReminderWindow = 30 * 24 * time.Hour
-
 // ─── Scanner worker ──────────────────────────────────────────────────────────
 
 // PoamDeadlineReminderScannerWorker scans daily for POAM items whose deadline
-// is approaching within 30 days and enqueues per-item per-recipient reminder
-// jobs. Mirrors the Risk Review Deadline Reminder scanner pattern.
+// is approaching within the configured window and enqueues per-item per-recipient
+// reminder jobs. Mirrors the Risk Review Deadline Reminder scanner pattern.
 type PoamDeadlineReminderScannerWorker struct {
-	db         *gorm.DB
-	client     workflow.RiverClient
-	webBaseURL string
-	userRepo   UserRepository
-	logger     *zap.SugaredLogger
+	db              *gorm.DB
+	client          workflow.RiverClient
+	webBaseURL      string
+	userRepo        UserRepository
+	reminderWindow  time.Duration
+	logger          *zap.SugaredLogger
 }
 
 // NewPoamDeadlineReminderScannerWorker constructs a PoamDeadlineReminderScannerWorker.
+// reminderWindow is the look-ahead horizon; items with deadline within this duration
+// of now will receive a reminder. Pass a positive value (e.g. 30 * 24 * time.Hour).
 func NewPoamDeadlineReminderScannerWorker(
 	db *gorm.DB,
 	client workflow.RiverClient,
 	userRepo UserRepository,
 	webBaseURL string,
+	reminderWindow time.Duration,
 	logger *zap.SugaredLogger,
 ) *PoamDeadlineReminderScannerWorker {
+	if reminderWindow <= 0 {
+		reminderWindow = 30 * 24 * time.Hour
+	}
 	return &PoamDeadlineReminderScannerWorker{
-		db:         db,
-		client:     client,
-		webBaseURL: webBaseURL,
-		userRepo:   userRepo,
-		logger:     logger,
+		db:             db,
+		client:         client,
+		webBaseURL:     webBaseURL,
+		userRepo:       userRepo,
+		reminderWindow: reminderWindow,
+		logger:         logger,
 	}
 }
 
-// Work queries for POAM items with deadlines within the next 30 days and
+// Work queries for POAM items with deadlines within the configured reminder window and
 // enqueues PoamDeadlineReminderArgs jobs for each item × recipient pair.
 func (w *PoamDeadlineReminderScannerWorker) Work(
 	ctx context.Context,
@@ -57,7 +62,7 @@ func (w *PoamDeadlineReminderScannerWorker) Work(
 	}
 
 	now := time.Now().UTC()
-	windowEnd := now.Add(poamDeadlineReminderWindow)
+	windowEnd := now.Add(w.reminderWindow)
 	reminderBucket := now.Format("2006-01-02")
 
 	var items []poam.PoamItem

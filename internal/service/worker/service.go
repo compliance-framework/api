@@ -252,7 +252,12 @@ func NewServiceWithDigest(
 	river.AddWorker(workers, river.WorkFunc(riskOpenDigestSchedulerWorker.Work))
 
 	// Add POAM scanner workers (BCH-1186 Phase 3)
-	poamDeadlineScannerWorker := NewPoamDeadlineReminderScannerWorker(db, clientProxy, userRepo, webBaseURL, logger)
+	poamCfg := config.DefaultPoamConfig()
+	if digestCfg != nil && digestCfg.Poam != nil {
+		poamCfg = digestCfg.Poam
+	}
+	poamReminderWindow := time.Duration(poamCfg.ReminderWindowDays) * 24 * time.Hour
+	poamDeadlineScannerWorker := NewPoamDeadlineReminderScannerWorker(db, clientProxy, userRepo, webBaseURL, poamReminderWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(poamDeadlineScannerWorker.Work))
 
 	poamOverdueTransitionScannerWorker := NewPoamOverdueTransitionScannerWorker(db, clientProxy, userRepo, webBaseURL, logger)
@@ -262,11 +267,7 @@ func NewServiceWithDigest(
 	river.AddWorker(workers, river.WorkFunc(milestoneOverdueScannerWorker.Work))
 
 	// POAM digest scheduler worker (BCH-1186 Phase 4)
-	poamDigestWindowKind := "daily"
-	if digestCfg != nil && digestCfg.Poam != nil {
-		poamDigestWindowKind = digestCfg.Poam.OpenDigestWindow
-	}
-	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamDigestWindowKind, logger)
+	poamOpenDigestSchedulerWorker := NewPoamOpenDigestSchedulerWorker(db, clientProxy, poamCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(poamOpenDigestSchedulerWorker.Work))
 
 	// Configure periodic jobs

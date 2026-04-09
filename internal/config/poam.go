@@ -14,18 +14,18 @@ import (
 // All three jobs are disabled by default; enable via environment variables
 // or a poam.yaml config file (CCF_POAM_CONFIG env var).
 type PoamConfig struct {
-	// DeadlineReminderEnabled enables the daily POAM deadline reminder scanner (0 8 * * *).
+	// DeadlineReminderEnabled enables the daily POAM deadline reminder scanner (0 0 8 * * *).
 	DeadlineReminderEnabled  bool   `mapstructure:"deadline_reminder_enabled"  yaml:"deadline_reminder_enabled"  json:"deadlineReminderEnabled"`
 	DeadlineReminderSchedule string `mapstructure:"deadline_reminder_schedule" yaml:"deadline_reminder_schedule" json:"deadlineReminderSchedule"`
 	// ReminderWindowDays is the look-ahead window (in days) for the deadline reminder.
 	// Items with deadline - now <= ReminderWindowDays are included. Default: 30.
 	ReminderWindowDays int `mapstructure:"reminder_window_days" yaml:"reminder_window_days" json:"reminderWindowDays"`
 
-	// OverdueTransitionEnabled enables the daily overdue transition scanner (0 9 * * *).
+	// OverdueTransitionEnabled enables the daily overdue transition scanner (0 0 9 * * *).
 	OverdueTransitionEnabled  bool   `mapstructure:"overdue_transition_enabled"  yaml:"overdue_transition_enabled"  json:"overdueTransitionEnabled"`
 	OverdueTransitionSchedule string `mapstructure:"overdue_transition_schedule" yaml:"overdue_transition_schedule" json:"overdueTransitionSchedule"`
 
-	// MilestoneOverdueEnabled enables the weekly incomplete milestone scanner (0 10 * * 1).
+	// MilestoneOverdueEnabled enables the weekly incomplete milestone scanner (0 0 10 * * 1).
 	MilestoneOverdueEnabled  bool   `mapstructure:"milestone_overdue_enabled"  yaml:"milestone_overdue_enabled"  json:"milestoneOverdueEnabled"`
 	MilestoneOverdueSchedule string `mapstructure:"milestone_overdue_schedule" yaml:"milestone_overdue_schedule" json:"milestoneOverdueSchedule"`
 
@@ -33,10 +33,7 @@ type PoamConfig struct {
 	OpenDigestEnabled  bool   `mapstructure:"open_digest_enabled"  yaml:"open_digest_enabled"  json:"openDigestEnabled"`
 	OpenDigestSchedule string `mapstructure:"open_digest_schedule" yaml:"open_digest_schedule" json:"openDigestSchedule"`
 	// OpenDigestWindow controls whether the digest covers a "daily" or "weekly" window.
-	OpenDigestWindow string `mapstructure:"open_digest_window"   yaml:"open_digest_window"   json:"openDigestWindow"`
-
-	// WebBaseURL is the base URL prepended to POAM deep-links in notification emails.
-	WebBaseURL string `mapstructure:"web_base_url" yaml:"web_base_url" json:"webBaseURL"`
+	OpenDigestWindow string `mapstructure:"open_digest_window" yaml:"open_digest_window" json:"openDigestWindow"`
 }
 
 // DefaultPoamConfig returns a PoamConfig with safe defaults (all jobs disabled).
@@ -52,7 +49,6 @@ func DefaultPoamConfig() *PoamConfig {
 		OpenDigestEnabled:         false,
 		OpenDigestSchedule:        "0 0 7 * * *",
 		OpenDigestWindow:          "daily",
-		WebBaseURL:                "",
 	}
 }
 
@@ -72,7 +68,6 @@ func LoadPoamConfig(path string) (*PoamConfig, error) {
 	v.SetDefault("open_digest_enabled", def.OpenDigestEnabled)
 	v.SetDefault("open_digest_schedule", def.OpenDigestSchedule)
 	v.SetDefault("open_digest_window", def.OpenDigestWindow)
-	v.SetDefault("web_base_url", def.WebBaseURL)
 
 	v.SetEnvPrefix("CCF_POAM")
 	v.SetEnvKeyReplacer(strings.NewReplacer("::", "_", ".", "_", "-", "_"))
@@ -94,10 +89,15 @@ func LoadPoamConfig(path string) (*PoamConfig, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal poam config: %w", err)
 	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid poam config: %w", err)
+	}
 	return &cfg, nil
 }
 
-// Validate checks that all enabled jobs have valid cron schedules.
+// Validate checks that all enabled jobs have valid cron schedules, that
+// open_digest_window is one of the accepted values, and that ReminderWindowDays
+// is a positive integer. Mirrors the validation performed by RiskConfig.Validate.
 func (c *PoamConfig) Validate() error {
 	parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	type check struct {
@@ -118,5 +118,19 @@ func (c *PoamConfig) Validate() error {
 			}
 		}
 	}
+
+	// Validate open_digest_window — must be "daily" or "weekly".
+	switch c.OpenDigestWindow {
+	case "daily", "weekly":
+		// valid
+	default:
+		return fmt.Errorf("invalid open_digest_window %q: must be \"daily\" or \"weekly\"", c.OpenDigestWindow)
+	}
+
+	// Validate ReminderWindowDays — must be a positive integer.
+	if c.ReminderWindowDays <= 0 {
+		return fmt.Errorf("invalid reminder_window_days %d: must be a positive integer", c.ReminderWindowDays)
+	}
+
 	return nil
 }

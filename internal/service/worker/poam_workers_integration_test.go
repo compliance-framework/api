@@ -141,7 +141,7 @@ func (suite *PoamWorkersIntegrationSuite) TestPoamDeadlineReminderScanner_Enqueu
 	item := suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusOpen, deadline)
 
 	client := &stubRiverClient{}
-	scanner := NewPoamDeadlineReminderScannerWorker(suite.DB, client, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	scanner := NewPoamDeadlineReminderScannerWorker(suite.DB, client, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, 30*24*time.Hour, suite.logger)
 	suite.Require().NoError(scanner.Work(ctx, &river.Job[PoamDeadlineReminderScannerArgs]{}))
 
 	// Verify scanner enqueued a reminder job for this item
@@ -187,7 +187,7 @@ func (suite *PoamWorkersIntegrationSuite) TestPoamDeadlineReminderScanner_Idempo
 	suite.seedPoamItem(sspID, ownerID, poamrel.PoamItemStatusOpen, deadline)
 
 	client := &stubRiverClient{}
-	scanner := NewPoamDeadlineReminderScannerWorker(suite.DB, client, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	scanner := NewPoamDeadlineReminderScannerWorker(suite.DB, client, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, 30*24*time.Hour, suite.logger)
 
 	// Run scanner twice
 	suite.Require().NoError(scanner.Work(ctx, &river.Job[PoamDeadlineReminderScannerArgs]{}))

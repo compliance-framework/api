@@ -106,7 +106,7 @@ func TestPoamDeadlineReminderScannerWorker_EnqueuesForApproachingDeadline(t *tes
 
 	item, _ := createTestPoamItem(t, db, poamrel.PoamItemStatusOpen, &deadline, "poc@example.com")
 
-	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", logger)
+	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", 30*24*time.Hour, logger)
 	err := w.Work(context.Background(), &river.Job[PoamDeadlineReminderScannerArgs]{})
 	require.NoError(t, err)
 
@@ -134,7 +134,7 @@ func TestPoamDeadlineReminderScannerWorker_SkipsItemsOutsideWindow(t *testing.T)
 
 	createTestPoamItem(t, db, poamrel.PoamItemStatusOpen, &deadline, "poc@example.com")
 
-	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", logger)
+	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", 30*24*time.Hour, logger)
 	err := w.Work(context.Background(), &river.Job[PoamDeadlineReminderScannerArgs]{})
 	require.NoError(t, err)
 	assert.Empty(t, client.params, "expected no jobs for items outside the reminder window")
@@ -151,7 +151,7 @@ func TestPoamDeadlineReminderScannerWorker_SkipsCompletedItems(t *testing.T) {
 	// Completed items should be excluded
 	createTestPoamItem(t, db, poamrel.PoamItemStatusCompleted, &deadline, "poc@example.com")
 
-	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", logger)
+	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", 30*24*time.Hour, logger)
 	err := w.Work(context.Background(), &river.Job[PoamDeadlineReminderScannerArgs]{})
 	require.NoError(t, err)
 	assert.Empty(t, client.params, "expected no jobs for completed items")
@@ -168,7 +168,7 @@ func TestPoamDeadlineReminderScannerWorker_SkipsOverdueItems(t *testing.T) {
 	// Overdue items should be handled by the overdue transition scanner, not the reminder
 	createTestPoamItem(t, db, poamrel.PoamItemStatusOpen, &deadline, "poc@example.com")
 
-	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", logger)
+	w := NewPoamDeadlineReminderScannerWorker(db, client, &stubUserRepository{}, "http://localhost", 30*24*time.Hour, logger)
 	err := w.Work(context.Background(), &river.Job[PoamDeadlineReminderScannerArgs]{})
 	require.NoError(t, err)
 	assert.Empty(t, client.params, "expected no reminder jobs for already-overdue items")

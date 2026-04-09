@@ -28,14 +28,14 @@ const (
 // ─── Scanner args (no payload — scanner reads DB itself) ─────────────────────
 
 // PoamDeadlineReminderScannerArgs is the args type for the daily POAM deadline
-// reminder scanner job (cron: 0 8 * * *, i.e. 08:00 UTC daily).
+// reminder scanner job (cron: 0 0 8 * * *, i.e. 08:00 UTC daily).
 // The scanner queries for open/in-progress POAM items whose deadline falls
-// within the next 30 days and enqueues a PoamDeadlineReminderArgs job per
+// within the configured reminder window and enqueues a PoamDeadlineReminderArgs job per
 // item per recipient.
 type PoamDeadlineReminderScannerArgs struct{}
 
 // PoamOverdueTransitionScannerArgs is the args type for the daily POAM overdue
-// transition scanner job (cron: 0 9 * * *, i.e. 09:00 UTC daily).
+// transition scanner job (cron: 0 0 9 * * *, i.e. 09:00 UTC daily).
 // The scanner queries for open/in-progress POAM items whose deadline has
 // already passed, transitions their status to "overdue" in the DB, and
 // enqueues a PoamOverdueNotificationArgs job per item per recipient.
