@@ -485,7 +485,11 @@ func (h *SlackLinkHandler) setLinkCookie(ctx echo.Context, name, value string, t
 	cookie.Path = "/"
 	// OAuth callback is cross-site navigation from Slack -> API callback.
 	cookie.SameSite = http.SameSiteLaxMode
-	cookie.Secure = true
+	if isDevelopmentEnvironment(h.config.Environment) {
+		cookie.Secure = false
+	} else {
+		cookie.Secure = true
+	}
 	ctx.SetCookie(cookie)
 }
 
@@ -497,7 +501,11 @@ func (h *SlackLinkHandler) clearLinkCookie(ctx echo.Context, name string) {
 	cookie.HttpOnly = true
 	cookie.Path = "/"
 	cookie.SameSite = http.SameSiteLaxMode
-	cookie.Secure = true
+	if isDevelopmentEnvironment(h.config.Environment) {
+		cookie.Secure = false
+	} else {
+		cookie.Secure = true
+	}
 	ctx.SetCookie(cookie)
 }
 
