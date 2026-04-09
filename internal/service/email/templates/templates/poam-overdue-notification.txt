@@ -1,0 +1,11 @@
+Hello {{.RecipientName}},
+
+A Plan of Action & Milestones item assigned to you has passed its planned completion date and is now marked as overdue. Please review and update the item.
+
+POAM Item: {{.PoamTitle}}
+SSP: {{.SSPName}}
+Planned Completion: {{.Deadline}}
+
+Open POAM item: {{.PoamURL}}
+
+You are receiving this notification because you are an owner or point of contact for this POAM item.
