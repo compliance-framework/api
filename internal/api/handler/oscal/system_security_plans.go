@@ -28,6 +28,7 @@ type SystemSecurityPlanHandler struct {
 	db                *gorm.DB
 	profileCache      sync.Map // map[uuid.UUID][]string
 	suggestionService *relational.SystemComponentSuggestionService
+	riskService       *riskrel.RiskService
 }
 
 type SystemComponentRequest struct {
@@ -55,6 +56,7 @@ func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenc
 		sugar:             sugar,
 		db:                db,
 		suggestionService: relational.NewSystemComponentSuggestionService(db, evidenceSvc),
+		riskService:       riskrel.NewRiskService(db),
 	}
 }
 
@@ -1941,6 +1943,19 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 			}
 		}
 
+		// Build the new profile control set for orphan detection.
+		// We use an empty CatalogID here because controlIDs are plain control IDs
+		// without a catalog qualifier at this layer; RemediateOrphanedRisks
+		// normalises the comparison.
+		newProfileControlSet := make(map[riskrel.ControlKey]struct{}, len(controlIDs))
+		for _, cid := range controlIDs {
+			newProfileControlSet[riskrel.ControlKey{ControlID: cid}] = struct{}{}
+		}
+		if _, err := h.riskService.RemediateOrphanedRisks(tx, sspID, newProfileControlSet); err != nil {
+			h.sugar.Warnw("Failed to remediate orphaned risks on profile change", "sspId", sspID, "error", err)
+			return err
+		}
+
 		return nil
 	})
 
@@ -2041,7 +2056,22 @@ func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error 
 	// Update the ImportProfile field in the SSP
 	ssp.ImportProfile = datatypes.NewJSONType(*relImportProfile)
 
-	if err := h.db.Save(&ssp).Error; err != nil {
+	// Wrap save and orphan cleanup in a single transaction so that a profile
+	// href update (which may effectively unbind the old profile) atomically
+	// remediates any risks that are no longer covered.
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&ssp).Error; err != nil {
+			return err
+		}
+		// UpdateImportProfile only changes the href metadata; it does not
+		// resolve a new control set, so we treat this as a full unbind and
+		// pass an empty control set to remediate all auto-generated risks.
+		if _, err := h.riskService.RemediateOrphanedRisks(tx, id, map[riskrel.ControlKey]struct{}{}); err != nil {
+			h.sugar.Warnw("Failed to remediate orphaned risks on import-profile update", "sspId", id, "error", err)
+			return err
+		}
+		return nil
+	}); err != nil {
 		h.sugar.Errorf("Failed to update import-profile: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}

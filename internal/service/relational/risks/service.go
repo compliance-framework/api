@@ -1361,3 +1361,128 @@ func rollbackTxOnPanic(tx *gorm.DB) {
 		panic(r)
 	}
 }
+
+// ControlKey is a composite key used to match a risk's linked controls against
+// a profile's control set. CatalogID may be empty when only control IDs are
+// available (e.g. from the profile resolution layer).
+type ControlKey struct {
+	CatalogID string
+	ControlID string
+}
+
+// RemediateOrphanedRisks transitions all open, auto-generated risks for the
+// given SSP to remediated when none of their linked controls exist in
+// newProfileControlSet. It must be called inside the caller transaction (tx)
+// so that the profile update and the risk cleanup are atomic.
+//
+// Pass an empty newProfileControlSet when the profile has been unbound entirely
+// (all auto-generated risks become orphaned by definition).
+//
+// Returns the number of risks that were remediated.
+func (s *RiskService) RemediateOrphanedRisks(
+	tx *gorm.DB,
+	sspID uuid.UUID,
+	newProfileControlSet map[ControlKey]struct{},
+) (int, error) {
+	var candidates []Risk
+	if err := tx.
+		Where(
+			"ssp_id = ? AND risk_template_id IS NOT NULL AND status NOT IN ?",
+			sspID,
+			[]string{string(RiskStatusClosed), string(RiskStatusRemediated)},
+		).
+		Find(&candidates).Error; err != nil {
+		return 0, fmt.Errorf("remediate orphaned risks: load candidates failed: %w", err)
+	}
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+
+	riskIDs := make([]uuid.UUID, 0, len(candidates))
+	for _, r := range candidates {
+		if r.ID != nil {
+			riskIDs = append(riskIDs, *r.ID)
+		}
+	}
+
+	var links []RiskControlLink
+	if err := tx.Where("risk_id IN ?", riskIDs).Find(&links).Error; err != nil {
+		return 0, fmt.Errorf("remediate orphaned risks: load control links failed: %w", err)
+	}
+
+	riskControls := make(map[uuid.UUID][]ControlKey, len(candidates))
+	for _, l := range links {
+		riskControls[l.RiskID] = append(riskControls[l.RiskID], ControlKey{
+			CatalogID: l.CatalogID.String(),
+			ControlID: strings.ToUpper(l.ControlID),
+		})
+	}
+
+	normalisedProfileSet := make(map[ControlKey]struct{}, len(newProfileControlSet))
+	for k := range newProfileControlSet {
+		normalisedProfileSet[ControlKey{
+			CatalogID: k.CatalogID,
+			ControlID: strings.ToUpper(k.ControlID),
+		}] = struct{}{}
+	}
+
+	remediated := 0
+	occurredAt := time.Now().UTC()
+
+	for i := range candidates {
+		risk := &candidates[i]
+		if risk.ID == nil {
+			continue
+		}
+
+		riskControlKeys := riskControls[*risk.ID]
+		if len(riskControlKeys) == 0 {
+			continue
+		}
+
+		if len(normalisedProfileSet) > 0 {
+			orphaned := true
+			for _, ck := range riskControlKeys {
+				// Match on ControlID alone when the stored link has a CatalogID
+				// but the profile set was built without one (or vice versa).
+				if _, exists := normalisedProfileSet[ck]; exists {
+					orphaned = false
+					break
+				}
+				if _, exists := normalisedProfileSet[ControlKey{ControlID: ck.ControlID}]; exists {
+					orphaned = false
+					break
+				}
+			}
+			if !orphaned {
+				continue
+			}
+		}
+
+		oldStatus := risk.Status
+		if err := tx.Model(risk).Update("status", string(RiskStatusRemediated)).Error; err != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: update status failed for risk %s: %w", *risk.ID, err)
+		}
+
+		payload := datatypes.JSONMap{
+			"from":   oldStatus,
+			"to":     string(RiskStatusRemediated),
+			"reason": "orphaned_profile_change",
+		}
+		details := BuildRiskEventDetails(string(RiskEventTypeStatusChange), payload, occurredAt)
+		event := &RiskEvent{
+			RiskID:     *risk.ID,
+			EventType:  string(RiskEventTypeStatusChange),
+			OccurredAt: occurredAt,
+			Details:    &details,
+			Payload:    payload,
+		}
+		if err := tx.Create(event).Error; err != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: emit event failed for risk %s: %w", *risk.ID, err)
+		}
+
+		remediated++
+	}
+
+	return remediated, nil
+}
