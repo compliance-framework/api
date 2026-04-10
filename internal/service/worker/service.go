@@ -107,13 +107,16 @@ func (p *notificationEnqueuerProxy) EnqueueWorkflowExecutionFailed(ctx context.C
 	return p.enqueuer.EnqueueWorkflowExecutionFailed(ctx, execution)
 }
 
-// NewServiceWithDigest creates a new worker service with digest support
+// NewServiceWithDigest creates a new worker service with digest support.
+// profileResolver is injected to resolve profile control keys for the orphaned risk cleanup worker;
+// it must implement ProfileControlResolver and is typically a closure over oscal handler functions.
 func NewServiceWithDigest(
 	cfg *config.WorkerConfig,
 	db *gorm.DB,
 	emailSvc *email.Service,
 	digestSvc DigestService,
 	digestCfg *config.Config,
+	profileResolver ProfileControlResolver,
 	logger *zap.SugaredLogger,
 ) (*Service, error) {
 	if !cfg.Enabled {
@@ -296,7 +299,7 @@ func NewServiceWithDigest(
 	river.AddWorker(workers, river.WorkFunc(riskOpenDigestSchedulerWorker.Work))
 
 	// Add orphaned risk cleanup worker — triggered on-demand when SSP profile binding changes
-	riskOrphanedCleanupWorker := NewRiskOrphanedCleanupWorker(db, riskrel.NewRiskService(db), logger)
+	riskOrphanedCleanupWorker := NewRiskOrphanedCleanupWorker(db, riskrel.NewRiskService(db), profileResolver, logger)
 	river.AddWorker(workers, river.WorkFunc(riskOrphanedCleanupWorker.Work))
 
 	// Add POAM scanner workers (BCH-1186 Phase 3)

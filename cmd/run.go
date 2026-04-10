@@ -99,8 +99,13 @@ func RunServer(cmd *cobra.Command, args []string) {
 	// Initialize digest service (without worker service initially)
 	digestService := digest.NewService(db, emailService, slackService, nil, cfg, sugar)
 
+	// profileResolver bridges the worker package and the oscal handler package without creating
+	// a circular import. It uses the pivot table fast path first, then falls back to full
+	// recursive profile resolution via oscal.FindFullProfile / oscal.GetControlIDsMapFromProfile.
+	profileResolver := &oscalProfileControlResolver{db: db}
+
 	// Initialize worker service with digest support
-	workerService, err := worker.NewServiceWithDigest(cfg.Worker, db, emailService, digestService, cfg, sugar)
+	workerService, err := worker.NewServiceWithDigest(cfg.Worker, db, emailService, digestService, cfg, profileResolver, sugar)
 	if err != nil {
 		sugar.Fatalw("Failed to initialize worker service", "error", err)
 	}

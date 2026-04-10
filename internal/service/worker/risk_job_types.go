@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
 
 const (
@@ -150,12 +151,23 @@ func JobInsertOptionsForRiskDigest(byPeriod time.Duration) *river.InsertOpts {
 // ByArgs deduplication ensures that each unique (ssp_id, new_profile_id) combination gets its own
 // job — multiple profile changes on the same SSP in the same day each produce an independent job.
 // No ByPeriod is set intentionally so that rapid successive changes are not collapsed.
+//
+// ByState is explicitly set to exclude JobStateCompleted and JobStateCancelled so that a second
+// profile change to the same target profile re-inserts a fresh cleanup job even if the previous
+// one completed but has not yet been removed by River's job-cleaner maintenance process.
 func JobInsertOptionsForRiskOrphanedCleanup() *river.InsertOpts {
 	return &river.InsertOpts{
 		Queue:       "risk",
 		MaxAttempts: 3,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs: true,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable,
+				rivertype.JobStatePending,
+				rivertype.JobStateRunning,
+				rivertype.JobStateRetryable,
+				rivertype.JobStateScheduled,
+			},
 		},
 	}
 }
