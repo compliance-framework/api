@@ -20,6 +20,7 @@ const (
 	JobTypeRiskReconcileDuplicates     = "risk_reconcile_duplicates"
 	JobTypeRiskReviewOverdueReopen     = "risk_review_overdue_reopen"
 	JobTypeRiskOpenDigest              = "risk_open_digest"
+	JobTypeRiskOrphanedCleanup         = "risk_orphaned_cleanup"
 )
 
 type RiskReviewDeadlineReminderScannerArgs struct{}
@@ -59,6 +60,20 @@ type RiskReviewOverdueReopenArgs struct {
 	ThresholdDays  int       `json:"threshold_days"`
 }
 
+// RiskOrphanedCleanupArgs is enqueued by the SSP profile attach/update endpoints whenever
+// the profile binding changes. The worker resolves the new profile's control set and
+// transitions any open auto-generated risks whose controls are no longer present to remediated.
+//
+// Deduplication uses river:"unique" tags on ssp_id and new_profile_id only. OldProfileID
+// is kept for observability/logging but excluded from the uniqueness hash. This means:
+//   - Two rapid changes to the same target profile → one job (correct: second is a no-op)
+//   - Two rapid changes to different target profiles → two independent jobs (correct)
+type RiskOrphanedCleanupArgs struct {
+	SSPID        uuid.UUID  `json:"ssp_id"                  river:"unique"`
+	OldProfileID *uuid.UUID `json:"old_profile_id,omitempty"`
+	NewProfileID *uuid.UUID `json:"new_profile_id,omitempty" river:"unique"`
+}
+
 type RiskOpenDigestArgs struct {
 	RecipientUserID uuid.UUID `json:"recipient_user_id"`
 	WindowStart     string    `json:"window_start"`
@@ -83,6 +98,7 @@ func (RiskStaleOpenReminderArgs) Kind() string       { return JobTypeRiskStaleOp
 func (RiskReconcileDuplicatesArgs) Kind() string     { return JobTypeRiskReconcileDuplicates }
 func (RiskReviewOverdueReopenArgs) Kind() string     { return JobTypeRiskReviewOverdueReopen }
 func (RiskOpenDigestArgs) Kind() string              { return JobTypeRiskOpenDigest }
+func (RiskOrphanedCleanupArgs) Kind() string         { return JobTypeRiskOrphanedCleanup }
 
 func (RiskReviewDeadlineReminderScannerArgs) Timeout() time.Duration  { return 5 * time.Minute }
 func (RiskReviewOverdueEscalationScannerArgs) Timeout() time.Duration { return 5 * time.Minute }
@@ -95,6 +111,7 @@ func (RiskStaleOpenReminderArgs) Timeout() time.Duration              { return 3
 func (RiskReconcileDuplicatesArgs) Timeout() time.Duration            { return 2 * time.Minute }
 func (RiskReviewOverdueReopenArgs) Timeout() time.Duration            { return 30 * time.Second }
 func (RiskOpenDigestArgs) Timeout() time.Duration                     { return 30 * time.Second }
+func (RiskOrphanedCleanupArgs) Timeout() time.Duration                { return 2 * time.Minute }
 
 func JobInsertOptionsForRiskNotification(byPeriod time.Duration) *river.InsertOpts {
 	return &river.InsertOpts{
@@ -125,6 +142,20 @@ func JobInsertOptionsForRiskDigest(byPeriod time.Duration) *river.InsertOpts {
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:   true,
 			ByPeriod: byPeriod,
+		},
+	}
+}
+
+// JobInsertOptionsForRiskOrphanedCleanup returns insert options for the orphaned risk cleanup job.
+// ByArgs deduplication ensures that each unique (ssp_id, new_profile_id) combination gets its own
+// job — multiple profile changes on the same SSP in the same day each produce an independent job.
+// No ByPeriod is set intentionally so that rapid successive changes are not collapsed.
+func JobInsertOptionsForRiskOrphanedCleanup() *river.InsertOpts {
+	return &river.InsertOpts{
+		Queue:       "risk",
+		MaxAttempts: 3,
+		UniqueOpts: river.UniqueOpts{
+			ByArgs: true,
 		},
 	}
 }

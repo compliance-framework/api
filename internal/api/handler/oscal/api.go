@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService) {
+func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB, config *config.Config, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer) {
 	oscalGroup := server.API().Group("/oscal")
 	oscalGroup.Use(middleware.JWTMiddleware(config.JWTPublicKey))
 
@@ -19,7 +19,7 @@ func RegisterHandlers(server *api.Server, logger *zap.SugaredLogger, db *gorm.DB
 	profileHandler := NewProfileHandler(logger, db)
 	profileHandler.Register(oscalGroup.Group("/profiles"))
 
-	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc)
+	sspHandler := NewSystemSecurityPlanHandler(logger, db, evidenceSvc, jobEnqueuer)
 	sspHandler.Register(oscalGroup.Group("/system-security-plans"))
 
 	partyHandler := NewPartyHandler(logger, db)

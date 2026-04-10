@@ -10,6 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/workflow"
@@ -293,6 +294,10 @@ func NewServiceWithDigest(
 
 	riskOpenDigestSchedulerWorker := NewRiskOpenDigestSchedulerWorker(db, clientProxy, riskCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(riskOpenDigestSchedulerWorker.Work))
+
+	// Add orphaned risk cleanup worker — triggered on-demand when SSP profile binding changes
+	riskOrphanedCleanupWorker := NewRiskOrphanedCleanupWorker(db, riskrel.NewRiskService(db), logger)
+	river.AddWorker(workers, river.WorkFunc(riskOrphanedCleanupWorker.Work))
 
 	// Add POAM scanner workers (BCH-1186 Phase 3)
 	poamCfg := config.DefaultPoamConfig()
@@ -902,5 +907,27 @@ func (s *Service) EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uui
 		return fmt.Errorf("failed to enqueue risk process evidence job: %w", err)
 	}
 
+	return nil
+}
+
+// EnqueueOrphanedRiskCleanup enqueues a job to remediate orphaned risks when an SSP's
+// profile binding changes. Each unique (ssp_id, new_profile_id) combination produces
+// an independent job — multiple profile changes on the same SSP in a short window
+// each trigger their own cleanup pass.
+func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+	args := RiskOrphanedCleanupArgs{
+		SSPID:        sspID,
+		OldProfileID: oldProfileID,
+		NewProfileID: newProfileID,
+	}
+	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
+		{Args: args, InsertOpts: JobInsertOptionsForRiskOrphanedCleanup()},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enqueue orphaned risk cleanup job for ssp %s: %w", sspID, err)
+	}
 	return nil
 }

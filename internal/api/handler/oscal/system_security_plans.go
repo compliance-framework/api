@@ -1,6 +1,7 @@
 package oscal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,12 +24,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// SSPJobEnqueuer is a minimal interface for enqueueing SSP-related background jobs.
+// Defined here to avoid a circular import between the oscal handler and worker packages.
+type SSPJobEnqueuer interface {
+	EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error
+}
+
 type SystemSecurityPlanHandler struct {
 	sugar             *zap.SugaredLogger
 	db                *gorm.DB
 	profileCache      sync.Map // map[uuid.UUID][]string
 	suggestionService *relational.SystemComponentSuggestionService
-	riskService       *riskrel.RiskService
+	jobEnqueuer       SSPJobEnqueuer
 }
 
 type SystemComponentRequest struct {
@@ -51,12 +58,12 @@ func (r *ApplySuggestionRequest) Validate() error {
 	return nil
 }
 
-func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenceSvc *evidencesvc.EvidenceService) *SystemSecurityPlanHandler {
+func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer) *SystemSecurityPlanHandler {
 	return &SystemSecurityPlanHandler{
 		sugar:             sugar,
 		db:                db,
 		suggestionService: relational.NewSystemComponentSuggestionService(db, evidenceSvc),
-		riskService:       riskrel.NewRiskService(db),
+		jobEnqueuer:       jobEnqueuer,
 	}
 }
 
@@ -1943,25 +1950,20 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 			}
 		}
 
-		// Build the new profile control set for orphan detection.
-		// We use an empty CatalogID here because controlIDs are plain control IDs
-		// without a catalog qualifier at this layer; RemediateOrphanedRisks
-		// normalises the comparison.
-		newProfileControlSet := make(map[riskrel.ControlKey]struct{}, len(controlIDs))
-		for _, cid := range controlIDs {
-			newProfileControlSet[riskrel.ControlKey{ControlID: cid}] = struct{}{}
-		}
-		if _, err := h.riskService.RemediateOrphanedRisks(tx, sspID, newProfileControlSet); err != nil {
-			h.sugar.Warnw("Failed to remediate orphaned risks on profile change", "sspId", sspID, "error", err)
-			return err
-		}
-
 		return nil
 	})
-
 	if err != nil {
 		h.sugar.Errorf("Failed to attach profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	// Enqueue orphaned risk cleanup after the transaction commits successfully.
+	// Passing old and new profile IDs so the worker can resolve the delta.
+	if h.jobEnqueuer != nil {
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(ctx.Request().Context(), sspID, ssp.ProfileID, &profileID); err != nil {
+			// Non-fatal: log and continue — the job can be retried or the next
+			// reconciliation pass will catch any orphans.
+			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)
+		}
 	}
 
 	// Reload SSP to ensure the memory state matches the database (including newly created requirements)
@@ -2056,24 +2058,23 @@ func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error 
 	// Update the ImportProfile field in the SSP
 	ssp.ImportProfile = datatypes.NewJSONType(*relImportProfile)
 
-	// Wrap save and orphan cleanup in a single transaction so that a profile
-	// href update (which may effectively unbind the old profile) atomically
-	// remediates any risks that are no longer covered.
-	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&ssp).Error; err != nil {
-			return err
-		}
-		// UpdateImportProfile only changes the href metadata; it does not
-		// resolve a new control set, so we treat this as a full unbind and
-		// pass an empty control set to remediate all auto-generated risks.
-		if _, err := h.riskService.RemediateOrphanedRisks(tx, id, map[riskrel.ControlKey]struct{}{}); err != nil {
-			h.sugar.Warnw("Failed to remediate orphaned risks on import-profile update", "sspId", id, "error", err)
-			return err
-		}
-		return nil
-	}); err != nil {
+	// Save the updated SSP. Orphaned risk cleanup is handled asynchronously
+	// via a River job enqueued after the transaction commits.
+	if err := h.db.Save(&ssp).Error; err != nil {
 		h.sugar.Errorf("Failed to update import-profile: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+
+	// Enqueue orphaned risk cleanup after the save commits successfully.
+	// UpdateImportProfile only changes the href metadata and does not bind a new
+	// profile, so we pass nil for newProfileID — the worker will treat this as a
+	// full unbind and remediate all auto-generated risks.
+	if h.jobEnqueuer != nil {
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(ctx.Request().Context(), id, ssp.ProfileID, nil); err != nil {
+			// Non-fatal: log and continue — the job can be retried or the next
+			// reconciliation pass will catch any orphans.
+			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job on import-profile update", "sspId", id, "error", err)
+		}
 	}
 
 	return ctx.JSON(http.StatusOK, handler.GenericDataResponse[oscalTypes_1_1_3.ImportProfile]{Data: *relImportProfile.MarshalOscal()})
