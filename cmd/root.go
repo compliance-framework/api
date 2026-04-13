@@ -87,6 +87,7 @@ func init() {
 	rootCmd.AddCommand(newBootstrapCMD())
 	rootCmd.AddCommand(dashboards.RootCmd)
 	rootCmd.AddCommand(DigestCmd)
+	rootCmd.AddCommand(RiskDigestCmd)
 }
 
 func Execute() error {

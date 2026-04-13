@@ -23,6 +23,8 @@ func FormatWorkflowTaskDigestMessage(
 	overdueTasks []WorkflowTaskDigestItem,
 	myTasksURL string,
 ) (*types.Message, error) {
+	const maxOverdueTasksInSlack = 4
+
 	title := strings.TrimSpace(periodLabel)
 	if title == "" {
 		title = "Daily digest"
@@ -46,9 +48,21 @@ func FormatWorkflowTaskDigestMessage(
 			nil,
 			nil,
 		))
-		for i := range overdueTasks {
+		overdueToShow := len(overdueTasks)
+		if overdueToShow > maxOverdueTasksInSlack {
+			overdueToShow = maxOverdueTasksInSlack
+		}
+		for i := 0; i < overdueToShow; i++ {
 			blocks = append(blocks, slack.NewSectionBlock(
 				slack.NewTextBlockObject(slack.MarkdownType, formatWorkflowTaskDigestItem(overdueTasks[i]), false, false),
+				nil,
+				nil,
+			))
+		}
+
+		if len(overdueTasks) > overdueToShow {
+			blocks = append(blocks, slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, buildMoreOverdueTasksText(len(overdueTasks)-overdueToShow, myTasksURL, maxOverdueTasksInSlack), false, false),
 				nil,
 				nil,
 			))
@@ -93,6 +107,34 @@ func FormatWorkflowTaskDigestMessage(
 		Text:   fmt.Sprintf("Workflow task summary: overdue=%d, pending=%d", len(overdueTasks), len(pendingTasks)),
 		Blocks: blocks,
 	}, nil
+}
+
+func buildMoreOverdueTasksText(remaining int, myTasksURL string, maxOverdueTasksInSlack int) string {
+	if remaining <= 0 {
+		return ""
+	}
+
+	moreText := fmt.Sprintf("_Showing %d overdue tasks in Slack. There %s %d more overdue %s._", maxOverdueTasksInSlack, workflowPluralVerb(remaining), remaining, workflowPluralize(remaining, "task", "tasks"))
+	myTasksURL = strings.TrimSpace(myTasksURL)
+	if myTasksURL == "" {
+		return moreText
+	}
+
+	return moreText + fmt.Sprintf(" <%s|View all my tasks>", myTasksURL)
+}
+
+func workflowPluralVerb(n int) string {
+	if n == 1 {
+		return "is"
+	}
+	return "are"
+}
+
+func workflowPluralize(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
 }
 
 func formatWorkflowTaskDigestItem(task WorkflowTaskDigestItem) string {

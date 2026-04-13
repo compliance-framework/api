@@ -188,6 +188,9 @@ func MigrateUp(db *gorm.DB) error {
 	if err := migrateLegacyTaskDailyDigestSubscriptions(db); err != nil {
 		return err
 	}
+	if err := migrateLegacyRiskNotificationSubscriptions(db); err != nil {
+		return err
+	}
 
 	// Create functional index for case-insensitive control_id lookups in filter_controls join table
 	// This improves performance of UPPER(control_id) queries in the suggestion service
@@ -285,6 +288,28 @@ func migrateLegacyTaskDailyDigestSubscriptions(db *gorm.DB) error {
 	}
 
 	return db.Migrator().DropColumn(&relational.User{}, "task_daily_digest_subscribed")
+}
+
+func migrateLegacyRiskNotificationSubscriptions(db *gorm.DB) error {
+	// Nothing to migrate after the legacy column has been removed.
+	if !db.Migrator().HasColumn(&relational.User{}, "risk_notifications_subscribed") {
+		db.Logger.Info(
+			context.Background(),
+			"Skipping legacy risk notification subscription migration: ccf_users.risk_notifications_subscribed is already absent",
+		)
+		return nil
+	}
+
+	if err := backfillLegacyNotificationSubscriptions(
+		db,
+		"risk_notifications_subscribed",
+		notification.NotificationTypeRiskNotifications,
+		"risk notifications",
+	); err != nil {
+		return err
+	}
+
+	return db.Migrator().DropColumn(&relational.User{}, "risk_notifications_subscribed")
 }
 
 func backfillLegacyNotificationSubscriptions(db *gorm.DB, legacyColumn string, notificationType string, legacyLabel string) error {

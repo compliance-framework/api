@@ -33,6 +33,7 @@ type RiskOpenDigestSchedulerArgs struct{}
 type RiskReviewDueReminderArgs struct {
 	RiskID         uuid.UUID `json:"risk_id"`
 	OwnerUserID    uuid.UUID `json:"owner_user_id"`
+	Channel        string    `json:"channel,omitempty"`
 	ReviewDeadline string    `json:"review_deadline"`
 	ReminderWindow string    `json:"reminder_window"`
 }
@@ -40,6 +41,7 @@ type RiskReviewDueReminderArgs struct {
 type RiskReviewOverdueEscalationArgs struct {
 	RiskID         uuid.UUID `json:"risk_id"`
 	OwnerUserID    uuid.UUID `json:"owner_user_id"`
+	Channel        string    `json:"channel,omitempty"`
 	ReviewDeadline string    `json:"review_deadline"`
 	OverdueWindow  string    `json:"overdue_window"`
 }
@@ -47,6 +49,7 @@ type RiskReviewOverdueEscalationArgs struct {
 type RiskStaleOpenReminderArgs struct {
 	RiskID          uuid.UUID `json:"risk_id"`
 	OwnerUserID     uuid.UUID `json:"owner_user_id"`
+	Channel         string    `json:"channel,omitempty"`
 	LastSeenAt      string    `json:"last_seen_at"`
 	StaleBucketDate string    `json:"stale_bucket_date"`
 }
@@ -78,6 +81,7 @@ type RiskOrphanedCleanupArgs struct {
 
 type RiskOpenDigestArgs struct {
 	RecipientUserID uuid.UUID `json:"recipient_user_id"`
+	Channel         string    `json:"channel,omitempty"`
 	WindowStart     string    `json:"window_start"`
 	WindowEnd       string    `json:"window_end"`
 	WindowKind      string    `json:"window_kind"`

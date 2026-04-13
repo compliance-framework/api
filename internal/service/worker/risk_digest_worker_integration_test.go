@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/tests"
@@ -45,12 +46,16 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 
 	recipientID := uuid.New()
 	suite.Require().NoError(suite.DB.Model(&relational.User{}).Create(map[string]interface{}{
-		"id":                            recipientID,
-		"email":                         "recipient@example.com",
-		"first_name":                    "Recipient",
-		"last_name":                     "Owner",
-		"auth_method":                   "password",
-		"risk_notifications_subscribed": true,
+		"id":          recipientID,
+		"email":       "recipient@example.com",
+		"first_name":  "Recipient",
+		"last_name":   "Owner",
+		"auth_method": "password",
+	}).Error)
+	suite.Require().NoError(suite.DB.Create(&relational.UserNotificationSubscription{
+		UserID:           recipientID.String(),
+		NotificationType: notification.NotificationTypeRiskNotifications,
+		Channels:         []string{notification.DeliveryChannelEmail},
 	}).Error)
 
 	sspID := uuid.New()
@@ -121,11 +126,24 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 
 	err := scheduler.Work(ctx, &river.Job[RiskOpenDigestSchedulerArgs]{})
 	suite.Require().NoError(err)
-	suite.Require().Len(client.params, 1)
+	suite.Require().Len(client.params, 2)
 
-	jobArgs, ok := client.params[0].Args.(RiskOpenDigestArgs)
-	suite.Require().True(ok)
-	suite.Equal(recipientID, jobArgs.RecipientUserID)
+	var channels []string
+	var jobArgs RiskOpenDigestArgs
+	for _, param := range client.params {
+		args, ok := param.Args.(RiskOpenDigestArgs)
+		suite.Require().True(ok)
+		suite.Equal(recipientID, args.RecipientUserID)
+		channels = append(channels, args.Channel)
+		if args.Channel == notification.DeliveryChannelEmail {
+			jobArgs = args
+		}
+	}
+	suite.ElementsMatch(
+		[]string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
+		channels,
+	)
+	suite.Equal(notification.DeliveryChannelEmail, jobArgs.Channel)
 
 	mockEmail := &MockEmailService{}
 	mockEmail.On("UseTemplate", "risk-open-digest", mock.MatchedBy(func(data map[string]interface{}) bool {
@@ -149,7 +167,7 @@ func (suite *RiskOpenDigestIntegrationSuite) TestRiskOpenDigestSchedulerAndWorke
 		return len(msg.To) == 1 && msg.To[0] == "recipient@example.com"
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	worker := NewRiskOpenDigestWorker(suite.DB, mockEmail, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
+	worker := NewRiskOpenDigestWorker(suite.DB, mockEmail, nil, NewGORMUserRepository(suite.DB), suite.Config.WebBaseURL, suite.logger)
 	worker.now = func() time.Time { return now }
 
 	err = worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{Args: jobArgs})

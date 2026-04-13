@@ -40,16 +40,14 @@ type publicUserResponse struct {
 }
 
 type SubscriptionsResponse struct {
-	RiskNotificationsSubscribed bool `json:"riskNotificationsSubscribed"`
 	// Notifications maps notification types to delivery channels.
-	// Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+	// Supported types include taskAvailable, evidenceDigest, taskDailyDigest, and riskNotifications.
 	Notifications map[string][]string `json:"notifications"`
 }
 
 type UpdateSubscriptionsRequest struct {
-	RiskNotificationsSubscribed *bool `json:"riskNotificationsSubscribed"`
 	// Notifications maps notification types to delivery channels.
-	// Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+	// Supported types include taskAvailable, evidenceDigest, taskDailyDigest, and riskNotifications.
 	Notifications map[string][]string `json:"notifications"`
 }
 
@@ -578,7 +576,7 @@ func (h *UserHandler) ChangeLoggedInUserPassword(ctx echo.Context) error {
 // GetSubscriptions godoc
 //
 //	@Summary		Get notification preferences
-//	@Description	Gets the current user's digest and workflow notification email preferences
+//	@Description	Gets the current user's notification delivery preferences
 //	@Tags			Users
 //	@Produce		json
 //	@Success		200	{object}	handler.GenericDataResponse[handler.SubscriptionsResponse]
@@ -608,8 +606,7 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
-			Notifications:               notifications,
+			Notifications: notifications,
 		},
 	})
 }
@@ -617,7 +614,7 @@ func (h *UserHandler) GetSubscriptions(ctx echo.Context) error {
 // UpdateSubscriptions godoc
 //
 //	@Summary		Update notification preferences
-//	@Description	Updates the current user's digest and workflow notification email preferences
+//	@Description	Updates the current user's notification delivery preferences
 //	@Tags			Users
 //	@Accept			json
 //	@Produce		json
@@ -658,15 +655,6 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 		return ctx.JSON(500, api.NewError(err))
 	}
 
-	if req.RiskNotificationsSubscribed != nil {
-		user.RiskNotificationsSubscribed = *req.RiskNotificationsSubscribed
-	}
-
-	if err := h.db.Save(&user).Error; err != nil {
-		h.sugar.Errorw("Failed to update user subscriptions", "error", err)
-		return ctx.JSON(500, api.NewError(err))
-	}
-
 	if req.Notifications != nil {
 		if err := h.replaceUserNotificationSubscriptions(ctx.Request().Context(), user.ID.String(), normalizedNotifications); err != nil {
 			h.sugar.Errorw("Failed to update user notifications", "error", err)
@@ -683,14 +671,12 @@ func (h *UserHandler) UpdateSubscriptions(ctx echo.Context) error {
 	h.sugar.Debugw(
 		"User subscriptions updated",
 		"email", email,
-		"riskNotificationsSubscribed", user.RiskNotificationsSubscribed,
 		"notifications", notifications,
 	)
 
 	return ctx.JSON(200, GenericDataResponse[SubscriptionsResponse]{
 		Data: SubscriptionsResponse{
-			RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
-			Notifications:               notifications,
+			Notifications: notifications,
 		},
 	})
 }

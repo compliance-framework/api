@@ -66,12 +66,11 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (N
 	}
 
 	return NotificationUser{
-		ID:                          user.ID.String(),
-		Email:                       user.Email,
-		FirstName:                   user.FirstName,
-		LastName:                    user.LastName,
-		SlackUserID:                 slackUserID,
-		NotificationSubscriptions:   subscriptions,
-		RiskNotificationsSubscribed: user.RiskNotificationsSubscribed,
+		ID:                        user.ID.String(),
+		Email:                     user.Email,
+		FirstName:                 user.FirstName,
+		LastName:                  user.LastName,
+		SlackUserID:               slackUserID,
+		NotificationSubscriptions: subscriptions,
 	}, nil
 }

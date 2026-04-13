@@ -27,10 +27,6 @@ type User struct {
 
 	AuthMethod     string `json:"authMethod"`
 	UserAttributes string `json:"userAttributes"`
-
-	// RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.
-	// The DB default is intentionally true so existing users are opted in when the column is introduced.
-	RiskNotificationsSubscribed bool `json:"riskNotificationsSubscribed" gorm:"default:true"`
 }
 
 func (User) TableName() string {
