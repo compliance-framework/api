@@ -61,8 +61,8 @@ type RiskReviewOverdueReopenArgs struct {
 	ThresholdDays  int       `json:"threshold_days"`
 }
 
-// RiskOrphanedCleanupArgs is enqueued by the SSP profile attach/update endpoints whenever
-// the profile binding changes. The worker resolves the new profile's control set and
+// RiskOrphanedCleanupArgs is enqueued by the SSP profile attach endpoint whenever the
+// profile binding changes. The worker resolves the current profile's control set and
 // transitions any open auto-generated risks whose controls are no longer present to remediated.
 //
 // Deduplication uses river:"unique" tags on ssp_id and new_profile_id only. OldProfileID

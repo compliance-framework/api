@@ -1465,8 +1465,14 @@ func (s *RiskService) RemediateOrphanedRisks(
 		}
 
 		oldStatus := risk.Status
-		if err := tx.Model(risk).Update("status", string(RiskStatusRemediated)).Error; err != nil {
-			return remediated, fmt.Errorf("remediate orphaned risks: update status failed for risk %s: %w", *risk.ID, err)
+		result := tx.Model(&Risk{}).
+			Where("id = ? AND status = ?", *risk.ID, oldStatus).
+			Update("status", string(RiskStatusRemediated))
+		if result.Error != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: update status failed for risk %s: %w", *risk.ID, result.Error)
+		}
+		if result.RowsAffected == 0 {
+			continue
 		}
 
 		payload := datatypes.JSONMap{
