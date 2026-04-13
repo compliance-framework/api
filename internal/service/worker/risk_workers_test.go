@@ -3,12 +3,15 @@ package worker
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -106,12 +109,31 @@ func createTestRiskWithOwner(t *testing.T, db *gorm.DB, status riskrel.RiskStatu
 func createTestUser(t *testing.T, db *gorm.DB, id uuid.UUID, subscribed bool) {
 	t.Helper()
 	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
-		"id":                            id,
-		"email":                         id.String() + "@example.com",
-		"first_name":                    "Risk",
-		"last_name":                     "Owner",
-		"auth_method":                   "password",
-		"risk_notifications_subscribed": subscribed,
+		"id":          id,
+		"email":       id.String() + "@example.com",
+		"first_name":  "Risk",
+		"last_name":   "Owner",
+		"auth_method": "password",
+	}).Error)
+	if !subscribed {
+		return
+	}
+	createTestUserRiskChannels(t, db, id, []string{notification.DeliveryChannelEmail}, "")
+}
+
+func createTestUserRiskChannels(t *testing.T, db *gorm.DB, id uuid.UUID, channels []string, slackUserID string) {
+	t.Helper()
+	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
+		UserID:           id.String(),
+		NotificationType: notification.NotificationTypeRiskNotifications,
+		Channels:         channels,
+	}).Error)
+	if slackUserID == "" {
+		return
+	}
+	require.NoError(t, db.Create(&relational.SlackUserLink{
+		UserID:      id.String(),
+		SlackUserID: slackUserID,
 	}).Error)
 }
 
@@ -374,7 +396,7 @@ func TestRiskReviewDueReminderWorker_RespectsRiskSubscription(t *testing.T) {
 
 	mockEmail := &MockEmailService{}
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 
 	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
 		Args: RiskReviewDueReminderArgs{
@@ -402,7 +424,7 @@ func TestRiskReviewDueReminderWorker_SendsWhenSubscribed(t *testing.T) {
 	})).Return(&types.SendResult{Success: true, MessageID: "risk-msg"}, nil)
 
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
@@ -411,6 +433,38 @@ func TestRiskReviewDueReminderWorker_SendsWhenSubscribed(t *testing.T) {
 	})
 	require.NoError(t, err)
 	mockEmail.AssertExpectations(t)
+}
+
+func TestRiskReviewDueReminderWorker_SlackSubscribed_SendsSlack(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Now().UTC()
+	reviewDeadline := now.Add(7 * 24 * time.Hour)
+	risk, ownerID := createTestRiskWithOwner(t, db, riskrel.RiskStatusRiskAccepted, &reviewDeadline, now)
+	createTestUser(t, db, ownerID, false)
+	createTestUserRiskChannels(t, db, ownerID, []string{notification.DeliveryChannelSlack}, "URISKDUE")
+
+	mockEmail := &MockEmailService{}
+	mockSlack := &MockSlackService{}
+	mockSlack.On("IsEnabled").Return(true).Once()
+	mockSlack.On("SendMessage", mock.Anything, "URISKDUE", mock.MatchedBy(func(msg *slacktypes.Message) bool {
+		return msg != nil &&
+			strings.Contains(msg.Text, "Risk Review Due Soon") &&
+			len(msg.Blocks) > 0
+	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "risk-slack-msg"}, nil).Once()
+
+	userRepo := NewGORMUserRepository(db)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, mockSlack, userRepo, "https://app.example.com", logger)
+	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
+		Args: RiskReviewDueReminderArgs{
+			RiskID:      *risk.ID,
+			OwnerUserID: ownerID,
+		},
+	})
+	require.NoError(t, err)
+	mockSlack.AssertExpectations(t)
+	mockEmail.AssertNotCalled(t, "UseTemplate", mock.Anything, mock.Anything)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
 }
 
 func TestRiskReviewDueReminderWorker_TemplateError_ReturnsError(t *testing.T) {
@@ -425,7 +479,7 @@ func TestRiskReviewDueReminderWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockEmail.On("UseTemplate", "risk-review-due-reminder", mock.Anything).Return("", "", errors.New("template boom"))
 
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
@@ -453,7 +507,7 @@ func TestRiskReviewDueReminderWorker_SendUnsuccessful_ReturnsError(t *testing.T)
 		Return(&types.SendResult{Success: false, Error: "provider refused"}, nil)
 
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
@@ -473,7 +527,7 @@ func TestRiskReviewDueReminderWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockEmail := &MockEmailService{}
 	userRepo := &stubUserRepository{err: gorm.ErrRecordNotFound}
-	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
@@ -493,7 +547,7 @@ func TestRiskReviewDueReminderWorker_UserLookupError_ReturnsError(t *testing.T) 
 
 	mockEmail := &MockEmailService{}
 	userRepo := &stubUserRepository{err: errors.New("database unavailable")}
-	worker := NewRiskReviewDueReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewDueReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewDueReminderArgs]{
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
@@ -523,7 +577,7 @@ func TestRiskReviewOverdueEscalationWorker_SendsWhenSubscribed(t *testing.T) {
 	})).Return(&types.SendResult{Success: true, MessageID: "risk-overdue-msg"}, nil)
 
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskReviewOverdueEscalationWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewOverdueEscalationWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewOverdueEscalationArgs]{
 		Args: RiskReviewOverdueEscalationArgs{
 			RiskID:      *risk.ID,
@@ -544,7 +598,7 @@ func TestRiskReviewOverdueEscalationWorker_RespectsRiskSubscription(t *testing.T
 
 	mockEmail := &MockEmailService{}
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskReviewOverdueEscalationWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskReviewOverdueEscalationWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskReviewOverdueEscalationArgs]{
 		Args: RiskReviewOverdueEscalationArgs{
 			RiskID:      *risk.ID,
@@ -572,7 +626,7 @@ func TestRiskStaleOpenReminderWorker_SendsWhenSubscribed(t *testing.T) {
 	})).Return(&types.SendResult{Success: true, MessageID: "risk-stale-msg"}, nil)
 
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskStaleOpenReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskStaleOpenReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskStaleOpenReminderArgs]{
 		Args: RiskStaleOpenReminderArgs{
 			RiskID:      *risk.ID,
@@ -592,7 +646,7 @@ func TestRiskStaleOpenReminderWorker_RespectsRiskSubscription(t *testing.T) {
 
 	mockEmail := &MockEmailService{}
 	userRepo := NewGORMUserRepository(db)
-	worker := NewRiskStaleOpenReminderWorker(db, mockEmail, userRepo, "https://app.example.com", logger)
+	worker := NewRiskStaleOpenReminderWorker(db, mockEmail, nil, userRepo, "https://app.example.com", logger)
 	err := worker.Work(context.Background(), &river.Job[RiskStaleOpenReminderArgs]{
 		Args: RiskStaleOpenReminderArgs{
 			RiskID:      *risk.ID,

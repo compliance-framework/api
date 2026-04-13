@@ -100,3 +100,41 @@ func TestBackfillLegacyNotificationSubscriptions(t *testing.T) {
 	)
 	assert.Zero(t, noSubscriptionCount)
 }
+
+func TestBackfillLegacyRiskNotificationSubscriptions(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&relational.User{}, &relational.UserNotificationSubscription{}))
+	require.NoError(t, db.Exec(`ALTER TABLE ccf_users ADD COLUMN risk_notifications_subscribed BOOLEAN`).Error)
+
+	user := relational.User{
+		Email:      "legacy-risk@example.com",
+		FirstName:  "Legacy",
+		LastName:   "Risk",
+		AuthMethod: "password",
+		IsActive:   true,
+	}
+	require.NoError(t, user.SetPassword("Pa55w0rd"))
+	require.NoError(t, db.Create(&user).Error)
+	require.NoError(t,
+		db.Table("ccf_users").
+			Where("id = ?", user.ID.String()).
+			Update("risk_notifications_subscribed", true).
+			Error,
+	)
+
+	require.NoError(t, migrateLegacyRiskNotificationSubscriptions(db))
+
+	var rows []relational.UserNotificationSubscription
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1)
+	assert.Equal(t, notification.NotificationTypeRiskNotifications, rows[0].NotificationType)
+	assert.Equal(t, []string{notification.DeliveryChannelEmail}, []string(rows[0].Channels))
+	assert.Equal(t, user.ID.String(), rows[0].UserID)
+
+	require.NoError(t, migrateLegacyRiskNotificationSubscriptions(db))
+
+	var count int64
+	require.NoError(t, db.Model(&relational.UserNotificationSubscription{}).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+}

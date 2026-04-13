@@ -1572,10 +1572,8 @@ definitions:
           type: array
         description: |-
           Notifications maps notification types to delivery channels.
-          Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+          Supported types include taskAvailable, evidenceDigest, taskDailyDigest, and riskNotifications.
         type: object
-      riskNotificationsSubscribed:
-        type: boolean
     type: object
   handler.UpdateSubscriptionsRequest:
     properties:
@@ -1586,10 +1584,8 @@ definitions:
           type: array
         description: |-
           Notifications maps notification types to delivery channels.
-          Supported types include taskAvailable, evidenceDigest, and taskDailyDigest.
+          Supported types include taskAvailable, evidenceDigest, taskDailyDigest, and riskNotifications.
         type: object
-      riskNotificationsSubscribed:
-        type: boolean
     type: object
   handler.UserHandler:
     type: object
@@ -7343,11 +7339,6 @@ definitions:
         type: string
       lastName:
         type: string
-      riskNotificationsSubscribed:
-        description: |-
-          RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.
-          The DB default is intentionally true so existing users are opted in when the column is introduced.
-        type: boolean
       updatedAt:
         type: string
       userAttributes:
@@ -23894,8 +23885,7 @@ paths:
       - Users
   /users/me/subscriptions:
     get:
-      description: Gets the current user's digest and workflow notification email
-        preferences
+      description: Gets the current user's notification delivery preferences
       produces:
       - application/json
       responses:
@@ -23923,8 +23913,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Updates the current user's digest and workflow notification email
-        preferences
+      description: Updates the current user's notification delivery preferences
       parameters:
       - description: Notification preferences
         in: body

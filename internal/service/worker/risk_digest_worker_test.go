@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
@@ -268,11 +270,16 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 	mockRepo := &MockUserRepository{}
 	ctx := context.Background()
 	mockRepo.On("FindUserByID", ctx, recipientID.String()).Return(NotificationUser{
-		ID:                          recipientID.String(),
-		Email:                       "recipient@example.com",
-		FirstName:                   "Recipient",
-		LastName:                    "Owner",
-		RiskNotificationsSubscribed: true,
+		ID:        recipientID.String(),
+		Email:     "recipient@example.com",
+		FirstName: "Recipient",
+		LastName:  "Owner",
+		NotificationSubscriptions: []NotificationSubscription{
+			{
+				NotificationType: notification.NotificationTypeRiskNotifications,
+				Channels:         []string{notification.DeliveryChannelEmail},
+			},
+		},
 	}, nil)
 	mockEmail.On("UseTemplate", "risk-open-digest", mock.MatchedBy(func(data map[string]interface{}) bool {
 		newItems, ok := data["NewSinceLastDigest"].([]RiskDigestEmailItem)
@@ -305,7 +312,7 @@ func TestRiskOpenDigestWorker_SendsGroupedDigest(t *testing.T) {
 		return len(msg.To) == 1 && msg.To[0] == "recipient@example.com" && strings.Contains(msg.Subject, "risk digest")
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-1"}, nil)
 
-	worker := NewRiskOpenDigestWorker(db, mockEmail, mockRepo, "https://app.example.com", logger)
+	worker := NewRiskOpenDigestWorker(db, mockEmail, nil, mockRepo, "https://app.example.com", logger)
 	worker.now = func() time.Time { return now }
 
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
@@ -329,13 +336,12 @@ func TestRiskOpenDigestWorker_UnsubscribedUser_Skips(t *testing.T) {
 	recipientID := uuid.New()
 
 	mockRepo.On("FindUserByID", ctx, recipientID.String()).Return(NotificationUser{
-		ID:                          recipientID.String(),
-		Email:                       "recipient@example.com",
-		FirstName:                   "Recipient",
-		RiskNotificationsSubscribed: false,
+		ID:        recipientID.String(),
+		Email:     "recipient@example.com",
+		FirstName: "Recipient",
 	}, nil)
 
-	worker := NewRiskOpenDigestWorker(newRiskWorkersTestDB(t), mockEmail, mockRepo, "https://app.example.com", logger)
+	worker := NewRiskOpenDigestWorker(newRiskWorkersTestDB(t), mockEmail, nil, mockRepo, "https://app.example.com", logger)
 	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
 		Args: RiskOpenDigestArgs{
 			RecipientUserID: recipientID,
@@ -346,6 +352,80 @@ func TestRiskOpenDigestWorker_UnsubscribedUser_Skips(t *testing.T) {
 	})
 	require.NoError(t, err)
 	mockEmail.AssertNotCalled(t, "Send")
+}
+
+func TestRiskOpenDigestWorker_SlackSubscribed_SendsSlack(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	logger := zap.NewNop().Sugar()
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	windowStart := time.Date(2026, 3, 22, 0, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC)
+
+	recipientID := uuid.New()
+	createTestUser(t, db, recipientID, false)
+
+	sspID := uuid.New()
+	require.NoError(t, db.Create(&relational.SystemSecurityPlan{
+		UUIDModel: relational.UUIDModel{ID: &sspID},
+	}).Error)
+	require.NoError(t, db.Create(&relational.SystemCharacteristics{
+		SystemSecurityPlanId: sspID,
+		SystemNameShort:      "Digest SSP",
+	}).Error)
+
+	createDigestRisk(t, db, digestRiskSeed{
+		ID:                 uuid.New(),
+		SSPID:              sspID,
+		PrimaryOwnerUserID: &recipientID,
+		Title:              "Fresh risk",
+		Status:             string(riskrel.RiskStatusOpen),
+		Likelihood:         strPtr("moderate"),
+		Impact:             strPtr("high"),
+		CreatedAt:          now.Add(-20 * time.Hour),
+		LastSeenAt:         now.Add(-20 * time.Hour),
+		Assignments:        []uuid.UUID{recipientID},
+	})
+
+	mockEmail := &MockEmailService{}
+	mockSlack := &MockSlackService{}
+	mockRepo := &MockUserRepository{}
+	ctx := context.Background()
+	mockRepo.On("FindUserByID", ctx, recipientID.String()).Return(NotificationUser{
+		ID:          recipientID.String(),
+		Email:       "recipient@example.com",
+		FirstName:   "Recipient",
+		LastName:    "Owner",
+		SlackUserID: "URISKDIGEST",
+		NotificationSubscriptions: []NotificationSubscription{
+			{
+				NotificationType: notification.NotificationTypeRiskNotifications,
+				Channels:         []string{notification.DeliveryChannelSlack},
+			},
+		},
+	}, nil)
+	mockSlack.On("IsEnabled").Return(true).Once()
+	mockSlack.On("SendMessage", ctx, "URISKDIGEST", mock.MatchedBy(func(msg *slacktypes.Message) bool {
+		return msg != nil &&
+			strings.Contains(msg.Text, "Risk digest:") &&
+			len(msg.Blocks) > 0
+	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-digest-1"}, nil).Once()
+
+	worker := NewRiskOpenDigestWorker(db, mockEmail, mockSlack, mockRepo, "https://app.example.com", logger)
+	worker.now = func() time.Time { return now }
+
+	err := worker.Work(ctx, &river.Job[RiskOpenDigestArgs]{
+		Args: RiskOpenDigestArgs{
+			RecipientUserID: recipientID,
+			WindowStart:     windowStart.Format(time.RFC3339),
+			WindowEnd:       windowEnd.Format(time.RFC3339),
+			WindowKind:      riskDigestWindowDaily,
+		},
+	})
+	require.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+	mockSlack.AssertExpectations(t)
+	mockEmail.AssertNotCalled(t, "UseTemplate", mock.Anything, mock.Anything)
+	mockEmail.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
 }
 
 type digestRiskSeed struct {

@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
+	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
@@ -51,6 +53,14 @@ type riskDigestWindow struct {
 	PeriodTag string
 }
 
+type RiskOpenDigestPlan struct {
+	WindowKind       string
+	WindowStart      time.Time
+	WindowEnd        time.Time
+	WindowByPeriod   time.Duration
+	RecipientUserIDs []uuid.UUID
+}
+
 type RiskDigestEmailItem struct {
 	Title          string
 	SSPName        string
@@ -67,6 +77,40 @@ type riskDigestClassification struct {
 	Stale              []RiskDigestEmailItem
 	OverdueReview      []RiskDigestEmailItem
 	DueForReview       []RiskDigestEmailItem
+}
+
+type riskDigestNotificationData struct {
+	RecipientName       string
+	PeriodLabel         string
+	NewSinceLastDigest  []RiskDigestEmailItem
+	OverdueForAction    []RiskDigestEmailItem
+	StaleRisks          []RiskDigestEmailItem
+	OverdueReview       []RiskDigestEmailItem
+	DueForReview        []RiskDigestEmailItem
+	RisksURL            string
+	HasNewSinceLast     bool
+	HasOverdueForAction bool
+	HasStaleRisks       bool
+	HasOverdueReview    bool
+	HasDueForReview     bool
+}
+
+func (d riskDigestNotificationData) templateData() map[string]interface{} {
+	return map[string]interface{}{
+		"RecipientName":       d.RecipientName,
+		"PeriodLabel":         d.PeriodLabel,
+		"NewSinceLastDigest":  d.NewSinceLastDigest,
+		"OverdueForAction":    d.OverdueForAction,
+		"StaleRisks":          d.StaleRisks,
+		"OverdueReview":       d.OverdueReview,
+		"DueForReview":        d.DueForReview,
+		"RisksURL":            d.RisksURL,
+		"HasNewSinceLast":     d.HasNewSinceLast,
+		"HasOverdueForAction": d.HasOverdueForAction,
+		"HasStaleRisks":       d.HasStaleRisks,
+		"HasOverdueReview":    d.HasOverdueReview,
+		"HasDueForReview":     d.HasDueForReview,
+	}
 }
 
 func (c riskDigestClassification) Empty() bool {
@@ -96,30 +140,25 @@ func NewRiskOpenDigestSchedulerWorker(db *gorm.DB, client workflow.RiverClient, 
 }
 
 func (w *RiskOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[RiskOpenDigestSchedulerArgs]) error {
-	window, err := computeRiskDigestWindow(w.now().UTC(), w.windowKind)
+	plan, err := BuildRiskOpenDigestPlan(ctx, w.db, w.windowKind, w.now().UTC(), w.logger)
 	if err != nil {
-		return fmt.Errorf("risk open digest scheduler: invalid window: %w", err)
+		return fmt.Errorf("risk open digest scheduler: %w", err)
 	}
-
-	recipientIDs, err := resolveRiskDigestRecipientUserIDs(ctx, w.db, w.logger)
-	if err != nil {
-		return fmt.Errorf("risk open digest scheduler: resolve recipients failed: %w", err)
-	}
-	if len(recipientIDs) == 0 {
+	if len(plan.RecipientUserIDs) == 0 {
 		w.logger.Infow("RiskOpenDigestSchedulerWorker: no recipients found")
 		return nil
 	}
 
-	params := make([]river.InsertManyParams, 0, len(recipientIDs))
-	for _, recipientID := range recipientIDs {
+	params := make([]river.InsertManyParams, 0, len(plan.RecipientUserIDs))
+	for _, recipientID := range plan.RecipientUserIDs {
 		params = append(params, river.InsertManyParams{
 			Args: RiskOpenDigestArgs{
 				RecipientUserID: recipientID,
-				WindowStart:     window.Start.Format(time.RFC3339),
-				WindowEnd:       window.End.Format(time.RFC3339),
-				WindowKind:      window.Kind,
+				WindowStart:     plan.WindowStart.Format(time.RFC3339),
+				WindowEnd:       plan.WindowEnd.Format(time.RFC3339),
+				WindowKind:      plan.WindowKind,
 			},
-			InsertOpts: JobInsertOptionsForRiskDigest(window.ByPeriod),
+			InsertOpts: JobInsertOptionsForRiskDigest(plan.WindowByPeriod),
 		})
 	}
 
@@ -128,27 +167,55 @@ func (w *RiskOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[R
 	}
 
 	w.logger.Infow("RiskOpenDigestSchedulerWorker: enqueued digest jobs",
-		"recipient_count", len(recipientIDs),
-		"window_kind", window.Kind,
-		"window_start", window.Start,
-		"window_end", window.End,
+		"recipient_count", len(plan.RecipientUserIDs),
+		"window_kind", plan.WindowKind,
+		"window_start", plan.WindowStart,
+		"window_end", plan.WindowEnd,
 	)
 	return nil
+}
+
+func BuildRiskOpenDigestPlan(
+	ctx context.Context,
+	db *gorm.DB,
+	windowKind string,
+	now time.Time,
+	logger *zap.SugaredLogger,
+) (*RiskOpenDigestPlan, error) {
+	window, err := computeRiskDigestWindow(now.UTC(), windowKind)
+	if err != nil {
+		return nil, fmt.Errorf("invalid window: %w", err)
+	}
+
+	recipientIDs, err := resolveRiskDigestRecipientUserIDs(ctx, db, logger)
+	if err != nil {
+		return nil, fmt.Errorf("resolve recipients failed: %w", err)
+	}
+
+	return &RiskOpenDigestPlan{
+		WindowKind:       window.Kind,
+		WindowStart:      window.Start,
+		WindowEnd:        window.End,
+		WindowByPeriod:   window.ByPeriod,
+		RecipientUserIDs: recipientIDs,
+	}, nil
 }
 
 type RiskOpenDigestWorker struct {
 	db           *gorm.DB
 	emailService EmailService
+	slackService SlackService
 	userRepo     UserRepository
 	webBaseURL   string
 	logger       *zap.SugaredLogger
 	now          func() time.Time
 }
 
-func NewRiskOpenDigestWorker(db *gorm.DB, emailService EmailService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskOpenDigestWorker {
+func NewRiskOpenDigestWorker(db *gorm.DB, emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *RiskOpenDigestWorker {
 	return &RiskOpenDigestWorker{
 		db:           db,
 		emailService: emailService,
+		slackService: slackService,
 		userRepo:     userRepo,
 		webBaseURL:   webBaseURL,
 		logger:       logger,
@@ -167,8 +234,13 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		)
 		return nil
 	}
-	if !user.RiskNotificationsSubscribed {
-		w.logger.Debugw("RiskOpenDigestWorker: user unsubscribed, skipping", "user_id", args.RecipientUserID)
+	channels, ok := selectUserNotificationChannels(
+		user,
+		notification.NotificationTypeRiskNotifications,
+		"",
+	)
+	if !ok || len(channels) == 0 {
+		w.logger.Debugw("RiskOpenDigestWorker: user not subscribed to risk notifications, skipping", "user_id", args.RecipientUserID)
 		return nil
 	}
 	if w.db == nil {
@@ -198,23 +270,44 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		return nil
 	}
 
-	templateData := map[string]interface{}{
-		"RecipientName":       user.FullName(),
-		"PeriodLabel":         formatRiskDigestPeriodLabel(window),
-		"NewSinceLastDigest":  classification.NewSinceLastDigest,
-		"OverdueForAction":    classification.OverdueForAction,
-		"StaleRisks":          classification.Stale,
-		"OverdueReview":       classification.OverdueReview,
-		"DueForReview":        classification.DueForReview,
-		"RisksURL":            strings.TrimRight(w.webBaseURL, "/") + "/risks",
-		"HasNewSinceLast":     len(classification.NewSinceLastDigest) > 0,
-		"HasOverdueForAction": len(classification.OverdueForAction) > 0,
-		"HasStaleRisks":       len(classification.Stale) > 0,
-		"HasOverdueReview":    len(classification.OverdueReview) > 0,
-		"HasDueForReview":     len(classification.DueForReview) > 0,
+	data := riskDigestNotificationData{
+		RecipientName:       user.FullName(),
+		PeriodLabel:         formatRiskDigestPeriodLabel(window),
+		NewSinceLastDigest:  classification.NewSinceLastDigest,
+		OverdueForAction:    classification.OverdueForAction,
+		StaleRisks:          classification.Stale,
+		OverdueReview:       classification.OverdueReview,
+		DueForReview:        classification.DueForReview,
+		RisksURL:            strings.TrimRight(w.webBaseURL, "/") + "/risks",
+		HasNewSinceLast:     len(classification.NewSinceLastDigest) > 0,
+		HasOverdueForAction: len(classification.OverdueForAction) > 0,
+		HasStaleRisks:       len(classification.Stale) > 0,
+		HasOverdueReview:    len(classification.OverdueReview) > 0,
+		HasDueForReview:     len(classification.DueForReview) > 0,
 	}
 
-	htmlBody, textBody, err := w.emailService.UseTemplate("risk-open-digest", templateData)
+	for _, channel := range channels {
+		switch channel {
+		case notification.DeliveryChannelEmail:
+			if err := w.sendEmail(ctx, user, data); err != nil {
+				return err
+			}
+		case notification.DeliveryChannelSlack:
+			if err := w.sendSlack(ctx, user, data); err != nil {
+				return err
+			}
+		default:
+			w.logger.Debugw("RiskOpenDigestWorker: unsupported channel, skipping",
+				"user_id", args.RecipientUserID,
+				"channel", channel,
+			)
+		}
+	}
+	return nil
+}
+
+func (w *RiskOpenDigestWorker) sendEmail(ctx context.Context, user NotificationUser, data riskDigestNotificationData) error {
+	htmlBody, textBody, err := w.emailService.UseTemplate("risk-open-digest", data.templateData())
 	if err != nil {
 		return fmt.Errorf("risk open digest: render template failed: %w", err)
 	}
@@ -236,15 +329,82 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 	}
 
 	w.logger.Infow("RiskOpenDigestWorker: digest email sent",
-		"user_id", args.RecipientUserID,
-		"new_count", len(classification.NewSinceLastDigest),
-		"overdue_count", len(classification.OverdueForAction),
-		"stale_count", len(classification.Stale),
-		"overdue_review_count", len(classification.OverdueReview),
-		"due_review_count", len(classification.DueForReview),
+		"user_id", user.ID,
+		"new_count", len(data.NewSinceLastDigest),
+		"overdue_count", len(data.OverdueForAction),
+		"stale_count", len(data.StaleRisks),
+		"overdue_review_count", len(data.OverdueReview),
+		"due_review_count", len(data.DueForReview),
 		"message_id", result.MessageID,
 	)
 	return nil
+}
+
+func (w *RiskOpenDigestWorker) sendSlack(ctx context.Context, user NotificationUser, data riskDigestNotificationData) error {
+	if w.slackService == nil || !w.slackService.IsEnabled() {
+		w.logger.Debugw("RiskOpenDigestWorker: slack service not configured, skipping", "user_id", user.ID)
+		return nil
+	}
+
+	slackUserID := strings.TrimSpace(user.SlackUserID)
+	if slackUserID == "" {
+		w.logger.Debugw("RiskOpenDigestWorker: user has no Slack link, skipping", "user_id", user.ID)
+		return nil
+	}
+
+	message, err := slackformatters.FormatRiskOpenDigestMessage(
+		user.FullName(),
+		data.PeriodLabel,
+		toSlackRiskDigestItems(data.NewSinceLastDigest),
+		toSlackRiskDigestItems(data.OverdueForAction),
+		toSlackRiskDigestItems(data.StaleRisks),
+		toSlackRiskDigestItems(data.OverdueReview),
+		toSlackRiskDigestItems(data.DueForReview),
+		data.RisksURL,
+	)
+	if err != nil {
+		return fmt.Errorf("risk open digest: format slack message failed: %w", err)
+	}
+
+	result, err := w.slackService.SendMessage(ctx, slackUserID, message)
+	if err != nil {
+		return fmt.Errorf("risk open digest: send slack message failed: %w", err)
+	}
+	if !result.Success {
+		return fmt.Errorf("risk open digest: slack message send failed: %s", result.Error)
+	}
+
+	w.logger.Infow("RiskOpenDigestWorker: digest Slack message sent",
+		"user_id", user.ID,
+		"slack_user_id", slackUserID,
+		"new_count", len(data.NewSinceLastDigest),
+		"overdue_count", len(data.OverdueForAction),
+		"stale_count", len(data.StaleRisks),
+		"overdue_review_count", len(data.OverdueReview),
+		"due_review_count", len(data.DueForReview),
+		"delivery_id", result.DeliveryID,
+	)
+	return nil
+}
+
+func toSlackRiskDigestItems(items []RiskDigestEmailItem) []slackformatters.RiskDigestItem {
+	if len(items) == 0 {
+		return nil
+	}
+
+	out := make([]slackformatters.RiskDigestItem, 0, len(items))
+	for i := range items {
+		out = append(out, slackformatters.RiskDigestItem{
+			Title:          items[i].Title,
+			SSPName:        items[i].SSPName,
+			Status:         items[i].Status,
+			Severity:       items[i].Severity,
+			OwnerName:      items[i].OwnerName,
+			ReviewDeadline: items[i].ReviewDeadline,
+			RiskURL:        items[i].RiskURL,
+		})
+	}
+	return out
 }
 
 func computeRiskDigestWindow(now time.Time, windowKind string) (riskDigestWindow, error) {
