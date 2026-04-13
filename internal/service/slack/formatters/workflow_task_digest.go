@@ -62,7 +62,7 @@ func FormatWorkflowTaskDigestMessage(
 
 		if len(overdueTasks) > overdueToShow {
 			blocks = append(blocks, slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, buildMoreOverdueTasksText(len(overdueTasks)-overdueToShow, myTasksURL), false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, buildMoreOverdueTasksText(len(overdueTasks)-overdueToShow, myTasksURL, maxOverdueTasksInSlack), false, false),
 				nil,
 				nil,
 			))
@@ -109,12 +109,12 @@ func FormatWorkflowTaskDigestMessage(
 	}, nil
 }
 
-func buildMoreOverdueTasksText(remaining int, myTasksURL string) string {
+func buildMoreOverdueTasksText(remaining int, myTasksURL string, maxOverdueTasksInSlack int) string {
 	if remaining <= 0 {
 		return ""
 	}
 
-	moreText := fmt.Sprintf("_Showing 4 overdue tasks in Slack. There %s %d more overdue %s._", workflowPluralVerb(remaining), remaining, workflowPluralize(remaining, "task", "tasks"))
+	moreText := fmt.Sprintf("_Showing %d overdue tasks in Slack. There %s %d more overdue %s._", maxOverdueTasksInSlack, workflowPluralVerb(remaining), remaining, workflowPluralize(remaining, "task", "tasks"))
 	myTasksURL = strings.TrimSpace(myTasksURL)
 	if myTasksURL == "" {
 		return moreText

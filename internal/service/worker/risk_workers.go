@@ -72,7 +72,8 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 				return fmt.Errorf("risk deadline reminder scanner: resolve owners failed: %w", err)
 			}
 
-			params := make([]river.InsertManyParams, 0, len(risks))
+			channels := allWorkflowNotificationChannels()
+			params := make([]river.InsertManyParams, 0, len(risks)*len(channels))
 			for i := range risks {
 				risk := &risks[i]
 				if risk.ID == nil {
@@ -80,15 +81,18 @@ func (w *RiskReviewDeadlineReminderScannerWorker) Work(ctx context.Context, _ *r
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
 				for _, ownerID := range ownerIDs {
-					params = append(params, river.InsertManyParams{
-						Args: RiskReviewDueReminderArgs{
-							RiskID:         *risk.ID,
-							OwnerUserID:    ownerID,
-							ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-							ReminderWindow: "30d",
-						},
-						InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
-					})
+					for _, channel := range channels {
+						params = append(params, river.InsertManyParams{
+							Args: RiskReviewDueReminderArgs{
+								RiskID:         *risk.ID,
+								OwnerUserID:    ownerID,
+								Channel:        channel,
+								ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+								ReminderWindow: "30d",
+							},
+							InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
+						})
+					}
 				}
 			}
 
@@ -156,7 +160,8 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 				return fmt.Errorf("risk overdue escalation scanner: resolve owners failed: %w", err)
 			}
 
-			params := make([]river.InsertManyParams, 0, len(risks))
+			channels := allWorkflowNotificationChannels()
+			params := make([]river.InsertManyParams, 0, len(risks)*len(channels))
 			overdueWindow := now.Format("2006-01-02")
 			for i := range risks {
 				risk := &risks[i]
@@ -165,15 +170,18 @@ func (w *RiskReviewOverdueEscalationScannerWorker) Work(ctx context.Context, _ *
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
 				for _, ownerID := range ownerIDs {
-					params = append(params, river.InsertManyParams{
-						Args: RiskReviewOverdueEscalationArgs{
-							RiskID:         *risk.ID,
-							OwnerUserID:    ownerID,
-							ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
-							OverdueWindow:  overdueWindow,
-						},
-						InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
-					})
+					for _, channel := range channels {
+						params = append(params, river.InsertManyParams{
+							Args: RiskReviewOverdueEscalationArgs{
+								RiskID:         *risk.ID,
+								OwnerUserID:    ownerID,
+								Channel:        channel,
+								ReviewDeadline: risk.ReviewDeadline.UTC().Format(time.RFC3339),
+								OverdueWindow:  overdueWindow,
+							},
+							InsertOpts: JobInsertOptionsForRiskNotification(24 * time.Hour),
+						})
+					}
 				}
 
 				if w.autoReopenEnabled && w.autoReopenThresholdDays > 0 {
@@ -248,7 +256,8 @@ func (w *RiskStaleRiskScannerWorker) Work(ctx context.Context, _ *river.Job[Risk
 				return fmt.Errorf("risk stale scanner: resolve owners failed: %w", err)
 			}
 
-			params := make([]river.InsertManyParams, 0, len(risks))
+			channels := allWorkflowNotificationChannels()
+			params := make([]river.InsertManyParams, 0, len(risks)*len(channels))
 			for i := range risks {
 				risk := &risks[i]
 				if risk.ID == nil {
@@ -256,15 +265,18 @@ func (w *RiskStaleRiskScannerWorker) Work(ctx context.Context, _ *river.Job[Risk
 				}
 				ownerIDs := ownersByRiskID[*risk.ID]
 				for _, ownerID := range ownerIDs {
-					params = append(params, river.InsertManyParams{
-						Args: RiskStaleOpenReminderArgs{
-							RiskID:          *risk.ID,
-							OwnerUserID:     ownerID,
-							LastSeenAt:      risk.LastSeenAt.UTC().Format(time.RFC3339),
-							StaleBucketDate: staleBucketDate,
-						},
-						InsertOpts: JobInsertOptionsForRiskNotification(7 * 24 * time.Hour),
-					})
+					for _, channel := range channels {
+						params = append(params, river.InsertManyParams{
+							Args: RiskStaleOpenReminderArgs{
+								RiskID:          *risk.ID,
+								OwnerUserID:     ownerID,
+								Channel:         channel,
+								LastSeenAt:      risk.LastSeenAt.UTC().Format(time.RFC3339),
+								StaleBucketDate: staleBucketDate,
+							},
+							InsertOpts: JobInsertOptionsForRiskNotification(7 * 24 * time.Hour),
+						})
+					}
 				}
 			}
 
@@ -348,7 +360,7 @@ func NewRiskReviewDueReminderWorker(db *gorm.DB, emailService EmailService, slac
 }
 
 func (w *RiskReviewDueReminderWorker) Work(ctx context.Context, job *river.Job[RiskReviewDueReminderArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-review-due-reminder", "Risk review due soon")
+	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, job.Args.Channel, "risk-review-due-reminder", "Risk review due soon")
 }
 
 type RiskReviewOverdueEscalationWorker struct {
@@ -365,7 +377,7 @@ func NewRiskReviewOverdueEscalationWorker(db *gorm.DB, emailService EmailService
 }
 
 func (w *RiskReviewOverdueEscalationWorker) Work(ctx context.Context, job *river.Job[RiskReviewOverdueEscalationArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-review-overdue-escalation", "Risk review overdue")
+	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, job.Args.Channel, "risk-review-overdue-escalation", "Risk review overdue")
 }
 
 type RiskStaleOpenReminderWorker struct {
@@ -382,19 +394,19 @@ func NewRiskStaleOpenReminderWorker(db *gorm.DB, emailService EmailService, slac
 }
 
 func (w *RiskStaleOpenReminderWorker) Work(ctx context.Context, job *river.Job[RiskStaleOpenReminderArgs]) error {
-	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, "risk-stale-open-reminder", "Stale risk reminder")
+	return w.sendRiskNotification(ctx, job.Args.RiskID, job.Args.OwnerUserID, job.Args.Channel, "risk-stale-open-reminder", "Stale risk reminder")
 }
 
-func (w *RiskReviewDueReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subjectPrefix string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subjectPrefix)
+func (w *RiskReviewDueReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, requestedChannel, templateName, subjectPrefix string) error {
+	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, requestedChannel, templateName, subjectPrefix)
 }
 
-func (w *RiskReviewOverdueEscalationWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subjectPrefix string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subjectPrefix)
+func (w *RiskReviewOverdueEscalationWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, requestedChannel, templateName, subjectPrefix string) error {
+	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, requestedChannel, templateName, subjectPrefix)
 }
 
-func (w *RiskStaleOpenReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, templateName, subjectPrefix string) error {
-	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, templateName, subjectPrefix)
+func (w *RiskStaleOpenReminderWorker) sendRiskNotification(ctx context.Context, riskID, ownerUserID uuid.UUID, requestedChannel, templateName, subjectPrefix string) error {
+	return sendRiskNotification(ctx, w.db, w.emailService, w.slackService, w.userRepo, w.webBaseURL, w.logger, riskID, ownerUserID, requestedChannel, templateName, subjectPrefix)
 }
 
 func sendRiskNotification(
@@ -406,6 +418,7 @@ func sendRiskNotification(
 	webBaseURL string,
 	logger *zap.SugaredLogger,
 	riskID, ownerUserID uuid.UUID,
+	requestedChannel string,
 	templateName, subjectPrefix string,
 ) error {
 	var risk riskrel.Risk
@@ -428,7 +441,7 @@ func sendRiskNotification(
 	channels, ok := selectUserNotificationChannels(
 		user,
 		notification.NotificationTypeRiskNotifications,
-		"",
+		requestedChannel,
 	)
 	if !ok || len(channels) == 0 {
 		logger.Debugw("Risk notification worker: owner not subscribed to risk notifications, skipping", "risk_id", riskID, "owner_user_id", ownerUserID)

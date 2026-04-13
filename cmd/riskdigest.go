@@ -55,8 +55,8 @@ func runRiskDigestTest(cmd *cobra.Command, args []string) {
 	cfg := config.NewConfig(sugar)
 
 	if cfg.Environment == "production" {
-		fmt.Print("WARNING: You are about to send risk digest emails directly in PRODUCTION.\n")
-		fmt.Print("This will send emails to real users. Are you sure you want to continue? (type 'yes' to confirm): ")
+		fmt.Print("WARNING: You are about to send risk digest notifications directly in PRODUCTION.\n")
+		fmt.Print("This will send notifications to real users. Are you sure you want to continue? (type 'yes' to confirm): ")
 
 		var response string
 		_, err := fmt.Scanln(&response)

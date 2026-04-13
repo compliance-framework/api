@@ -149,17 +149,21 @@ func (w *RiskOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[R
 		return nil
 	}
 
-	params := make([]river.InsertManyParams, 0, len(plan.RecipientUserIDs))
+	channels := allWorkflowNotificationChannels()
+	params := make([]river.InsertManyParams, 0, len(plan.RecipientUserIDs)*len(channels))
 	for _, recipientID := range plan.RecipientUserIDs {
-		params = append(params, river.InsertManyParams{
-			Args: RiskOpenDigestArgs{
-				RecipientUserID: recipientID,
-				WindowStart:     plan.WindowStart.Format(time.RFC3339),
-				WindowEnd:       plan.WindowEnd.Format(time.RFC3339),
-				WindowKind:      plan.WindowKind,
-			},
-			InsertOpts: JobInsertOptionsForRiskDigest(plan.WindowByPeriod),
-		})
+		for _, channel := range channels {
+			params = append(params, river.InsertManyParams{
+				Args: RiskOpenDigestArgs{
+					RecipientUserID: recipientID,
+					Channel:         channel,
+					WindowStart:     plan.WindowStart.Format(time.RFC3339),
+					WindowEnd:       plan.WindowEnd.Format(time.RFC3339),
+					WindowKind:      plan.WindowKind,
+				},
+				InsertOpts: JobInsertOptionsForRiskDigest(plan.WindowByPeriod),
+			})
+		}
 	}
 
 	if _, err := w.client.InsertMany(ctx, params); err != nil {
@@ -237,7 +241,7 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 	channels, ok := selectUserNotificationChannels(
 		user,
 		notification.NotificationTypeRiskNotifications,
-		"",
+		args.Channel,
 	)
 	if !ok || len(channels) == 0 {
 		w.logger.Debugw("RiskOpenDigestWorker: user not subscribed to risk notifications, skipping", "user_id", args.RecipientUserID)

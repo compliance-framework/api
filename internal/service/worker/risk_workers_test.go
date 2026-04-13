@@ -148,12 +148,17 @@ func TestRiskReviewDeadlineReminderScannerWorker_EnqueuesPerUserOwner(t *testing
 	w := NewRiskReviewDeadlineReminderScannerWorker(db, client, logger)
 	err := w.Work(context.Background(), &river.Job[RiskReviewDeadlineReminderScannerArgs]{})
 	require.NoError(t, err)
-	require.Len(t, client.params, 1)
+	require.Len(t, client.params, 2)
 
-	args, ok := client.params[0].Args.(RiskReviewDueReminderArgs)
-	require.True(t, ok)
-	assert.Equal(t, "30d", args.ReminderWindow)
-	assert.Equal(t, 24*time.Hour, client.params[0].InsertOpts.UniqueOpts.ByPeriod)
+	channels := make([]string, 0, len(client.params))
+	for _, param := range client.params {
+		args, ok := param.Args.(RiskReviewDueReminderArgs)
+		require.True(t, ok)
+		assert.Equal(t, "30d", args.ReminderWindow)
+		assert.Equal(t, 24*time.Hour, param.InsertOpts.UniqueOpts.ByPeriod)
+		channels = append(channels, args.Channel)
+	}
+	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, channels)
 }
 
 func TestRiskReviewOverdueEscalationScannerWorker_EnqueuesEscalationAndReopen(t *testing.T) {
@@ -179,7 +184,7 @@ func TestRiskReviewOverdueEscalationScannerWorker_EnqueuesEscalationAndReopen(t 
 			reopenInsertOpts = p.InsertOpts
 		}
 	}
-	assert.Equal(t, 1, escalationCount)
+	assert.Equal(t, 2, escalationCount)
 	assert.Equal(t, 1, reopenCount)
 	require.NotNil(t, reopenInsertOpts)
 	assert.Equal(t, 24*time.Hour, reopenInsertOpts.UniqueOpts.ByPeriod)
@@ -196,11 +201,16 @@ func TestRiskStaleRiskScannerWorker_EnqueuesWeeklyReminder(t *testing.T) {
 	w := NewRiskStaleRiskScannerWorker(db, client, logger)
 	err := w.Work(context.Background(), &river.Job[RiskStaleRiskScannerArgs]{})
 	require.NoError(t, err)
-	require.Len(t, client.params, 1)
+	require.Len(t, client.params, 2)
 
-	_, ok := client.params[0].Args.(RiskStaleOpenReminderArgs)
-	require.True(t, ok)
-	assert.Equal(t, 7*24*time.Hour, client.params[0].InsertOpts.UniqueOpts.ByPeriod)
+	channels := make([]string, 0, len(client.params))
+	for _, param := range client.params {
+		args, ok := param.Args.(RiskStaleOpenReminderArgs)
+		require.True(t, ok)
+		assert.Equal(t, 7*24*time.Hour, param.InsertOpts.UniqueOpts.ByPeriod)
+		channels = append(channels, args.Channel)
+	}
+	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, channels)
 }
 
 func TestRiskStaleRiskScannerWorker_EnqueuesMitigatingImplemented(t *testing.T) {
@@ -213,10 +223,12 @@ func TestRiskStaleRiskScannerWorker_EnqueuesMitigatingImplemented(t *testing.T) 
 	w := NewRiskStaleRiskScannerWorker(db, client, logger)
 	err := w.Work(context.Background(), &river.Job[RiskStaleRiskScannerArgs]{})
 	require.NoError(t, err)
-	require.Len(t, client.params, 1)
+	require.Len(t, client.params, 2)
 
-	_, ok := client.params[0].Args.(RiskStaleOpenReminderArgs)
-	require.True(t, ok)
+	for _, param := range client.params {
+		_, ok := param.Args.(RiskStaleOpenReminderArgs)
+		require.True(t, ok)
+	}
 }
 
 func TestRiskEvidenceReconciliationScannerWorker_EnqueuesDuplicateRepairJobs(t *testing.T) {
@@ -402,6 +414,7 @@ func TestRiskReviewDueReminderWorker_RespectsRiskSubscription(t *testing.T) {
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
 			OwnerUserID: ownerID,
+			Channel:     notification.DeliveryChannelEmail,
 		},
 	})
 	require.NoError(t, err)
@@ -429,6 +442,7 @@ func TestRiskReviewDueReminderWorker_SendsWhenSubscribed(t *testing.T) {
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
 			OwnerUserID: ownerID,
+			Channel:     notification.DeliveryChannelEmail,
 		},
 	})
 	require.NoError(t, err)
@@ -459,6 +473,7 @@ func TestRiskReviewDueReminderWorker_SlackSubscribed_SendsSlack(t *testing.T) {
 		Args: RiskReviewDueReminderArgs{
 			RiskID:      *risk.ID,
 			OwnerUserID: ownerID,
+			Channel:     notification.DeliveryChannelSlack,
 		},
 	})
 	require.NoError(t, err)
@@ -582,6 +597,7 @@ func TestRiskReviewOverdueEscalationWorker_SendsWhenSubscribed(t *testing.T) {
 		Args: RiskReviewOverdueEscalationArgs{
 			RiskID:      *risk.ID,
 			OwnerUserID: ownerID,
+			Channel:     notification.DeliveryChannelEmail,
 		},
 	})
 	require.NoError(t, err)
@@ -631,6 +647,7 @@ func TestRiskStaleOpenReminderWorker_SendsWhenSubscribed(t *testing.T) {
 		Args: RiskStaleOpenReminderArgs{
 			RiskID:      *risk.ID,
 			OwnerUserID: ownerID,
+			Channel:     notification.DeliveryChannelEmail,
 		},
 	})
 	require.NoError(t, err)
