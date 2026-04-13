@@ -17,9 +17,10 @@ import (
 // Resolution strategy:
 //  1. Fast path — query the profile_controls pivot table (populated by SyncProfileControls).
 //     Returns both control_id and control_catalog_id so the full ControlKey is available.
-//  2. Fallback — if the pivot table is empty (SyncProfileControls has not yet run for a
-//     newly created profile), perform a full recursive resolution via FindFullProfile and
-//     GetControlIDsMapFromProfile. This guarantees correctness even before the pivot is populated.
+//  2. Fallback — if the pivot table query succeeds but returns no rows (SyncProfileControls
+//     has not yet run for a newly created profile), perform a full recursive resolution via
+//     FindFullProfile and GetControlIDsMapFromProfile. This guarantees correctness even before
+//     the pivot is populated without masking real database errors.
 type oscalProfileControlResolver struct {
 	db *gorm.DB
 }
@@ -35,7 +36,10 @@ func (r *oscalProfileControlResolver) ResolveProfileControlKeys(ctx context.Cont
 		Table("profile_controls").
 		Select("control_catalog_id, control_id").
 		Where("profile_id = ?", profileID).
-		Find(&rows).Error; err == nil && len(rows) > 0 {
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("oscalProfileControlResolver: profile_controls query failed for profile %s: %w", profileID, err)
+	}
+	if len(rows) > 0 {
 		keys := make([]riskrel.ControlKey, 0, len(rows))
 		for _, row := range rows {
 			keys = append(keys, riskrel.ControlKey{
@@ -46,7 +50,7 @@ func (r *oscalProfileControlResolver) ResolveProfileControlKeys(ctx context.Cont
 		return keys, nil
 	}
 
-	// Step 2: full recursive resolution — pivot table is empty or query failed.
+	// Step 2: full recursive resolution — pivot table is empty.
 	profile, err := oscalhandler.FindFullProfile(r.db.WithContext(ctx), profileID)
 	if err != nil {
 		return nil, fmt.Errorf("oscalProfileControlResolver: FindFullProfile failed for profile %s: %w", profileID, err)
