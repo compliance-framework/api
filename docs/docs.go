@@ -22769,7 +22769,7 @@ const docTemplate = `{
         },
         "/users/me/subscriptions": {
             "get": {
-                "description": "Gets the current user's digest and workflow notification email preferences",
+                "description": "Gets the current user's notification delivery preferences",
                 "produces": [
                     "application/json"
                 ],
@@ -22810,7 +22810,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the current user's digest and workflow notification email preferences",
+                "description": "Updates the current user's notification delivery preferences",
                 "consumes": [
                     "application/json"
                 ],
@@ -28403,7 +28403,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "notifications": {
-                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, and taskDailyDigest.",
+                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, taskDailyDigest, and riskNotifications.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -28411,9 +28411,6 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
-                },
-                "riskNotificationsSubscribed": {
-                    "type": "boolean"
                 }
             }
         },
@@ -28421,7 +28418,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "notifications": {
-                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, and taskDailyDigest.",
+                    "description": "Notifications maps notification types to delivery channels.\nSupported types include taskAvailable, evidenceDigest, taskDailyDigest, and riskNotifications.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -28429,9 +28426,6 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
-                },
-                "riskNotificationsSubscribed": {
-                    "type": "boolean"
                 }
             }
         },
@@ -37128,10 +37122,6 @@ const docTemplate = `{
                 },
                 "lastName": {
                     "type": "string"
-                },
-                "riskNotificationsSubscribed": {
-                    "description": "RiskNotificationsSubscribed indicates if the user wants to receive risk lifecycle notifications.\nThe DB default is intentionally true so existing users are opted in when the column is introduced.",
-                    "type": "boolean"
                 },
                 "updatedAt": {
                     "type": "string"
