@@ -290,22 +290,16 @@ func (w *RiskOpenDigestWorker) Work(ctx context.Context, job *river.Job[RiskOpen
 		HasDueForReview:     len(classification.DueForReview) > 0,
 	}
 
-	for _, channel := range channels {
-		switch channel {
-		case notification.DeliveryChannelEmail:
-			if err := w.sendEmail(ctx, user, data); err != nil {
-				return err
-			}
-		case notification.DeliveryChannelSlack:
-			if err := w.sendSlack(ctx, user, data); err != nil {
-				return err
-			}
-		default:
-			w.logger.Debugw("RiskOpenDigestWorker: unsupported channel, skipping",
-				"user_id", args.RecipientUserID,
-				"channel", channel,
-			)
-		}
+	switch channels[0] {
+	case notification.DeliveryChannelEmail:
+		return w.sendEmail(ctx, user, data)
+	case notification.DeliveryChannelSlack:
+		return w.sendSlack(ctx, user, data)
+	default:
+		w.logger.Debugw("RiskOpenDigestWorker: unsupported channel, skipping",
+			"user_id", args.RecipientUserID,
+			"channel", channels[0],
+		)
 	}
 	return nil
 }
