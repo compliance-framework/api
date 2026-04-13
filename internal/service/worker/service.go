@@ -10,6 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
+	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/compliance-framework/api/internal/workflow"
@@ -106,13 +107,16 @@ func (p *notificationEnqueuerProxy) EnqueueWorkflowExecutionFailed(ctx context.C
 	return p.enqueuer.EnqueueWorkflowExecutionFailed(ctx, execution)
 }
 
-// NewServiceWithDigest creates a new worker service with digest support
+// NewServiceWithDigest creates a new worker service with digest support.
+// profileResolver is injected to resolve profile control keys for the orphaned risk cleanup worker;
+// it must implement ProfileControlResolver and is typically a closure over oscal handler functions.
 func NewServiceWithDigest(
 	cfg *config.WorkerConfig,
 	db *gorm.DB,
 	emailSvc *email.Service,
 	digestSvc DigestService,
 	digestCfg *config.Config,
+	profileResolver ProfileControlResolver,
 	logger *zap.SugaredLogger,
 ) (*Service, error) {
 	if !cfg.Enabled {
@@ -130,6 +134,9 @@ func NewServiceWithDigest(
 
 	if emailSvc == nil {
 		return nil, fmt.Errorf("email service is required for worker service")
+	}
+	if profileResolver == nil {
+		return nil, fmt.Errorf("profile control resolver is required for worker service")
 	}
 
 	// Get pgx pool from GORM
@@ -293,6 +300,10 @@ func NewServiceWithDigest(
 
 	riskOpenDigestSchedulerWorker := NewRiskOpenDigestSchedulerWorker(db, clientProxy, riskCfg.OpenDigestWindow, logger)
 	river.AddWorker(workers, river.WorkFunc(riskOpenDigestSchedulerWorker.Work))
+
+	// Add orphaned risk cleanup worker — triggered on-demand when SSP profile binding changes
+	riskOrphanedCleanupWorker := NewRiskOrphanedCleanupWorker(db, riskrel.NewRiskService(db), profileResolver, logger)
+	river.AddWorker(workers, river.WorkFunc(riskOrphanedCleanupWorker.Work))
 
 	// Add POAM scanner workers (BCH-1186 Phase 3)
 	poamCfg := config.DefaultPoamConfig()
@@ -902,5 +913,27 @@ func (s *Service) EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uui
 		return fmt.Errorf("failed to enqueue risk process evidence job: %w", err)
 	}
 
+	return nil
+}
+
+// EnqueueOrphanedRiskCleanup enqueues a job to remediate orphaned risks when an SSP's
+// profile binding changes. Active jobs are deduped by (ssp_id, new_profile_id): repeated
+// changes to the same target profile collapse to one job, while changes to different
+// target profiles can produce independent jobs.
+func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error {
+	if !s.config.Enabled || s.client == nil {
+		return nil
+	}
+	args := RiskOrphanedCleanupArgs{
+		SSPID:        sspID,
+		OldProfileID: oldProfileID,
+		NewProfileID: newProfileID,
+	}
+	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
+		{Args: args, InsertOpts: JobInsertOptionsForRiskOrphanedCleanup()},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enqueue orphaned risk cleanup job for ssp %s: %w", sspID, err)
+	}
 	return nil
 }

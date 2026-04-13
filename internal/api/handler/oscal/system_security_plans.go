@@ -1,6 +1,7 @@
 package oscal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,11 +24,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// SSPJobEnqueuer is a minimal interface for enqueueing SSP-related background jobs.
+// Defined here to avoid a circular import between the oscal handler and worker packages.
+type SSPJobEnqueuer interface {
+	EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error
+}
+
 type SystemSecurityPlanHandler struct {
 	sugar             *zap.SugaredLogger
 	db                *gorm.DB
 	profileCache      sync.Map // map[uuid.UUID][]string
 	suggestionService *relational.SystemComponentSuggestionService
+	jobEnqueuer       SSPJobEnqueuer
 }
 
 type SystemComponentRequest struct {
@@ -50,11 +58,12 @@ func (r *ApplySuggestionRequest) Validate() error {
 	return nil
 }
 
-func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenceSvc *evidencesvc.EvidenceService) *SystemSecurityPlanHandler {
+func NewSystemSecurityPlanHandler(sugar *zap.SugaredLogger, db *gorm.DB, evidenceSvc *evidencesvc.EvidenceService, jobEnqueuer SSPJobEnqueuer) *SystemSecurityPlanHandler {
 	return &SystemSecurityPlanHandler{
 		sugar:             sugar,
 		db:                db,
 		suggestionService: relational.NewSystemComponentSuggestionService(db, evidenceSvc),
+		jobEnqueuer:       jobEnqueuer,
 	}
 }
 
@@ -1870,6 +1879,11 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 		return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("SSP not found")))
 	}
 
+	// Capture the old profile ID before the transaction mutates ssp.ProfileID via GORM Save.
+	// After tx.Save(&ssp) with ssp.Profile set, GORM updates ssp.ProfileID in memory to the
+	// new profile's ID, so we must snapshot the old value here.
+	oldProfileID := ssp.ProfileID
+
 	// Load the profile basic info
 	var profile relational.Profile
 	if err := h.db.First(&profile, "id = ?", profileID).Error; err != nil {
@@ -1943,10 +1957,20 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 
 		return nil
 	})
-
 	if err != nil {
 		h.sugar.Errorf("Failed to attach profile to SSP: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
+	}
+	// Enqueue orphaned risk cleanup after the transaction commits successfully.
+	// oldProfileID was captured before the transaction so it reflects the pre-change binding.
+	if h.jobEnqueuer != nil {
+		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
+		defer cancel()
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, oldProfileID, &profileID); err != nil {
+			// Non-fatal: log and continue — the job can be retried or the next
+			// reconciliation pass will catch any orphans.
+			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)
+		}
 	}
 
 	// Reload SSP to ensure the memory state matches the database (including newly created requirements)
@@ -2041,6 +2065,10 @@ func (h *SystemSecurityPlanHandler) UpdateImportProfile(ctx echo.Context) error 
 	// Update the ImportProfile field in the SSP
 	ssp.ImportProfile = datatypes.NewJSONType(*relImportProfile)
 
+	// Save the updated SSP.
+	// UpdateImportProfile only updates the href metadata field (import-profile.href).
+	// It does NOT change ssp.ProfileID — the actual profile binding FK — so no controls
+	// are added or removed and no orphaned risk cleanup is required.
 	if err := h.db.Save(&ssp).Error; err != nil {
 		h.sugar.Errorf("Failed to update import-profile: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))

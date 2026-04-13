@@ -41,7 +41,7 @@ func (suite *InventoryApiIntegrationSuite) SetupSuite() {
 	logger := zap.NewNop().Sugar()
 	suite.handler = NewInventoryHandler(logger, suite.DB)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, logger, suite.Config, nil)
-	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB, evidenceSvc)
+	suite.sspHandler = NewSystemSecurityPlanHandler(logger, suite.DB, evidenceSvc, nil)
 	suite.poamHandler = NewPlanOfActionAndMilestonesHandler(logger, suite.DB)
 	suite.evidenceHandler = handler.NewEvidenceHandler(logger, evidenceSvc)
 
