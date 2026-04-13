@@ -1387,7 +1387,7 @@ func (s *RiskService) RemediateOrphanedRisks(
 	var candidates []Risk
 	if err := tx.
 		Where(
-			"ssp_id = ? AND risk_template_id IS NOT NULL AND source_type IN ? AND status NOT IN ?",
+			"ssp_id = ? AND source_type IN ? AND status NOT IN ?",
 			sspID,
 			[]string{string(RiskSourceTypeEvidenceAuto), string(RiskSourceTypeOscalImport)},
 			[]string{string(RiskStatusClosed), string(RiskStatusRemediated)},

@@ -204,6 +204,42 @@ func TestRemediateOrphanedRisks_SkipsManualRisksWithTemplate(t *testing.T) {
 	assert.Equal(t, string(RiskStatusOpen), updated.Status)
 }
 
+func TestRemediateOrphanedRisks_RemediatesOscalImportWithoutTemplate(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	sspID := uuid.New()
+	catalogID := uuid.New()
+	likelihood := "moderate"
+	impact := "moderate"
+
+	risk, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:       "OSCAL imported risk",
+			Description: "imported",
+			Likelihood:  &likelihood,
+			Impact:      &impact,
+			Status:      string(RiskStatusOpen),
+			SSPID:       sspID,
+			SourceType:  string(RiskSourceTypeOscalImport),
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&RiskControlLink{
+		RiskID:    *risk.ID,
+		CatalogID: catalogID,
+		ControlID: "AC-1",
+	}).Error)
+
+	n, err := svc.RemediateOrphanedRisks(db, sspID, map[ControlKey]struct{}{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "OSCAL-imported risks should be remediated even without a template")
+
+	var updated Risk
+	require.NoError(t, db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(RiskStatusRemediated), updated.Status)
+}
+
 // TestRemediateOrphanedRisks_SkipsTerminalRisks verifies that risks already in
 // a terminal state (remediated, closed) are not touched.
 func TestRemediateOrphanedRisks_SkipsTerminalRisks(t *testing.T) {
