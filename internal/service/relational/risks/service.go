@@ -1427,6 +1427,12 @@ func (s *RiskService) RemediateOrphanedRisks(
 		}] = struct{}{}
 	}
 
+	type remediationEvent struct {
+		riskID  uuid.UUID
+		payload datatypes.JSONMap
+	}
+	events := make([]remediationEvent, 0, len(candidates))
+
 	remediated := 0
 	for i := range candidates {
 		risk := &candidates[i]
@@ -1468,11 +1474,56 @@ func (s *RiskService) RemediateOrphanedRisks(
 			"to":     string(RiskStatusRemediated),
 			"reason": "orphaned_profile_change",
 		}
-		if err := s.logRiskEvent(tx, *risk.ID, RiskEventTypeStatusChange, nil, payload); err != nil {
-			return remediated, fmt.Errorf("remediate orphaned risks: emit event failed for risk %s: %w", *risk.ID, err)
+		events = append(events, remediationEvent{riskID: *risk.ID, payload: payload})
+		remediated++
+	}
+	if len(events) == 0 {
+		return 0, nil
+	}
+
+	remediatedIDs := make([]uuid.UUID, 0, len(events))
+	for _, event := range events {
+		remediatedIDs = append(remediatedIDs, event.riskID)
+	}
+
+	var snapshotRisks []Risk
+	if err := tx.
+		Preload("OwnerAssignments").
+		Preload("ThreatRefs", func(db *gorm.DB) *gorm.DB { return db.Order("system ASC, external_id ASC") }).
+		Preload("Remediation").
+		Preload("Remediation.Tasks", func(db *gorm.DB) *gorm.DB { return db.Order("order_index ASC") }).
+		Where("id IN ?", remediatedIDs).
+		Find(&snapshotRisks).Error; err != nil {
+		return remediated, fmt.Errorf("remediate orphaned risks: load snapshots failed: %w", err)
+	}
+
+	snapshots := make(map[uuid.UUID]datatypes.JSONMap, len(snapshotRisks))
+	for i := range snapshotRisks {
+		risk := &snapshotRisks[i]
+		if risk.ID == nil {
+			continue
 		}
 
-		remediated++
+		raw, err := json.Marshal(risk)
+		if err != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: marshal snapshot failed for risk %s: %w", *risk.ID, err)
+		}
+
+		snapshot := datatypes.JSONMap{}
+		if err := json.Unmarshal(raw, &snapshot); err != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: unmarshal snapshot failed for risk %s: %w", *risk.ID, err)
+		}
+		snapshots[*risk.ID] = snapshot
+	}
+
+	for _, event := range events {
+		snapshot, ok := snapshots[event.riskID]
+		if !ok {
+			return remediated, fmt.Errorf("remediate orphaned risks: snapshot missing for risk %s", event.riskID)
+		}
+		if err := s.logRiskEventWithSnapshot(tx, event.riskID, RiskEventTypeStatusChange, nil, event.payload, snapshot); err != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: emit event failed for risk %s: %w", event.riskID, err)
+		}
 	}
 
 	return remediated, nil

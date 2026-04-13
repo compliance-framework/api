@@ -1964,7 +1964,9 @@ func (h *SystemSecurityPlanHandler) AttachProfile(ctx echo.Context) error {
 	// Enqueue orphaned risk cleanup after the transaction commits successfully.
 	// oldProfileID was captured before the transaction so it reflects the pre-change binding.
 	if h.jobEnqueuer != nil {
-		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(ctx.Request().Context(), sspID, oldProfileID, &profileID); err != nil {
+		enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Request().Context()), 10*time.Second)
+		defer cancel()
+		if err := h.jobEnqueuer.EnqueueOrphanedRiskCleanup(enqueueCtx, sspID, oldProfileID, &profileID); err != nil {
 			// Non-fatal: log and continue — the job can be retried or the next
 			// reconciliation pass will catch any orphans.
 			h.sugar.Warnw("Failed to enqueue orphaned risk cleanup job", "sspId", sspID, "error", err)

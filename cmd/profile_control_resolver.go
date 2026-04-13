@@ -28,8 +28,8 @@ type oscalProfileControlResolver struct {
 func (r *oscalProfileControlResolver) ResolveProfileControlKeys(ctx context.Context, profileID uuid.UUID) ([]riskrel.ControlKey, error) {
 	// Step 1: pivot table fast path.
 	type pivotRow struct {
-		ControlCatalogID string `gorm:"column:control_catalog_id"`
-		ControlID        string `gorm:"column:control_id"`
+		ControlCatalogID uuid.UUID `gorm:"column:control_catalog_id"`
+		ControlID        string    `gorm:"column:control_id"`
 	}
 	var rows []pivotRow
 	if err := r.db.WithContext(ctx).
@@ -43,7 +43,7 @@ func (r *oscalProfileControlResolver) ResolveProfileControlKeys(ctx context.Cont
 		keys := make([]riskrel.ControlKey, 0, len(rows))
 		for _, row := range rows {
 			keys = append(keys, riskrel.ControlKey{
-				CatalogID: row.ControlCatalogID,
+				CatalogID: row.ControlCatalogID.String(),
 				ControlID: row.ControlID,
 			})
 		}

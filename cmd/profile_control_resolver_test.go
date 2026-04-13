@@ -34,10 +34,11 @@ func TestOscalProfileControlResolver_ReturnsPivotRows(t *testing.T) {
 	`).Error)
 
 	profileID := uuid.New()
+	catalogID := uuid.New()
 	require.NoError(t, db.Exec(
 		"INSERT INTO profile_controls (profile_id, control_catalog_id, control_id) VALUES (?, ?, ?)",
 		profileID.String(),
-		"catalog-1",
+		catalogID.String(),
 		"AC-1",
 	).Error)
 
@@ -46,6 +47,6 @@ func TestOscalProfileControlResolver_ReturnsPivotRows(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
-	assert.Equal(t, "catalog-1", keys[0].CatalogID)
+	assert.Equal(t, catalogID.String(), keys[0].CatalogID)
 	assert.Equal(t, "AC-1", keys[0].ControlID)
 }
