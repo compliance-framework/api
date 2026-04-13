@@ -39,7 +39,7 @@ func (suite *ActivityApiIntegrationSuite) SetupSuite() {
 	metrics := api.NewMetricsHandler(context.Background(), suite.logger)
 	suite.server = api.NewServer(context.Background(), suite.logger, suite.Config, metrics)
 	evidenceSvc := evidencesvc.NewEvidenceService(suite.DB, suite.logger, suite.Config, nil)
-	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc)
+	RegisterHandlers(suite.server, suite.logger, suite.DB, suite.Config, evidenceSvc, nil)
 }
 
 func (suite *ActivityApiIntegrationSuite) SetupTest() {
