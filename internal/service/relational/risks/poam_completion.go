@@ -107,6 +107,10 @@ func (s *RiskService) advanceRiskToMitigatingImplemented(riskID, poamItemID uuid
 		tx.Rollback()
 		return err
 	}
+	if err := s.RecordRiskScoreSnapshot(tx, riskID, RiskEventTypeStatusChange, actorUserID, risk.UpdatedAt); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	return tx.Commit().Error
 }

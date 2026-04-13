@@ -47,6 +47,7 @@ func newRiskEvidenceWorkerTestDB(t *testing.T) *gorm.DB {
 		&templates.RemediationTemplate{},
 		&templates.RemediationTask{},
 		&risks.Risk{},
+		&risks.RiskScore{},
 		&risks.RiskEvidenceLink{},
 		&risks.RiskSubjectLink{},
 		&risks.RiskComponentLink{},

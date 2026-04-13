@@ -17878,6 +17878,76 @@ const docTemplate = `{
                 ]
             }
         },
+        "/oscal/system-security-plans/{sspId}/risks/score-timeseries": {
+            "get": {
+                "description": "Returns aggregate open baseline and residual score time series for an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Get risk score timeseries for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start timestamp (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End timestamp (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket size; only day is supported",
+                        "name": "bucket",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/oscal/system-security-plans/{sspId}/risks/{id}": {
             "get": {
                 "description": "Retrieves a risk register entry by ID scoped to an SSP.",
@@ -19253,6 +19323,65 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/service.ListResponse-risks_RiskReview"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/oscal/system-security-plans/{sspId}/risks/{id}/score-history": {
+            "get": {
+                "description": "Lists score snapshots for a risk scoped to an SSP.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk score history for SSP",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_riskScoreResponse"
                         }
                     },
                     "400": {
@@ -20980,6 +21109,69 @@ const docTemplate = `{
                 ]
             }
         },
+        "/risks/score-timeseries": {
+            "get": {
+                "description": "Returns aggregate open baseline and residual score time series.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "Get risk score timeseries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SSP ID",
+                        "name": "sspId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start timestamp (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End timestamp (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket size; only day is supported",
+                        "name": "bucket",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
         "/risks/{id}": {
             "get": {
                 "description": "Retrieves a risk register entry by ID.",
@@ -22208,6 +22400,58 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/service.ListResponse-risks_RiskReview"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2Password": []
+                    }
+                ]
+            }
+        },
+        "/risks/{id}/score-history": {
+            "get": {
+                "description": "Lists score snapshots for a risk.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Risks"
+                ],
+                "summary": "List risk score history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Risk ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GenericDataListResponse-handler_riskScoreResponse"
                         }
                     },
                     "400": {
@@ -26712,6 +26956,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GenericDataListResponse-handler_riskScoreResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.riskScoreResponse"
+                    }
+                }
+            }
+        },
+        "handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Items from the list response",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.riskScoreTimeseriesResponse"
+                    }
+                }
+            }
+        },
         "handler.GenericDataListResponse-handler_selectableUserResponse": {
             "type": "object",
             "properties": {
@@ -29124,6 +29392,67 @@ const docTemplate = `{
                 },
                 "updated-at": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.riskScoreResponse": {
+            "type": "object",
+            "properties": {
+                "actor-user-id": {
+                    "type": "string"
+                },
+                "baseline-score": {
+                    "type": "integer"
+                },
+                "created-at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "impact": {
+                    "type": "string"
+                },
+                "likelihood": {
+                    "type": "string"
+                },
+                "occurred-at": {
+                    "type": "string"
+                },
+                "open-baseline-score": {
+                    "type": "integer"
+                },
+                "open-residual-score": {
+                    "type": "integer"
+                },
+                "residual-score": {
+                    "type": "integer"
+                },
+                "risk-id": {
+                    "type": "string"
+                },
+                "source-event-type": {
+                    "type": "string"
+                },
+                "ssp-id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.riskScoreTimeseriesResponse": {
+            "type": "object",
+            "properties": {
+                "bucket-start": {
+                    "type": "string"
+                },
+                "open-baseline-score": {
+                    "type": "integer"
+                },
+                "open-residual-score": {
+                    "type": "integer"
                 }
             }
         },

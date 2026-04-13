@@ -481,6 +481,9 @@ func (w *RiskEvidenceWorker) updateExistingRisk(ctx context.Context, existingRis
 			}); err != nil {
 				return fmt.Errorf("failed to emit reopen status change event: %w", err)
 			}
+			if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *existingRisk.ID, risks.RiskEventTypeStatusChange, nil, now); err != nil {
+				return fmt.Errorf("failed to record reopened risk score snapshot: %w", err)
+			}
 		}
 
 		// Emit a risk_event(last_seen) using the typed constant.
@@ -554,6 +557,9 @@ func (w *RiskEvidenceWorker) createNewRiskForSSP(ctx context.Context, riskTempla
 			"ssp_id":      sspID,
 		}); err != nil {
 			return fmt.Errorf("failed to emit created risk event: %w", err)
+		}
+		if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *newRisk.ID, risks.RiskEventTypeCreated, nil, now); err != nil {
+			return fmt.Errorf("failed to record created risk score snapshot: %w", err)
 		}
 		return nil
 	})
@@ -896,6 +902,9 @@ func (w *RiskEvidenceWorker) resolveRiskEvidenceLink(ctx context.Context, risk *
 			"reason": "all_evidence_resolved",
 		}); err != nil {
 			return fmt.Errorf("failed to emit status change event: %w", err)
+		}
+		if err := risks.NewRiskService(w.db).RecordRiskScoreSnapshot(tx, *risk.ID, risks.RiskEventTypeStatusChange, nil, time.Now().UTC()); err != nil {
+			return fmt.Errorf("failed to record remediated risk score snapshot: %w", err)
 		}
 
 		w.logger.Infow("Risk transitioned to remediated",

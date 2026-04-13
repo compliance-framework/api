@@ -46,12 +46,14 @@ func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.Poam
 func (h *RiskHandler) Register(api *echo.Group) {
 	api.GET("", h.List)
 	api.POST("", h.Create)
+	api.GET("/score-timeseries", h.GetScoreTimeseries)
 	api.GET("/:id", h.Get)
 	api.PUT("/:id", h.Update)
 	api.POST("/:id/accept", h.Accept)
 	api.POST("/:id/review", h.Review)
 	api.POST("/:id/promote-to-poam", h.PromoteToPoam)
 	api.DELETE("/:id", h.Delete)
+	api.GET("/:id/score-history", h.GetScoreHistory)
 	api.GET("/:id/events", h.GetEvents)
 	api.GET("/:id/reviews", h.GetReviews)
 
@@ -83,12 +85,14 @@ func (h *RiskHandler) Register(api *echo.Group) {
 func (h *RiskHandler) RegisterSSPScoped(api *echo.Group) {
 	api.GET("", h.ListForSSP)
 	api.POST("", h.CreateForSSP)
+	api.GET("/score-timeseries", h.GetScoreTimeseriesForSSP)
 	api.GET("/:id", h.GetForSSP)
 	api.PUT("/:id", h.UpdateForSSP)
 	api.POST("/:id/accept", h.AcceptForSSP)
 	api.POST("/:id/review", h.ReviewForSSP)
 	api.POST("/:id/promote-to-poam", h.PromoteToPoamForSSP)
 	api.DELETE("/:id", h.DeleteForSSP)
+	api.GET("/:id/score-history", h.GetScoreHistoryForSSP)
 	api.GET("/:id/events", h.GetEventsForSSP)
 	api.GET("/:id/reviews", h.GetReviewsForSSP)
 	api.GET("/:id/evidence", h.GetEvidenceLinksForSSP)
@@ -229,6 +233,29 @@ type riskResponse struct {
 	SubjectIDs              []uuid.UUID                   `json:"subject-ids"`
 	ThreatIDs               []threatIDResponse            `json:"threat-ids"`
 	Remediation             *remediationTemplateResponse  `json:"remediation-template,omitempty"`
+}
+
+type riskScoreResponse struct {
+	ID                uuid.UUID  `json:"id"`
+	RiskID            uuid.UUID  `json:"risk-id"`
+	SSPID             uuid.UUID  `json:"ssp-id"`
+	OccurredAt        time.Time  `json:"occurred-at"`
+	CreatedAt         time.Time  `json:"created-at"`
+	ActorUserID       *uuid.UUID `json:"actor-user-id"`
+	SourceEventType   string     `json:"source-event-type"`
+	Status            string     `json:"status"`
+	Likelihood        *string    `json:"likelihood"`
+	Impact            *string    `json:"impact"`
+	BaselineScore     int        `json:"baseline-score"`
+	ResidualScore     int        `json:"residual-score"`
+	OpenBaselineScore int        `json:"open-baseline-score"`
+	OpenResidualScore int        `json:"open-residual-score"`
+}
+
+type riskScoreTimeseriesResponse struct {
+	BucketStart       time.Time `json:"bucket-start"`
+	OpenBaselineScore int       `json:"open-baseline-score"`
+	OpenResidualScore int       `json:"open-residual-score"`
 }
 
 type addEvidenceLinkRequest struct {
@@ -805,6 +832,8 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		}
 
 		oldStatus := risk.Status
+		oldLikelihood := cloneStringPtr(risk.Likelihood)
+		oldImpact := cloneStringPtr(risk.Impact)
 		statusChanged := false
 
 		if req.Status != nil {
@@ -869,6 +898,7 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 		ownerAssignments = normalizeOwnerAssignmentsForPrimaryOwner(ownerAssignments, effectivePrimaryOwnerUserID)
 
 		recordReview := req.LastReviewedAt != nil || req.ReviewDeadline != nil || req.ReviewJustification != nil
+		scoreChanged := !stringPtrEqual(oldLikelihood, risk.Likelihood) || !stringPtrEqual(oldImpact, risk.Impact)
 		var reviewedAt *time.Time
 		if req.LastReviewedAt != nil {
 			reviewedAtUTC := req.LastReviewedAt.UTC()
@@ -882,7 +912,10 @@ func (h *RiskHandler) Update(ctx echo.Context) error {
 			PrimaryOwnerUserID:      effectivePrimaryOwnerUserID,
 			ActorUserID:             actorID,
 			OldStatus:               oldStatus,
+			OldLikelihood:           oldLikelihood,
+			OldImpact:               oldImpact,
 			StatusChanged:           statusChanged,
+			ScoreChanged:            scoreChanged,
 			RecordReview:            recordReview,
 			ReviewedAt:              reviewedAt,
 			ReviewJustification:     req.ReviewJustification,
@@ -1181,6 +1214,156 @@ func (h *RiskHandler) GetReviews(ctx echo.Context) error {
 
 		return ctx.JSON(http.StatusOK, svc.NewListResponse(reviews, total, pagination.Page, pagination.Limit))
 	})
+}
+
+// GetScoreHistoryForSSP godoc
+//
+//	@Summary		List risk score history for SSP
+//	@Description	Lists score snapshots for a risk scoped to an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			id		path		string	true	"Risk ID"
+//	@Success		200		{object}	GenericDataListResponse[riskScoreResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/{id}/score-history [get]
+func (h *RiskHandler) GetScoreHistoryForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskBelongsToSSP(riskID, sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate scoped risk", err)
+	}
+	return h.GetScoreHistory(ctx)
+}
+
+// GetScoreHistory godoc
+//
+//	@Summary		List risk score history
+//	@Description	Lists score snapshots for a risk.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			id	path		string	true	"Risk ID"
+//	@Success		200	{object}	GenericDataListResponse[riskScoreResponse]
+//	@Failure		400	{object}	api.Error
+//	@Failure		404	{object}	api.Error
+//	@Failure		500	{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/{id}/score-history [get]
+func (h *RiskHandler) GetScoreHistory(ctx echo.Context) error {
+	riskID, err := parsePathUUID(ctx, "id")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.ensureRiskExists(riskID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate risk", err)
+	}
+
+	scores, err := h.riskService.ListScoreHistory(riskID)
+	if err != nil {
+		return h.internalServerError(ctx, "failed to list risk score history", err)
+	}
+
+	resp := make([]riskScoreResponse, 0, len(scores))
+	for _, score := range scores {
+		resp = append(resp, mapRiskScoreToResponse(score))
+	}
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[riskScoreResponse]{Data: resp})
+}
+
+// GetScoreTimeseriesForSSP godoc
+//
+//	@Summary		Get risk score timeseries for SSP
+//	@Description	Returns aggregate open baseline and residual score time series for an SSP.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	path		string	true	"SSP ID"
+//	@Param			from	query		string	false	"Start timestamp (RFC3339)"
+//	@Param			to		query		string	false	"End timestamp (RFC3339)"
+//	@Param			bucket	query		string	false	"Bucket size; only day is supported"
+//	@Success		200		{object}	GenericDataListResponse[riskScoreTimeseriesResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/oscal/system-security-plans/{sspId}/risks/score-timeseries [get]
+func (h *RiskHandler) GetScoreTimeseriesForSSP(ctx echo.Context) error {
+	sspID, err := parsePathUUID(ctx, "sspId")
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if err := h.riskService.EnsureSSPExists(sspID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("ssp not found")))
+		}
+		return h.internalServerError(ctx, "failed to validate ssp", err)
+	}
+	q := ctx.QueryParams()
+	q.Set("sspId", sspID.String())
+	ctx.Request().URL.RawQuery = q.Encode()
+	return h.GetScoreTimeseries(ctx)
+}
+
+// GetScoreTimeseries godoc
+//
+//	@Summary		Get risk score timeseries
+//	@Description	Returns aggregate open baseline and residual score time series.
+//	@Tags			Risks
+//	@Produce		json
+//	@Param			sspId	query		string	false	"SSP ID"
+//	@Param			from	query		string	false	"Start timestamp (RFC3339)"
+//	@Param			to		query		string	false	"End timestamp (RFC3339)"
+//	@Param			bucket	query		string	false	"Bucket size; only day is supported"
+//	@Success		200		{object}	GenericDataListResponse[riskScoreTimeseriesResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		500		{object}	api.Error
+//	@Security		OAuth2Password
+//	@Router			/risks/score-timeseries [get]
+func (h *RiskHandler) GetScoreTimeseries(ctx echo.Context) error {
+	sspID, from, to, bucket, err := parseScoreTimeseriesParams(ctx)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+	if sspID != nil {
+		if err := h.riskService.EnsureSSPExists(*sspID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("ssp not found")))
+			}
+			return h.internalServerError(ctx, "failed to validate ssp", err)
+		}
+	}
+
+	points, err := h.riskService.ListScoreTimeseries(sspID, from, to, bucket)
+	if err != nil {
+		if riskrel.IsValidationError(err) {
+			return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+		}
+		return h.internalServerError(ctx, "failed to list risk score timeseries", err)
+	}
+
+	resp := make([]riskScoreTimeseriesResponse, 0, len(points))
+	for _, point := range points {
+		resp = append(resp, riskScoreTimeseriesResponse{
+			BucketStart:       point.BucketStart,
+			OpenBaselineScore: point.OpenBaselineScore,
+			OpenResidualScore: point.OpenResidualScore,
+		})
+	}
+	return ctx.JSON(http.StatusOK, GenericDataListResponse[riskScoreTimeseriesResponse]{Data: resp})
 }
 
 // GetEvidenceLinksForSSP godoc
@@ -1930,6 +2113,83 @@ func parseListFilters(ctx echo.Context) (riskrel.ListFilters, error) {
 		filters.ReviewDeadlineBefore = &parsed
 	}
 	return filters, nil
+}
+
+func parseScoreTimeseriesParams(ctx echo.Context) (*uuid.UUID, time.Time, time.Time, string, error) {
+	var sspID *uuid.UUID
+	if rawSSPID := ctx.QueryParam("sspId"); rawSSPID != "" {
+		parsed, err := uuid.Parse(rawSSPID)
+		if err != nil {
+			return nil, time.Time{}, time.Time{}, "", fmt.Errorf("invalid sspId")
+		}
+		sspID = &parsed
+	}
+
+	to := time.Now().UTC()
+	if rawTo := ctx.QueryParam("to"); rawTo != "" {
+		parsed, err := time.Parse(time.RFC3339, rawTo)
+		if err != nil {
+			return nil, time.Time{}, time.Time{}, "", fmt.Errorf("invalid to")
+		}
+		to = parsed.UTC()
+	}
+
+	from := to.AddDate(0, 0, -30)
+	if rawFrom := ctx.QueryParam("from"); rawFrom != "" {
+		parsed, err := time.Parse(time.RFC3339, rawFrom)
+		if err != nil {
+			return nil, time.Time{}, time.Time{}, "", fmt.Errorf("invalid from")
+		}
+		from = parsed.UTC()
+	}
+
+	bucket := ctx.QueryParam("bucket")
+	if bucket == "" {
+		bucket = riskrel.RiskScoreBucketDay
+	}
+
+	return sspID, from, to, bucket, nil
+}
+
+func mapRiskScoreToResponse(score riskrel.RiskScore) riskScoreResponse {
+	id := uuid.Nil
+	if score.ID != nil {
+		id = *score.ID
+	}
+	return riskScoreResponse{
+		ID:                id,
+		RiskID:            score.RiskID,
+		SSPID:             score.SSPID,
+		OccurredAt:        score.OccurredAt,
+		CreatedAt:         score.CreatedAt,
+		ActorUserID:       score.ActorUserID,
+		SourceEventType:   score.SourceEventType,
+		Status:            score.Status,
+		Likelihood:        score.Likelihood,
+		Impact:            score.Impact,
+		BaselineScore:     score.BaselineScore,
+		ResidualScore:     score.ResidualScore,
+		OpenBaselineScore: score.OpenBaselineScore,
+		OpenResidualScore: score.OpenResidualScore,
+	}
+}
+
+func cloneStringPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func stringPtrEqual(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 
 func validateRiskLevel(level *string) error {

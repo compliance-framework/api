@@ -45,7 +45,10 @@ type UpdateRiskParams struct {
 	PrimaryOwnerUserID      *uuid.UUID
 	ActorUserID             *uuid.UUID
 	OldStatus               string
+	OldLikelihood           *string
+	OldImpact               *string
 	StatusChanged           bool
+	ScoreChanged            bool
 	RecordReview            bool
 	ReviewedAt              *time.Time
 	ReviewJustification     *string
@@ -159,6 +162,10 @@ func (s *RiskService) Create(params CreateRiskParams) (*Risk, error) {
 		tx.Rollback()
 		return nil, err
 	}
+	if err := s.RecordRiskScoreSnapshot(tx, *risk.ID, RiskEventTypeCreated, params.ActorUserID, risk.CreatedAt); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 	if risk.Status == string(RiskStatusRiskAccepted) {
 		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeAccepted, params.ActorUserID, datatypes.JSONMap{"status": risk.Status}, riskSnapshot); err != nil {
 			tx.Rollback()
@@ -249,7 +256,7 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 	}
 
 	var riskSnapshot datatypes.JSONMap
-	if params.StatusChanged || params.RecordReview {
+	if params.StatusChanged || params.ScoreChanged || params.RecordReview {
 		snapshot, err := s.getRiskSnapshot(tx, *params.Risk.ID)
 		if err != nil {
 			tx.Rollback()
@@ -268,6 +275,36 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 				tx.Rollback()
 				return nil, err
 			}
+		}
+	}
+	if params.ScoreChanged {
+		fromScore, fromScoreOK := NumericalRiskScore(params.OldLikelihood, params.OldImpact)
+		toScore, toScoreOK := NumericalRiskScore(params.Risk.Likelihood, params.Risk.Impact)
+		payload := datatypes.JSONMap{
+			"fromLikelihood": stringPtrValue(params.OldLikelihood),
+			"fromImpact":     stringPtrValue(params.OldImpact),
+			"toLikelihood":   stringPtrValue(params.Risk.Likelihood),
+			"toImpact":       stringPtrValue(params.Risk.Impact),
+		}
+		if fromScoreOK {
+			payload["fromScore"] = fromScore
+		}
+		if toScoreOK {
+			payload["toScore"] = toScore
+		}
+		if err := s.logRiskEventWithSnapshot(tx, *params.Risk.ID, RiskEventTypeScoreUpdated, params.ActorUserID, payload, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	if params.StatusChanged || params.ScoreChanged {
+		sourceEventType := RiskEventTypeStatusChange
+		if params.ScoreChanged {
+			sourceEventType = RiskEventTypeScoreUpdated
+		}
+		if err := s.RecordRiskScoreSnapshot(tx, *params.Risk.ID, sourceEventType, params.ActorUserID, time.Now().UTC()); err != nil {
+			tx.Rollback()
+			return nil, err
 		}
 	}
 
@@ -362,6 +399,10 @@ func (s *RiskService) AcceptRisk(params AcceptRiskParams) (*Risk, error) {
 		"status":        risk.Status,
 		"justification": justification,
 	}, riskSnapshot); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := s.RecordRiskScoreSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, now); err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -563,15 +604,29 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		if fromImpact != nil {
 			fromImpactValue = *fromImpact
 		}
+		fromScore, fromScoreOK := NumericalRiskScore(fromLikelihood, fromImpact)
+		toScore, toScoreOK := NumericalRiskScore(reassessedLikelihood, reassessedImpact)
 
-		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeScoreReassessed, params.ActorUserID, datatypes.JSONMap{
+		payload := datatypes.JSONMap{
 			"decision":       string(decision),
 			"status":         risk.Status,
 			"fromLikelihood": fromLikelihoodValue,
 			"fromImpact":     fromImpactValue,
 			"toLikelihood":   toLikelihood,
 			"toImpact":       toImpact,
-		}, riskSnapshot); err != nil {
+		}
+		if fromScoreOK {
+			payload["fromScore"] = fromScore
+		}
+		if toScoreOK {
+			payload["toScore"] = toScore
+		}
+
+		if err := s.logRiskEventWithSnapshot(tx, *risk.ID, RiskEventTypeScoreReassessed, params.ActorUserID, payload, riskSnapshot); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := s.RecordRiskScoreSnapshot(tx, *risk.ID, RiskEventTypeScoreReassessed, params.ActorUserID, reviewedAt); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -581,6 +636,12 @@ func (s *RiskService) ReviewRisk(params ReviewRiskParams) (*Risk, error) {
 		}, riskSnapshot); err != nil {
 			tx.Rollback()
 			return nil, err
+		}
+		if decision == RiskReviewDecisionReopen || decision == RiskReviewDecisionImplement {
+			if err := s.RecordRiskScoreSnapshot(tx, *risk.ID, RiskEventTypeStatusChange, params.ActorUserID, reviewedAt); err != nil {
+				tx.Rollback()
+				return nil, err
+			}
 		}
 	}
 
@@ -1362,6 +1423,13 @@ func rollbackTxOnPanic(tx *gorm.DB) {
 	}
 }
 
+func stringPtrValue(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 // ControlKey is a composite key used to match a risk's linked controls against
 // a profile's control set. CatalogID may be empty when only control IDs are
 // available (e.g. from the profile resolution layer).
@@ -1536,6 +1604,9 @@ func (s *RiskService) RemediateOrphanedRisks(
 		}
 		if err := s.logRiskEventWithSnapshot(tx, event.riskID, RiskEventTypeStatusChange, nil, event.payload, snapshot); err != nil {
 			return remediated, fmt.Errorf("remediate orphaned risks: emit event failed for risk %s: %w", event.riskID, err)
+		}
+		if err := s.RecordRiskScoreSnapshot(tx, event.riskID, RiskEventTypeStatusChange, nil, time.Now().UTC()); err != nil {
+			return remediated, fmt.Errorf("remediate orphaned risks: score snapshot failed for risk %s: %w", event.riskID, err)
 		}
 	}
 
