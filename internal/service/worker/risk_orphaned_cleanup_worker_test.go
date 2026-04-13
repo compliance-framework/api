@@ -37,6 +37,7 @@ func createOrphanedCleanupRisk(t *testing.T, db *gorm.DB, sspID uuid.UUID, contr
 		Status:         string(riskrel.RiskStatusOpen),
 		SSPID:          sspID,
 		RiskTemplateID: &templateID,
+		SourceType:     string(riskrel.RiskSourceTypeEvidenceAuto),
 	}).Error)
 	require.NoError(t, db.Create(&riskrel.RiskControlLink{
 		RiskID:    riskID,
@@ -113,4 +114,22 @@ func TestRiskOrphanedCleanupWorker_CurrentProfileUnboundRemediatesAllAutoRisks(t
 	var eventCount int64
 	require.NoError(t, db.Model(&riskrel.RiskEvent{}).Where("risk_id = ?", riskID).Count(&eventCount).Error)
 	assert.Equal(t, int64(1), eventCount)
+}
+
+func TestRiskOrphanedCleanupWorker_MissingSSPSkipsWithoutRetry(t *testing.T) {
+	db := newRiskWorkersTestDB(t)
+	profileID := uuid.New()
+	resolver := &stubProfileControlResolver{
+		controls: map[uuid.UUID][]riskrel.ControlKey{
+			profileID: {{ControlID: "AC-1"}},
+		},
+	}
+	worker := NewRiskOrphanedCleanupWorker(db, riskrel.NewRiskService(db), resolver, zap.NewNop().Sugar())
+
+	err := worker.Work(context.Background(), makeWorkerJob(RiskOrphanedCleanupArgs{
+		SSPID:        uuid.New(),
+		NewProfileID: &profileID,
+	}))
+	require.NoError(t, err)
+	assert.Empty(t, resolver.calls)
 }

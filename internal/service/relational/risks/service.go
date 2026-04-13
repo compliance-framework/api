@@ -1387,8 +1387,9 @@ func (s *RiskService) RemediateOrphanedRisks(
 	var candidates []Risk
 	if err := tx.
 		Where(
-			"ssp_id = ? AND risk_template_id IS NOT NULL AND status NOT IN ?",
+			"ssp_id = ? AND risk_template_id IS NOT NULL AND source_type IN ? AND status NOT IN ?",
 			sspID,
+			[]string{string(RiskSourceTypeEvidenceAuto), string(RiskSourceTypeOscalImport)},
 			[]string{string(RiskStatusClosed), string(RiskStatusRemediated)},
 		).
 		Find(&candidates).Error; err != nil {
@@ -1427,8 +1428,6 @@ func (s *RiskService) RemediateOrphanedRisks(
 	}
 
 	remediated := 0
-	occurredAt := time.Now().UTC()
-
 	for i := range candidates {
 		risk := &candidates[i]
 		if risk.ID == nil {
@@ -1469,15 +1468,7 @@ func (s *RiskService) RemediateOrphanedRisks(
 			"to":     string(RiskStatusRemediated),
 			"reason": "orphaned_profile_change",
 		}
-		details := BuildRiskEventDetails(string(RiskEventTypeStatusChange), payload, occurredAt)
-		event := &RiskEvent{
-			RiskID:     *risk.ID,
-			EventType:  string(RiskEventTypeStatusChange),
-			OccurredAt: occurredAt,
-			Details:    &details,
-			Payload:    payload,
-		}
-		if err := tx.Create(event).Error; err != nil {
+		if err := s.logRiskEvent(tx, *risk.ID, RiskEventTypeStatusChange, nil, payload); err != nil {
 			return remediated, fmt.Errorf("remediate orphaned risks: emit event failed for risk %s: %w", *risk.ID, err)
 		}
 

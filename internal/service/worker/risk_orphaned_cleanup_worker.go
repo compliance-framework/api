@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compliance-framework/api/internal/service/relational"
@@ -65,6 +66,14 @@ func (w *RiskOrphanedCleanupWorker) Work(ctx context.Context, job *river.Job[Ris
 
 	var ssp relational.SystemSecurityPlan
 	if err := db.Select("id", "profile_id").First(&ssp, "id = ?", args.SSPID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			w.logger.Infow("risk orphaned cleanup: ssp not found, skipping",
+				"ssp_id", args.SSPID,
+				"old_profile_id", args.OldProfileID,
+				"new_profile_id", args.NewProfileID,
+			)
+			return nil
+		}
 		return fmt.Errorf("risk orphaned cleanup: load current ssp %s: %w", args.SSPID, err)
 	}
 

@@ -24,6 +24,7 @@ func createAutoRisk(t *testing.T, svc *RiskService, sspID uuid.UUID, status Risk
 			Status:         string(status),
 			SSPID:          sspID,
 			RiskTemplateID: &templateID,
+			SourceType:     string(RiskSourceTypeEvidenceAuto),
 		},
 	})
 	require.NoError(t, err)
@@ -165,6 +166,44 @@ func TestRemediateOrphanedRisks_SkipsManualRisks(t *testing.T) {
 	assert.Equal(t, string(RiskStatusOpen), r.Status)
 }
 
+func TestRemediateOrphanedRisks_SkipsManualRisksWithTemplate(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	sspID := uuid.New()
+	catalogID := uuid.New()
+	templateID := uuid.New()
+	likelihood := "low"
+	impact := "low"
+
+	risk, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:          "Manual template-backed risk",
+			Description:    "manual",
+			Likelihood:     &likelihood,
+			Impact:         &impact,
+			Status:         string(RiskStatusOpen),
+			SSPID:          sspID,
+			RiskTemplateID: &templateID,
+			SourceType:     string(RiskSourceTypeManual),
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&RiskControlLink{
+		RiskID:    *risk.ID,
+		CatalogID: catalogID,
+		ControlID: "AC-1",
+	}).Error)
+
+	n, err := svc.RemediateOrphanedRisks(db, sspID, map[ControlKey]struct{}{})
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "manual risks must not be remediated even when template-backed")
+
+	var updated Risk
+	require.NoError(t, db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(RiskStatusOpen), updated.Status)
+}
+
 // TestRemediateOrphanedRisks_SkipsTerminalRisks verifies that risks already in
 // a terminal state (remediated, closed) are not touched.
 func TestRemediateOrphanedRisks_SkipsTerminalRisks(t *testing.T) {
@@ -210,6 +249,8 @@ func TestRemediateOrphanedRisks_EmitsStatusChangeEvent(t *testing.T) {
 		Find(&events).Error)
 	assert.Len(t, events, 1, "one status_changed event should be emitted")
 	assert.Equal(t, string(RiskEventTypeStatusChange), events[0].EventType)
+	assert.NotEmpty(t, events[0].RiskSnapshot, "status_changed event should include the standard risk snapshot")
+	assert.Equal(t, string(RiskStatusRemediated), events[0].RiskSnapshot["status"])
 }
 
 // TestRemediateOrphanedRisks_CatalogIDFallback verifies that a risk linked with
