@@ -145,6 +145,73 @@ func TestRemediateOrphanedRisks_FullUnbind(t *testing.T) {
 	}
 }
 
+func TestRemediateOrphanedRisks_FullUnbindRemediatesAutoRiskWithoutControlLinks(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	sspID := uuid.New()
+	templateID := uuid.New()
+	likelihood := "moderate"
+	impact := "moderate"
+
+	risk, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:          "Auto-generated risk without controls",
+			Description:    "auto-generated",
+			Likelihood:     &likelihood,
+			Impact:         &impact,
+			Status:         string(RiskStatusOpen),
+			SSPID:          sspID,
+			RiskTemplateID: &templateID,
+			SourceType:     string(RiskSourceTypeEvidenceAuto),
+		},
+	})
+	require.NoError(t, err)
+
+	n, err := svc.RemediateOrphanedRisks(db, sspID, map[ControlKey]struct{}{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "auto-generated risks without control links should be remediated on full unbind")
+
+	var updated Risk
+	require.NoError(t, db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(RiskStatusRemediated), updated.Status)
+}
+
+func TestRemediateOrphanedRisks_PartialChangeSkipsAutoRiskWithoutControlLinks(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	sspID := uuid.New()
+	templateID := uuid.New()
+	likelihood := "moderate"
+	impact := "moderate"
+
+	risk, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:          "Auto-generated risk without controls",
+			Description:    "auto-generated",
+			Likelihood:     &likelihood,
+			Impact:         &impact,
+			Status:         string(RiskStatusOpen),
+			SSPID:          sspID,
+			RiskTemplateID: &templateID,
+			SourceType:     string(RiskSourceTypeEvidenceAuto),
+		},
+	})
+	require.NoError(t, err)
+
+	profileSet := map[ControlKey]struct{}{
+		{ControlID: "AC-1"}: {},
+	}
+	n, err := svc.RemediateOrphanedRisks(db, sspID, profileSet)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "auto-generated risks without control links should be skipped on partial profile changes")
+
+	var updated Risk
+	require.NoError(t, db.First(&updated, "id = ?", risk.ID).Error)
+	assert.Equal(t, string(RiskStatusOpen), updated.Status)
+}
+
 // TestRemediateOrphanedRisks_SkipsManualRisks verifies that manually created
 // risks (no RiskTemplateID) are never remediated even if their control is removed.
 func TestRemediateOrphanedRisks_SkipsManualRisks(t *testing.T) {

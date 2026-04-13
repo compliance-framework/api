@@ -1370,10 +1370,11 @@ type ControlKey struct {
 	ControlID string
 }
 
-// RemediateOrphanedRisks transitions all open, auto-generated risks for the
-// given SSP to remediated when none of their linked controls exist in
-// newProfileControlSet. Callers should pass a transaction when status updates
-// and emitted risk events must be committed atomically.
+// RemediateOrphanedRisks transitions all non-terminal auto-generated risks for
+// the given SSP to remediated when none of their linked controls exist in
+// newProfileControlSet. Closed and already-remediated risks are left untouched.
+// Callers should pass a transaction when status updates and emitted risk events
+// must be committed atomically.
 //
 // Pass an empty newProfileControlSet when the profile has been unbound entirely
 // (all auto-generated risks become orphaned by definition).
@@ -1442,7 +1443,13 @@ func (s *RiskService) RemediateOrphanedRisks(
 
 		riskControlKeys := riskControls[*risk.ID]
 		if len(riskControlKeys) == 0 {
-			continue
+			// Risks with no control links cannot be matched against a non-empty
+			// profile control set, so preserve the existing behavior for partial
+			// profile changes. During a full unbind, however, they should be
+			// treated as orphaned and remediated.
+			if len(normalisedProfileSet) > 0 {
+				continue
+			}
 		}
 
 		if len(normalisedProfileSet) > 0 {

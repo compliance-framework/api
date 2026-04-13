@@ -23,8 +23,8 @@ type ProfileControlResolver interface {
 
 // RiskOrphanedCleanupWorker is enqueued by the SSP profile attach endpoint whenever the
 // profile binding changes. At execution time, it resolves the SSP's current profile control
-// set and transitions any open auto-generated risks whose linked controls are no longer
-// present in that set to the "remediated" status.
+// set and transitions any non-terminal auto-generated risks whose linked controls are no
+// longer present in that set to the "remediated" status.
 //
 // Design rationale:
 //   - The handler enqueues a job rather than calling RemediateOrphanedRisks inline so that
