@@ -1372,8 +1372,8 @@ type ControlKey struct {
 
 // RemediateOrphanedRisks transitions all open, auto-generated risks for the
 // given SSP to remediated when none of their linked controls exist in
-// newProfileControlSet. It must be called inside the caller transaction (tx)
-// so that the profile update and the risk cleanup are atomic.
+// newProfileControlSet. Callers should pass a transaction when status updates
+// and emitted risk events must be committed atomically.
 //
 // Pass an empty newProfileControlSet when the profile has been unbound entirely
 // (all auto-generated risks become orphaned by definition).

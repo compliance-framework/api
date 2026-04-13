@@ -148,9 +148,10 @@ func JobInsertOptionsForRiskDigest(byPeriod time.Duration) *river.InsertOpts {
 }
 
 // JobInsertOptionsForRiskOrphanedCleanup returns insert options for the orphaned risk cleanup job.
-// ByArgs deduplication ensures that each unique (ssp_id, new_profile_id) combination gets its own
-// job — multiple profile changes on the same SSP in the same day each produce an independent job.
-// No ByPeriod is set intentionally so that rapid successive changes are not collapsed.
+// ByArgs deduplication uses the river:"unique" fields on RiskOrphanedCleanupArgs, so active
+// jobs are unique by (ssp_id, new_profile_id). Repeated changes to the same target profile are
+// collapsed while an equivalent job is active; changes to different target profiles can enqueue
+// independent jobs.
 //
 // ByState is explicitly set to exclude JobStateCompleted and JobStateCancelled so that a second
 // profile change to the same target profile re-inserts a fresh cleanup job even if the previous

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
+	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
@@ -102,6 +103,20 @@ func TestNewServiceWithDigest_RequiresEmailService(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, service)
 	assert.Contains(t, err.Error(), "email service is required")
+}
+
+func TestNewServiceWithDigest_RequiresProfileResolver(t *testing.T) {
+	cfg := &config.WorkerConfig{
+		Enabled: true,
+		Workers: 5,
+		Queue:   "email",
+	}
+	logger := zap.NewNop().Sugar()
+
+	service, err := NewServiceWithDigest(cfg, nil, &email.Service{}, nil, nil, nil, logger)
+	assert.Error(t, err)
+	assert.Nil(t, service)
+	assert.Contains(t, err.Error(), "profile control resolver is required")
 }
 
 func TestService_EnqueueWhenDisabled(t *testing.T) {

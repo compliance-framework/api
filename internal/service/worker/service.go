@@ -135,6 +135,9 @@ func NewServiceWithDigest(
 	if emailSvc == nil {
 		return nil, fmt.Errorf("email service is required for worker service")
 	}
+	if profileResolver == nil {
+		return nil, fmt.Errorf("profile control resolver is required for worker service")
+	}
 
 	// Get pgx pool from GORM
 	// Note: Creating a separate pgx pool for River workers is acceptable here because:
@@ -914,9 +917,9 @@ func (s *Service) EnqueueRiskProcessEvidence(ctx context.Context, evidenceID uui
 }
 
 // EnqueueOrphanedRiskCleanup enqueues a job to remediate orphaned risks when an SSP's
-// profile binding changes. Each unique (ssp_id, new_profile_id) combination produces
-// an independent job — multiple profile changes on the same SSP in a short window
-// each trigger their own cleanup pass.
+// profile binding changes. Active jobs are deduped by (ssp_id, new_profile_id): repeated
+// changes to the same target profile collapse to one job, while changes to different
+// target profiles can produce independent jobs.
 func (s *Service) EnqueueOrphanedRiskCleanup(ctx context.Context, sspID uuid.UUID, oldProfileID, newProfileID *uuid.UUID) error {
 	if !s.config.Enabled || s.client == nil {
 		return nil
