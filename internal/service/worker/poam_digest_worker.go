@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/google/uuid"
@@ -454,11 +455,15 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 		return nil
 	}
 
-	// Respect the user's POAM notification subscription preference.
-	// The Risk digest uses RiskNotificationsSubscribed; POAM reuses the same
-	// field until a dedicated PoamNotificationsSubscribed column is added.
-	if !user.RiskNotificationsSubscribed {
-		w.logger.Debugw("PoamOpenDigestWorker: user unsubscribed from notifications, skipping",
+	// Respect the user's shared risk/POAM email notification preference until
+	// POAM gains a dedicated notification type.
+	channels, ok := selectUserNotificationChannels(
+		user,
+		notification.NotificationTypeRiskNotifications,
+		notification.DeliveryChannelEmail,
+	)
+	if !ok || len(channels) == 0 {
+		w.logger.Debugw("PoamOpenDigestWorker: user not subscribed to email notifications, skipping",
 			"user_id", args.RecipientUserID,
 		)
 		return nil

@@ -221,13 +221,12 @@ type NotificationSubscription struct {
 
 // NotificationUser holds the user fields needed for sending notification emails
 type NotificationUser struct {
-	ID                          string
-	Email                       string
-	FirstName                   string
-	LastName                    string
-	SlackUserID                 string
-	NotificationSubscriptions   []NotificationSubscription
-	RiskNotificationsSubscribed bool
+	ID                        string
+	Email                     string
+	FirstName                 string
+	LastName                  string
+	SlackUserID               string
+	NotificationSubscriptions []NotificationSubscription
 }
 
 func (u NotificationUser) FullName() string {
@@ -1039,16 +1038,16 @@ func Workers(emailService EmailService, digestService DigestService, slackServic
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(workflowExecutionFailedWorker.Work))
 
-			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorker(db, emailService, userRepo, webBaseURL, logger)
+			riskReviewDueReminderWorker := NewRiskReviewDueReminderWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewDueReminderWorker.Work))
 
-			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorker(db, emailService, userRepo, webBaseURL, logger)
+			riskReviewOverdueEscalationWorker := NewRiskReviewOverdueEscalationWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(riskReviewOverdueEscalationWorker.Work))
 
-			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorker(db, emailService, userRepo, webBaseURL, logger)
+			riskStaleOpenReminderWorker := NewRiskStaleOpenReminderWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(riskStaleOpenReminderWorker.Work))
 
-			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, emailService, userRepo, webBaseURL, logger)
+			riskOpenDigestWorker := NewRiskOpenDigestWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
 			river.AddWorker(workers, river.WorkFunc(riskOpenDigestWorker.Work))
 
 			// Register POAM notification workers (BCH-1186 Phase 3)

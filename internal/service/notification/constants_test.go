@@ -42,6 +42,12 @@ func TestNormalizeNotificationType_TaskDailyDigest(t *testing.T) {
 	assert.Equal(t, NotificationTypeTaskDailyDigest, normalized)
 }
 
+func TestNormalizeNotificationType_RiskNotifications(t *testing.T) {
+	normalized, ok := NormalizeNotificationType(" Risk_Notifications ")
+	assert.True(t, ok)
+	assert.Equal(t, NotificationTypeRiskNotifications, normalized)
+}
+
 func TestNormalizeNotificationType_CamelCaseAliases(t *testing.T) {
 	normalized, ok := NormalizeNotificationType(" taskAvailable ")
 	assert.True(t, ok)
@@ -54,6 +60,10 @@ func TestNormalizeNotificationType_CamelCaseAliases(t *testing.T) {
 	normalized, ok = NormalizeNotificationType(" taskDailyDigest ")
 	assert.True(t, ok)
 	assert.Equal(t, NotificationTypeTaskDailyDigest, normalized)
+
+	normalized, ok = NormalizeNotificationType(" riskNotifications ")
+	assert.True(t, ok)
+	assert.Equal(t, NotificationTypeRiskNotifications, normalized)
 }
 
 func TestWireNotificationType(t *testing.T) {
@@ -68,6 +78,10 @@ func TestWireNotificationType(t *testing.T) {
 	wireType, ok = WireNotificationType(" taskDailyDigest ")
 	assert.True(t, ok)
 	assert.Equal(t, NotificationTypeTaskDailyDigestWire, wireType)
+
+	wireType, ok = WireNotificationType(" risk_notifications ")
+	assert.True(t, ok)
+	assert.Equal(t, NotificationTypeRiskNotificationsWire, wireType)
 }
 
 func TestNormalizeNotificationType_Invalid(t *testing.T) {
