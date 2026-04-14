@@ -32,6 +32,7 @@ type RiskHandler struct {
 const (
 	maxRiskTitleLength       = 1000
 	maxRiskDescriptionLength = 1000
+	maxRiskScoreRangeDays    = 366
 )
 
 func NewRiskHandler(sugar *zap.SugaredLogger, db *gorm.DB, poamSvc *poamsvc.PoamService, riskSvc *riskrel.RiskService) *RiskHandler {
@@ -1280,7 +1281,11 @@ func (h *RiskHandler) GetScoreHistory(ctx echo.Context) error {
 
 	resp := make([]riskScoreResponse, 0, len(scores))
 	for _, score := range scores {
-		resp = append(resp, mapRiskScoreToResponse(score))
+		mapped, err := mapRiskScoreToResponse(score)
+		if err != nil {
+			return h.internalServerError(ctx, "failed to map risk score history", err)
+		}
+		resp = append(resp, mapped)
 	}
 	return ctx.JSON(http.StatusOK, GenericDataListResponse[riskScoreResponse]{Data: resp})
 }
@@ -2148,16 +2153,22 @@ func parseScoreTimeseriesParams(ctx echo.Context) (*uuid.UUID, time.Time, time.T
 		bucket = riskrel.RiskScoreBucketDay
 	}
 
+	if to.Before(from) {
+		return nil, time.Time{}, time.Time{}, "", fmt.Errorf("to must be greater than or equal to from")
+	}
+	if to.Sub(from) > time.Duration(maxRiskScoreRangeDays)*24*time.Hour {
+		return nil, time.Time{}, time.Time{}, "", fmt.Errorf("score timeseries range must not exceed %d days", maxRiskScoreRangeDays)
+	}
+
 	return sspID, from, to, bucket, nil
 }
 
-func mapRiskScoreToResponse(score riskrel.RiskScore) riskScoreResponse {
-	id := uuid.Nil
-	if score.ID != nil {
-		id = *score.ID
+func mapRiskScoreToResponse(score riskrel.RiskScore) (riskScoreResponse, error) {
+	if score.ID == nil {
+		return riskScoreResponse{}, fmt.Errorf("risk score is missing required id")
 	}
 	return riskScoreResponse{
-		ID:                id,
+		ID:                *score.ID,
 		RiskID:            score.RiskID,
 		SSPID:             score.SSPID,
 		OccurredAt:        score.OccurredAt,
@@ -2171,7 +2182,7 @@ func mapRiskScoreToResponse(score riskrel.RiskScore) riskScoreResponse {
 		ResidualScore:     score.ResidualScore,
 		OpenBaselineScore: score.OpenBaselineScore,
 		OpenResidualScore: score.OpenResidualScore,
-	}
+	}, nil
 }
 
 func cloneStringPtr(value *string) *string {

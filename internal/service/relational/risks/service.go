@@ -302,7 +302,11 @@ func (s *RiskService) Update(params UpdateRiskParams) (*Risk, error) {
 		if params.ScoreChanged {
 			sourceEventType = RiskEventTypeScoreUpdated
 		}
-		if err := s.RecordRiskScoreSnapshot(tx, *params.Risk.ID, sourceEventType, params.ActorUserID, time.Now().UTC()); err != nil {
+		snapshotOccurredAt := params.Risk.UpdatedAt.UTC()
+		if params.Risk.UpdatedAt.IsZero() {
+			snapshotOccurredAt = time.Now().UTC()
+		}
+		if err := s.RecordRiskScoreSnapshot(tx, *params.Risk.ID, sourceEventType, params.ActorUserID, snapshotOccurredAt); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
