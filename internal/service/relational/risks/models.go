@@ -189,6 +189,13 @@ func EnsureIndexes(db *gorm.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_register_dedupe_active ON risk_register_risks (dedupe_key) WHERE status <> 'closed' AND dedupe_key <> ''`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_owner_primary_unique ON risk_owner_assignments (risk_id) WHERE is_primary = true`,
 	}
+	if db.Migrator().HasTable(&RiskScore{}) {
+		stmts = append(stmts,
+			`CREATE INDEX IF NOT EXISTS idx_risk_scores_risk_time ON risk_scores (risk_id, occurred_at DESC, created_at DESC, id DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_risk_scores_ssp_time_risk ON risk_scores (ssp_id, occurred_at DESC, risk_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_risk_scores_ssp_risk_time ON risk_scores (ssp_id, risk_id, occurred_at DESC, created_at DESC, id DESC)`,
+		)
+	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {
 			return err

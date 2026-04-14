@@ -425,6 +425,44 @@ func (suite *RiskApiIntegrationSuite) TestRiskReassessReviewEndpoints() {
 	require.Equal(suite.T(), "low", scoreReassessedEvents[0].Payload["fromImpact"])
 	require.Equal(suite.T(), "moderate", scoreReassessedEvents[0].Payload["toLikelihood"])
 	require.Equal(suite.T(), "critical", scoreReassessedEvents[0].Payload["toImpact"])
+	require.Equal(suite.T(), "4", fmt.Sprint(scoreReassessedEvents[0].Payload["fromScore"]))
+	require.Equal(suite.T(), "15", fmt.Sprint(scoreReassessedEvents[0].Payload["toScore"]))
+
+	historyRec, historyReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history", created.ID), nil)
+	suite.server.E().ServeHTTP(historyRec, historyReq)
+	require.Equal(suite.T(), http.StatusOK, historyRec.Code)
+
+	var history GenericDataListResponse[riskScoreResponse]
+	require.NoError(suite.T(), json.Unmarshal(historyRec.Body.Bytes(), &history))
+	require.Len(suite.T(), history.Data, 2)
+	require.Equal(suite.T(), 4, history.Data[0].BaselineScore)
+	require.Equal(suite.T(), 4, history.Data[0].ResidualScore)
+	require.Equal(suite.T(), 4, history.Data[0].OpenBaselineScore)
+	require.Equal(suite.T(), 4, history.Data[0].OpenResidualScore)
+	require.Equal(suite.T(), 4, history.Data[1].BaselineScore)
+	require.Equal(suite.T(), 15, history.Data[1].ResidualScore)
+	require.Equal(suite.T(), 4, history.Data[1].OpenBaselineScore)
+	require.Equal(suite.T(), 15, history.Data[1].OpenResidualScore)
+
+	pagedHistoryRec, pagedHistoryReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history?page=1&limit=1", created.ID), nil)
+	suite.server.E().ServeHTTP(pagedHistoryRec, pagedHistoryReq)
+	require.Equal(suite.T(), http.StatusOK, pagedHistoryRec.Code)
+
+	var pagedHistory struct {
+		Data  []riskScoreResponse `json:"data"`
+		Total int64               `json:"total"`
+		Page  int                 `json:"page"`
+		Limit int                 `json:"limit"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(pagedHistoryRec.Body.Bytes(), &pagedHistory))
+	require.Len(suite.T(), pagedHistory.Data, 1)
+	require.Equal(suite.T(), int64(2), pagedHistory.Total)
+	require.Equal(suite.T(), 1, pagedHistory.Page)
+	require.Equal(suite.T(), 1, pagedHistory.Limit)
+
+	scopedHistoryRec, scopedHistoryReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/score-history", created.SSPID, created.ID), nil)
+	suite.server.E().ServeHTTP(scopedHistoryRec, scopedHistoryReq)
+	require.Equal(suite.T(), http.StatusOK, scopedHistoryRec.Code)
 
 	var reviewedEvents int64
 	require.NoError(suite.T(), suite.DB.Model(&riskrel.RiskEvent{}).
@@ -500,6 +538,87 @@ func (suite *RiskApiIntegrationSuite) TestRiskReassessReviewEndpoints() {
 	})
 	suite.server.E().ServeHTTP(acceptedReassessRec, acceptedReassessReq)
 	require.Equal(suite.T(), http.StatusBadRequest, acceptedReassessRec.Code)
+}
+
+func (suite *RiskApiIntegrationSuite) TestRiskScoreTimeseriesAggregatesBySSPAndGlobally() {
+	sspA := uuid.New()
+	sspB := uuid.New()
+	suite.ensureSSPExists(sspA.String())
+	suite.ensureSSPExists(sspB.String())
+
+	riskA1 := suite.createScoredRiskSnapshotFixture(sspA, "a1")
+	riskA2 := suite.createScoredRiskSnapshotFixture(sspA, "a2")
+	riskA3 := suite.createScoredRiskSnapshotFixture(sspA, "a3")
+	riskB1 := suite.createScoredRiskSnapshotFixture(sspB, "b1")
+
+	low := "low"
+	high := "high"
+	critical := "critical"
+	day1 := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	day2 := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	day3 := time.Date(2026, 1, 3, 10, 0, 0, 0, time.UTC)
+
+	require.NoError(suite.T(), suite.DB.Create(&[]riskrel.RiskScore{
+		{
+			RiskID: riskA1, SSPID: sspA, OccurredAt: day1, SourceEventType: string(riskrel.RiskEventTypeCreated), Status: string(riskrel.RiskStatusOpen),
+			Likelihood: &high, Impact: &high, BaselineScore: 16, ResidualScore: 16, OpenBaselineScore: 16, OpenResidualScore: 16,
+		},
+		{
+			RiskID: riskA1, SSPID: sspA, OccurredAt: day2, SourceEventType: string(riskrel.RiskEventTypeScoreReassessed), Status: string(riskrel.RiskStatusOpen),
+			Likelihood: &low, Impact: &high, BaselineScore: 16, ResidualScore: 8, OpenBaselineScore: 16, OpenResidualScore: 8,
+		},
+		{
+			RiskID: riskA1, SSPID: sspA, OccurredAt: day3, SourceEventType: string(riskrel.RiskEventTypeStatusChange), Status: string(riskrel.RiskStatusClosed),
+			Likelihood: &low, Impact: &high, BaselineScore: 16, ResidualScore: 8, OpenBaselineScore: 0, OpenResidualScore: 0,
+		},
+		{
+			RiskID: riskA2, SSPID: sspA, OccurredAt: day1, SourceEventType: string(riskrel.RiskEventTypeCreated), Status: string(riskrel.RiskStatusOpen),
+			Likelihood: &low, Impact: &low, BaselineScore: 4, ResidualScore: 4, OpenBaselineScore: 4, OpenResidualScore: 4,
+		},
+		{
+			RiskID: riskA3, SSPID: sspA, OccurredAt: day1, SourceEventType: string(riskrel.RiskEventTypeCreated), Status: string(riskrel.RiskStatusOpen),
+			Likelihood: &high, Impact: &low, BaselineScore: 8, ResidualScore: 8, OpenBaselineScore: 8, OpenResidualScore: 8,
+		},
+		{
+			RiskID: riskA3, SSPID: sspA, OccurredAt: day2, SourceEventType: string(riskrel.RiskEventTypeDeleted), Status: riskrel.RiskScoreStatusDeleted,
+			Likelihood: &high, Impact: &low, BaselineScore: 8, ResidualScore: 8, OpenBaselineScore: 0, OpenResidualScore: 0,
+		},
+		{
+			RiskID: riskB1, SSPID: sspB, OccurredAt: day1, SourceEventType: string(riskrel.RiskEventTypeCreated), Status: string(riskrel.RiskStatusOpen),
+			Likelihood: &critical, Impact: &critical, BaselineScore: 25, ResidualScore: 25, OpenBaselineScore: 25, OpenResidualScore: 25,
+		},
+	}).Error)
+
+	from := url.QueryEscape(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339))
+	to := url.QueryEscape(time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC).Format(time.RFC3339))
+
+	scopedRec, scopedReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/score-timeseries?from=%s&to=%s&bucket=day", sspA, from, to), nil)
+	suite.server.E().ServeHTTP(scopedRec, scopedReq)
+	require.Equal(suite.T(), http.StatusOK, scopedRec.Code)
+
+	var scoped GenericDataListResponse[riskScoreTimeseriesResponse]
+	require.NoError(suite.T(), json.Unmarshal(scopedRec.Body.Bytes(), &scoped))
+	require.Len(suite.T(), scoped.Data, 3)
+	require.Equal(suite.T(), 28, scoped.Data[0].OpenBaselineScore)
+	require.Equal(suite.T(), 28, scoped.Data[0].OpenResidualScore)
+	require.Equal(suite.T(), 20, scoped.Data[1].OpenBaselineScore)
+	require.Equal(suite.T(), 12, scoped.Data[1].OpenResidualScore)
+	require.Equal(suite.T(), 4, scoped.Data[2].OpenBaselineScore)
+	require.Equal(suite.T(), 4, scoped.Data[2].OpenResidualScore)
+
+	globalRec, globalReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/score-timeseries?from=%s&to=%s&bucket=day", from, to), nil)
+	suite.server.E().ServeHTTP(globalRec, globalReq)
+	require.Equal(suite.T(), http.StatusOK, globalRec.Code)
+
+	var global GenericDataListResponse[riskScoreTimeseriesResponse]
+	require.NoError(suite.T(), json.Unmarshal(globalRec.Body.Bytes(), &global))
+	require.Len(suite.T(), global.Data, 3)
+	require.Equal(suite.T(), 53, global.Data[0].OpenBaselineScore)
+	require.Equal(suite.T(), 53, global.Data[0].OpenResidualScore)
+	require.Equal(suite.T(), 45, global.Data[1].OpenBaselineScore)
+	require.Equal(suite.T(), 37, global.Data[1].OpenResidualScore)
+	require.Equal(suite.T(), 29, global.Data[2].OpenBaselineScore)
+	require.Equal(suite.T(), 29, global.Data[2].OpenResidualScore)
 }
 
 func (suite *RiskApiIntegrationSuite) TestSSPScopedRiskCRUD() {
@@ -1904,4 +2023,19 @@ func (suite *RiskApiIntegrationSuite) createRisk(reqBody map[string]any) riskRes
 	var created GenericDataResponse[riskResponse]
 	require.NoError(suite.T(), json.Unmarshal(rec.Body.Bytes(), &created))
 	return created.Data
+}
+
+func (suite *RiskApiIntegrationSuite) createScoredRiskSnapshotFixture(sspID uuid.UUID, suffix string) uuid.UUID {
+	riskID := uuid.New()
+	now := time.Now().UTC()
+	require.NoError(suite.T(), suite.DB.Create(&riskrel.Risk{
+		UUIDModel:   relational.UUIDModel{ID: &riskID},
+		Title:       "timeseries risk " + suffix,
+		Description: "aggregate score fixture",
+		Status:      string(riskrel.RiskStatusOpen),
+		SSPID:       sspID,
+		FirstSeenAt: now,
+		LastSeenAt:  now,
+	}).Error)
+	return riskID
 }

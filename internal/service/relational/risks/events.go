@@ -15,11 +15,13 @@ type RiskEventType string
 
 const (
 	RiskEventTypeCreated            RiskEventType = "created"
+	RiskEventTypeDeleted            RiskEventType = "deleted"
 	RiskEventTypeLastSeen           RiskEventType = "last_seen"
 	RiskEventTypeStatusChange       RiskEventType = "status_changed"
 	RiskEventTypeAccepted           RiskEventType = "accepted"
 	RiskEventTypeReviewed           RiskEventType = "reviewed"
 	RiskEventTypeScoreReassessed    RiskEventType = "score_reassessed"
+	RiskEventTypeScoreUpdated       RiskEventType = "score_updated"
 	RiskEventTypeEvidenceLink       RiskEventType = "evidence_linked"
 	RiskEventTypeEvidenceUnlink     RiskEventType = "evidence_unlinked"
 	RiskEventTypeControlLink        RiskEventType = "control_linked"
@@ -112,6 +114,8 @@ func BuildRiskEventDetails(eventType string, payload datatypes.JSONMap, occurred
 			return fmt.Sprintf("Risk score was reassessed from likelihood=%s impact=%s to likelihood=%s impact=%s.", fromLikelihood, fromImpact, toLikelihood, toImpact)
 		}
 		return "Risk score was reassessed."
+	case string(RiskEventTypeScoreUpdated):
+		return "Risk score was updated."
 	case string(RiskEventTypeEvidenceLink):
 		if evidenceID := payloadString(payload, "evidenceId", "evidence_id"); evidenceID != "" {
 			return fmt.Sprintf("Evidence %s was linked to this risk.", evidenceID)
