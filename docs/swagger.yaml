@@ -571,14 +571,6 @@ definitions:
           $ref: '#/definitions/handler.poamItemResponse'
         type: array
     type: object
-  handler.GenericDataListResponse-handler_riskScoreResponse:
-    properties:
-      data:
-        description: Items from the list response
-        items:
-          $ref: '#/definitions/handler.riskScoreResponse'
-        type: array
-    type: object
   handler.GenericDataListResponse-handler_riskScoreTimeseriesResponse:
     properties:
       data:
@@ -7514,6 +7506,21 @@ definitions:
       data:
         items:
           $ref: '#/definitions/handler.riskResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  service.ListResponse-handler_riskScoreResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.riskScoreResponse'
         type: array
       limit:
         type: integer
@@ -21629,13 +21636,21 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_riskScoreResponse'
+            $ref: '#/definitions/service.ListResponse-handler_riskScoreResponse'
         "400":
           description: Bad Request
           schema:
@@ -23611,13 +23626,21 @@ paths:
         name: id
         required: true
         type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.GenericDataListResponse-handler_riskScoreResponse'
+            $ref: '#/definitions/service.ListResponse-handler_riskScoreResponse'
         "400":
           description: Bad Request
           schema:

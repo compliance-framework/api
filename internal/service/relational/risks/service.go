@@ -700,6 +700,10 @@ func (s *RiskService) Delete(riskID uuid.UUID) error {
 		tx.Rollback()
 		return err
 	}
+	if err := s.RecordRiskScoreSnapshot(tx, riskID, RiskEventTypeDeleted, nil, time.Now().UTC()); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	result := tx.Delete(&Risk{}, "id = ?", riskID)
 	if result.Error != nil {

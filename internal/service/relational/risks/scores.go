@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	RiskScoreBucketDay = "day"
+	RiskScoreBucketDay     = "day"
+	RiskScoreStatusDeleted = "deleted"
 )
 
 type RiskScore struct {
@@ -141,9 +142,14 @@ func (s *RiskService) RecordRiskScoreSnapshot(tx *gorm.DB, riskID uuid.UUID, sou
 		}
 	}
 
+	status := risk.Status
 	openBaselineScore := baselineScore
 	openResidualScore := residualScore
-	if isTerminalRiskStatus(risk.Status) {
+	if sourceEventType == RiskEventTypeDeleted {
+		status = RiskScoreStatusDeleted
+		openBaselineScore = 0
+		openResidualScore = 0
+	} else if isTerminalRiskStatus(risk.Status) {
 		openBaselineScore = 0
 		openResidualScore = 0
 	}
@@ -154,7 +160,7 @@ func (s *RiskService) RecordRiskScoreSnapshot(tx *gorm.DB, riskID uuid.UUID, sou
 		OccurredAt:        occurredAt,
 		ActorUserID:       actorUserID,
 		SourceEventType:   string(sourceEventType),
-		Status:            risk.Status,
+		Status:            status,
 		Likelihood:        risk.Likelihood,
 		Impact:            risk.Impact,
 		BaselineScore:     baselineScore,
@@ -179,14 +185,27 @@ func isTerminalRiskStatus(status string) bool {
 }
 
 func (s *RiskService) ListScoreHistory(riskID uuid.UUID) ([]RiskScore, error) {
-	var scores []RiskScore
-	if err := s.db.
-		Where("risk_id = ?", riskID).
-		Order("occurred_at ASC, created_at ASC, id ASC").
-		Find(&scores).Error; err != nil {
-		return nil, err
+	scores, _, err := s.ListScoreHistoryPage(riskID, -1, 0)
+	return scores, err
+}
+
+func (s *RiskService) ListScoreHistoryPage(riskID uuid.UUID, limit, offset int) ([]RiskScore, int64, error) {
+	q := s.db.Model(&RiskScore{}).Where("risk_id = ?", riskID)
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
-	return scores, nil
+
+	var scores []RiskScore
+	if err := q.
+		Order("occurred_at ASC, created_at ASC, id ASC").
+		Limit(limit).
+		Offset(offset).
+		Find(&scores).Error; err != nil {
+		return nil, 0, err
+	}
+	return scores, total, nil
 }
 
 func (s *RiskService) ListScoreTimeseries(sspID *uuid.UUID, from, to time.Time, bucket string) ([]RiskScoreTimeseriesPoint, error) {

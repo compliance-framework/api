@@ -188,3 +188,34 @@ func TestRiskScoreSnapshotFirstCompleteScoreBecomesBaseline(t *testing.T) {
 	require.Equal(t, 10, history[0].BaselineScore)
 	require.Equal(t, 10, history[0].ResidualScore)
 }
+
+func TestRiskDeleteRecordsZeroContributionScoreSnapshot(t *testing.T) {
+	db := newRiskServiceTestDB(t)
+	svc := NewRiskService(db)
+
+	sspID := uuid.New()
+	high := "high"
+	created, err := svc.Create(CreateRiskParams{
+		Risk: Risk{
+			Title:       "deleted scored risk",
+			Description: "desc",
+			Status:      string(RiskStatusOpen),
+			SSPID:       sspID,
+			Likelihood:  &high,
+			Impact:      &high,
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.Delete(*created.ID))
+
+	history, err := svc.ListScoreHistory(*created.ID)
+	require.NoError(t, err)
+	require.Len(t, history, 2)
+	require.Equal(t, string(RiskEventTypeDeleted), history[1].SourceEventType)
+	require.Equal(t, RiskScoreStatusDeleted, history[1].Status)
+	require.Equal(t, 16, history[1].BaselineScore)
+	require.Equal(t, 16, history[1].ResidualScore)
+	require.Equal(t, 0, history[1].OpenBaselineScore)
+	require.Equal(t, 0, history[1].OpenResidualScore)
+}

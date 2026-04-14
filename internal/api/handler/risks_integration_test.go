@@ -444,6 +444,22 @@ func (suite *RiskApiIntegrationSuite) TestRiskReassessReviewEndpoints() {
 	require.Equal(suite.T(), 4, history.Data[1].OpenBaselineScore)
 	require.Equal(suite.T(), 15, history.Data[1].OpenResidualScore)
 
+	pagedHistoryRec, pagedHistoryReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/risks/%s/score-history?page=1&limit=1", created.ID), nil)
+	suite.server.E().ServeHTTP(pagedHistoryRec, pagedHistoryReq)
+	require.Equal(suite.T(), http.StatusOK, pagedHistoryRec.Code)
+
+	var pagedHistory struct {
+		Data  []riskScoreResponse `json:"data"`
+		Total int64               `json:"total"`
+		Page  int                 `json:"page"`
+		Limit int                 `json:"limit"`
+	}
+	require.NoError(suite.T(), json.Unmarshal(pagedHistoryRec.Body.Bytes(), &pagedHistory))
+	require.Len(suite.T(), pagedHistory.Data, 1)
+	require.Equal(suite.T(), int64(2), pagedHistory.Total)
+	require.Equal(suite.T(), 1, pagedHistory.Page)
+	require.Equal(suite.T(), 1, pagedHistory.Limit)
+
 	scopedHistoryRec, scopedHistoryReq := suite.authedRequest(http.MethodGet, fmt.Sprintf("/api/oscal/system-security-plans/%s/risks/%s/score-history", created.SSPID, created.ID), nil)
 	suite.server.E().ServeHTTP(scopedHistoryRec, scopedHistoryReq)
 	require.Equal(suite.T(), http.StatusOK, scopedHistoryRec.Code)
@@ -532,6 +548,7 @@ func (suite *RiskApiIntegrationSuite) TestRiskScoreTimeseriesAggregatesBySSPAndG
 
 	riskA1 := suite.createScoredRiskSnapshotFixture(sspA, "a1")
 	riskA2 := suite.createScoredRiskSnapshotFixture(sspA, "a2")
+	riskA3 := suite.createScoredRiskSnapshotFixture(sspA, "a3")
 	riskB1 := suite.createScoredRiskSnapshotFixture(sspB, "b1")
 
 	low := "low"
@@ -559,6 +576,14 @@ func (suite *RiskApiIntegrationSuite) TestRiskScoreTimeseriesAggregatesBySSPAndG
 			Likelihood: &low, Impact: &low, BaselineScore: 4, ResidualScore: 4, OpenBaselineScore: 4, OpenResidualScore: 4,
 		},
 		{
+			RiskID: riskA3, SSPID: sspA, OccurredAt: day1, SourceEventType: string(riskrel.RiskEventTypeCreated), Status: string(riskrel.RiskStatusOpen),
+			Likelihood: &high, Impact: &low, BaselineScore: 8, ResidualScore: 8, OpenBaselineScore: 8, OpenResidualScore: 8,
+		},
+		{
+			RiskID: riskA3, SSPID: sspA, OccurredAt: day2, SourceEventType: string(riskrel.RiskEventTypeDeleted), Status: riskrel.RiskScoreStatusDeleted,
+			Likelihood: &high, Impact: &low, BaselineScore: 8, ResidualScore: 8, OpenBaselineScore: 0, OpenResidualScore: 0,
+		},
+		{
 			RiskID: riskB1, SSPID: sspB, OccurredAt: day1, SourceEventType: string(riskrel.RiskEventTypeCreated), Status: string(riskrel.RiskStatusOpen),
 			Likelihood: &critical, Impact: &critical, BaselineScore: 25, ResidualScore: 25, OpenBaselineScore: 25, OpenResidualScore: 25,
 		},
@@ -574,8 +599,8 @@ func (suite *RiskApiIntegrationSuite) TestRiskScoreTimeseriesAggregatesBySSPAndG
 	var scoped GenericDataListResponse[riskScoreTimeseriesResponse]
 	require.NoError(suite.T(), json.Unmarshal(scopedRec.Body.Bytes(), &scoped))
 	require.Len(suite.T(), scoped.Data, 3)
-	require.Equal(suite.T(), 20, scoped.Data[0].OpenBaselineScore)
-	require.Equal(suite.T(), 20, scoped.Data[0].OpenResidualScore)
+	require.Equal(suite.T(), 28, scoped.Data[0].OpenBaselineScore)
+	require.Equal(suite.T(), 28, scoped.Data[0].OpenResidualScore)
 	require.Equal(suite.T(), 20, scoped.Data[1].OpenBaselineScore)
 	require.Equal(suite.T(), 12, scoped.Data[1].OpenResidualScore)
 	require.Equal(suite.T(), 4, scoped.Data[2].OpenBaselineScore)
@@ -588,8 +613,8 @@ func (suite *RiskApiIntegrationSuite) TestRiskScoreTimeseriesAggregatesBySSPAndG
 	var global GenericDataListResponse[riskScoreTimeseriesResponse]
 	require.NoError(suite.T(), json.Unmarshal(globalRec.Body.Bytes(), &global))
 	require.Len(suite.T(), global.Data, 3)
-	require.Equal(suite.T(), 45, global.Data[0].OpenBaselineScore)
-	require.Equal(suite.T(), 45, global.Data[0].OpenResidualScore)
+	require.Equal(suite.T(), 53, global.Data[0].OpenBaselineScore)
+	require.Equal(suite.T(), 53, global.Data[0].OpenResidualScore)
 	require.Equal(suite.T(), 45, global.Data[1].OpenBaselineScore)
 	require.Equal(suite.T(), 37, global.Data[1].OpenResidualScore)
 	require.Equal(suite.T(), 29, global.Data[2].OpenBaselineScore)

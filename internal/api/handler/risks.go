@@ -1225,7 +1225,9 @@ func (h *RiskHandler) GetReviews(ctx echo.Context) error {
 //	@Produce		json
 //	@Param			sspId	path		string	true	"SSP ID"
 //	@Param			id		path		string	true	"Risk ID"
-//	@Success		200		{object}	GenericDataListResponse[riskScoreResponse]
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[riskScoreResponse]
 //	@Failure		400		{object}	api.Error
 //	@Failure		404		{object}	api.Error
 //	@Failure		500		{object}	api.Error
@@ -1255,39 +1257,39 @@ func (h *RiskHandler) GetScoreHistoryForSSP(ctx echo.Context) error {
 //	@Description	Lists score snapshots for a risk.
 //	@Tags			Risks
 //	@Produce		json
-//	@Param			id	path		string	true	"Risk ID"
-//	@Success		200	{object}	GenericDataListResponse[riskScoreResponse]
-//	@Failure		400	{object}	api.Error
-//	@Failure		404	{object}	api.Error
-//	@Failure		500	{object}	api.Error
+//	@Param			id		path		string	true	"Risk ID"
+//	@Param			page	query		int		false	"Page number"
+//	@Param			limit	query		int		false	"Page size"
+//	@Success		200		{object}	svc.ListResponse[riskScoreResponse]
+//	@Failure		400		{object}	api.Error
+//	@Failure		404		{object}	api.Error
+//	@Failure		500		{object}	api.Error
 //	@Security		OAuth2Password
 //	@Router			/risks/{id}/score-history [get]
 func (h *RiskHandler) GetScoreHistory(ctx echo.Context) error {
-	riskID, err := parsePathUUID(ctx, "id")
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
-	}
-	if err := h.ensureRiskExists(riskID); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+	return h.withRiskListContext(ctx, func(riskID uuid.UUID, pagination *svc.PaginationParams) error {
+		if err := h.ensureRiskExists(riskID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ctx.JSON(http.StatusNotFound, api.NewError(fmt.Errorf("risk not found")))
+			}
+			return h.internalServerError(ctx, "failed to validate risk", err)
 		}
-		return h.internalServerError(ctx, "failed to validate risk", err)
-	}
 
-	scores, err := h.riskService.ListScoreHistory(riskID)
-	if err != nil {
-		return h.internalServerError(ctx, "failed to list risk score history", err)
-	}
-
-	resp := make([]riskScoreResponse, 0, len(scores))
-	for _, score := range scores {
-		mapped, err := mapRiskScoreToResponse(score)
+		scores, total, err := h.riskService.ListScoreHistoryPage(riskID, pagination.Limit, pagination.Offset)
 		if err != nil {
-			return h.internalServerError(ctx, "failed to map risk score history", err)
+			return h.internalServerError(ctx, "failed to list risk score history", err)
 		}
-		resp = append(resp, mapped)
-	}
-	return ctx.JSON(http.StatusOK, GenericDataListResponse[riskScoreResponse]{Data: resp})
+
+		resp := make([]riskScoreResponse, 0, len(scores))
+		for _, score := range scores {
+			mapped, err := mapRiskScoreToResponse(score)
+			if err != nil {
+				return h.internalServerError(ctx, "failed to map risk score history", err)
+			}
+			resp = append(resp, mapped)
+		}
+		return ctx.JSON(http.StatusOK, svc.NewListResponse(resp, total, pagination.Page, pagination.Limit))
+	})
 }
 
 // GetScoreTimeseriesForSSP godoc

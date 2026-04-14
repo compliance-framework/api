@@ -15,6 +15,7 @@ type RiskEventType string
 
 const (
 	RiskEventTypeCreated            RiskEventType = "created"
+	RiskEventTypeDeleted            RiskEventType = "deleted"
 	RiskEventTypeLastSeen           RiskEventType = "last_seen"
 	RiskEventTypeStatusChange       RiskEventType = "status_changed"
 	RiskEventTypeAccepted           RiskEventType = "accepted"
