@@ -390,12 +390,12 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Accept			json
 //	@Produce		json
-//	@Param			filter			body		labelfilter.Filter	true	"Label filter"
-//	@Param			page			query		int					false	"Page number"
-//	@Param			limit			query		int					false	"Page size"
-//	@Param			sortBy			query		string				false	"Sort field: lastSeenAt, name, status"
-//	@Param			sortDirection	query		string				false	"Sort direction: asc, desc"
-//	@Param			name			query		string				false	"Case-insensitive evidence name search"
+//	@Param			request			body		filteredSearchRequest	true	"Evidence search request"
+//	@Param			page			query		int						false	"Page number"
+//	@Param			limit			query		int						false	"Page size"
+//	@Param			sortBy			query		string					false	"Sort field: lastSeenAt, name, status"
+//	@Param			sortDirection	query		string					false	"Sort direction: asc, desc"
+//	@Param			name			query		string					false	"Case-insensitive evidence name search"
 //	@Success		200				{object}	svc.ListResponse[PublicEvidenceResponse]
 //	@Failure		400				{object}	api.Error
 //	@Failure		422				{object}	api.Error

@@ -1774,6 +1774,13 @@ definitions:
       poam-item-id:
         type: string
     type: object
+  handler.filteredSearchRequest:
+    properties:
+      filter:
+        $ref: '#/definitions/labelfilter.Filter'
+    required:
+    - filter
+    type: object
   handler.findingLinkResponse:
     properties:
       created-at:
@@ -10132,12 +10139,12 @@ paths:
       - application/json
       description: Searches Evidence records by label filters.
       parameters:
-      - description: Label filter
+      - description: Evidence search request
         in: body
-        name: filter
+        name: request
         required: true
         schema:
-          $ref: '#/definitions/labelfilter.Filter'
+          $ref: '#/definitions/handler.filteredSearchRequest'
       - description: Page number
         in: query
         name: page

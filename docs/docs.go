@@ -1583,12 +1583,12 @@ const docTemplate = `{
                 "summary": "Search Evidence",
                 "parameters": [
                     {
-                        "description": "Label filter",
-                        "name": "filter",
+                        "description": "Evidence search request",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/labelfilter.Filter"
+                            "$ref": "#/definitions/handler.filteredSearchRequest"
                         }
                     },
                     {
@@ -29000,6 +29000,17 @@ const docTemplate = `{
                 },
                 "poam-item-id": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.filteredSearchRequest": {
+            "type": "object",
+            "required": [
+                "filter"
+            ],
+            "properties": {
+                "filter": {
+                    "$ref": "#/definitions/labelfilter.Filter"
                 }
             }
         },
