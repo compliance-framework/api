@@ -10146,6 +10146,18 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: 'Sort field: lastSeenAt, name, status'
+        in: query
+        name: sortBy
+        type: string
+      - description: 'Sort direction: asc, desc'
+        in: query
+        name: sortDirection
+        type: string
+      - description: Case-insensitive evidence name search
+        in: query
+        name: name
+        type: string
       produces:
       - application/json
       responses:
@@ -10153,6 +10165,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "422":
           description: Unprocessable Entity
           schema:

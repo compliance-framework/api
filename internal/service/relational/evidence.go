@@ -74,14 +74,24 @@ func GetEvidenceSearchByFilterQuery(latestQuery *gorm.DB, db *gorm.DB, filters .
 	finalWhere := db.Session(&gorm.Session{})
 	finalWhere = finalWhere.Table("(?) as l", latestQuery)
 
+	filterWhere := db.Session(&gorm.Session{})
+	hasFilter := false
 	for _, filter := range filters {
 		if filter.Scope != nil {
 			subQuery, err := getScopeClause(db, *filter.Scope)
 			if err != nil {
 				return nil, err
 			}
-			finalWhere = finalWhere.Or(subQuery)
+			if !hasFilter {
+				filterWhere = filterWhere.Where(subQuery)
+				hasFilter = true
+			} else {
+				filterWhere = filterWhere.Or(subQuery)
+			}
 		}
+	}
+	if hasFilter {
+		finalWhere = finalWhere.Where(filterWhere)
 	}
 
 	return finalWhere, nil
