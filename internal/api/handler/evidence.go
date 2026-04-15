@@ -445,7 +445,13 @@ func parseEvidenceSearchOptions(ctx echo.Context, pagination *svc.PaginationPara
 	switch sortBy {
 	case evidencesvc.SearchSortByLastSeenAt, evidencesvc.SearchSortByName, evidencesvc.SearchSortByStatus:
 	default:
-		return evidencesvc.SearchOptions{}, fmt.Errorf("unsupported sortBy parameter: %s", sortBy)
+		return evidencesvc.SearchOptions{}, fmt.Errorf(
+			"unsupported sortBy parameter: %s; supported values: %s, %s, %s",
+			sortBy,
+			evidencesvc.SearchSortByLastSeenAt,
+			evidencesvc.SearchSortByName,
+			evidencesvc.SearchSortByStatus,
+		)
 	}
 
 	sortDirection := evidencesvc.SearchSortDirection(ctx.QueryParam("sortDirection"))
@@ -456,7 +462,12 @@ func parseEvidenceSearchOptions(ctx echo.Context, pagination *svc.PaginationPara
 	switch sortDirection {
 	case evidencesvc.SearchSortDirectionAsc, evidencesvc.SearchSortDirectionDesc:
 	default:
-		return evidencesvc.SearchOptions{}, fmt.Errorf("unsupported sortDirection parameter: %s", sortDirection)
+		return evidencesvc.SearchOptions{}, fmt.Errorf(
+			"unsupported sortDirection parameter: %s; supported values: %s, %s",
+			sortDirection,
+			evidencesvc.SearchSortDirectionAsc,
+			evidencesvc.SearchSortDirectionDesc,
+		)
 	}
 
 	return evidencesvc.SearchOptions{

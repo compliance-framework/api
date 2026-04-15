@@ -170,6 +170,57 @@ func (suite *EvidenceServiceSearchIntegrationSuite) TestSearchPaginatedCombinesL
 	suite.Equal("AWS", results[0].Labels[0].Value)
 }
 
+func (suite *EvidenceServiceSearchIntegrationSuite) TestSearchPaginatedTreatsNameLikeMetacharactersLiterally() {
+	suite.Require().NoError(suite.Migrator.Refresh())
+
+	now := time.Now().UTC()
+	evidences := []relational.Evidence{
+		{
+			UUID:  uuid.New(),
+			Title: "CPU 100% Evidence",
+			Start: now.Add(-2 * time.Minute),
+			End:   now.Add(-1 * time.Minute),
+		},
+		{
+			UUID:  uuid.New(),
+			Title: "CPU 100x Evidence",
+			Start: now.Add(-3 * time.Minute),
+			End:   now.Add(-2 * time.Minute),
+		},
+		{
+			UUID:  uuid.New(),
+			Title: "Disk io_await Evidence",
+			Start: now.Add(-4 * time.Minute),
+			End:   now.Add(-3 * time.Minute),
+		},
+		{
+			UUID:  uuid.New(),
+			Title: "Disk ioXawait Evidence",
+			Start: now.Add(-5 * time.Minute),
+			End:   now.Add(-4 * time.Minute),
+		},
+	}
+	suite.Require().NoError(suite.DB.Create(&evidences).Error)
+
+	svc := NewEvidenceService(suite.DB, nil, nil, nil)
+
+	results, total, err := svc.SearchPaginated(labelfilter.Filter{}, SearchOptions{
+		Limit: 10,
+		Name:  "100%",
+	})
+	suite.Require().NoError(err)
+	suite.Equal(int64(1), total)
+	suite.Equal([]string{"CPU 100% Evidence"}, relationalEvidenceTitles(results))
+
+	results, total, err = svc.SearchPaginated(labelfilter.Filter{}, SearchOptions{
+		Limit: 10,
+		Name:  "io_await",
+	})
+	suite.Require().NoError(err)
+	suite.Equal(int64(1), total)
+	suite.Equal([]string{"Disk io_await Evidence"}, relationalEvidenceTitles(results))
+}
+
 func (suite *EvidenceServiceSearchIntegrationSuite) TestStatusCountsReturnEmptySlicesWhenNoRowsMatch() {
 	suite.Require().NoError(suite.Migrator.Refresh())
 

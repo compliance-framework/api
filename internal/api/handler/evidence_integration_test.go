@@ -1348,12 +1348,14 @@ func (suite *EvidenceApiIntegrationSuite) TestSearchRejectsInvalidSortParams() {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusBadRequest, rec.Code)
+	suite.Contains(rec.Body.String(), "supported values: lastSeenAt, name, status")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/evidence/search?sortDirection=sideways", bytes.NewReader(reqBody))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	server.E().ServeHTTP(rec, req)
 	suite.Equal(http.StatusBadRequest, rec.Code)
+	suite.Contains(rec.Body.String(), "supported values: asc, desc")
 }
 
 func evidenceTitles(items []PublicEvidenceResponse) []string {

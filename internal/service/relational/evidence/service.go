@@ -334,7 +334,7 @@ func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, opts Search
 	}
 
 	if name := strings.TrimSpace(opts.Name); name != "" {
-		query = query.Where("l.title ILIKE ?", "%"+name+"%")
+		query = query.Where("l.title ILIKE ? ESCAPE '\\'", "%"+escapeILikePattern(name)+"%")
 	}
 
 	var total int64
@@ -353,6 +353,15 @@ func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, opts Search
 	}
 
 	return results, total, nil
+}
+
+func escapeILikePattern(value string) string {
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`%`, `\%`,
+		`_`, `\_`,
+	)
+	return replacer.Replace(value)
 }
 
 func normalizeEvidenceSearchOptions(opts SearchOptions) SearchOptions {
