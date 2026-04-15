@@ -15,6 +15,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -65,11 +66,6 @@ func (m *MockSlackService) IsEnabled() bool {
 func (m *MockDigestService) SendGlobalDigest(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
-}
-
-func (m *MockDigestService) SendGlobalDigestDelivery(ctx context.Context, args SendGlobalDigestDeliveryArgs) error {
-	callArgs := m.Called(ctx, args)
-	return callArgs.Error(0)
 }
 
 func makeWorkerJob[T river.JobArgs](args T) *river.Job[T] {
@@ -313,6 +309,194 @@ func TestSendEmailFromWorker_MessageConstruction(t *testing.T) {
 	mockEmailService.AssertExpectations(t)
 }
 
+func TestNewSendSlackWorker(t *testing.T) {
+	mockSlackService := &MockSlackService{}
+	logger := zap.NewNop().Sugar()
+
+	worker := NewSendSlackWorker(mockSlackService, logger)
+
+	assert.NotNil(t, worker)
+	assert.Equal(t, mockSlackService, worker.slackService)
+	assert.Equal(t, logger, worker.logger)
+}
+
+func TestSendSlackWorker_WorkChannel_Validation(t *testing.T) {
+	mockSlackService := &MockSlackService{}
+	worker := NewSendSlackWorker(mockSlackService, zap.NewNop().Sugar())
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		args        *SendSlackChannelArgs
+		expectError string
+	}{
+		{
+			name:        "missing channel",
+			args:        &SendSlackChannelArgs{Text: "hello"},
+			expectError: "slack job requires a channel",
+		},
+		{
+			name:        "missing text and blocks",
+			args:        &SendSlackChannelArgs{Channel: "C123"},
+			expectError: "slack job requires text or blocks",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := worker.WorkChannel(ctx, &river.Job[SendSlackChannelArgs]{Args: *tt.args})
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectError)
+		})
+	}
+}
+
+func TestSendSlackWorker_WorkChannel_SendsMessage(t *testing.T) {
+	mockSlackService := &MockSlackService{}
+	ctx := context.Background()
+	worker := NewSendSlackWorker(mockSlackService, zap.NewNop().Sugar())
+
+	args := SendSlackChannelArgs{
+		Channel:    "C123",
+		TargetType: notification.SlackTargetChannel,
+		Text:       "Digest posted",
+	}
+
+	mockSlackService.On("IsEnabled").Return(true).Once()
+	mockSlackService.On("SendMessage", ctx, "C123", &slacktypes.Message{
+		Text: "Digest posted",
+	}).Return(&slacktypes.SendResult{
+		Success:    true,
+		Channel:    "C123",
+		DeliveryID: "slack-msg-channel-1",
+	}, nil).Once()
+
+	err := worker.WorkChannel(ctx, makeWorkerJob(args))
+	assert.NoError(t, err)
+
+	mockSlackService.AssertExpectations(t)
+}
+
+func TestSendSlackWorker_WorkDM_SendsMessage(t *testing.T) {
+	mockSlackService := &MockSlackService{}
+	ctx := context.Background()
+	worker := NewSendSlackWorker(mockSlackService, zap.NewNop().Sugar())
+
+	args := SendSlackDMArgs{
+		Channel:    "U123",
+		TargetType: notification.SlackTargetDirectMessage,
+		Text:       "Digest ready",
+	}
+
+	mockSlackService.On("IsEnabled").Return(true).Once()
+	mockSlackService.On("SendMessage", ctx, "U123", &slacktypes.Message{
+		Text: "Digest ready",
+	}).Return(&slacktypes.SendResult{
+		Success:    true,
+		Channel:    "U123",
+		DeliveryID: "slack-msg-dm-1",
+	}, nil).Once()
+
+	err := worker.WorkDM(ctx, makeWorkerJob(args))
+	assert.NoError(t, err)
+
+	mockSlackService.AssertExpectations(t)
+}
+
+func TestSelectSlackJobArgs(t *testing.T) {
+	channelJob, err := selectSlackJobArgs(SendSlackArgs{
+		Channel:    "C123",
+		TargetType: notification.SlackTargetChannel,
+		Text:       "hello channel",
+	})
+	assert.NoError(t, err)
+	assert.IsType(t, SendSlackChannelArgs{}, channelJob)
+	assert.Equal(t, JobTypeSendSlackChannel, channelJob.Kind())
+
+	privateChannelJob, err := selectSlackJobArgs(SendSlackArgs{
+		Channel:    "G123",
+		TargetType: notification.SlackTargetChannel,
+		Text:       "hello private channel",
+	})
+	assert.NoError(t, err)
+	assert.IsType(t, SendSlackChannelArgs{}, privateChannelJob)
+	assert.Equal(t, JobTypeSendSlackChannel, privateChannelJob.Kind())
+
+	dmJob, err := selectSlackJobArgs(SendSlackArgs{
+		Channel:    "U123",
+		TargetType: notification.SlackTargetDirectMessage,
+		Text:       "hello user",
+	})
+	assert.NoError(t, err)
+	assert.IsType(t, SendSlackDMArgs{}, dmJob)
+	assert.Equal(t, JobTypeSendSlackDM, dmJob.Kind())
+
+	dmConversationJob, err := selectSlackJobArgs(SendSlackArgs{
+		Channel:    "D123",
+		TargetType: notification.SlackTargetDirectMessage,
+		Text:       "hello dm",
+	})
+	assert.NoError(t, err)
+	assert.IsType(t, SendSlackDMArgs{}, dmConversationJob)
+	assert.Equal(t, JobTypeSendSlackDM, dmConversationJob.Kind())
+
+	_, err = selectSlackJobArgs(SendSlackArgs{
+		Channel: "C123",
+		Text:    "missing type",
+	})
+	assert.EqualError(t, err, "send slack job requires a supported target type")
+}
+
+func TestServiceEnqueueNotificationEmailMapsMetadata(t *testing.T) {
+	params := notificationEmailInsertParams(notification.EmailDelivery{
+		To: "alice@example.com",
+		Content: notification.EmailContent{
+			From:     "from@example.com",
+			Subject:  "Digest",
+			TextBody: "body",
+		},
+		Metadata: notification.TransportMetadata{
+			NotificationKind: notification.Kind("evidence_digest"),
+			RecipientUserID:  "user-1",
+			CorrelationID:    "corr-1",
+			SourceJobKind:    "send_global_digest",
+			SourceJobID:      "job-1",
+		},
+	}, "email", 7)
+	require.Len(t, params, 1)
+
+	args, ok := params[0].Args.(*SendEmailArgs)
+	require.True(t, ok)
+	assert.Equal(t, "alice@example.com", args.To[0])
+	assert.Equal(t, "evidence_digest", args.NotificationKind)
+	assert.Equal(t, 7, params[0].InsertOpts.MaxAttempts)
+	assert.False(t, params[0].InsertOpts.UniqueOpts.ByArgs)
+}
+
+func TestServiceEnqueueNotificationSlackMapsMetadata(t *testing.T) {
+	params, err := notificationSlackInsertParams(notification.SlackDelivery{
+		Channel:    "UALICE",
+		TargetType: notification.SlackTargetDirectMessage,
+		Content: notification.SlackContent{
+			Text: "body",
+		},
+		Metadata: notification.TransportMetadata{
+			NotificationKind: notification.Kind("evidence_digest"),
+			RecipientUserID:  "user-1",
+		},
+	}, "slack", 6)
+	require.NoError(t, err)
+	require.Len(t, params, 1)
+
+	args, ok := params[0].Args.(SendSlackDMArgs)
+	require.True(t, ok)
+	assert.Equal(t, "UALICE", args.Channel)
+	assert.Equal(t, notification.SlackTargetDirectMessage, args.TargetType)
+	assert.Equal(t, 6, params[0].InsertOpts.MaxAttempts)
+	assert.False(t, params[0].InsertOpts.UniqueOpts.ByArgs)
+}
+
 func TestNewSendGlobalDigestWorker(t *testing.T) {
 	mockDigestService := &MockDigestService{}
 	logger := zap.NewNop().Sugar()
@@ -337,39 +521,6 @@ func TestSendGlobalDigestWorker_DigestCall(t *testing.T) {
 	mockDigestService.AssertExpectations(t)
 }
 
-func TestNewSendGlobalDigestDeliveryWorker(t *testing.T) {
-	mockDigestService := &MockDigestService{}
-	logger := zap.NewNop().Sugar()
-
-	worker := NewSendGlobalDigestDeliveryWorker(mockDigestService, logger)
-
-	assert.NotNil(t, worker)
-	assert.Equal(t, mockDigestService, worker.digestService)
-	assert.Equal(t, logger, worker.logger)
-}
-
-func TestSendGlobalDigestDeliveryWorker_DeliveryCall(t *testing.T) {
-	mockDigestService := &MockDigestService{}
-	ctx := context.Background()
-	worker := NewSendGlobalDigestDeliveryWorker(mockDigestService, zap.NewNop().Sugar())
-
-	args := SendGlobalDigestDeliveryArgs{
-		Channel: notification.DeliveryChannelEmail,
-		UserID:  "user-1",
-		Email:   "alice@example.com",
-		Summary: EvidenceDigestSummary{
-			TotalCount: 1,
-		},
-	}
-
-	mockDigestService.On("SendGlobalDigestDelivery", ctx, args).Return(nil)
-
-	err := worker.Work(ctx, makeWorkerJob(args))
-	assert.NoError(t, err)
-
-	mockDigestService.AssertExpectations(t)
-}
-
 func TestWorkers(t *testing.T) {
 	mockEmailService := &MockEmailService{}
 	mockDigestService := &MockDigestService{}
@@ -377,30 +528,6 @@ func TestWorkers(t *testing.T) {
 	workers := Workers(mockEmailService, mockDigestService, nil, nil, nil, "", zap.NewNop().Sugar())
 
 	assert.NotNil(t, workers)
-}
-
-func TestGlobalDigestDeliveryInsertParams(t *testing.T) {
-	params := globalDigestDeliveryInsertParams([]SendGlobalDigestDeliveryArgs{
-		{
-			Channel: notification.DeliveryChannelEmail,
-			UserID:  "user-1",
-			Email:   "alice@example.com",
-			Summary: EvidenceDigestSummary{TotalCount: 2},
-		},
-		{
-			Channel:      notification.DeliveryChannelSlack,
-			UserID:       "user-1",
-			SlackChannel: "UALICE",
-			Summary:      EvidenceDigestSummary{TotalCount: 2},
-		},
-	})
-
-	assert.Len(t, params, 2)
-	for _, param := range params {
-		assert.NotNil(t, param.InsertOpts)
-		assert.Equal(t, "digest", param.InsertOpts.Queue)
-		assert.Equal(t, 3, param.InsertOpts.MaxAttempts)
-	}
 }
 
 func TestJobInsertOptionsForWorkflowTaskAssignedNotification(t *testing.T) {
@@ -505,6 +632,33 @@ func TestJobInsertOptionsWithRetry(t *testing.T) {
 
 	assert.Equal(t, "custom-queue", opts.Queue)
 	assert.Equal(t, 10, opts.MaxAttempts)
+}
+
+func TestServiceQueueResolution(t *testing.T) {
+	service := &Service{
+		config: &config.WorkerConfig{
+			Queue: "email",
+		},
+	}
+
+	assert.Equal(t, "email", service.emailQueue())
+	assert.Equal(t, "slack", service.slackQueue())
+
+	service.config.Queue = ""
+	assert.Equal(t, "email", service.emailQueue())
+	assert.Equal(t, "slack", service.slackQueue())
+}
+
+func TestBuildRiverConfig_IncludesSendSlackQueue(t *testing.T) {
+	cfg := &config.WorkerConfig{
+		Workers: 7,
+	}
+
+	riverConfig := buildRiverConfig(cfg, river.NewWorkers(), nil)
+
+	sendSlackQueue, ok := riverConfig.Queues["slack"]
+	assert.True(t, ok)
+	assert.Equal(t, 7, sendSlackQueue.MaxWorkers)
 }
 
 func TestJobInsertOptionsForRiskDigest(t *testing.T) {

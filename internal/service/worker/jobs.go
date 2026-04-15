@@ -13,16 +13,18 @@ import (
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // Job types for email processing
 const (
-	JobTypeSendEmail                = "send_email"
-	JobTypeSendEmailFrom            = "send_email_from"
-	JobTypeSendGlobalDigest         = "send_global_digest"
-	JobTypeSendGlobalDigestDelivery = "send_global_digest_delivery"
+	JobTypeSendEmail        = "send_email"
+	JobTypeSendEmailFrom    = "send_email_from"
+	JobTypeSendSlackChannel = "send_channel"
+	JobTypeSendSlackDM      = "send_dm"
+	JobTypeSendGlobalDigest = "send_global_digest"
 )
 
 // Job types for workflow notifications
@@ -127,6 +129,13 @@ type SendEmailArgs struct {
 	TextBody    string             `json:"text_body,omitempty"`
 	Attachments []types.Attachment `json:"attachments,omitempty"`
 	Headers     map[string]string  `json:"headers,omitempty"`
+
+	// Optional notification metadata for generic notification dispatches.
+	NotificationKind string `json:"notification_kind,omitempty"`
+	RecipientUserID  string `json:"recipient_user_id,omitempty"`
+	CorrelationID    string `json:"correlation_id,omitempty"`
+	SourceJobKind    string `json:"source_job_kind,omitempty"`
+	SourceJobID      string `json:"source_job_id,omitempty"`
 }
 
 // SendEmailFromArgs represents the arguments for sending an email from a specific provider
@@ -146,41 +155,29 @@ type SendEmailFromArgs struct {
 	Headers     map[string]string  `json:"headers,omitempty"`
 }
 
+// SendSlackArgs represents a Slack message before it is routed to a specific
+// River job kind for channel or direct-message delivery.
+type SendSlackArgs struct {
+	Channel    string       `json:"channel"`
+	TargetType string       `json:"target_type"`
+	Text       string       `json:"text"`
+	Blocks     slack.Blocks `json:"blocks,omitempty"`
+
+	// Optional notification metadata for generic notification dispatches.
+	NotificationKind string `json:"notification_kind,omitempty"`
+	RecipientUserID  string `json:"recipient_user_id,omitempty"`
+	CorrelationID    string `json:"correlation_id,omitempty"`
+	SourceJobKind    string `json:"source_job_kind,omitempty"`
+	SourceJobID      string `json:"source_job_id,omitempty"`
+}
+
+type SendSlackChannelArgs SendSlackArgs
+
+type SendSlackDMArgs SendSlackArgs
+
 // SendGlobalDigestArgs represents the arguments for sending global digest
 type SendGlobalDigestArgs struct {
 	// No arguments needed - digest service will fetch data
-}
-
-// EvidenceDigestItem carries one evidence row for a digest delivery job.
-type EvidenceDigestItem struct {
-	ID          string   `json:"id"`
-	UUID        string   `json:"uuid"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Status      string   `json:"status"`
-	ExpiresAt   string   `json:"expires_at,omitempty"`
-	Labels      []string `json:"labels,omitempty"`
-}
-
-// EvidenceDigestSummary carries the evidence summary snapshot for a digest delivery job.
-type EvidenceDigestSummary struct {
-	TotalCount        int64                `json:"total_count"`
-	SatisfiedCount    int64                `json:"satisfied_count"`
-	NotSatisfiedCount int64                `json:"not_satisfied_count"`
-	ExpiredCount      int64                `json:"expired_count"`
-	OtherCount        int64                `json:"other_count"`
-	TopExpired        []EvidenceDigestItem `json:"top_expired,omitempty"`
-	TopNotSatisfied   []EvidenceDigestItem `json:"top_not_satisfied,omitempty"`
-}
-
-// SendGlobalDigestDeliveryArgs represents one recipient/channel evidence digest delivery.
-type SendGlobalDigestDeliveryArgs struct {
-	Channel      string                `json:"channel"`
-	UserID       string                `json:"user_id"`
-	UserName     string                `json:"user_name,omitempty"`
-	Email        string                `json:"email,omitempty"`
-	SlackChannel string                `json:"slack_channel,omitempty"`
-	Summary      EvidenceDigestSummary `json:"summary"`
 }
 
 // Kind returns the job kind for River
@@ -190,10 +187,13 @@ func (SendEmailArgs) Kind() string { return JobTypeSendEmail }
 func (SendEmailFromArgs) Kind() string { return JobTypeSendEmailFrom }
 
 // Kind returns the job kind for River
-func (SendGlobalDigestArgs) Kind() string { return JobTypeSendGlobalDigest }
+func (SendSlackChannelArgs) Kind() string { return JobTypeSendSlackChannel }
 
 // Kind returns the job kind for River
-func (SendGlobalDigestDeliveryArgs) Kind() string { return JobTypeSendGlobalDigestDelivery }
+func (SendSlackDMArgs) Kind() string { return JobTypeSendSlackDM }
+
+// Kind returns the job kind for River
+func (SendGlobalDigestArgs) Kind() string { return JobTypeSendGlobalDigest }
 
 // EmailService interface for dependency injection
 type EmailService interface {
@@ -307,7 +307,6 @@ func selectUserNotificationChannels(user NotificationUser, notificationType stri
 // DigestService interface for dependency injection
 type DigestService interface {
 	SendGlobalDigest(ctx context.Context) error
-	SendGlobalDigestDelivery(ctx context.Context, args SendGlobalDigestDeliveryArgs) error
 }
 
 // Timeout returns the timeout for email jobs
@@ -320,14 +319,19 @@ func (SendEmailFromArgs) Timeout() time.Duration {
 	return 30 * time.Second
 }
 
+// Timeout returns the timeout for slack channel jobs
+func (SendSlackChannelArgs) Timeout() time.Duration {
+	return 30 * time.Second
+}
+
+// Timeout returns the timeout for slack direct-message jobs
+func (SendSlackDMArgs) Timeout() time.Duration {
+	return 30 * time.Second
+}
+
 // Timeout returns the timeout for digest jobs (longer due to multiple emails)
 func (SendGlobalDigestArgs) Timeout() time.Duration {
 	return 5 * time.Minute
-}
-
-// Timeout returns the timeout for a single global digest delivery.
-func (SendGlobalDigestDeliveryArgs) Timeout() time.Duration {
-	return 2 * time.Minute
 }
 
 // SendEmailWorker handles sending email jobs
@@ -410,6 +414,12 @@ type SendEmailFromWorker struct {
 	logger       *zap.SugaredLogger
 }
 
+// SendSlackWorker handles sending Slack message jobs.
+type SendSlackWorker struct {
+	slackService SlackService
+	logger       *zap.SugaredLogger
+}
+
 // NewSendEmailFromWorker creates a new SendEmailFromWorker
 func NewSendEmailFromWorker(emailService EmailService, logger *zap.SugaredLogger) *SendEmailFromWorker {
 	return &SendEmailFromWorker{
@@ -485,14 +495,125 @@ func (w *SendEmailFromWorker) Work(ctx context.Context, job *river.Job[SendEmail
 	return nil
 }
 
-// SendGlobalDigestWorker handles scheduling global digest deliveries.
-type SendGlobalDigestWorker struct {
-	digestService DigestService
-	logger        *zap.SugaredLogger
+// NewSendSlackWorker creates a new SendSlackWorker.
+func NewSendSlackWorker(slackService SlackService, logger *zap.SugaredLogger) *SendSlackWorker {
+	return &SendSlackWorker{
+		slackService: slackService,
+		logger:       logger,
+	}
 }
 
-// SendGlobalDigestDeliveryWorker handles a single global digest delivery job.
-type SendGlobalDigestDeliveryWorker struct {
+func cloneSlackArgs(args SendSlackArgs) SendSlackArgs {
+	return SendSlackArgs{
+		Channel:          strings.TrimSpace(args.Channel),
+		TargetType:       strings.TrimSpace(args.TargetType),
+		Text:             args.Text,
+		NotificationKind: strings.TrimSpace(args.NotificationKind),
+		RecipientUserID:  strings.TrimSpace(args.RecipientUserID),
+		CorrelationID:    strings.TrimSpace(args.CorrelationID),
+		SourceJobKind:    strings.TrimSpace(args.SourceJobKind),
+		SourceJobID:      strings.TrimSpace(args.SourceJobID),
+		Blocks: slack.Blocks{
+			BlockSet: append([]slack.Block(nil), args.Blocks.BlockSet...),
+		},
+	}
+}
+
+func selectSlackJobArgs(args SendSlackArgs) (river.JobArgs, error) {
+	cloned := cloneSlackArgs(args)
+	targetType, ok := notification.NormalizeSlackTarget(cloned.TargetType)
+	if !ok {
+		return nil, fmt.Errorf("send slack job requires a supported target type")
+	}
+	cloned.TargetType = targetType
+
+	switch targetType {
+	case notification.SlackTargetDirectMessage:
+		return SendSlackDMArgs(cloned), nil
+	case notification.SlackTargetChannel:
+		return SendSlackChannelArgs(cloned), nil
+	default:
+		return nil, fmt.Errorf("unsupported slack target type %q", cloned.TargetType)
+	}
+}
+
+func riverJobID[T river.JobArgs](job *river.Job[T]) int64 {
+	if job == nil || job.JobRow == nil {
+		return 0
+	}
+
+	return job.ID
+}
+
+// WorkChannel is the River work function for sending Slack channel messages.
+func (w *SendSlackWorker) WorkChannel(ctx context.Context, job *river.Job[SendSlackChannelArgs]) error {
+	return w.send(ctx, riverJobID(job), JobTypeSendSlackChannel, cloneSlackArgs(SendSlackArgs(job.Args)))
+}
+
+// WorkDM is the River work function for sending Slack direct messages.
+func (w *SendSlackWorker) WorkDM(ctx context.Context, job *river.Job[SendSlackDMArgs]) error {
+	return w.send(ctx, riverJobID(job), JobTypeSendSlackDM, cloneSlackArgs(SendSlackArgs(job.Args)))
+}
+
+func (w *SendSlackWorker) send(ctx context.Context, jobID int64, jobKind string, args SendSlackArgs) error {
+	if strings.TrimSpace(args.Channel) == "" {
+		return fmt.Errorf("slack job requires a channel")
+	}
+	if strings.TrimSpace(args.Text) == "" && len(args.Blocks.BlockSet) == 0 {
+		return fmt.Errorf("slack job requires text or blocks")
+	}
+	if w.slackService == nil || !w.slackService.IsEnabled() {
+		w.logger.Debugw("SendSlackWorker: slack service not configured, skipping",
+			"job_id", jobID,
+			"job_kind", jobKind,
+			"channel", args.Channel,
+		)
+		return nil
+	}
+
+	message := &slacktypes.Message{
+		Text:   args.Text,
+		Blocks: append([]slack.Block(nil), args.Blocks.BlockSet...),
+	}
+
+	w.logger.Infow("Processing send slack job",
+		"job_id", jobID,
+		"job_kind", jobKind,
+		"channel", args.Channel,
+	)
+
+	result, err := w.slackService.SendMessage(ctx, args.Channel, message)
+	if err != nil {
+		w.logger.Errorw("Failed to send slack message",
+			"job_id", jobID,
+			"job_kind", jobKind,
+			"channel", args.Channel,
+			"error", err,
+		)
+		return fmt.Errorf("failed to send slack message: %w", err)
+	}
+	if !result.Success {
+		w.logger.Errorw("Slack message send failed",
+			"job_id", jobID,
+			"job_kind", jobKind,
+			"channel", args.Channel,
+			"error", result.Error,
+		)
+		return fmt.Errorf("slack message send failed: %s", result.Error)
+	}
+
+	w.logger.Infow("Slack message sent successfully",
+		"job_id", jobID,
+		"job_kind", jobKind,
+		"channel", result.Channel,
+		"delivery_id", result.DeliveryID,
+	)
+
+	return nil
+}
+
+// SendGlobalDigestWorker handles scheduling global digest deliveries.
+type SendGlobalDigestWorker struct {
 	digestService DigestService
 	logger        *zap.SugaredLogger
 }
@@ -500,14 +621,6 @@ type SendGlobalDigestDeliveryWorker struct {
 // NewSendGlobalDigestWorker creates a new SendGlobalDigestWorker
 func NewSendGlobalDigestWorker(digestService DigestService, logger *zap.SugaredLogger) *SendGlobalDigestWorker {
 	return &SendGlobalDigestWorker{
-		digestService: digestService,
-		logger:        logger,
-	}
-}
-
-// NewSendGlobalDigestDeliveryWorker creates a new SendGlobalDigestDeliveryWorker.
-func NewSendGlobalDigestDeliveryWorker(digestService DigestService, logger *zap.SugaredLogger) *SendGlobalDigestDeliveryWorker {
-	return &SendGlobalDigestDeliveryWorker{
 		digestService: digestService,
 		logger:        logger,
 	}
@@ -526,37 +639,6 @@ func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGl
 	}
 
 	w.logger.Infow("Global digest processed successfully", "job_id", job.ID)
-	return nil
-}
-
-// Work is the River work function for sending a single global digest delivery.
-func (w *SendGlobalDigestDeliveryWorker) Work(ctx context.Context, job *river.Job[SendGlobalDigestDeliveryArgs]) error {
-	args := job.Args
-
-	w.logger.Infow(
-		"Processing global digest delivery job",
-		"job_id", job.ID,
-		"user_id", args.UserID,
-		"channel", args.Channel,
-	)
-
-	if err := w.digestService.SendGlobalDigestDelivery(ctx, args); err != nil {
-		w.logger.Errorw(
-			"Failed to send global digest delivery",
-			"job_id", job.ID,
-			"user_id", args.UserID,
-			"channel", args.Channel,
-			"error", err,
-		)
-		return fmt.Errorf("failed to send global digest delivery: %w", err)
-	}
-
-	w.logger.Infow(
-		"Global digest delivery sent successfully",
-		"job_id", job.ID,
-		"user_id", args.UserID,
-		"channel", args.Channel,
-	)
 	return nil
 }
 
@@ -998,17 +1080,17 @@ func Workers(emailService EmailService, digestService DigestService, slackServic
 	// Create worker instances with dependencies
 	sendEmailWorker := NewSendEmailWorker(emailService, logger)
 	sendEmailFromWorker := NewSendEmailFromWorker(emailService, logger)
+	sendSlackWorker := NewSendSlackWorker(slackService, logger)
 	// Register workers with their Work methods
 	river.AddWorker(workers, river.WorkFunc(sendEmailWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(sendEmailFromWorker.Work))
+	river.AddWorker(workers, river.WorkFunc(sendSlackWorker.WorkChannel))
+	river.AddWorker(workers, river.WorkFunc(sendSlackWorker.WorkDM))
 
 	// Only create and register the global digest worker if the digest service is available
 	if digestService != nil {
 		sendGlobalDigestWorker := NewSendGlobalDigestWorker(digestService, logger)
 		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestWorker.Work))
-
-		sendGlobalDigestDeliveryWorker := NewSendGlobalDigestDeliveryWorker(digestService, logger)
-		river.AddWorker(workers, river.WorkFunc(sendGlobalDigestDeliveryWorker.Work))
 	}
 
 	// Register risk evidence worker — requires only db, independent of email/userRepo config.

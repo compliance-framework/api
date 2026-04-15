@@ -10,6 +10,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
+	"github.com/compliance-framework/api/internal/service/notification"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
@@ -22,6 +23,7 @@ import (
 	"github.com/riverqueue/river/rivermigrate"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/robfig/cron/v3"
+	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -70,23 +72,6 @@ func workflowTaskAssignedInsertParams(args WorkflowTaskAssignedArgs) []river.Ins
 		params = append(params, river.InsertManyParams{
 			Args:       jobArgs,
 			InsertOpts: JobInsertOptionsForWorkflowTaskAssignedNotification(),
-		})
-	}
-
-	return params
-}
-
-func globalDigestDeliveryInsertParams(args []SendGlobalDigestDeliveryArgs) []river.InsertManyParams {
-	params := make([]river.InsertManyParams, 0, len(args))
-
-	for i := range args {
-		jobArgs := args[i]
-		params = append(params, river.InsertManyParams{
-			Args: jobArgs,
-			InsertOpts: &river.InsertOpts{
-				Queue:       "digest",
-				MaxAttempts: 3,
-			},
 		})
 	}
 
@@ -383,7 +368,8 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.logger.Infow("Starting worker service",
 		"workers", s.config.Workers,
-		"queue", s.config.Queue,
+		"default_email_queue", s.emailQueue(),
+		"slack_queue", s.slackQueue(),
 	)
 
 	// Start the workers with the provided context (no dependency injection needed)
@@ -710,6 +696,9 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 			"email": {
 				MaxWorkers: cfg.Workers,
 			},
+			"slack": {
+				MaxWorkers: cfg.Workers,
+			},
 			"digest": {
 				MaxWorkers: 1,
 			},
@@ -732,6 +721,19 @@ func buildRiverConfig(cfg *config.WorkerConfig, workers *river.Workers, periodic
 		Workers:      workers,
 		PeriodicJobs: periodicJobs,
 	}
+}
+
+func (s *Service) emailQueue() string {
+	queue := s.config.Queue
+	if queue == "" {
+		return "email"
+	}
+
+	return queue
+}
+
+func (s *Service) slackQueue() string {
+	return "slack"
 }
 
 // EnqueueWorkflowTaskAssigned enqueues a workflow-task-assigned notification email job.
@@ -818,12 +820,6 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 		return fmt.Errorf("worker client is not initialized")
 	}
 
-	// Use configured queue or default to "email"
-	queue := s.config.Queue
-	if queue == "" {
-		queue = "email"
-	}
-
 	// Use configured retry policy or default to 5 attempts
 	maxAttempts := s.config.RetryPolicy.MaxAttempts
 	if maxAttempts == 0 {
@@ -832,7 +828,7 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 
 	// Use InsertMany which doesn't require a transaction
 	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptionsWithRetry(queue, maxAttempts)},
+		{Args: args, InsertOpts: JobInsertOptionsWithRetry(s.emailQueue(), maxAttempts)},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send email job: %w", err)
@@ -840,26 +836,119 @@ func (s *Service) EnqueueSendEmail(ctx context.Context, args *SendEmailArgs) err
 	return nil
 }
 
-// EnqueueSendGlobalDigestDeliveries enqueues per-recipient global digest delivery jobs.
-func (s *Service) EnqueueSendGlobalDigestDeliveries(ctx context.Context, args []SendGlobalDigestDeliveryArgs) error {
+// EnqueueNotificationEmail enqueues a provider-ready notification email delivery.
+func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery notification.EmailDelivery) error {
 	if !s.config.Enabled {
 		return fmt.Errorf("worker service is disabled")
 	}
-
 	if s.client == nil {
 		return fmt.Errorf("worker client is not initialized")
 	}
-
-	if len(args) == 0 {
-		return nil
+	if err := delivery.Validate(); err != nil {
+		return err
 	}
 
-	_, err := s.client.InsertMany(ctx, globalDigestDeliveryInsertParams(args))
+	maxAttempts := s.config.RetryPolicy.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 5
+	}
+
+	_, err := s.client.InsertMany(ctx, notificationEmailInsertParams(delivery, s.emailQueue(), maxAttempts))
 	if err != nil {
-		return fmt.Errorf("failed to enqueue global digest delivery jobs: %w", err)
+		return fmt.Errorf("failed to enqueue notification email delivery: %w", err)
 	}
 
 	return nil
+}
+
+// EnqueueNotificationSlack enqueues a provider-ready notification Slack delivery.
+func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery notification.SlackDelivery) error {
+	if !s.config.Enabled {
+		return fmt.Errorf("worker service is disabled")
+	}
+	if s.client == nil {
+		return fmt.Errorf("worker client is not initialized")
+	}
+	if err := delivery.Validate(); err != nil {
+		return err
+	}
+
+	maxAttempts := s.config.RetryPolicy.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 5
+	}
+
+	params, err := notificationSlackInsertParams(delivery, s.slackQueue(), maxAttempts)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.client.InsertMany(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue notification slack delivery: %w", err)
+	}
+
+	return nil
+}
+
+func notificationInsertOpts(queue string, maxAttempts int) *river.InsertOpts {
+	return JobInsertOptionsWithRetry(queue, maxAttempts)
+}
+
+func notificationEmailInsertParams(delivery notification.EmailDelivery, queue string, maxAttempts int) []river.InsertManyParams {
+	args := &SendEmailArgs{
+		From:             delivery.Content.From,
+		To:               []string{delivery.To},
+		Subject:          delivery.Content.Subject,
+		HTMLBody:         delivery.Content.HTMLBody,
+		TextBody:         delivery.Content.TextBody,
+		Attachments:      delivery.Content.Attachments,
+		Headers:          delivery.Content.Headers,
+		NotificationKind: string(delivery.Metadata.NotificationKind),
+		RecipientUserID:  delivery.Metadata.RecipientUserID,
+		CorrelationID:    delivery.Metadata.CorrelationID,
+		SourceJobKind:    delivery.Metadata.SourceJobKind,
+		SourceJobID:      delivery.Metadata.SourceJobID,
+	}
+
+	return []river.InsertManyParams{
+		{
+			Args:       args,
+			InsertOpts: notificationInsertOpts(queue, maxAttempts),
+		},
+	}
+}
+
+func notificationSlackInsertParams(delivery notification.SlackDelivery, queue string, maxAttempts int) ([]river.InsertManyParams, error) {
+	args := &SendSlackArgs{
+		Channel:          delivery.Channel,
+		TargetType:       delivery.TargetType,
+		Text:             delivery.Content.Text,
+		Blocks:           slackBlocksFromNotification(delivery),
+		NotificationKind: string(delivery.Metadata.NotificationKind),
+		RecipientUserID:  delivery.Metadata.RecipientUserID,
+		CorrelationID:    delivery.Metadata.CorrelationID,
+		SourceJobKind:    delivery.Metadata.SourceJobKind,
+		SourceJobID:      delivery.Metadata.SourceJobID,
+	}
+
+	jobArgs, err := selectSlackJobArgs(*args)
+	if err != nil {
+		return nil, err
+	}
+
+	return []river.InsertManyParams{
+		{
+			Args:       jobArgs,
+			InsertOpts: notificationInsertOpts(queue, maxAttempts),
+		},
+	}, nil
+}
+
+func slackBlocksFromNotification(delivery notification.SlackDelivery) slack.Blocks {
+	return slack.Blocks{
+		BlockSet: append([]slack.Block(nil), delivery.Content.Blocks...),
+	}
 }
 
 // EnqueueSendEmailFrom enqueues a send email from provider job
@@ -872,12 +961,6 @@ func (s *Service) EnqueueSendEmailFrom(ctx context.Context, args *SendEmailFromA
 		return fmt.Errorf("worker client is not initialized")
 	}
 
-	// Use configured queue or default to "email"
-	queue := s.config.Queue
-	if queue == "" {
-		queue = "email"
-	}
-
 	// Use configured retry policy or default to 5 attempts
 	maxAttempts := s.config.RetryPolicy.MaxAttempts
 	if maxAttempts == 0 {
@@ -886,7 +969,7 @@ func (s *Service) EnqueueSendEmailFrom(ctx context.Context, args *SendEmailFromA
 
 	// Use InsertMany which doesn't require a transaction
 	_, err := s.client.InsertMany(ctx, []river.InsertManyParams{
-		{Args: args, InsertOpts: JobInsertOptionsWithRetry(queue, maxAttempts)},
+		{Args: args, InsertOpts: JobInsertOptionsWithRetry(s.emailQueue(), maxAttempts)},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue send email from job: %w", err)

@@ -1,12 +1,11 @@
 package digest
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
-	"github.com/compliance-framework/api/internal/service/notification"
-	"github.com/compliance-framework/api/internal/service/relational"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -79,83 +78,24 @@ func TestNewService_StoresInjectedSlackService(t *testing.T) {
 	assert.Same(t, slackService, service.slackService)
 }
 
-func TestBuildGlobalDigestDeliveryArgs_FansOutPerChannelAndSkipsMissingSlackLink(t *testing.T) {
-	service := NewService(nil, nil, nil, nil, &config.Config{}, zap.NewNop().Sugar())
+func TestEvidenceDigestDispatchOptions_UsesCorrelationAndSourceJobKind(t *testing.T) {
+	generatedAt := time.Date(2026, 4, 14, 17, 32, 10, 123, time.UTC)
 
-	userOneID := uuid.New()
-	userTwoID := uuid.New()
+	options := evidenceDigestDispatchOptions(generatedAt)
 
-	summary := &EvidenceSummary{
-		TotalCount:        12,
-		SatisfiedCount:    8,
-		NotSatisfiedCount: 3,
-		ExpiredCount:      1,
-		TopExpired: []EvidenceItem{
-			{
-				ID:        "evidence-1",
-				UUID:      uuid.New().String(),
-				Title:     "Expired Control",
-				ExpiresAt: "2026-04-07 09:00 UTC",
-			},
-		},
-	}
-
-	recipients := []DigestRecipient{
-		{
-			User: relational.User{
-				UUIDModel: relational.UUIDModel{ID: &userOneID},
-				Email:     "alice@example.com",
-				FirstName: "Alice",
-			},
-			Channels:    []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
-			SlackUserID: "UALICE",
-		},
-		{
-			User: relational.User{
-				UUIDModel: relational.UUIDModel{ID: &userTwoID},
-				Email:     "bob@example.com",
-				FirstName: "Bob",
-			},
-			Channels:    []string{notification.DeliveryChannelSlack},
-			SlackUserID: "",
-		},
-	}
-
-	args := service.buildGlobalDigestDeliveryArgs(summary, recipients)
-	require.Len(t, args, 2)
-
-	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, []string{
-		args[0].Channel,
-		args[1].Channel,
-	})
-
-	for _, arg := range args {
-		assert.Equal(t, userOneID.String(), arg.UserID)
-		assert.Equal(t, int64(12), arg.Summary.TotalCount)
-		assert.Len(t, arg.Summary.TopExpired, 1)
-	}
+	assert.Equal(t, "send_global_digest", options.SourceJobKind)
+	assert.True(t, strings.HasPrefix(options.CorrelationID, "evidence-digest:"))
 }
 
-func TestBuildGlobalSlackDigestDeliveryArgs_UsesConfiguredChannel(t *testing.T) {
+func TestGlobalDigestSlackEnabled_RequiresConfiguredChannel(t *testing.T) {
 	service := NewService(
 		nil,
 		nil,
 		nil,
 		nil,
-		&config.Config{
-			Slack: &config.SlackConfig{
-				Enabled:       true,
-				DigestChannel: "C-DIGEST",
-			},
-		},
+		&config.Config{Slack: &config.SlackConfig{Enabled: true, DigestChannel: ""}},
 		zap.NewNop().Sugar(),
 	)
 
-	summary := &EvidenceSummary{TotalCount: 5}
-	args := service.buildGlobalSlackDigestDeliveryArgs(summary)
-
-	require.Len(t, args, 1)
-	assert.Equal(t, notification.DeliveryChannelSlack, args[0].Channel)
-	assert.Equal(t, "C-DIGEST", args[0].SlackChannel)
-	assert.Equal(t, int64(5), args[0].Summary.TotalCount)
+	assert.False(t, service.globalDigestSlackEnabled())
 }

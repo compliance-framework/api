@@ -14,8 +14,8 @@ func TestNormalizeDeliveryChannels(t *testing.T) {
 
 func TestNormalizeDeliveryChannels_Invalid(t *testing.T) {
 	normalized, invalid := NormalizeDeliveryChannels([]string{"sms", "email", "pagerduty", "SMS"})
-	assert.Equal(t, []string{DeliveryChannelEmail}, normalized)
-	assert.Equal(t, []string{"pagerduty", "sms"}, invalid)
+	assert.Equal(t, []string{DeliveryChannelEmail, "pagerduty", "sms"}, normalized)
+	assert.Empty(t, invalid)
 }
 
 func TestNormalizeDeliveryChannels_EmptyIsInvalid(t *testing.T) {

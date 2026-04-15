@@ -23,6 +23,9 @@ const (
 
 	DeliveryChannelEmail = "email"
 	DeliveryChannelSlack = "slack"
+
+	SlackTargetChannel       = "channel"
+	SlackTargetDirectMessage = "direct_message"
 )
 
 var notificationTypeInputAliases = map[string]string{
@@ -84,12 +87,17 @@ func NormalizeDeliveryChannel(channel string) (string, bool) {
 		return "", false
 	}
 
-	switch normalized {
-	case DeliveryChannelEmail, DeliveryChannelSlack:
-		return normalized, true
-	default:
-		return "", false
+	for _, r := range normalized {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= '0' && r <= '9':
+		case r == '_':
+		default:
+			return "", false
+		}
 	}
+
+	return normalized, true
 }
 
 // NormalizeDeliveryChannels canonicalizes channels and returns unsupported values separately.
@@ -126,4 +134,15 @@ func NormalizeDeliveryChannels(channels []string) (normalized []string, invalid 
 	sort.Strings(invalid)
 
 	return normalized, invalid
+}
+
+func NormalizeSlackTarget(target string) (string, bool) {
+	switch normalizeToken(target) {
+	case SlackTargetChannel:
+		return SlackTargetChannel, true
+	case SlackTargetDirectMessage, "directmessage", "dm":
+		return SlackTargetDirectMessage, true
+	default:
+		return "", false
+	}
 }
