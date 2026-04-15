@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -389,12 +390,16 @@ func (h *EvidenceHandler) Create(ctx echo.Context) error {
 //	@Tags			Evidence
 //	@Accept			json
 //	@Produce		json
-//	@Param			filter	body		labelfilter.Filter	true	"Label filter"
-//	@Param			page	query		int					false	"Page number"
-//	@Param			limit	query		int					false	"Page size"
-//	@Success		200		{object}	svc.ListResponse[PublicEvidenceResponse]
-//	@Failure		422		{object}	api.Error
-//	@Failure		500		{object}	api.Error
+//	@Param			request			body		filteredSearchRequest	true	"Evidence search request"
+//	@Param			page			query		int						false	"Page number"
+//	@Param			limit			query		int						false	"Page size"
+//	@Param			sortBy			query		string					false	"Sort field: lastSeenAt, name, status"
+//	@Param			sortDirection	query		string					false	"Sort direction: asc, desc"
+//	@Param			name			query		string					false	"Case-insensitive evidence name search"
+//	@Success		200				{object}	svc.ListResponse[PublicEvidenceResponse]
+//	@Failure		400				{object}	api.Error
+//	@Failure		422				{object}	api.Error
+//	@Failure		500				{object}	api.Error
 //	@Router			/evidence/search [post]
 func (h *EvidenceHandler) Search(ctx echo.Context) error {
 	filter := &labelfilter.Filter{}
@@ -409,7 +414,12 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
 	}
 
-	results, total, err := h.evidenceService.SearchPaginated(*filter, pagination.Limit, pagination.Offset)
+	searchOptions, err := parseEvidenceSearchOptions(ctx, pagination)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, api.NewError(err))
+	}
+
+	results, total, err := h.evidenceService.SearchPaginated(*filter, searchOptions)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, api.NewError(err))
 	}
@@ -424,6 +434,49 @@ func (h *EvidenceHandler) Search(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, svc.NewListResponse(output, total, pagination.Page, pagination.Limit))
+}
+
+func parseEvidenceSearchOptions(ctx echo.Context, pagination *svc.PaginationParams) (evidencesvc.SearchOptions, error) {
+	sortBy := evidencesvc.SearchSortBy(ctx.QueryParam("sortBy"))
+	if sortBy == "" {
+		sortBy = evidencesvc.SearchSortByLastSeenAt
+	}
+
+	switch sortBy {
+	case evidencesvc.SearchSortByLastSeenAt, evidencesvc.SearchSortByName, evidencesvc.SearchSortByStatus:
+	default:
+		return evidencesvc.SearchOptions{}, fmt.Errorf(
+			"unsupported sortBy parameter: %s; supported values: %s, %s, %s",
+			sortBy,
+			evidencesvc.SearchSortByLastSeenAt,
+			evidencesvc.SearchSortByName,
+			evidencesvc.SearchSortByStatus,
+		)
+	}
+
+	sortDirection := evidencesvc.SearchSortDirection(ctx.QueryParam("sortDirection"))
+	if sortDirection == "" {
+		sortDirection = evidencesvc.SearchSortDirectionDesc
+	}
+
+	switch sortDirection {
+	case evidencesvc.SearchSortDirectionAsc, evidencesvc.SearchSortDirectionDesc:
+	default:
+		return evidencesvc.SearchOptions{}, fmt.Errorf(
+			"unsupported sortDirection parameter: %s; supported values: %s, %s",
+			sortDirection,
+			evidencesvc.SearchSortDirectionAsc,
+			evidencesvc.SearchSortDirectionDesc,
+		)
+	}
+
+	return evidencesvc.SearchOptions{
+		Limit:         pagination.Limit,
+		Offset:        pagination.Offset,
+		Name:          ctx.QueryParam("name"),
+		SortBy:        sortBy,
+		SortDirection: sortDirection,
+	}, nil
 }
 
 type EvidenceFields struct {

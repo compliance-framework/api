@@ -1774,6 +1774,13 @@ definitions:
       poam-item-id:
         type: string
     type: object
+  handler.filteredSearchRequest:
+    properties:
+      filter:
+        $ref: '#/definitions/labelfilter.Filter'
+    required:
+    - filter
+    type: object
   handler.findingLinkResponse:
     properties:
       created-at:
@@ -10132,12 +10139,12 @@ paths:
       - application/json
       description: Searches Evidence records by label filters.
       parameters:
-      - description: Label filter
+      - description: Evidence search request
         in: body
-        name: filter
+        name: request
         required: true
         schema:
-          $ref: '#/definitions/labelfilter.Filter'
+          $ref: '#/definitions/handler.filteredSearchRequest'
       - description: Page number
         in: query
         name: page
@@ -10146,6 +10153,18 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: 'Sort field: lastSeenAt, name, status'
+        in: query
+        name: sortBy
+        type: string
+      - description: 'Sort direction: asc, desc'
+        in: query
+        name: sortDirection
+        type: string
+      - description: Case-insensitive evidence name search
+        in: query
+        name: name
+        type: string
       produces:
       - application/json
       responses:
@@ -10153,6 +10172,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/service.ListResponse-handler_PublicEvidenceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
         "422":
           description: Unprocessable Entity
           schema:

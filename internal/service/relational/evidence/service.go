@@ -2,6 +2,8 @@ package evidence
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
@@ -29,6 +31,29 @@ type ComponentDefinitionResolver interface {
 type StatusCount struct {
 	Count  int64  `json:"count"`
 	Status string `json:"status"`
+}
+
+type SearchSortBy string
+
+const (
+	SearchSortByLastSeenAt SearchSortBy = "lastSeenAt"
+	SearchSortByName       SearchSortBy = "name"
+	SearchSortByStatus     SearchSortBy = "status"
+)
+
+type SearchSortDirection string
+
+const (
+	SearchSortDirectionAsc  SearchSortDirection = "asc"
+	SearchSortDirectionDesc SearchSortDirection = "desc"
+)
+
+type SearchOptions struct {
+	Limit         int
+	Offset        int
+	Name          string
+	SortBy        SearchSortBy
+	SortDirection SearchSortDirection
 }
 
 type EvidenceService struct {
@@ -300,10 +325,16 @@ func (s *EvidenceService) Search(filter labelfilter.Filter) ([]relational.Eviden
 	return results, nil
 }
 
-func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, limit, offset int) ([]relational.Evidence, int64, error) {
+func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, opts SearchOptions) ([]relational.Evidence, int64, error) {
+	opts = normalizeEvidenceSearchOptions(opts)
+
 	query, err := relational.GetEvidenceSearchByFilterQuery(relational.GetLatestEvidenceStreamsQuery(s.db), s.db, filter)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	if name := strings.TrimSpace(opts.Name); name != "" {
+		query = query.Where("l.title ILIKE ? ESCAPE '\\'", "%"+escapeILikePattern(name)+"%")
 	}
 
 	var total int64
@@ -314,15 +345,64 @@ func (s *EvidenceService) SearchPaginated(filter labelfilter.Filter, limit, offs
 	var results []relational.Evidence
 	if err := query.
 		Preload("Labels").
-		Order("l.end DESC").
-		Order("l.uuid ASC").
-		Limit(limit).
-		Offset(offset).
+		Scopes(applyEvidenceSearchOrder(opts.SortBy, opts.SortDirection)).
+		Limit(opts.Limit).
+		Offset(opts.Offset).
 		Find(&results).Error; err != nil {
 		return nil, 0, err
 	}
 
 	return results, total, nil
+}
+
+func escapeILikePattern(value string) string {
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`%`, `\%`,
+		`_`, `\_`,
+	)
+	return replacer.Replace(value)
+}
+
+func normalizeEvidenceSearchOptions(opts SearchOptions) SearchOptions {
+	if opts.SortBy == "" {
+		opts.SortBy = SearchSortByLastSeenAt
+	}
+	if opts.SortDirection == "" {
+		opts.SortDirection = SearchSortDirectionDesc
+	}
+	return opts
+}
+
+func applyEvidenceSearchOrder(sortBy SearchSortBy, direction SearchSortDirection) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		desc := direction == SearchSortDirectionDesc
+
+		switch sortBy {
+		case SearchSortByName:
+			db = db.Order(clause.OrderByColumn{
+				Column: clause.Column{Table: "l", Name: "title"},
+				Desc:   desc,
+			})
+		case SearchSortByStatus:
+			sqlDirection := "ASC"
+			if desc {
+				sqlDirection = "DESC"
+			}
+			db = db.Order(fmt.Sprintf("l.status->>'state' %s", sqlDirection))
+		case SearchSortByLastSeenAt:
+			fallthrough
+		default:
+			db = db.Order(clause.OrderByColumn{
+				Column: clause.Column{Table: "l", Name: "end"},
+				Desc:   desc,
+			})
+		}
+
+		return db.
+			Order(clause.OrderByColumn{Column: clause.Column{Table: "l", Name: "uuid"}}).
+			Order(clause.OrderByColumn{Column: clause.Column{Table: "l", Name: "id"}})
+	}
 }
 
 func (s *EvidenceService) GetLatestForFilters(filters ...labelfilter.Filter) ([]relational.Evidence, error) {
@@ -356,7 +436,7 @@ func (s *EvidenceService) GetStatusCountsAtPoint(filter labelfilter.Filter, endB
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return nonNilStatusCounts(rows), nil
 }
 
 func (s *EvidenceService) GetStatusCountsByUUIDAtPoint(streamUUID uuid.UUID, endBefore *time.Time) ([]StatusCount, error) {
@@ -377,7 +457,7 @@ func (s *EvidenceService) GetStatusCountsByUUIDAtPoint(streamUUID uuid.UUID, end
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return nonNilStatusCounts(rows), nil
 }
 
 func (s *EvidenceService) GetStatusCountsByFilters(filters ...labelfilter.Filter) ([]StatusCount, error) {
@@ -394,7 +474,14 @@ func (s *EvidenceService) GetStatusCountsByFilters(filters ...labelfilter.Filter
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return nonNilStatusCounts(rows), nil
+}
+
+func nonNilStatusCounts(rows []StatusCount) []StatusCount {
+	if rows == nil {
+		return []StatusCount{}
+	}
+	return rows
 }
 
 func (s *EvidenceService) GetFilterByID(id uuid.UUID) (*relational.Filter, error) {
