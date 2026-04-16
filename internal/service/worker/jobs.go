@@ -709,7 +709,14 @@ func Workers(
 
 			// Register POAM digest worker (BCH-1186 Phase 4)
 			// Note: PoamOpenDigestSchedulerWorker is registered in service.go (needs clientProxy).
-			poamOpenDigestWorker := NewPoamOpenDigestWorker(db, emailService, userRepo, webBaseURL, logger)
+			poamOpenDigestWorker := NewPoamOpenDigestWorkerWithRuntimeProvider(
+				db,
+				emailService,
+				userRepo,
+				webBaseURL,
+				newWorkerNotificationRuntimeProvider(emailService, nil, func() notification.WorkerEnqueuer { return nil }),
+				logger,
+			)
 			river.AddWorker(workers, river.WorkFunc(poamOpenDigestWorker.Work))
 		}
 	}

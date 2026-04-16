@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
 	poamsvc "github.com/compliance-framework/api/internal/service/relational/poam"
 	"github.com/compliance-framework/api/internal/workflow"
@@ -156,6 +155,23 @@ type poamDigestClassification struct {
 	ApproachingDeadline []PoamDigestEmailItem
 	Stale               []PoamDigestEmailItem
 	MilestonesDueSoon   []PoamMilestoneDigestEmailItem
+}
+
+type poamOpenDigestNotificationData struct {
+	RecipientName          string
+	PeriodLabel            string
+	NewSinceLastDigest     []PoamDigestEmailItem
+	Overdue                []PoamDigestEmailItem
+	ApproachingDeadline    []PoamDigestEmailItem
+	MilestonesDueSoon      []PoamMilestoneDigestEmailItem
+	Stale                  []PoamDigestEmailItem
+	PoamListURL            string
+	HasNewSinceLast        bool
+	HasOverdue             bool
+	HasApproachingDeadline bool
+	HasMilestonesDueSoon   bool
+	HasStale               bool
+	GeneratedAt            time.Time
 }
 
 func (c poamDigestClassification) Empty() bool {
@@ -415,15 +431,16 @@ func (w *PoamOpenDigestSchedulerWorker) Work(ctx context.Context, _ *river.Job[P
 
 // ─── Digest worker ────────────────────────────────────────────────────────────
 
-// PoamOpenDigestWorker builds and sends the grouped POAM digest email for a
+// PoamOpenDigestWorker builds and dispatches the grouped POAM digest notification for a
 // single recipient.
 type PoamOpenDigestWorker struct {
-	db           *gorm.DB
-	emailService EmailService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
-	now          func() time.Time
+	db                          *gorm.DB
+	emailService                EmailService
+	userRepo                    UserRepository
+	webBaseURL                  string
+	notificationRuntimeProvider notification.RuntimeProvider
+	logger                      *zap.SugaredLogger
+	now                         func() time.Time
 }
 
 func NewPoamOpenDigestWorker(
@@ -433,14 +450,42 @@ func NewPoamOpenDigestWorker(
 	webBaseURL string,
 	logger *zap.SugaredLogger,
 ) *PoamOpenDigestWorker {
-	return &PoamOpenDigestWorker{
-		db:           db,
-		emailService: emailService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
-		now:          time.Now,
+	return NewPoamOpenDigestWorkerWithRuntimeProvider(
+		db,
+		emailService,
+		userRepo,
+		webBaseURL,
+		newWorkerNotificationRuntimeProvider(emailService, nil, func() notification.WorkerEnqueuer { return nil }),
+		logger,
+	)
+}
+
+func NewPoamOpenDigestWorkerWithRuntimeProvider(
+	db *gorm.DB,
+	emailService EmailService,
+	userRepo UserRepository,
+	webBaseURL string,
+	runtimeProvider notification.RuntimeProvider,
+	logger *zap.SugaredLogger,
+) *PoamOpenDigestWorker {
+	worker := &PoamOpenDigestWorker{
+		db:                          db,
+		emailService:                emailService,
+		userRepo:                    userRepo,
+		webBaseURL:                  webBaseURL,
+		notificationRuntimeProvider: runtimeProvider,
+		logger:                      logger,
+		now:                         time.Now,
 	}
+	if worker.notificationRuntimeProvider == nil {
+		worker.notificationRuntimeProvider = newWorkerNotificationRuntimeProvider(
+			emailService,
+			nil,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+	}
+
+	return worker
 }
 
 func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpenDigestArgs]) error {
@@ -451,20 +496,6 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 		w.logger.Warnw("PoamOpenDigestWorker: user not found, skipping",
 			"user_id", args.RecipientUserID,
 			"error", err,
-		)
-		return nil
-	}
-
-	// Respect the user's shared risk/POAM email notification preference until
-	// POAM gains a dedicated notification type.
-	channels, ok := selectUserNotificationChannels(
-		user,
-		notification.NotificationTypeRiskNotifications,
-		notification.DeliveryChannelEmail,
-	)
-	if !ok || len(channels) == 0 {
-		w.logger.Debugw("PoamOpenDigestWorker: user not subscribed to email notifications, skipping",
-			"user_id", args.RecipientUserID,
 		)
 		return nil
 	}
@@ -515,52 +546,43 @@ func (w *PoamOpenDigestWorker) Work(ctx context.Context, job *river.Job[PoamOpen
 	periodLabel := formatPoamDigestPeriodLabel(window)
 	poamListURL := fmt.Sprintf("%s/poam-items", strings.TrimRight(w.webBaseURL, "/"))
 
-	templateData := map[string]interface{}{
-		"RecipientName":          user.FullName(),
-		"PeriodLabel":            periodLabel,
-		"NewSinceLastDigest":     classification.NewSinceLastDigest,
-		"Overdue":                classification.Overdue,
-		"ApproachingDeadline":    classification.ApproachingDeadline,
-		"MilestonesDueSoon":      classification.MilestonesDueSoon,
-		"Stale":                  classification.Stale,
-		"PoamListURL":            poamListURL,
-		"HasNewSinceLast":        len(classification.NewSinceLastDigest) > 0,
-		"HasOverdue":             len(classification.Overdue) > 0,
-		"HasApproachingDeadline": len(classification.ApproachingDeadline) > 0,
-		"HasMilestonesDueSoon":   len(classification.MilestonesDueSoon) > 0,
-		"HasStale":               len(classification.Stale) > 0,
+	data := poamOpenDigestNotificationData{
+		RecipientName:          user.FullName(),
+		PeriodLabel:            periodLabel,
+		NewSinceLastDigest:     classification.NewSinceLastDigest,
+		Overdue:                classification.Overdue,
+		ApproachingDeadline:    classification.ApproachingDeadline,
+		MilestonesDueSoon:      classification.MilestonesDueSoon,
+		Stale:                  classification.Stale,
+		PoamListURL:            poamListURL,
+		HasNewSinceLast:        len(classification.NewSinceLastDigest) > 0,
+		HasOverdue:             len(classification.Overdue) > 0,
+		HasApproachingDeadline: len(classification.ApproachingDeadline) > 0,
+		HasMilestonesDueSoon:   len(classification.MilestonesDueSoon) > 0,
+		HasStale:               len(classification.Stale) > 0,
+		GeneratedAt:            w.now().UTC(),
 	}
 
-	htmlBody, textBody, err := w.emailService.UseTemplate("poam-open-digest", templateData)
-	if err != nil {
-		return fmt.Errorf("poam open digest: render template failed: %w", err)
+	notificationService := newPoamNotificationServiceFromFactory(
+		w.notificationRuntimeProvider.NewRuntimeFactory(nil),
+		w.emailService,
+		newNotificationUserRepositoryAdapter(w.userRepo, user),
+	)
+
+	if err := notificationService.Dispatch(
+		ctx,
+		buildPoamOpenDigestNotificationRequest(args, data),
+	); err != nil {
+		return fmt.Errorf("dispatch poam-open-digest notification: %w", err)
 	}
 
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("Your POAM digest — %s", formatDate(w.now().UTC())),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}
-
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		return fmt.Errorf("poam open digest: send email failed: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("poam open digest: email send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("PoamOpenDigestWorker: digest email sent",
+	w.logger.Infow("PoamOpenDigestWorker: digest notifications sent",
 		"user_id", args.RecipientUserID,
-		"email", user.Email,
 		"new_count", len(classification.NewSinceLastDigest),
 		"overdue_count", len(classification.Overdue),
 		"approaching_count", len(classification.ApproachingDeadline),
 		"milestones_due_soon_count", len(classification.MilestonesDueSoon),
 		"stale_count", len(classification.Stale),
-		"message_id", result.MessageID,
 	)
 	return nil
 }
