@@ -5,7 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/compliance-framework/api/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,7 +72,7 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 				},
 			},
 		},
-	}, nil)
+	}, nil, nil)
 
 	targets, err := resolver.Resolve(context.Background(), Request{
 		Kind: Kind("risk_review_due"),
@@ -88,19 +87,19 @@ func TestResolverResolveUserAudienceUsesSubscriptionsAndSkipsMissingSlackLink(t 
 			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
 				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
-			DeliveryChannelSlack: SlackChannelRenderer(func(context.Context, any) (SlackContent, error) {
-				return SlackContent{Text: "body"}, nil
+			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
+				return map[string]string{"text": "body"}, nil
 			}),
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
-	assert.Equal(t, DeliveryChannelEmail, targets[0].Channel)
-	assert.Equal(t, "user@example.com", targets[0].Address)
+	assert.Equal(t, DeliveryChannelEmail, targets[0].Provider)
+	assert.Equal(t, "user@example.com", targets[0].Address["email"])
 }
 
 func TestResolverResolveDirectEmailAudienceBypassesSubscriptionsByDesign(t *testing.T) {
-	resolver := NewResolver(nil, nil)
+	resolver := NewResolver(nil, nil, nil)
 
 	targets, err := resolver.Resolve(context.Background(), Request{
 		Kind: Kind("forgot_password"),
@@ -118,86 +117,68 @@ func TestResolverResolveDirectEmailAudienceBypassesSubscriptionsByDesign(t *test
 	})
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
-	assert.Equal(t, DeliveryChannelEmail, targets[0].Channel)
-	assert.Equal(t, "reset@example.com", targets[0].Address)
+	assert.Equal(t, DeliveryChannelEmail, targets[0].Provider)
+	assert.Equal(t, "reset@example.com", targets[0].Address["email"])
 }
 
-func TestResolverResolveDirectSlackAudienceUsesExplicitTargetType(t *testing.T) {
-	resolver := NewResolver(nil, nil)
+func TestResolverResolveDirectAudienceUsesExplicitSlackTargetType(t *testing.T) {
+	resolver := NewResolver(nil, nil, nil)
 
 	targets, err := resolver.Resolve(context.Background(), Request{
 		Kind: Kind("system_alert"),
 		Audiences: []Audience{
-			{DirectSlack: &DirectSlackAudience{
-				Channel:    "U123",
-				TargetType: SlackTargetDirectMessage,
-			}},
+			{Direct: &DirectAudience{Provider: DeliveryChannelSlack, Address: map[string]string{"channel": "U123", "target_type": "direct_message"}}},
 		},
 	}, Definition{
 		Kind:              Kind("system_alert"),
 		SupportedChannels: []string{DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelSlack: SlackChannelRenderer(func(context.Context, any) (SlackContent, error) {
-				return SlackContent{Text: "body"}, nil
+			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
+				return map[string]string{"text": "body"}, nil
 			}),
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
-	assert.Equal(t, "U123", targets[0].Address)
+	assert.Equal(t, "U123", targets[0].Address["channel"])
 	targetType, ok := targets[0].Attribute("target_type")
 	require.True(t, ok)
-	assert.Equal(t, SlackTargetDirectMessage, targetType)
+	assert.Equal(t, "direct_message", targetType)
 }
 
 func TestResolverResolveConfiguredDestinationAudience(t *testing.T) {
 	resolver := NewResolver(nil, stubConfiguredDestinationResolver{
 		destinations: map[string]ConfiguredDestination{
-			ConfiguredDestinationSlackDigestChannel: {
-				Channel: DeliveryChannelSlack,
-				Address: "C-DIGEST",
-				Attributes: map[string]string{
-					"target_type": SlackTargetChannel,
+			"slack.digest_channel": {
+				Provider: DeliveryChannelSlack,
+				Address: map[string]string{
+					"channel":     "C-DIGEST",
+					"target_type": "channel",
 				},
 			},
 		},
-	})
+	}, nil)
 
 	targets, err := resolver.Resolve(context.Background(), Request{
 		Kind: Kind("evidence_digest"),
 		Audiences: []Audience{
-			{ConfiguredDestination: &ConfiguredDestinationAudience{Key: ConfiguredDestinationSlackDigestChannel}},
+			{ConfiguredDestination: &ConfiguredDestinationAudience{Key: "slack.digest_channel"}},
 		},
 	}, Definition{
 		Kind:              Kind("evidence_digest"),
 		SupportedChannels: []string{DeliveryChannelSlack},
 		Renderers: map[string]ChannelRenderer{
-			DeliveryChannelSlack: SlackChannelRenderer(func(context.Context, any) (SlackContent, error) {
-				return SlackContent{Text: "body"}, nil
+			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
+				return map[string]string{"text": "body"}, nil
 			}),
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, targets, 1)
-	assert.Equal(t, "C-DIGEST", targets[0].Address)
+	assert.Equal(t, "C-DIGEST", targets[0].Address["channel"])
 	targetType, ok := targets[0].Attribute("target_type")
 	require.True(t, ok)
-	assert.Equal(t, SlackTargetChannel, targetType)
-}
-
-func TestConfigDestinationResolverResolveSlackDigestChannel(t *testing.T) {
-	resolver := NewConfigDestinationResolver(&config.Config{
-		Slack: &config.SlackConfig{
-			Enabled:       true,
-			DigestChannel: "C-DIGEST",
-		},
-	})
-
-	destination, err := resolver.ResolveConfiguredDestination(context.Background(), ConfiguredDestinationSlackDigestChannel)
-	require.NoError(t, err)
-	assert.Equal(t, DeliveryChannelSlack, destination.Channel)
-	assert.Equal(t, "C-DIGEST", destination.Address)
-	assert.Equal(t, SlackTargetChannel, destination.Attributes["target_type"])
+	assert.Equal(t, "channel", targetType)
 }
 
 func TestResolverListSubscribedUsers(t *testing.T) {
@@ -224,7 +205,7 @@ func TestResolverListSubscribedUsers(t *testing.T) {
 				},
 			},
 		},
-	}, nil)
+	}, nil, nil)
 
 	users, err := resolver.ListSubscribedUsers(context.Background(), Definition{
 		Kind:              Kind("evidence_digest"),

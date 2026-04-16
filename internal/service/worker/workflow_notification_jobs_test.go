@@ -2,10 +2,12 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	"github.com/google/uuid"
@@ -18,25 +20,20 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestWorkflowTaskAssignedInsertParams_UserAssigneeSplitsByChannel(t *testing.T) {
+func TestWorkflowTaskAssignedInsertParams_EnqueuesSingleWrapperJob(t *testing.T) {
 	params := workflowTaskAssignedInsertParams(WorkflowTaskAssignedArgs{
 		AssignedToType:  workflows.AssignmentTypeUser.String(),
 		UserID:          "user-1",
 		StepExecutionID: "step-1",
 	})
 
-	require.Len(t, params, 2)
+	require.Len(t, params, 1)
 
-	var channels []string
-	for _, param := range params {
-		args, ok := param.Args.(WorkflowTaskAssignedArgs)
-		require.True(t, ok)
-		channels = append(channels, args.Channel)
-		require.NotNil(t, param.InsertOpts)
-		assert.True(t, param.InsertOpts.UniqueOpts.ByArgs)
-	}
-
-	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, channels)
+	args, ok := params[0].Args.(WorkflowTaskAssignedArgs)
+	require.True(t, ok)
+	assert.Empty(t, args.Channel)
+	require.NotNil(t, params[0].InsertOpts)
+	assert.True(t, params[0].InsertOpts.UniqueOpts.ByArgs)
 }
 
 func TestWorkflowTaskAssignedInsertParams_EmailAssigneeOnlyEnqueuesEmail(t *testing.T) {
@@ -50,13 +47,48 @@ func TestWorkflowTaskAssignedInsertParams_EmailAssigneeOnlyEnqueuesEmail(t *test
 
 	args, ok := params[0].Args.(WorkflowTaskAssignedArgs)
 	require.True(t, ok)
-	assert.Equal(t, notification.DeliveryChannelEmail, args.Channel)
+	assert.Empty(t, args.Channel)
+}
+
+func TestWorkflowTaskAssignedArgs_JSONOmitsHydratedFieldsWhenEmpty(t *testing.T) {
+	args := WorkflowTaskAssignedArgs{
+		AssignedToType:  workflows.AssignmentTypeUser.String(),
+		UserID:          "user-1",
+		StepExecutionID: "step-1",
+	}
+
+	payload, err := json.Marshal(args)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"assigned_to_type":"user",
+		"user_id":"user-1",
+		"step_execution_id":"step-1"
+	}`, string(payload))
 }
 
 func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	db := newWorkflowNotificationJobsTestDB(t)
 	client := &stubRiverClient{}
-	worker := NewDueSoonCheckerWorker(db, client, zap.NewNop().Sugar())
+	worker := NewDueSoonCheckerWorkerWithRuntimeProvider(
+		db,
+		nil,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(nil, nil, func() notification.WorkerEnqueuer {
+			return newWorkerNotificationEnqueuer(client, "email", 5)
+		}),
+		zap.NewNop().Sugar(),
+	)
+
+	userID := uuid.New()
+	createWorkflowNotificationUser(t, db, userID, "alice@example.com", "UALICE")
+	require.NoError(t, db.Create(&relational.UserNotificationSubscription{
+		UserID:           userID.String(),
+		NotificationType: notification.NotificationTypeTaskAvailable,
+		Channels: datatypes.JSONSlice[string]{
+			notification.DeliveryChannelEmail,
+			notification.DeliveryChannelSlack,
+		},
+	}).Error)
 
 	sspID := uuid.New()
 	require.NoError(t, db.Model(&relational.SystemSecurityPlan{}).Create(map[string]interface{}{
@@ -91,7 +123,7 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	stepExecution := workflows.StepExecution{
 		Status:                   workflows.StepStatusPending.String(),
 		AssignedToType:           workflows.AssignmentTypeUser.String(),
-		AssignedToID:             "user-1",
+		AssignedToID:             userID.String(),
 		DueDate:                  &dueDate,
 		WorkflowExecutionID:      execution.ID,
 		WorkflowStepDefinitionID: stepDefinition.ID,
@@ -102,17 +134,34 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, client.params, 2)
 
-	var channels []string
+	var (
+		emailJobs int
+		slackJobs int
+	)
 	for _, param := range client.params {
-		args, ok := param.Args.(WorkflowTaskDueSoonArgs)
-		require.True(t, ok)
-		assert.Equal(t, stepExecution.ID.String(), args.StepExecutionID)
-		channels = append(channels, args.Channel)
 		require.NotNil(t, param.InsertOpts)
-		assert.True(t, param.InsertOpts.UniqueOpts.ByArgs)
+
+		switch args := param.Args.(type) {
+		case *SendEmailArgs:
+			emailJobs++
+			assert.Equal(t, []string{"alice@example.com"}, args.To)
+			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.NotificationKind)
+			assert.Equal(t, userID.String(), args.RecipientUserID)
+			assert.Equal(t, "email", param.InsertOpts.Queue)
+		case SendSlackDMArgs:
+			slackJobs++
+			assert.Equal(t, "UALICE", args.Channel)
+			assert.Equal(t, slackprovider.TargetTypeDirectMessage, args.TargetType)
+			assert.Equal(t, JobTypeWorkflowTaskDueSoon, args.NotificationKind)
+			assert.Equal(t, userID.String(), args.RecipientUserID)
+			assert.Equal(t, "slack", param.InsertOpts.Queue)
+		default:
+			t.Fatalf("unexpected job args type %T", param.Args)
+		}
 	}
 
-	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, channels)
+	assert.Equal(t, 1, emailJobs)
+	assert.Equal(t, 1, slackJobs)
 }
 
 func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedChannel(t *testing.T) {
@@ -170,6 +219,7 @@ func newWorkflowNotificationJobsTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
 		&relational.User{},
+		&relational.SlackUserLink{},
 		&relational.UserNotificationSubscription{},
 		&relational.SystemSecurityPlan{},
 		&workflows.WorkflowDefinition{},
@@ -182,7 +232,7 @@ func newWorkflowNotificationJobsTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func createWorkflowNotificationUser(t *testing.T, db *gorm.DB, id uuid.UUID, email string) {
+func createWorkflowNotificationUser(t *testing.T, db *gorm.DB, id uuid.UUID, email string, slackUserID ...string) {
 	t.Helper()
 
 	require.NoError(t, db.Model(&relational.User{}).Create(map[string]interface{}{
@@ -192,4 +242,12 @@ func createWorkflowNotificationUser(t *testing.T, db *gorm.DB, id uuid.UUID, ema
 		"last_name":   "User",
 		"auth_method": "password",
 	}).Error)
+
+	if len(slackUserID) > 0 && slackUserID[0] != "" {
+		require.NoError(t, db.Create(&relational.SlackUserLink{
+			UserID:      id.String(),
+			SlackUserID: slackUserID[0],
+			SlackTeamID: "T-TEST",
+		}).Error)
+	}
 }

@@ -22,19 +22,33 @@ func renderContent(ctx context.Context, definition Definition, channel string, m
 		return Content{}, err
 	}
 
-	if strings.TrimSpace(content.Channel) == "" {
-		content.Channel = normalizedChannel
+	if strings.TrimSpace(content.Provider) == "" {
+		content.Provider = normalizedChannel
 	}
-	if content.Channel != normalizedChannel {
-		return Content{}, fmt.Errorf("%w: renderer returned channel %q for requested channel %q", ErrInvalidContent, content.Channel, normalizedChannel)
+	if content.Provider != normalizedChannel {
+		return Content{}, fmt.Errorf("%w: renderer returned provider %q for requested provider %q", ErrInvalidContent, content.Provider, normalizedChannel)
 	}
 
-	if normalizedChannel == DeliveryChannelEmail && content.Email != nil {
-		if strings.TrimSpace(content.Email.From) == "" {
-			content.Email.From = strings.TrimSpace(defaultEmailFrom)
-		}
-		if strings.TrimSpace(content.Email.From) == "" {
-			return Content{}, ErrMissingEmailFromAddress
+	if normalizedChannel == DeliveryChannelEmail {
+		switch payload := content.Payload.(type) {
+		case EmailContent:
+			if strings.TrimSpace(payload.From) == "" {
+				payload.From = strings.TrimSpace(defaultEmailFrom)
+			}
+			if strings.TrimSpace(payload.From) == "" {
+				return Content{}, ErrMissingEmailFromAddress
+			}
+			content.Payload = payload
+		case *EmailContent:
+			if payload != nil {
+				if strings.TrimSpace(payload.From) == "" {
+					payload.From = strings.TrimSpace(defaultEmailFrom)
+				}
+				if strings.TrimSpace(payload.From) == "" {
+					return Content{}, ErrMissingEmailFromAddress
+				}
+				content.Payload = payload
+			}
 		}
 	}
 	if err := content.Validate(); err != nil {

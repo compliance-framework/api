@@ -23,9 +23,6 @@ const (
 
 	DeliveryChannelEmail = "email"
 	DeliveryChannelSlack = "slack"
-
-	SlackTargetChannel       = "channel"
-	SlackTargetDirectMessage = "direct_message"
 )
 
 var notificationTypeInputAliases = map[string]string{
@@ -37,6 +34,11 @@ var notificationTypeInputAliases = map[string]string{
 	notificationTypeTaskAvailableWireNormalized:     NotificationTypeTaskAvailable,
 	notificationTypeTaskDailyDigestWireNormalized:   NotificationTypeTaskDailyDigest,
 	notificationTypeRiskNotificationsWireNormalized: NotificationTypeRiskNotifications,
+}
+
+var supportedDeliveryChannels = map[string]struct{}{
+	DeliveryChannelEmail: {},
+	DeliveryChannelSlack: {},
 }
 
 var notificationTypeWireValues = map[string]string{
@@ -97,6 +99,10 @@ func NormalizeDeliveryChannel(channel string) (string, bool) {
 		}
 	}
 
+	if _, ok := supportedDeliveryChannels[normalized]; !ok {
+		return "", false
+	}
+
 	return normalized, true
 }
 
@@ -134,15 +140,4 @@ func NormalizeDeliveryChannels(channels []string) (normalized []string, invalid 
 	sort.Strings(invalid)
 
 	return normalized, invalid
-}
-
-func NormalizeSlackTarget(target string) (string, bool) {
-	switch normalizeToken(target) {
-	case SlackTargetChannel:
-		return SlackTargetChannel, true
-	case SlackTargetDirectMessage, "directmessage", "dm":
-		return SlackTargetDirectMessage, true
-	default:
-		return "", false
-	}
 }

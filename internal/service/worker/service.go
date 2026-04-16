@@ -11,6 +11,7 @@ import (
 	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	riskrel "github.com/compliance-framework/api/internal/service/relational/risks"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
 	slacksvc "github.com/compliance-framework/api/internal/service/slack"
@@ -31,17 +32,19 @@ import (
 
 // Service manages the River client and workers
 type Service struct {
-	client    *river.Client[pgx.Tx]
-	config    *config.WorkerConfig
-	db        *gorm.DB
-	emailSvc  *email.Service
-	digestSvc DigestService
-	userRepo  UserRepository
-	logger    *zap.SugaredLogger
-	started   bool
-	startedMu sync.RWMutex
-	pgxPool   *pgxpool.Pool
-	digestCfg *config.Config
+	client     *river.Client[pgx.Tx]
+	config     *config.WorkerConfig
+	db         *gorm.DB
+	emailSvc   *email.Service
+	digestSvc  DigestService
+	slackSvc   SlackService
+	userRepo   UserRepository
+	logger     *zap.SugaredLogger
+	started    bool
+	startedMu  sync.RWMutex
+	pgxPool    *pgxpool.Pool
+	digestCfg  *config.Config
+	webBaseURL string
 
 	// Workflow services
 	workflowExecutor *workflow.DAGExecutor
@@ -60,22 +63,6 @@ func (p *riverClientProxy) InsertMany(ctx context.Context, params []river.Insert
 
 type notificationEnqueuerProxy struct {
 	enqueuer workflow.NotificationEnqueuer
-}
-
-func workflowTaskAssignedInsertParams(args WorkflowTaskAssignedArgs) []river.InsertManyParams {
-	channels := workflowDeliveryChannelsForAssignment(args.AssignedToType)
-	params := make([]river.InsertManyParams, 0, len(channels))
-
-	for _, channel := range channels {
-		jobArgs := args
-		jobArgs.Channel = channel
-		params = append(params, river.InsertManyParams{
-			Args:       jobArgs,
-			InsertOpts: JobInsertOptionsForWorkflowTaskAssignedNotification(),
-		})
-	}
-
-	return params
 }
 
 func (p *notificationEnqueuerProxy) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
@@ -236,6 +223,10 @@ func NewServiceWithDigest(
 	if digestCfg != nil {
 		webBaseURL = digestCfg.WebBaseURL
 	}
+	maxAttempts := cfg.RetryPolicy.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 5
+	}
 
 	var slackService SlackService
 	if digestCfg != nil {
@@ -245,14 +236,27 @@ func NewServiceWithDigest(
 		}
 		slackService = svc
 	}
-	workers := Workers(emailSvc, digestSvc, slackService, userRepo, db, webBaseURL, logger)
+	notificationWorkerEnqueuer := newWorkerNotificationEnqueuer(clientProxy, cfg.Queue, maxAttempts)
+	workers := Workers(emailSvc, digestSvc, slackService, userRepo, db, webBaseURL, notificationWorkerEnqueuer, logger)
+
+	dueSoonRuntimeProvider := newWorkerNotificationRuntimeProvider(
+		emailSvc,
+		slackService,
+		func() notification.WorkerEnqueuer { return notificationWorkerEnqueuer },
+	)
 
 	// Add workflow workers
 	river.AddWorker(workers, river.WorkFunc(workflowExecutionWorker.Work))
 	river.AddWorker(workers, river.WorkFunc(schedulerWorker.Work))
 
 	// Add due-soon checker worker (uses clientProxy which is wired to the real client after construction)
-	dueSoonCheckerWorker := NewDueSoonCheckerWorker(db, clientProxy, logger)
+	dueSoonCheckerWorker := NewDueSoonCheckerWorkerWithRuntimeProvider(
+		db,
+		emailSvc,
+		webBaseURL,
+		dueSoonRuntimeProvider,
+		logger,
+	)
 	river.AddWorker(workers, river.WorkFunc(dueSoonCheckerWorker.Work))
 
 	// Add workflow task digest checker worker
@@ -325,16 +329,18 @@ func NewServiceWithDigest(
 	clientProxy.client = client
 
 	service := &Service{
-		client:    client,
-		config:    cfg,
-		db:        db,
-		emailSvc:  emailSvc,
-		digestSvc: digestSvc,
-		userRepo:  userRepo,
-		digestCfg: digestCfg,
-		logger:    logger,
-		started:   false,
-		pgxPool:   pgxPool,
+		client:     client,
+		config:     cfg,
+		db:         db,
+		emailSvc:   emailSvc,
+		digestSvc:  digestSvc,
+		slackSvc:   slackService,
+		userRepo:   userRepo,
+		digestCfg:  digestCfg,
+		webBaseURL: webBaseURL,
+		logger:     logger,
+		started:    false,
+		pgxPool:    pgxPool,
 
 		workflowExecutor: executor,
 	}
@@ -736,7 +742,8 @@ func (s *Service) slackQueue() string {
 	return "slack"
 }
 
-// EnqueueWorkflowTaskAssigned enqueues a workflow-task-assigned notification email job.
+// EnqueueWorkflowTaskAssigned enqueues a single workflow-task-assigned wrapper job.
+// That worker resolves channels and fans out to provider-ready downstream jobs.
 // Implements the workflow.NotificationEnqueuer interface.
 func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution *workflows.StepExecution) error {
 	if !s.config.Enabled || s.client == nil {
@@ -754,27 +761,10 @@ func (s *Service) EnqueueWorkflowTaskAssigned(ctx context.Context, stepExecution
 		return nil
 	}
 
-	// Reload with full nested relations so title fields are always populated,
-	// regardless of what the caller had preloaded on the passed-in struct.
-	var full workflows.StepExecution
-	if err := s.db.WithContext(ctx).
-		Preload("WorkflowStepDefinition").
-		Preload("WorkflowExecution.WorkflowInstance.WorkflowDefinition").
-		First(&full, "id = ?", stepExecution.ID).Error; err == nil {
-		stepExecution = &full
-	}
-
-	titles := resolveStepTitles(stepExecution)
-
 	args := WorkflowTaskAssignedArgs{
-		AssignedToType:        stepExecution.AssignedToType,
-		UserID:                stepExecution.AssignedToID,
-		StepExecutionID:       stepExecution.ID.String(),
-		StepTitle:             titles.Step,
-		WorkflowTitle:         titles.Workflow,
-		WorkflowInstanceTitle: titles.Instance,
-		StepURL:               "",
-		DueDate:               stepExecution.DueDate,
+		AssignedToType:  stepExecution.AssignedToType,
+		UserID:          stepExecution.AssignedToID,
+		StepExecutionID: stepExecution.ID.String(),
 	}
 
 	_, err := s.client.InsertMany(ctx, workflowTaskAssignedInsertParams(args))
@@ -862,7 +852,7 @@ func (s *Service) EnqueueNotificationEmail(ctx context.Context, delivery notific
 }
 
 // EnqueueNotificationSlack enqueues a provider-ready notification Slack delivery.
-func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery notification.SlackDelivery) error {
+func (s *Service) EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error {
 	if !s.config.Enabled {
 		return fmt.Errorf("worker service is disabled")
 	}
@@ -919,12 +909,12 @@ func notificationEmailInsertParams(delivery notification.EmailDelivery, queue st
 	}
 }
 
-func notificationSlackInsertParams(delivery notification.SlackDelivery, queue string, maxAttempts int) ([]river.InsertManyParams, error) {
+func notificationSlackInsertParams(delivery slackprovider.Delivery, queue string, maxAttempts int) ([]river.InsertManyParams, error) {
 	args := &SendSlackArgs{
 		Channel:          delivery.Channel,
 		TargetType:       delivery.TargetType,
 		Text:             delivery.Content.Text,
-		Blocks:           slackBlocksFromNotification(delivery),
+		Blocks:           slackBlocksFromProviderDelivery(delivery),
 		NotificationKind: string(delivery.Metadata.NotificationKind),
 		RecipientUserID:  delivery.Metadata.RecipientUserID,
 		CorrelationID:    delivery.Metadata.CorrelationID,
@@ -945,7 +935,7 @@ func notificationSlackInsertParams(delivery notification.SlackDelivery, queue st
 	}, nil
 }
 
-func slackBlocksFromNotification(delivery notification.SlackDelivery) slack.Blocks {
+func slackBlocksFromProviderDelivery(delivery slackprovider.Delivery) slack.Blocks {
 	return slack.Blocks{
 		BlockSet: append([]slack.Block(nil), delivery.Content.Blocks...),
 	}

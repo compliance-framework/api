@@ -17,8 +17,8 @@ func TestRegistryRegisterNormalizesDefinition(t *testing.T) {
 			DeliveryChannelEmail: EmailChannelRenderer(func(context.Context, any) (EmailContent, error) {
 				return EmailContent{From: "from@example.com", Subject: "subject", TextBody: "body"}, nil
 			}),
-			DeliveryChannelSlack: SlackChannelRenderer(func(context.Context, any) (SlackContent, error) {
-				return SlackContent{Text: "body"}, nil
+			DeliveryChannelSlack: ProviderRenderer(DeliveryChannelSlack, func(context.Context, any) (any, error) {
+				return map[string]string{"text": "body"}, nil
 			}),
 		},
 	})

@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compliance-framework/api/internal/config"
 	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -24,7 +23,7 @@ type User struct {
 	Email         string
 	FirstName     string
 	LastName      string
-	SlackUserID   string
+	Identities    map[string]map[string]string
 	Subscriptions []UserSubscription
 }
 
@@ -99,17 +98,6 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (U
 		return User{}, fmt.Errorf("failed to fetch notification subscriptions for user %s: %w", userID, err)
 	}
 
-	var slackLink relational.SlackUserLink
-	var slackUserID string
-	err = r.db.WithContext(ctx).
-		Where("user_id = ?", record.ID.String()).
-		First(&slackLink).Error
-	if err == nil {
-		slackUserID = slackLink.SlackUserID
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return User{}, fmt.Errorf("failed to fetch slack user link for user %s: %w", userID, err)
-	}
-
 	out := make([]UserSubscription, 0, len(subscriptions))
 	for i := range subscriptions {
 		channels := make([]string, len(subscriptions[i].Channels))
@@ -126,7 +114,7 @@ func (r *GORMUserRepository) FindUserByID(ctx context.Context, userID string) (U
 		Email:         record.Email,
 		FirstName:     record.FirstName,
 		LastName:      record.LastName,
-		SlackUserID:   slackUserID,
+		Identities:    buildLegacyUserIdentities(record.Email),
 		Subscriptions: out,
 	}, nil
 }
@@ -176,18 +164,6 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 		return nil, fmt.Errorf("failed to fetch subscribed users for type %s: %w", canonicalType, err)
 	}
 
-	var slackLinks []relational.SlackUserLink
-	if err := r.db.WithContext(ctx).
-		Where("user_id IN ?", userIDs).
-		Find(&slackLinks).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch slack user links for type %s: %w", canonicalType, err)
-	}
-
-	slackUserIDByUserID := make(map[string]string, len(slackLinks))
-	for i := range slackLinks {
-		slackUserIDByUserID[slackLinks[i].UserID] = slackLinks[i].SlackUserID
-	}
-
 	subscriptionsByUserID := make(map[string][]UserSubscription, len(subscriptions))
 	for i := range subscriptions {
 		userID := strings.TrimSpace(subscriptions[i].UserID)
@@ -212,7 +188,7 @@ func (r *GORMUserRepository) ListActiveUsersByNotificationType(ctx context.Conte
 			Email:         record.Email,
 			FirstName:     record.FirstName,
 			LastName:      record.LastName,
-			SlackUserID:   strings.TrimSpace(slackUserIDByUserID[userID]),
+			Identities:    buildLegacyUserIdentities(record.Email),
 			Subscriptions: subscriptionsByUserID[userID],
 		})
 	}
@@ -228,48 +204,17 @@ type ConfiguredDestinationResolver interface {
 	ResolveConfiguredDestination(ctx context.Context, key string) (ConfiguredDestination, error)
 }
 
-type ConfigDestinationResolver struct {
-	cfg *config.Config
-}
-
-func NewConfigDestinationResolver(cfg *config.Config) *ConfigDestinationResolver {
-	return &ConfigDestinationResolver{cfg: cfg}
-}
-
-func (r *ConfigDestinationResolver) ResolveConfiguredDestination(_ context.Context, key string) (ConfiguredDestination, error) {
-	normalizedKey := strings.TrimSpace(key)
-	switch normalizedKey {
-	case ConfiguredDestinationSlackDigestChannel:
-		if r == nil || r.cfg == nil || r.cfg.Slack == nil {
-			return ConfiguredDestination{}, fmt.Errorf("%w: %q", ErrConfiguredDestinationNotFound, key)
-		}
-
-		channel := strings.TrimSpace(r.cfg.Slack.DigestChannel)
-		if channel == "" {
-			return ConfiguredDestination{}, fmt.Errorf("%w: %q is empty", ErrConfiguredDestinationNotFound, key)
-		}
-
-		return ConfiguredDestination{
-			Channel: DeliveryChannelSlack,
-			Address: channel,
-			Attributes: map[string]string{
-				"target_type": SlackTargetChannel,
-			},
-		}, nil
-	default:
-		return ConfiguredDestination{}, fmt.Errorf("%w: %q", ErrConfiguredDestinationNotFound, key)
-	}
-}
-
 type Resolver struct {
 	users                  UserRepository
 	configuredDestinations ConfiguredDestinationResolver
+	providers              ProviderLookup
 }
 
-func NewResolver(users UserRepository, configuredDestinations ConfiguredDestinationResolver) *Resolver {
+func NewResolver(users UserRepository, configuredDestinations ConfiguredDestinationResolver, providers ProviderLookup) *Resolver {
 	return &Resolver{
 		users:                  users,
 		configuredDestinations: configuredDestinations,
+		providers:              providers,
 	}
 }
 
@@ -339,10 +284,10 @@ func (r *Resolver) resolveAudience(ctx context.Context, audience Audience, optio
 			return nil, ErrResolverNotConfigured
 		}
 		return r.resolveUserAudience(ctx, *audience.User, options, definition)
+	case audience.Direct != nil:
+		return r.resolveDirectAudience(*audience.Direct, options, definition)
 	case audience.DirectEmail != nil:
 		return r.resolveDirectEmailAudience(*audience.DirectEmail, options, definition)
-	case audience.DirectSlack != nil:
-		return r.resolveDirectSlackAudience(*audience.DirectSlack, options, definition)
 	case audience.ConfiguredDestination != nil:
 		if r == nil || r.configuredDestinations == nil {
 			return nil, ErrResolverNotConfigured
@@ -384,69 +329,58 @@ func (r *Resolver) resolveUser(user User, options DispatchOptions, definition De
 
 	targets := make([]Target, 0, len(channels))
 	for _, channel := range channels {
-		switch channel {
-		case DeliveryChannelEmail:
-			email := strings.TrimSpace(user.Email)
-			if email == "" {
-				continue
+		provider, ok := r.provider(channel)
+		if !ok {
+			if fallback, resolved := legacyUserTarget(channel, user); resolved {
+				targets = append(targets, fallback)
 			}
-			targets = append(targets, Target{
-				Channel: DeliveryChannelEmail,
-				UserID:  user.ID,
-				Address: email,
-			})
-		case DeliveryChannelSlack:
-			slackUserID := strings.TrimSpace(user.SlackUserID)
-			if slackUserID == "" {
-				continue
-			}
-			targets = append(targets, Target{
-				Channel: DeliveryChannelSlack,
-				UserID:  user.ID,
-				Address: slackUserID,
-				Attributes: map[string]string{
-					"target_type": SlackTargetDirectMessage,
-				},
-			})
+			continue
 		}
+
+		target, resolved, err := provider.ResolveUserTarget(user)
+		if err != nil {
+			return nil, err
+		}
+		if !resolved {
+			continue
+		}
+		target.UserID = user.ID
+		target.Provider = channel
+		targets = append(targets, target)
 	}
 
 	return targets, nil
 }
 
 func (r *Resolver) resolveDirectEmailAudience(audience DirectEmailAudience, options DispatchOptions, definition Definition) ([]Target, error) {
-	if !definition.SupportsChannel(DeliveryChannelEmail) {
-		return nil, nil
-	}
-	if !matchesRequestedChannel(DeliveryChannelEmail, options.RequestedChannel) {
-		return nil, nil
-	}
-
-	return []Target{{
-		Channel: DeliveryChannelEmail,
-		Address: strings.TrimSpace(audience.Email),
-	}}, nil
+	return r.resolveDirectAudience(DirectAudience{
+		Provider: DeliveryChannelEmail,
+		Address: map[string]string{
+			"email": strings.TrimSpace(audience.Email),
+		},
+	}, options, definition)
 }
 
-func (r *Resolver) resolveDirectSlackAudience(audience DirectSlackAudience, options DispatchOptions, definition Definition) ([]Target, error) {
-	if !definition.SupportsChannel(DeliveryChannelSlack) {
+func (r *Resolver) resolveDirectAudience(audience DirectAudience, options DispatchOptions, definition Definition) ([]Target, error) {
+	provider, ok := NormalizeDeliveryChannel(audience.Provider)
+	if !ok {
+		return nil, fmt.Errorf("%w: invalid direct audience provider %q", ErrInvalidAudience, audience.Provider)
+	}
+	if !definition.SupportsChannel(provider) {
 		return nil, nil
 	}
-	if !matchesRequestedChannel(DeliveryChannelSlack, options.RequestedChannel) {
+	if !matchesRequestedChannel(provider, options.RequestedChannel) {
 		return nil, nil
 	}
 
-	targetType := SlackTargetChannel
-	if normalizedTargetType, ok := NormalizeSlackTarget(audience.TargetType); ok {
-		targetType = normalizedTargetType
+	address := make(map[string]string, len(audience.Address))
+	for key, value := range audience.Address {
+		address[strings.TrimSpace(key)] = strings.TrimSpace(value)
 	}
 
 	return []Target{{
-		Channel: DeliveryChannelSlack,
-		Address: strings.TrimSpace(audience.Channel),
-		Attributes: map[string]string{
-			"target_type": targetType,
-		},
+		Provider: provider,
+		Address:  address,
 	}}, nil
 }
 
@@ -458,18 +392,77 @@ func (r *Resolver) resolveConfiguredDestinationAudience(ctx context.Context, aud
 	if err := destination.Validate(); err != nil {
 		return nil, err
 	}
-	if !definition.SupportsChannel(destination.Channel) {
+	if !definition.SupportsChannel(destination.Provider) {
 		return nil, nil
 	}
-	if !matchesRequestedChannel(destination.Channel, options.RequestedChannel) {
+	if !matchesRequestedChannel(destination.Provider, options.RequestedChannel) {
 		return nil, nil
 	}
 
+	address := make(map[string]string, len(destination.Address))
+	for key, value := range destination.Address {
+		address[key] = strings.TrimSpace(value)
+	}
+
 	return []Target{{
-		Channel:    destination.Channel,
-		Address:    strings.TrimSpace(destination.Address),
-		Attributes: destination.Attributes,
+		Provider: destination.Provider,
+		Address:  address,
 	}}, nil
+}
+
+func (r *Resolver) provider(providerID string) (Provider, bool) {
+	if r == nil || r.providers == nil {
+		return nil, false
+	}
+
+	return r.providers.Provider(providerID)
+}
+
+func legacyUserTarget(provider string, user User) (Target, bool) {
+	switch provider {
+	case DeliveryChannelEmail:
+		email := strings.TrimSpace(user.Email)
+		if email == "" {
+			return Target{}, false
+		}
+		return Target{
+			Provider: DeliveryChannelEmail,
+			UserID:   user.ID,
+			Address: map[string]string{
+				"email": email,
+			},
+		}, true
+	default:
+		identityByProvider := user.Identities
+		if len(identityByProvider) == 0 {
+			return Target{}, false
+		}
+		identity, ok := identityByProvider[provider]
+		if !ok || len(identity) == 0 {
+			return Target{}, false
+		}
+
+		address := make(map[string]string, len(identity))
+		for key, value := range identity {
+			address[key] = strings.TrimSpace(value)
+		}
+
+		return Target{Provider: provider, UserID: user.ID, Address: address}, true
+	}
+}
+
+func buildLegacyUserIdentities(email string) map[string]map[string]string {
+	identities := map[string]map[string]string{}
+
+	if trimmed := strings.TrimSpace(email); trimmed != "" {
+		identities[DeliveryChannelEmail] = map[string]string{"email": trimmed}
+	}
+
+	if len(identities) == 0 {
+		return nil
+	}
+
+	return identities
 }
 
 func normalizeRequestedChannel(channel string) (string, bool) {

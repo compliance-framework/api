@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational/workflows"
-	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -23,21 +23,40 @@ func (DueSoonCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
 
 // DueSoonCheckerWorker scans for step executions due in a week and enqueues reminder notifications.
 type DueSoonCheckerWorker struct {
-	db     *gorm.DB
-	client workflow.RiverClient
-	logger *zap.SugaredLogger
+	db         *gorm.DB
+	notifier   *notification.Service
+	userRepo   UserRepository
+	webBaseURL string
+	logger     *zap.SugaredLogger
 }
 
-// NewDueSoonCheckerWorker creates a new DueSoonCheckerWorker
-func NewDueSoonCheckerWorker(db *gorm.DB, client workflow.RiverClient, logger *zap.SugaredLogger) *DueSoonCheckerWorker {
+// NewDueSoonCheckerWorkerWithRuntimeProvider creates a new DueSoonCheckerWorker with an injected runtime provider.
+func NewDueSoonCheckerWorkerWithRuntimeProvider(
+	db *gorm.DB,
+	emailService EmailService,
+	webBaseURL string,
+	runtimeProvider notification.RuntimeProvider,
+	logger *zap.SugaredLogger,
+) *DueSoonCheckerWorker {
+	userRepo := NewGORMUserRepository(db)
+	if runtimeProvider == nil {
+		runtimeProvider = notification.NewStaticRuntimeProvider(nil)
+	}
+
 	return &DueSoonCheckerWorker{
-		db:     db,
-		client: client,
+		db:         db,
+		userRepo:   userRepo,
+		webBaseURL: webBaseURL,
+		notifier: newWorkflowNotificationServiceFromFactory(
+			runtimeProvider.NewRuntimeFactory(nil),
+			emailService,
+			newNotificationUserRepositoryAdapter(userRepo),
+		),
 		logger: logger,
 	}
 }
 
-// Work scans for step executions due in ~1 week and enqueues WorkflowTaskDueSoonArgs jobs.
+// Work scans for step executions due in ~1 week and dispatches task-available notifications.
 func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonCheckerArgs]) error {
 	if w.db == nil {
 		return fmt.Errorf("DueSoonCheckerWorker: db is nil")
@@ -69,8 +88,7 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 		return nil
 	}
 
-	channels := allWorkflowNotificationChannels()
-	params := make([]river.InsertManyParams, 0, len(steps)*len(channels))
+	dispatched := 0
 	for i := range steps {
 		step := &steps[i]
 		if step.DueDate == nil {
@@ -88,31 +106,30 @@ func (w *DueSoonCheckerWorker) Work(ctx context.Context, job *river.Job[DueSoonC
 			StepURL:               "",
 			DueDate:               *step.DueDate,
 		}
-		for _, channel := range channels {
-			args := baseArgs
-			args.Channel = channel
 
-			insertOpts := JobInsertOptionsForWorkflowNotification()
-			insertOpts.UniqueOpts = river.UniqueOpts{
-				ByArgs:   true,
-				ByPeriod: 24 * time.Hour,
+		userName := ""
+		if w.userRepo != nil {
+			user, err := w.userRepo.FindUserByID(ctx, step.AssignedToID)
+			if err != nil {
+				w.logger.Warnw("DueSoonCheckerWorker: user not found, skipping",
+					"step_execution_id", step.ID.String(),
+					"user_id", step.AssignedToID,
+					"error", err,
+				)
+				continue
 			}
-
-			params = append(params, river.InsertManyParams{
-				Args:       args,
-				InsertOpts: insertOpts,
-			})
+			userName = user.FullName()
 		}
+
+		if err := w.notifier.Dispatch(
+			ctx,
+			buildWorkflowTaskDueSoonNotificationRequest(baseArgs, userName, w.webBaseURL),
+		); err != nil {
+			return fmt.Errorf("due-soon checker: failed to dispatch reminder for step %s: %w", step.ID.String(), err)
+		}
+		dispatched++
 	}
 
-	if len(params) == 0 {
-		return nil
-	}
-
-	if _, err := w.client.InsertMany(ctx, params); err != nil {
-		return fmt.Errorf("due-soon checker: failed to enqueue reminder jobs: %w", err)
-	}
-
-	w.logger.Infow("DueSoonCheckerWorker: enqueued due-soon reminders", "count", len(params))
+	w.logger.Infow("DueSoonCheckerWorker: dispatched due-soon reminders", "count", dispatched)
 	return nil
 }

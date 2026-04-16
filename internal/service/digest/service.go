@@ -4,24 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
-	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/compliance-framework/api/internal/service/relational"
-	slacksvc "github.com/compliance-framework/api/internal/service/slack"
-	"github.com/compliance-framework/api/internal/service/slack/formatters"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
-
-type workerEnqueuer interface {
-	IsStarted() bool
-	EnqueueNotificationEmail(ctx context.Context, delivery notification.EmailDelivery) error
-	EnqueueNotificationSlack(ctx context.Context, delivery notification.SlackDelivery) error
-}
 
 // EvidenceSummary contains aggregated evidence statistics
 type EvidenceSummary struct {
@@ -49,32 +39,30 @@ type EvidenceItem struct {
 
 // Service handles digest generation and delivery
 type Service struct {
-	db            *gorm.DB
-	emailService  *email.Service
-	slackService  *slacksvc.Service
-	workerService workerEnqueuer
-	notifier      *notification.Service
-	config        *config.Config
-	logger        *zap.SugaredLogger
+	db       *gorm.DB
+	notifier *notification.Service
+	config   *config.Config
+	logger   *zap.SugaredLogger
 }
 
 type DigestRecipient struct {
-	User        relational.User
-	Channels    []string
-	SlackUserID string
+	User     relational.User
+	Channels []string
 }
 
-// NewService creates a new digest service
-func NewService(db *gorm.DB, emailService *email.Service, slackService *slacksvc.Service, workerService workerEnqueuer, cfg *config.Config, logger *zap.SugaredLogger) *Service {
-	service := &Service{
-		db:            db,
-		emailService:  emailService,
-		slackService:  slackService,
-		workerService: workerService,
-		config:        cfg,
-		logger:        logger,
+// NewService creates a new digest service.
+func NewService(db *gorm.DB, notifier *notification.Service, cfg *config.Config, logger *zap.SugaredLogger) *Service {
+	if notifier == nil {
+		notifier = notification.NewService(nil, nil, nil)
 	}
-	service.notifier = service.newNotificationService()
+
+	service := &Service{
+		db:       db,
+		notifier: notifier,
+		config:   cfg,
+		logger:   logger,
+	}
+
 	return service
 }
 
@@ -228,17 +216,6 @@ func (s *Service) GetDigestRecipients(ctx context.Context) ([]DigestRecipient, e
 		return nil, fmt.Errorf("failed to fetch subscribed users: %w", err)
 	}
 
-	var slackLinks []relational.SlackUserLink
-	if err := s.db.WithContext(ctx).
-		Where("user_id IN ?", subscribedUserIDs).
-		Find(&slackLinks).Error; err != nil {
-		return nil, fmt.Errorf("failed to fetch Slack links for digest recipients: %w", err)
-	}
-	slackUserIDByUserID := make(map[string]string, len(slackLinks))
-	for i := range slackLinks {
-		slackUserIDByUserID[slackLinks[i].UserID] = slackLinks[i].SlackUserID
-	}
-
 	recipients := make([]DigestRecipient, 0, len(users))
 	for i := range users {
 		userID := users[i].ID.String()
@@ -254,30 +231,12 @@ func (s *Service) GetDigestRecipients(ctx context.Context) ([]DigestRecipient, e
 		sort.Strings(channels)
 
 		recipients = append(recipients, DigestRecipient{
-			User:        users[i],
-			Channels:    channels,
-			SlackUserID: strings.TrimSpace(slackUserIDByUserID[userID]),
+			User:     users[i],
+			Channels: channels,
 		})
 	}
 
 	return recipients, nil
-}
-
-func toSlackDigestEvidence(items []EvidenceItem) []formatters.DigestSummaryEvidence {
-	if len(items) == 0 {
-		return nil
-	}
-
-	out := make([]formatters.DigestSummaryEvidence, 0, len(items))
-	for i := range items {
-		out = append(out, formatters.DigestSummaryEvidence{
-			ID:          items[i].ID,
-			Title:       items[i].Title,
-			Description: items[i].Description,
-			ExpiresAt:   items[i].ExpiresAt,
-		})
-	}
-	return out
 }
 
 // SendGlobalDigest sends or enqueues the global digest to all active users.
@@ -319,17 +278,4 @@ func (s *Service) SendGlobalDigest(ctx context.Context) error {
 	)
 
 	return s.dispatchEvidenceDigestNotifications(ctx, summary, webBaseURL, generatedAt, sendGlobalSlack, true)
-}
-
-// SetWorkerService sets the worker service reference (used to avoid circular dependency)
-func (s *Service) SetWorkerService(workerService workerEnqueuer) {
-	s.workerService = workerService
-}
-
-// getDefaultFromAddress returns the default From address from the email service configuration
-func (s *Service) getDefaultFromAddress() string {
-	if s.emailService == nil {
-		return ""
-	}
-	return s.emailService.GetDefaultFromAddress()
 }

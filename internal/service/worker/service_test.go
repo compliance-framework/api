@@ -9,6 +9,7 @@ import (
 	"github.com/compliance-framework/api/internal/service/email"
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -359,7 +360,7 @@ func TestSendSlackWorker_WorkChannel_SendsMessage(t *testing.T) {
 
 	args := SendSlackChannelArgs{
 		Channel:    "C123",
-		TargetType: notification.SlackTargetChannel,
+		TargetType: slackprovider.TargetTypeChannel,
 		Text:       "Digest posted",
 	}
 
@@ -385,7 +386,7 @@ func TestSendSlackWorker_WorkDM_SendsMessage(t *testing.T) {
 
 	args := SendSlackDMArgs{
 		Channel:    "U123",
-		TargetType: notification.SlackTargetDirectMessage,
+		TargetType: slackprovider.TargetTypeDirectMessage,
 		Text:       "Digest ready",
 	}
 
@@ -407,7 +408,7 @@ func TestSendSlackWorker_WorkDM_SendsMessage(t *testing.T) {
 func TestSelectSlackJobArgs(t *testing.T) {
 	channelJob, err := selectSlackJobArgs(SendSlackArgs{
 		Channel:    "C123",
-		TargetType: notification.SlackTargetChannel,
+		TargetType: slackprovider.TargetTypeChannel,
 		Text:       "hello channel",
 	})
 	assert.NoError(t, err)
@@ -416,7 +417,7 @@ func TestSelectSlackJobArgs(t *testing.T) {
 
 	privateChannelJob, err := selectSlackJobArgs(SendSlackArgs{
 		Channel:    "G123",
-		TargetType: notification.SlackTargetChannel,
+		TargetType: slackprovider.TargetTypeChannel,
 		Text:       "hello private channel",
 	})
 	assert.NoError(t, err)
@@ -425,7 +426,7 @@ func TestSelectSlackJobArgs(t *testing.T) {
 
 	dmJob, err := selectSlackJobArgs(SendSlackArgs{
 		Channel:    "U123",
-		TargetType: notification.SlackTargetDirectMessage,
+		TargetType: slackprovider.TargetTypeDirectMessage,
 		Text:       "hello user",
 	})
 	assert.NoError(t, err)
@@ -434,7 +435,7 @@ func TestSelectSlackJobArgs(t *testing.T) {
 
 	dmConversationJob, err := selectSlackJobArgs(SendSlackArgs{
 		Channel:    "D123",
-		TargetType: notification.SlackTargetDirectMessage,
+		TargetType: slackprovider.TargetTypeDirectMessage,
 		Text:       "hello dm",
 	})
 	assert.NoError(t, err)
@@ -475,10 +476,10 @@ func TestServiceEnqueueNotificationEmailMapsMetadata(t *testing.T) {
 }
 
 func TestServiceEnqueueNotificationSlackMapsMetadata(t *testing.T) {
-	params, err := notificationSlackInsertParams(notification.SlackDelivery{
+	params, err := notificationSlackInsertParams(slackprovider.Delivery{
 		Channel:    "UALICE",
-		TargetType: notification.SlackTargetDirectMessage,
-		Content: notification.SlackContent{
+		TargetType: slackprovider.TargetTypeDirectMessage,
+		Content: slackprovider.Content{
 			Text: "body",
 		},
 		Metadata: notification.TransportMetadata{
@@ -492,7 +493,7 @@ func TestServiceEnqueueNotificationSlackMapsMetadata(t *testing.T) {
 	args, ok := params[0].Args.(SendSlackDMArgs)
 	require.True(t, ok)
 	assert.Equal(t, "UALICE", args.Channel)
-	assert.Equal(t, notification.SlackTargetDirectMessage, args.TargetType)
+	assert.Equal(t, slackprovider.TargetTypeDirectMessage, args.TargetType)
 	assert.Equal(t, 6, params[0].InsertOpts.MaxAttempts)
 	assert.False(t, params[0].InsertOpts.UniqueOpts.ByArgs)
 }
@@ -525,7 +526,7 @@ func TestWorkers(t *testing.T) {
 	mockEmailService := &MockEmailService{}
 	mockDigestService := &MockDigestService{}
 
-	workers := Workers(mockEmailService, mockDigestService, nil, nil, nil, "", zap.NewNop().Sugar())
+	workers := Workers(mockEmailService, mockDigestService, nil, nil, nil, "", nil, zap.NewNop().Sugar())
 
 	assert.NotNil(t, workers)
 }

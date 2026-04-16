@@ -43,7 +43,13 @@ func TestWorkflowTaskDueSoonWorker_SubscribedUser_SendsEmail(t *testing.T) {
 		return msg.To[0] == "alice@example.com" && msg.Subject != ""
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-2"}, nil)
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:                "user-1",
@@ -78,7 +84,13 @@ func TestWorkflowTaskDueSoonWorker_UnsubscribedUser_Skips(t *testing.T) {
 	}
 	mockRepo.On("FindUserByID", ctx, "user-2").Return(user, nil)
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "user-2",
@@ -102,7 +114,13 @@ func TestWorkflowTaskDueSoonWorker_UserNotFound_Skips(t *testing.T) {
 
 	mockRepo.On("FindUserByID", ctx, "missing-user").Return(NotificationUser{}, errors.New("not found"))
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "missing-user",
@@ -134,7 +152,13 @@ func TestWorkflowTaskDueSoonWorker_TemplateError_ReturnsError(t *testing.T) {
 	mockEmail.On("UseTemplate", "workflow-task-due-soon", mock.Anything).Return("", "", errors.New("template broken"))
 	mockEmail.On("GetDefaultFromAddress").Return("noreply@example.com")
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, nil, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, nil, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:          "user-3",
@@ -174,7 +198,13 @@ func TestWorkflowTaskDueSoonWorker_MultiChannel_EmailChannelJob_SendsOnlyEmail(t
 		return msg.To[0] == "dora@example.com" && msg.Subject != ""
 	})).Return(&types.SendResult{Success: true, MessageID: "msg-4"}, nil).Once()
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		Channel:               notification.DeliveryChannelEmail,
@@ -219,7 +249,13 @@ func TestWorkflowTaskDueSoonWorker_MultiChannel_SlackChannelJob_SendsOnlySlack(t
 		return msg != nil && msg.Text != ""
 	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-6"}, nil).Once()
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		Channel:               notification.DeliveryChannelSlack,
@@ -264,7 +300,13 @@ func TestWorkflowTaskDueSoonWorker_SlackOnlyUser_SendsSlack(t *testing.T) {
 		return msg != nil && msg.Text != ""
 	})).Return(&slacktypes.SendResult{Success: true, DeliveryID: "slack-msg-5"}, nil).Once()
 
-	w := NewWorkflowTaskDueSoonWorker(mockEmail, mockSlack, mockRepo, "http://localhost:8000", mockLog)
+	w := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+		mockEmail,
+		mockRepo,
+		"http://localhost:8000",
+		newWorkerNotificationRuntimeProvider(mockEmail, mockSlack, func() notification.WorkerEnqueuer { return nil }),
+		mockLog,
+	)
 
 	args := WorkflowTaskDueSoonArgs{
 		UserID:                "user-5",

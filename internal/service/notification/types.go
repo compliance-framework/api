@@ -4,14 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
-	"github.com/slack-go/slack"
-)
-
-const (
-	ConfiguredDestinationSlackDigestChannel = "slack.digest_channel"
 )
 
 var (
@@ -61,8 +57,8 @@ type DispatchOptions struct {
 
 type Audience struct {
 	User                  *UserAudience
+	Direct                *DirectAudience
 	DirectEmail           *DirectEmailAudience
-	DirectSlack           *DirectSlackAudience
 	ConfiguredDestination *ConfiguredDestinationAudience
 }
 
@@ -70,13 +66,13 @@ type UserAudience struct {
 	UserID string
 }
 
-type DirectEmailAudience struct {
-	Email string
+type DirectAudience struct {
+	Provider string
+	Address  map[string]string
 }
 
-type DirectSlackAudience struct {
-	Channel    string
-	TargetType string
+type DirectEmailAudience struct {
+	Email string
 }
 
 type ConfiguredDestinationAudience struct {
@@ -109,10 +105,10 @@ func (a Audience) Validate() error {
 	if a.User != nil {
 		modeCount++
 	}
-	if a.DirectEmail != nil {
+	if a.Direct != nil {
 		modeCount++
 	}
-	if a.DirectSlack != nil {
+	if a.DirectEmail != nil {
 		modeCount++
 	}
 	if a.ConfiguredDestination != nil {
@@ -127,18 +123,16 @@ func (a Audience) Validate() error {
 		if strings.TrimSpace(a.User.UserID) == "" {
 			return fmt.Errorf("%w: user audience requires user id", ErrInvalidAudience)
 		}
+	case a.Direct != nil:
+		if _, ok := NormalizeDeliveryChannel(a.Direct.Provider); !ok {
+			return fmt.Errorf("%w: direct audience requires a supported provider", ErrInvalidAudience)
+		}
+		if len(a.Direct.Address) == 0 {
+			return fmt.Errorf("%w: direct audience requires address attributes", ErrInvalidAudience)
+		}
 	case a.DirectEmail != nil:
 		if strings.TrimSpace(a.DirectEmail.Email) == "" {
 			return fmt.Errorf("%w: direct email audience requires email", ErrInvalidAudience)
-		}
-	case a.DirectSlack != nil:
-		if strings.TrimSpace(a.DirectSlack.Channel) == "" {
-			return fmt.Errorf("%w: direct slack audience requires channel", ErrInvalidAudience)
-		}
-		if targetType := strings.TrimSpace(a.DirectSlack.TargetType); targetType != "" {
-			if _, ok := NormalizeSlackTarget(targetType); !ok {
-				return fmt.Errorf("%w: direct slack audience requires a supported target type", ErrInvalidAudience)
-			}
 		}
 	case a.ConfiguredDestination != nil:
 		if strings.TrimSpace(a.ConfiguredDestination.Key) == "" {
@@ -193,32 +187,24 @@ func (r FanoutRequest) Validate() error {
 }
 
 type Target struct {
-	Channel    string
-	UserID     string
-	Address    string
-	Attributes map[string]string
+	Provider string
+	UserID   string
+	Address  map[string]string
 }
 
 func (t Target) Validate() error {
-	channel, ok := NormalizeDeliveryChannel(t.Channel)
+	provider, ok := NormalizeDeliveryChannel(t.Provider)
 	if !ok {
-		return fmt.Errorf("%w: channel %q", ErrInvalidTarget, t.Channel)
+		return fmt.Errorf("%w: provider %q", ErrInvalidTarget, t.Provider)
 	}
 
-	address := strings.TrimSpace(t.Address)
-	if address == "" {
-		return fmt.Errorf("%w: target requires address", ErrInvalidTarget)
+	if len(t.Address) == 0 {
+		return fmt.Errorf("%w: target requires address attributes", ErrInvalidTarget)
 	}
 
-	switch channel {
-	case DeliveryChannelEmail:
-	case DeliveryChannelSlack:
-		targetType, ok := t.Attribute("target_type")
-		if !ok {
-			return fmt.Errorf("%w: slack target requires target_type attribute", ErrInvalidTarget)
-		}
-		if _, ok := NormalizeSlackTarget(targetType); !ok {
-			return fmt.Errorf("%w: slack target requires a supported target type", ErrInvalidTarget)
+	for key, value := range t.Address {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: target address keys and values are required for provider %q", ErrInvalidTarget, provider)
 		}
 	}
 
@@ -226,11 +212,11 @@ func (t Target) Validate() error {
 }
 
 func (t Target) Attribute(key string) (string, bool) {
-	if len(t.Attributes) == 0 {
+	if len(t.Address) == 0 {
 		return "", false
 	}
 
-	value := strings.TrimSpace(t.Attributes[key])
+	value := strings.TrimSpace(t.Address[key])
 	if value == "" {
 		return "", false
 	}
@@ -239,7 +225,22 @@ func (t Target) Attribute(key string) (string, bool) {
 }
 
 func (t Target) dedupKey() string {
-	return t.Channel + ":" + strings.TrimSpace(t.Address)
+	if len(t.Address) == 0 {
+		return t.Provider + ":"
+	}
+
+	keys := make([]string, 0, len(t.Address))
+	for key := range t.Address {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+strings.TrimSpace(t.Address[key]))
+	}
+
+	return t.Provider + ":" + strings.Join(parts, "|")
 }
 
 type EmailContent struct {
@@ -275,26 +276,6 @@ func (c EmailContent) Clone() EmailContent {
 	return cloned
 }
 
-type SlackContent struct {
-	Text   string
-	Blocks []slack.Block
-}
-
-func (c SlackContent) Validate() error {
-	if strings.TrimSpace(c.Text) == "" && len(c.Blocks) == 0 {
-		return fmt.Errorf("%w: slack content requires text or blocks", ErrInvalidContent)
-	}
-	return nil
-}
-
-func (c SlackContent) Clone() SlackContent {
-	cloned := c
-	if len(c.Blocks) > 0 {
-		cloned.Blocks = append([]slack.Block(nil), c.Blocks...)
-	}
-	return cloned
-}
-
 type EmailDelivery struct {
 	To       string
 	Content  EmailContent
@@ -315,58 +296,30 @@ func (d EmailDelivery) dedupKey() string {
 	return ""
 }
 
-type SlackDelivery struct {
-	Channel    string
-	TargetType string
-	Content    SlackContent
-	Metadata   TransportMetadata
-}
-
-func (d SlackDelivery) Validate() error {
-	if strings.TrimSpace(d.Channel) == "" {
-		return fmt.Errorf("%w: slack delivery requires channel", ErrInvalidTarget)
-	}
-	if _, ok := NormalizeSlackTarget(d.TargetType); !ok {
-		return fmt.Errorf("%w: slack delivery requires a supported target type", ErrInvalidTarget)
-	}
-	return d.Content.Validate()
-}
-
-func (d SlackDelivery) dedupKey() string {
-	return ""
-}
-
 type Content struct {
-	Channel string
-	Email   *EmailContent
-	Slack   *SlackContent
+	Provider string
+	Payload  any
 }
 
 func (c Content) Validate() error {
-	channel, ok := NormalizeDeliveryChannel(c.Channel)
+	provider, ok := NormalizeDeliveryChannel(c.Provider)
 	if !ok {
-		return fmt.Errorf("%w: content channel %q", ErrInvalidContent, c.Channel)
+		return fmt.Errorf("%w: content provider %q", ErrInvalidContent, c.Provider)
+	}
+	if c.Payload == nil {
+		return fmt.Errorf("%w: content payload is required for provider %q", ErrInvalidContent, provider)
 	}
 
-	switch channel {
-	case DeliveryChannelEmail:
-		if c.Email == nil {
-			return fmt.Errorf("%w: missing email content for channel %q", ErrInvalidContent, c.Channel)
-		}
-		if c.Slack != nil {
-			return fmt.Errorf("%w: email content cannot include slack payload", ErrInvalidContent)
-		}
-		if err := c.Email.Validate(); err != nil {
+	switch payload := c.Payload.(type) {
+	case EmailContent:
+		if err := payload.Validate(); err != nil {
 			return err
 		}
-	case DeliveryChannelSlack:
-		if c.Slack == nil {
-			return fmt.Errorf("%w: missing slack content for channel %q", ErrInvalidContent, c.Channel)
+	case *EmailContent:
+		if payload == nil {
+			return fmt.Errorf("%w: email payload must not be nil", ErrInvalidContent)
 		}
-		if c.Email != nil {
-			return fmt.Errorf("%w: slack content cannot include email payload", ErrInvalidContent)
-		}
-		if err := c.Slack.Validate(); err != nil {
+		if err := payload.Validate(); err != nil {
 			return err
 		}
 	}
@@ -375,41 +328,46 @@ func (c Content) Validate() error {
 }
 
 func (c Content) Clone() Content {
-	cloned := Content{Channel: c.Channel}
-	if c.Email != nil {
-		email := c.Email.Clone()
-		cloned.Email = &email
+	cloned := Content{Provider: c.Provider}
+
+	switch payload := c.Payload.(type) {
+	case EmailContent:
+		cloned.Payload = payload.Clone()
+	case *EmailContent:
+		if payload != nil {
+			email := payload.Clone()
+			cloned.Payload = &email
+		}
+	default:
+		cloned.Payload = c.Payload
 	}
-	if c.Slack != nil {
-		slack := c.Slack.Clone()
-		cloned.Slack = &slack
-	}
+
 	return cloned
 }
 
 type Delivery struct {
-	Channel  string
+	Provider string
 	Target   Target
 	Content  Content
 	Metadata TransportMetadata
 }
 
 func (d Delivery) Validate() error {
-	channel, ok := NormalizeDeliveryChannel(d.Channel)
+	provider, ok := NormalizeDeliveryChannel(d.Provider)
 	if !ok {
-		return fmt.Errorf("%w: delivery channel %q", ErrInvalidTarget, d.Channel)
+		return fmt.Errorf("%w: delivery provider %q", ErrInvalidTarget, d.Provider)
 	}
 	if err := d.Target.Validate(); err != nil {
 		return err
 	}
-	if d.Target.Channel != channel {
-		return fmt.Errorf("%w: target channel %q does not match delivery channel %q", ErrInvalidTarget, d.Target.Channel, d.Channel)
+	if d.Target.Provider != provider {
+		return fmt.Errorf("%w: target provider %q does not match delivery provider %q", ErrInvalidTarget, d.Target.Provider, d.Provider)
 	}
 	if err := d.Content.Validate(); err != nil {
 		return err
 	}
-	if d.Content.Channel != channel {
-		return fmt.Errorf("%w: content channel %q does not match delivery channel %q", ErrInvalidContent, d.Content.Channel, d.Channel)
+	if d.Content.Provider != provider {
+		return fmt.Errorf("%w: content provider %q does not match delivery provider %q", ErrInvalidContent, d.Content.Provider, d.Provider)
 	}
 
 	return nil
@@ -417,6 +375,7 @@ func (d Delivery) Validate() error {
 
 type TransportMetadata struct {
 	NotificationKind Kind
+	Provider         string
 	Channel          string
 	RecipientUserID  string
 	Target           string
@@ -430,15 +389,13 @@ type Transport interface {
 }
 
 type ConfiguredDestination struct {
-	Channel    string
-	Address    string
-	Attributes map[string]string
+	Provider string
+	Address  map[string]string
 }
 
 func (d ConfiguredDestination) Validate() error {
 	return Target{
-		Channel:    d.Channel,
-		Address:    d.Address,
-		Attributes: d.Attributes,
+		Provider: d.Provider,
+		Address:  d.Address,
 	}.Validate()
 }

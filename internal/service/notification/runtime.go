@@ -17,7 +17,12 @@ func NewRuntime(
 		return nil, err
 	}
 
-	resolver := NewResolver(users, configuredDestinations)
+	var providers ProviderLookup
+	if lookup, ok := transport.(ProviderLookup); ok {
+		providers = lookup
+	}
+
+	resolver := NewResolver(users, configuredDestinations, providers)
 
 	return &Runtime{
 		registry: registry,

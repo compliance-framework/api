@@ -3,16 +3,14 @@ package notification
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
-	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
-	"github.com/slack-go/slack"
 )
 
 type WorkerEnqueuer interface {
 	IsStarted() bool
 	EnqueueNotificationEmail(ctx context.Context, delivery EmailDelivery) error
-	EnqueueNotificationSlack(ctx context.Context, delivery SlackDelivery) error
 }
 
 type EmailSender interface {
@@ -20,30 +18,29 @@ type EmailSender interface {
 	Send(ctx context.Context, message *emailtypes.Message) (*emailtypes.SendResult, error)
 }
 
-type SlackSender interface {
-	IsEnabled() bool
-	SendMessage(ctx context.Context, channel string, message *slacktypes.Message) (*slacktypes.SendResult, error)
-}
-
 type WorkerEnqueuerProvider func() WorkerEnqueuer
 
 type EmailSenderProvider func() EmailSender
 
-type SlackSenderProvider func() SlackSender
-
-type ChannelDriver interface {
-	Channel() string
+type Provider interface {
+	ID() string
+	ResolveUserTarget(user User) (Target, bool, error)
+	ValidateTarget(target Target) error
 	Deliver(ctx context.Context, delivery Delivery) error
 }
 
+type ProviderLookup interface {
+	Provider(providerID string) (Provider, bool)
+}
+
 type DeliveryTransport struct {
-	drivers map[string]ChannelDriver
+	providers map[string]Provider
 }
 
 type DeliveryTransportOption func(*DeliveryTransport)
 
 func NewDeliveryTransport(opts ...DeliveryTransportOption) *DeliveryTransport {
-	transport := &DeliveryTransport{drivers: map[string]ChannelDriver{}}
+	transport := &DeliveryTransport{providers: map[string]Provider{}}
 
 	for _, opt := range opts {
 		if opt != nil {
@@ -54,29 +51,33 @@ func NewDeliveryTransport(opts ...DeliveryTransportOption) *DeliveryTransport {
 	return transport
 }
 
+func WithProvider(provider Provider) DeliveryTransportOption {
+	return func(transport *DeliveryTransport) {
+		transport.registerProvider(provider)
+	}
+}
+
+func WithProviders(providers ...Provider) DeliveryTransportOption {
+	return func(transport *DeliveryTransport) {
+		for i := range providers {
+			transport.registerProvider(providers[i])
+		}
+	}
+}
+
 func WithWorkerEnqueuerProvider(provider WorkerEnqueuerProvider) DeliveryTransportOption {
-	emailDriver := &EmailChannelDriver{workerProvider: provider}
-	slackDriver := &SlackChannelDriver{workerProvider: provider}
+	emailProvider := &EmailProvider{workerProvider: provider}
 
 	return func(transport *DeliveryTransport) {
-		transport.registerDriver(emailDriver)
-		transport.registerDriver(slackDriver)
+		transport.registerProvider(emailProvider)
 	}
 }
 
 func WithEmailSenderProvider(provider EmailSenderProvider) DeliveryTransportOption {
-	driver := &EmailChannelDriver{emailProvider: provider}
+	driver := &EmailProvider{emailProvider: provider}
 
 	return func(transport *DeliveryTransport) {
-		transport.registerDriver(driver)
-	}
-}
-
-func WithSlackSenderProvider(provider SlackSenderProvider) DeliveryTransportOption {
-	driver := &SlackChannelDriver{slackProvider: provider}
-
-	return func(transport *DeliveryTransport) {
-		transport.registerDriver(driver)
+		transport.registerProvider(driver)
 	}
 }
 
@@ -87,51 +88,55 @@ func (t *DeliveryTransport) Enqueue(ctx context.Context, deliveries []Delivery) 
 			return err
 		}
 
-		driver := t.driverFor(delivery.Channel)
-		if driver == nil {
-			return fmt.Errorf("%w: no driver registered for channel %q", ErrUnsupportedChannel, delivery.Channel)
+		provider, ok := t.Provider(delivery.Provider)
+		if !ok {
+			return fmt.Errorf("%w: no provider registered for id %q", ErrUnsupportedChannel, delivery.Provider)
+		}
+		if err := provider.ValidateTarget(delivery.Target); err != nil {
+			return err
 		}
 
-		if err := driver.Deliver(ctx, delivery); err != nil {
-			return fmt.Errorf("deliver channel %q: %w", delivery.Channel, err)
+		if err := provider.Deliver(ctx, delivery); err != nil {
+			return fmt.Errorf("deliver provider %q: %w", delivery.Provider, err)
 		}
 	}
 
 	return nil
 }
 
-func (t *DeliveryTransport) driverFor(channel string) ChannelDriver {
+func (t *DeliveryTransport) Provider(providerID string) (Provider, bool) {
 	if t == nil {
-		return nil
+		return nil, false
 	}
-	normalized, ok := NormalizeDeliveryChannel(channel)
+	canonical, ok := NormalizeDeliveryChannel(providerID)
 	if !ok {
-		return nil
+		return nil, false
 	}
 
-	return t.drivers[normalized]
+	provider, exists := t.providers[canonical]
+	return provider, exists
 }
 
-func (t *DeliveryTransport) registerDriver(driver ChannelDriver) {
-	if t == nil || driver == nil {
+func (t *DeliveryTransport) registerProvider(provider Provider) {
+	if t == nil || provider == nil {
 		return
 	}
-	channel, ok := NormalizeDeliveryChannel(driver.Channel())
+	providerID, ok := NormalizeDeliveryChannel(provider.ID())
 	if !ok {
 		return
 	}
 
-	existing := t.drivers[channel]
+	existing := t.providers[providerID]
 	if existing == nil {
-		t.drivers[channel] = driver
+		t.providers[providerID] = provider
 		return
 	}
 
 	switch current := existing.(type) {
-	case *EmailChannelDriver:
-		incoming, ok := driver.(*EmailChannelDriver)
+	case *EmailProvider:
+		incoming, ok := provider.(*EmailProvider)
 		if !ok {
-			t.drivers[channel] = driver
+			t.providers[providerID] = provider
 			return
 		}
 		if incoming.workerProvider != nil {
@@ -140,49 +145,60 @@ func (t *DeliveryTransport) registerDriver(driver ChannelDriver) {
 		if incoming.emailProvider != nil {
 			current.emailProvider = incoming.emailProvider
 		}
-	case *SlackChannelDriver:
-		incoming, ok := driver.(*SlackChannelDriver)
-		if !ok {
-			t.drivers[channel] = driver
-			return
-		}
-		if incoming.workerProvider != nil {
-			current.workerProvider = incoming.workerProvider
-		}
-		if incoming.slackProvider != nil {
-			current.slackProvider = incoming.slackProvider
-		}
 	default:
-		t.drivers[channel] = driver
+		t.providers[providerID] = provider
 	}
 }
 
-type EmailChannelDriver struct {
+type EmailProvider struct {
 	workerProvider WorkerEnqueuerProvider
 	emailProvider  EmailSenderProvider
 }
 
-func (d *EmailChannelDriver) Channel() string { return DeliveryChannelEmail }
+func (p *EmailProvider) ID() string { return DeliveryChannelEmail }
 
-func (d *EmailChannelDriver) Deliver(ctx context.Context, delivery Delivery) error {
-	if delivery.Content.Email == nil {
-		return fmt.Errorf("missing email content")
+func (p *EmailProvider) ResolveUserTarget(user User) (Target, bool, error) {
+	if identity, ok := userIdentity(user, DeliveryChannelEmail); ok {
+		return Target{
+			Provider: DeliveryChannelEmail,
+			UserID:   user.ID,
+			Address:  identity,
+		}, true, nil
 	}
 
+	return Target{}, false, nil
+}
+
+func (p *EmailProvider) ValidateTarget(target Target) error {
+	email := strings.TrimSpace(target.Address["email"])
+	if email == "" {
+		return fmt.Errorf("%w: email provider requires email address", ErrInvalidTarget)
+	}
+
+	return nil
+}
+
+func (p *EmailProvider) Deliver(ctx context.Context, delivery Delivery) error {
+	emailContent, err := extractEmailContent(delivery.Content.Payload)
+	if err != nil {
+		return err
+	}
+
+	to := strings.TrimSpace(delivery.Target.Address["email"])
 	providerDelivery := EmailDelivery{
-		To:       delivery.Target.Address,
-		Content:  delivery.Content.Email.Clone(),
+		To:       to,
+		Content:  emailContent,
 		Metadata: delivery.Metadata,
 	}
 
-	if worker := d.worker(); worker != nil && worker.IsStarted() {
+	if worker := p.worker(); worker != nil && worker.IsStarted() {
 		if err := worker.EnqueueNotificationEmail(ctx, providerDelivery); err != nil {
 			return fmt.Errorf("enqueue email delivery: %w", err)
 		}
 		return nil
 	}
 
-	sender := d.email()
+	sender := p.email()
 	if sender == nil || !sender.IsEnabled() {
 		return fmt.Errorf("email service is not enabled")
 	}
@@ -208,86 +224,77 @@ func (d *EmailChannelDriver) Deliver(ctx context.Context, delivery Delivery) err
 	return nil
 }
 
-func (d *EmailChannelDriver) worker() WorkerEnqueuer {
-	if d == nil || d.workerProvider == nil {
+func (p *EmailProvider) worker() WorkerEnqueuer {
+	if p == nil || p.workerProvider == nil {
 		return nil
 	}
 
-	return d.workerProvider()
+	return p.workerProvider()
 }
 
-func (d *EmailChannelDriver) email() EmailSender {
-	if d == nil || d.emailProvider == nil {
+func (p *EmailProvider) email() EmailSender {
+	if p == nil || p.emailProvider == nil {
 		return nil
 	}
 
-	return d.emailProvider()
+	return p.emailProvider()
 }
 
-type SlackChannelDriver struct {
-	workerProvider WorkerEnqueuerProvider
-	slackProvider  SlackSenderProvider
+type NotImplementedProvider struct {
+	id string
 }
 
-func (d *SlackChannelDriver) Channel() string { return DeliveryChannelSlack }
+func NewNotImplementedProvider(id string) *NotImplementedProvider {
+	return &NotImplementedProvider{id: strings.TrimSpace(id)}
+}
 
-func (d *SlackChannelDriver) Deliver(ctx context.Context, delivery Delivery) error {
-	if delivery.Content.Slack == nil {
-		return fmt.Errorf("missing slack content")
-	}
+func (p *NotImplementedProvider) ID() string { return p.id }
 
-	targetType, ok := delivery.Target.Attribute("target_type")
-	if !ok {
-		return fmt.Errorf("missing slack target_type")
-	}
+func (p *NotImplementedProvider) ResolveUserTarget(_ User) (Target, bool, error) {
+	return Target{}, false, nil
+}
 
-	providerDelivery := SlackDelivery{
-		Channel:    delivery.Target.Address,
-		TargetType: targetType,
-		Content:    delivery.Content.Slack.Clone(),
-		Metadata:   delivery.Metadata,
-	}
-
-	if worker := d.worker(); worker != nil && worker.IsStarted() {
-		if err := worker.EnqueueNotificationSlack(ctx, providerDelivery); err != nil {
-			return fmt.Errorf("enqueue slack delivery: %w", err)
-		}
-		return nil
-	}
-
-	sender := d.slack()
-	if sender == nil || !sender.IsEnabled() {
-		return nil
-	}
-
-	message := &slacktypes.Message{
-		Text:   providerDelivery.Content.Text,
-		Blocks: append([]slack.Block(nil), providerDelivery.Content.Blocks...),
-	}
-
-	result, err := sender.SendMessage(ctx, providerDelivery.Channel, message)
-	if err != nil {
-		return fmt.Errorf("send slack delivery: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("slack delivery send failed: %s", result.Error)
-	}
-
+func (p *NotImplementedProvider) ValidateTarget(_ Target) error {
 	return nil
 }
 
-func (d *SlackChannelDriver) worker() WorkerEnqueuer {
-	if d == nil || d.workerProvider == nil {
-		return nil
-	}
-
-	return d.workerProvider()
+func (p *NotImplementedProvider) Deliver(_ context.Context, _ Delivery) error {
+	return fmt.Errorf("provider %q is not implemented", p.id)
 }
 
-func (d *SlackChannelDriver) slack() SlackSender {
-	if d == nil || d.slackProvider == nil {
-		return nil
+func userIdentity(user User, provider string) (map[string]string, bool) {
+	if len(user.Identities) > 0 {
+		if identity, ok := user.Identities[provider]; ok && len(identity) > 0 {
+			cloned := make(map[string]string, len(identity))
+			for key, value := range identity {
+				cloned[key] = strings.TrimSpace(value)
+			}
+			return cloned, true
+		}
 	}
 
-	return d.slackProvider()
+	switch provider {
+	case DeliveryChannelEmail:
+		email := strings.TrimSpace(user.Email)
+		if email == "" {
+			return nil, false
+		}
+		return map[string]string{"email": email}, true
+	default:
+		return nil, false
+	}
+}
+
+func extractEmailContent(payload any) (EmailContent, error) {
+	switch typed := payload.(type) {
+	case EmailContent:
+		return typed.Clone(), nil
+	case *EmailContent:
+		if typed == nil {
+			return EmailContent{}, fmt.Errorf("missing email content")
+		}
+		return typed.Clone(), nil
+	default:
+		return EmailContent{}, fmt.Errorf("email provider expects EmailContent payload, got %T", payload)
+	}
 }

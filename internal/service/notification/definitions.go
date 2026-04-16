@@ -8,23 +8,23 @@ import (
 
 type ChannelRenderer func(ctx context.Context, model any) (Content, error)
 
+func ProviderRenderer(provider string, renderer func(ctx context.Context, model any) (any, error)) ChannelRenderer {
+	return func(ctx context.Context, model any) (Content, error) {
+		payload, err := renderer(ctx, model)
+		if err != nil {
+			return Content{}, err
+		}
+		return Content{Provider: provider, Payload: payload}, nil
+	}
+}
+
 func EmailChannelRenderer(renderer func(ctx context.Context, model any) (EmailContent, error)) ChannelRenderer {
 	return func(ctx context.Context, model any) (Content, error) {
 		email, err := renderer(ctx, model)
 		if err != nil {
 			return Content{}, err
 		}
-		return Content{Channel: DeliveryChannelEmail, Email: &email}, nil
-	}
-}
-
-func SlackChannelRenderer(renderer func(ctx context.Context, model any) (SlackContent, error)) ChannelRenderer {
-	return func(ctx context.Context, model any) (Content, error) {
-		slack, err := renderer(ctx, model)
-		if err != nil {
-			return Content{}, err
-		}
-		return Content{Channel: DeliveryChannelSlack, Slack: &slack}, nil
+		return Content{Provider: DeliveryChannelEmail, Payload: email}, nil
 	}
 }
 

@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -168,37 +169,38 @@ func (s *Service) buildSubscribedUsersDeliveries(ctx context.Context, request Su
 }
 
 func (s *Service) renderDeliveries(ctx context.Context, request Request, definition Definition, targets []Target) (preparedDeliveries, error) {
-	contentByChannel := make(map[string]Content)
+	contentByProvider := make(map[string]Content)
 	deliveries := preparedDeliveries{}
 
 	for _, target := range targets {
-		channel, ok := NormalizeDeliveryChannel(target.Channel)
+		provider, ok := NormalizeDeliveryChannel(target.Provider)
 		if !ok {
-			return preparedDeliveries{}, fmt.Errorf("%w: target channel %q", ErrUnsupportedChannel, target.Channel)
+			return preparedDeliveries{}, fmt.Errorf("%w: target provider %q", ErrUnsupportedChannel, target.Provider)
 		}
 
-		content, exists := contentByChannel[channel]
+		content, exists := contentByProvider[provider]
 		if !exists {
-			rendered, err := renderContent(ctx, definition, channel, request.Model, s.defaultEmailFrom)
+			rendered, err := renderContent(ctx, definition, provider, request.Model, s.defaultEmailFrom)
 			if err != nil {
-				return preparedDeliveries{}, fmt.Errorf("render %s for kind %q: %w", channel, request.Kind, err)
+				return preparedDeliveries{}, fmt.Errorf("render %s for kind %q: %w", provider, request.Kind, err)
 			}
 			content = rendered
-			contentByChannel[channel] = rendered
+			contentByProvider[provider] = rendered
 		}
 
 		metadata := TransportMetadata{
 			NotificationKind: request.Kind,
-			Channel:          channel,
+			Provider:         provider,
+			Channel:          provider,
 			RecipientUserID:  strings.TrimSpace(target.UserID),
-			Target:           strings.TrimSpace(target.Address),
+			Target:           stringifyTargetAddress(target.Address),
 			CorrelationID:    strings.TrimSpace(request.Options.CorrelationID),
 			SourceJobKind:    strings.TrimSpace(request.Options.SourceJobKind),
 			SourceJobID:      strings.TrimSpace(request.Options.SourceJobID),
 		}
 
 		delivery := Delivery{
-			Channel:  channel,
+			Provider: provider,
 			Target:   target,
 			Content:  content.Clone(),
 			Metadata: metadata,
@@ -211,6 +213,35 @@ func (s *Service) renderDeliveries(ctx context.Context, request Request, definit
 	}
 
 	return deliveries, nil
+}
+
+func stringifyTargetAddress(address map[string]string) string {
+	if len(address) == 0 {
+		return ""
+	}
+
+	if v := strings.TrimSpace(address["email"]); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(address["channel"]); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(address["id"]); v != "" {
+		return v
+	}
+
+	keys := make([]string, 0, len(address))
+	for key := range address {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+strings.TrimSpace(address[key]))
+	}
+
+	return strings.Join(parts, ",")
 }
 
 func (s *Service) enqueuePreparedDeliveries(ctx context.Context, deliveries preparedDeliveries) error {

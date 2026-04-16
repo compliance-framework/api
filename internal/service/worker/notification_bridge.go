@@ -1,0 +1,159 @@
+package worker
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
+	"github.com/compliance-framework/api/internal/service/notification"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
+	"github.com/compliance-framework/api/internal/workflow"
+)
+
+const (
+	defaultNotificationEmailQueue = "email"
+	defaultNotificationSlackQueue = "slack"
+	defaultNotificationMaxRetries = 5
+)
+
+type workerNotificationEmailSender struct {
+	service EmailService
+}
+
+type workerNotificationEnqueuer struct {
+	client      workflow.RiverClient
+	emailQueue  string
+	maxAttempts int
+}
+
+type workerSlackEnqueuer interface {
+	IsStarted() bool
+	EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error
+}
+
+func newWorkerNotificationTransport(
+	emailService EmailService,
+	slackService SlackService,
+	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
+) *notification.DeliveryTransport {
+	return notification.NewDeliveryTransport(
+		notification.WithWorkerEnqueuerProvider(workerEnqueuerProvider),
+		notification.WithEmailSenderProvider(func() notification.EmailSender {
+			if emailService == nil {
+				return nil
+			}
+			return &workerNotificationEmailSender{service: emailService}
+		}),
+		notification.WithProvider(slackprovider.NewProvider(
+			func() slackprovider.Sender {
+				if slackService == nil {
+					return nil
+				}
+				return slackService
+			},
+			func() slackprovider.Enqueuer {
+				if workerEnqueuerProvider == nil {
+					return nil
+				}
+
+				workerEnqueuer := workerEnqueuerProvider()
+				if workerEnqueuer == nil {
+					return nil
+				}
+
+				enqueuer, ok := workerEnqueuer.(workerSlackEnqueuer)
+				if !ok {
+					return nil
+				}
+
+				return enqueuer
+			},
+		)),
+	)
+}
+
+func newWorkerNotificationRuntimeFactory(
+	emailService EmailService,
+	slackService SlackService,
+	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
+) *notification.RuntimeFactory {
+	return newWorkerNotificationRuntimeProvider(emailService, slackService, workerEnqueuerProvider).NewRuntimeFactory(nil)
+}
+
+func newWorkerNotificationRuntimeProvider(
+	emailService EmailService,
+	slackService SlackService,
+	workerEnqueuerProvider notification.WorkerEnqueuerProvider,
+) notification.RuntimeProvider {
+	return notification.NewStaticRuntimeProvider(newWorkerNotificationTransport(emailService, slackService, workerEnqueuerProvider))
+}
+
+func newWorkerNotificationEnqueuer(client workflow.RiverClient, emailQueue string, maxAttempts int) notification.WorkerEnqueuer {
+	return &workerNotificationEnqueuer{
+		client:      client,
+		emailQueue:  strings.TrimSpace(emailQueue),
+		maxAttempts: normalizedNotificationMaxAttempts(maxAttempts),
+	}
+}
+
+func (e *workerNotificationEnqueuer) IsStarted() bool {
+	return e != nil && e.client != nil
+}
+
+func (e *workerNotificationEnqueuer) EnqueueNotificationEmail(ctx context.Context, delivery notification.EmailDelivery) error {
+	if e == nil || e.client == nil {
+		return fmt.Errorf("worker client is not initialized")
+	}
+
+	_, err := e.client.InsertMany(ctx, notificationEmailInsertParams(delivery, normalizedNotificationEmailQueue(e.emailQueue), e.maxAttempts))
+	if err != nil {
+		return fmt.Errorf("failed to enqueue notification email delivery: %w", err)
+	}
+
+	return nil
+}
+
+func (e *workerNotificationEnqueuer) EnqueueNotificationSlack(ctx context.Context, delivery slackprovider.Delivery) error {
+	if e == nil || e.client == nil {
+		return fmt.Errorf("worker client is not initialized")
+	}
+
+	params, err := notificationSlackInsertParams(delivery, defaultNotificationSlackQueue, e.maxAttempts)
+	if err != nil {
+		return err
+	}
+
+	_, err = e.client.InsertMany(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue notification slack delivery: %w", err)
+	}
+
+	return nil
+}
+
+func (s *workerNotificationEmailSender) IsEnabled() bool {
+	return s != nil && s.service != nil
+}
+
+func (s *workerNotificationEmailSender) Send(ctx context.Context, message *emailtypes.Message) (*emailtypes.SendResult, error) {
+	if s == nil || s.service == nil {
+		return nil, fmt.Errorf("email service is not configured")
+	}
+	return s.service.Send(ctx, message)
+}
+
+func normalizedNotificationEmailQueue(queue string) string {
+	trimmed := strings.TrimSpace(queue)
+	if trimmed == "" {
+		return defaultNotificationEmailQueue
+	}
+	return trimmed
+}
+
+func normalizedNotificationMaxAttempts(maxAttempts int) int {
+	if maxAttempts <= 0 {
+		return defaultNotificationMaxRetries
+	}
+	return maxAttempts
+}

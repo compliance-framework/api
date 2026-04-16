@@ -6,6 +6,7 @@ import (
 
 	emailtypes "github.com/compliance-framework/api/internal/service/email/types"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
+	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,6 @@ import (
 type stubWorkerEnqueuer struct {
 	started bool
 	emails  []EmailDelivery
-	slacks  []SlackDelivery
 }
 
 func (s *stubWorkerEnqueuer) IsStarted() bool {
@@ -25,7 +25,16 @@ func (s *stubWorkerEnqueuer) EnqueueNotificationEmail(_ context.Context, deliver
 	return nil
 }
 
-func (s *stubWorkerEnqueuer) EnqueueNotificationSlack(_ context.Context, delivery SlackDelivery) error {
+type stubSlackEnqueuer struct {
+	started bool
+	slacks  []stubSlackDelivery
+}
+
+func (s *stubSlackEnqueuer) IsStarted() bool {
+	return s.started
+}
+
+func (s *stubSlackEnqueuer) EnqueueNotificationSlack(_ context.Context, delivery stubSlackDelivery) error {
 	s.slacks = append(s.slacks, delivery)
 	return nil
 }
@@ -60,31 +69,77 @@ func (s *stubSlackSender) SendMessage(_ context.Context, channel string, message
 	return &slacktypes.SendResult{Success: true, Channel: channel, DeliveryID: "slack-1"}, nil
 }
 
+type stubSlackContent struct {
+	Text string
+}
+
+type stubSlackDelivery struct {
+	Channel string
+	Text    string
+}
+
+type testSlackProvider struct {
+	sender   *stubSlackSender
+	enqueuer *stubSlackEnqueuer
+}
+
+func (p *testSlackProvider) ID() string { return DeliveryChannelSlack }
+
+func (p *testSlackProvider) ResolveUserTarget(_ User) (Target, bool, error) {
+	return Target{}, false, nil
+}
+
+func (p *testSlackProvider) ValidateTarget(target Target) error {
+	if target.Address["channel"] == "" {
+		return ErrInvalidTarget
+	}
+	return nil
+}
+
+func (p *testSlackProvider) Deliver(ctx context.Context, delivery Delivery) error {
+	payload, ok := delivery.Content.Payload.(stubSlackContent)
+	if !ok {
+		return ErrInvalidContent
+	}
+	channel := delivery.Target.Address["channel"]
+
+	if p.enqueuer != nil && p.enqueuer.started {
+		return p.enqueuer.EnqueueNotificationSlack(ctx, stubSlackDelivery{Channel: channel, Text: payload.Text})
+	}
+
+	if p.sender == nil || !p.sender.enabled {
+		return nil
+	}
+	_, err := p.sender.SendMessage(ctx, channel, &slacktypes.Message{Text: payload.Text, Blocks: []slack.Block{}})
+	return err
+}
+
 func TestDeliveryTransportUsesWorkerWhenStarted(t *testing.T) {
 	worker := &stubWorkerEnqueuer{started: true}
+	slackEnqueuer := &stubSlackEnqueuer{started: true}
 	emailSender := &stubEmailSender{enabled: true}
 	slackSender := &stubSlackSender{enabled: true}
 
 	transport := NewDeliveryTransport(
 		WithWorkerEnqueuerProvider(func() WorkerEnqueuer { return worker }),
 		WithEmailSenderProvider(func() EmailSender { return emailSender }),
-		WithSlackSenderProvider(func() SlackSender { return slackSender }),
+		WithProvider(&testSlackProvider{sender: slackSender, enqueuer: slackEnqueuer}),
 	)
 
 	err := transport.Enqueue(context.Background(), []Delivery{
 		{
-			Channel: DeliveryChannelEmail,
-			Target:  Target{Channel: DeliveryChannelEmail, Address: "alice@example.com"},
-			Content: Content{Channel: DeliveryChannelEmail, Email: &EmailContent{
+			Provider: DeliveryChannelEmail,
+			Target:   Target{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "alice@example.com"}},
+			Content: Content{Provider: DeliveryChannelEmail, Payload: EmailContent{
 				From:     "from@example.com",
 				Subject:  "Subject",
 				TextBody: "body",
 			}},
 		},
 		{
-			Channel: DeliveryChannelSlack,
-			Target:  Target{Channel: DeliveryChannelSlack, Address: "UALICE", Attributes: map[string]string{"target_type": SlackTargetDirectMessage}},
-			Content: Content{Channel: DeliveryChannelSlack, Slack: &SlackContent{
+			Provider: DeliveryChannelSlack,
+			Target:   Target{Provider: DeliveryChannelSlack, Address: map[string]string{"channel": "UALICE", "target_type": "direct_message"}},
+			Content: Content{Provider: DeliveryChannelSlack, Payload: stubSlackContent{
 				Text: "body",
 			}},
 		},
@@ -92,7 +147,7 @@ func TestDeliveryTransportUsesWorkerWhenStarted(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, worker.emails, 1)
-	require.Len(t, worker.slacks, 1)
+	require.Len(t, slackEnqueuer.slacks, 1)
 	assert.Empty(t, emailSender.messages)
 	assert.Empty(t, slackSender.messages)
 }
@@ -103,23 +158,23 @@ func TestDeliveryTransportFallsBackToDirectSend(t *testing.T) {
 
 	transport := NewDeliveryTransport(
 		WithEmailSenderProvider(func() EmailSender { return emailSender }),
-		WithSlackSenderProvider(func() SlackSender { return slackSender }),
+		WithProvider(&testSlackProvider{sender: slackSender}),
 	)
 
 	err := transport.Enqueue(context.Background(), []Delivery{
 		{
-			Channel: DeliveryChannelEmail,
-			Target:  Target{Channel: DeliveryChannelEmail, Address: "alice@example.com"},
-			Content: Content{Channel: DeliveryChannelEmail, Email: &EmailContent{
+			Provider: DeliveryChannelEmail,
+			Target:   Target{Provider: DeliveryChannelEmail, Address: map[string]string{"email": "alice@example.com"}},
+			Content: Content{Provider: DeliveryChannelEmail, Payload: EmailContent{
 				From:     "from@example.com",
 				Subject:  "Subject",
 				TextBody: "body",
 			}},
 		},
 		{
-			Channel: DeliveryChannelSlack,
-			Target:  Target{Channel: DeliveryChannelSlack, Address: "C-DIGEST", Attributes: map[string]string{"target_type": SlackTargetChannel}},
-			Content: Content{Channel: DeliveryChannelSlack, Slack: &SlackContent{
+			Provider: DeliveryChannelSlack,
+			Target:   Target{Provider: DeliveryChannelSlack, Address: map[string]string{"channel": "C-DIGEST", "target_type": "channel"}},
+			Content: Content{Provider: DeliveryChannelSlack, Payload: stubSlackContent{
 				Text: "body",
 			}},
 		},

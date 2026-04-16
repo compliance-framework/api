@@ -9,7 +9,7 @@ import (
 
 	"github.com/compliance-framework/api/internal/service/email/types"
 	"github.com/compliance-framework/api/internal/service/notification"
-	slackformatters "github.com/compliance-framework/api/internal/service/slack/formatters"
+	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
 	slacktypes "github.com/compliance-framework/api/internal/service/slack/types"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
@@ -27,54 +27,10 @@ const (
 	JobTypeSendGlobalDigest = "send_global_digest"
 )
 
-// Job types for workflow notifications
-const (
-	JobTypeWorkflowTaskAssigned    = "workflow_task_assigned"
-	JobTypeWorkflowTaskDueSoon     = "workflow_task_due_soon"
-	JobTypeWorkflowTaskDigest      = "workflow_task_digest"
-	JobTypeWorkflowExecutionFailed = "workflow_execution_failed"
-)
-
 // Job types for risk processing
 const (
 	JobTypeRiskProcessEvidence = "risk_process_evidence"
 )
-
-// WorkflowTaskAssignedArgs represents the arguments for a new-task-assigned notification job.
-type WorkflowTaskAssignedArgs struct {
-	AssignedToType        string     `json:"assigned_to_type"`
-	Channel               string     `json:"channel,omitempty"`
-	UserID                string     `json:"user_id"`
-	StepExecutionID       string     `json:"step_execution_id"`
-	StepTitle             string     `json:"step_title"`
-	WorkflowTitle         string     `json:"workflow_title"`
-	WorkflowInstanceTitle string     `json:"workflow_instance_title"`
-	StepURL               string     `json:"step_url"`
-	DueDate               *time.Time `json:"due_date,omitempty"`
-}
-
-// WorkflowTaskDueSoonArgs represents the arguments for a task-due-soon reminder notification job.
-type WorkflowTaskDueSoonArgs struct {
-	Channel               string    `json:"channel,omitempty"`
-	UserID                string    `json:"user_id"`
-	StepExecutionID       string    `json:"step_execution_id"`
-	StepTitle             string    `json:"step_title"`
-	WorkflowTitle         string    `json:"workflow_title"`
-	WorkflowInstanceTitle string    `json:"workflow_instance_title"`
-	StepURL               string    `json:"step_url"`
-	DueDate               time.Time `json:"due_date"`
-}
-
-// WorkflowTaskDigestArgs represents the arguments for a per-user task digest notification job.
-type WorkflowTaskDigestArgs struct {
-	Channel string `json:"channel,omitempty"`
-	UserID  string `json:"user_id"`
-}
-
-// WorkflowExecutionFailedArgs represents the arguments for a workflow-execution-failed notification email
-type WorkflowExecutionFailedArgs struct {
-	WorkflowExecutionID string `json:"workflow_execution_id"`
-}
 
 // RiskProcessEvidenceArgs represents the arguments for processing evidence and creating risks.
 // EvidenceEnd and Status are included alongside EvidenceID intentionally: River uses ByArgs uniqueness
@@ -88,31 +44,7 @@ type RiskProcessEvidenceArgs struct {
 }
 
 // Kind returns the job kind for River
-func (WorkflowTaskAssignedArgs) Kind() string { return JobTypeWorkflowTaskAssigned }
-
-// Kind returns the job kind for River
-func (WorkflowTaskDueSoonArgs) Kind() string { return JobTypeWorkflowTaskDueSoon }
-
-// Kind returns the job kind for River
-func (WorkflowTaskDigestArgs) Kind() string { return JobTypeWorkflowTaskDigest }
-
-// Kind returns the job kind for River
-func (WorkflowExecutionFailedArgs) Kind() string { return JobTypeWorkflowExecutionFailed }
-
-// Kind returns the job kind for River
 func (RiskProcessEvidenceArgs) Kind() string { return JobTypeRiskProcessEvidence }
-
-// Timeout returns the timeout for workflow task assigned jobs
-func (WorkflowTaskAssignedArgs) Timeout() time.Duration { return 30 * time.Second }
-
-// Timeout returns the timeout for workflow task due soon jobs
-func (WorkflowTaskDueSoonArgs) Timeout() time.Duration { return 30 * time.Second }
-
-// Timeout returns the timeout for workflow task digest jobs
-func (WorkflowTaskDigestArgs) Timeout() time.Duration { return 5 * time.Minute }
-
-// Timeout returns the timeout for workflow execution failed jobs
-func (WorkflowExecutionFailedArgs) Timeout() time.Duration { return 30 * time.Second }
 
 // Timeout returns the timeout for risk process evidence jobs
 func (RiskProcessEvidenceArgs) Timeout() time.Duration { return 2 * time.Minute }
@@ -271,13 +203,6 @@ func allWorkflowNotificationChannels() []string {
 		notification.DeliveryChannelEmail,
 		notification.DeliveryChannelSlack,
 	}
-}
-
-func workflowDeliveryChannelsForAssignment(assignedToType string) []string {
-	if assignedToType == notification.DeliveryChannelEmail {
-		return []string{notification.DeliveryChannelEmail}
-	}
-	return allWorkflowNotificationChannels()
 }
 
 func normalizeRequestedDeliveryChannel(channel string) (string, bool) {
@@ -521,16 +446,16 @@ func cloneSlackArgs(args SendSlackArgs) SendSlackArgs {
 
 func selectSlackJobArgs(args SendSlackArgs) (river.JobArgs, error) {
 	cloned := cloneSlackArgs(args)
-	targetType, ok := notification.NormalizeSlackTarget(cloned.TargetType)
+	targetType, ok := slackprovider.NormalizeTargetType(cloned.TargetType)
 	if !ok {
 		return nil, fmt.Errorf("send slack job requires a supported target type")
 	}
 	cloned.TargetType = targetType
 
 	switch targetType {
-	case notification.SlackTargetDirectMessage:
+	case slackprovider.TargetTypeDirectMessage:
 		return SendSlackDMArgs(cloned), nil
-	case notification.SlackTargetChannel:
+	case slackprovider.TargetTypeChannel:
 		return SendSlackChannelArgs(cloned), nil
 	default:
 		return nil, fmt.Errorf("unsupported slack target type %q", cloned.TargetType)
@@ -642,417 +567,6 @@ func (w *SendGlobalDigestWorker) Work(ctx context.Context, job *river.Job[SendGl
 	return nil
 }
 
-// WorkflowTaskAssignedWorker handles new-task-assigned notification email jobs
-type WorkflowTaskAssignedWorker struct {
-	emailService EmailService
-	slackService SlackService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
-}
-
-// NewWorkflowTaskAssignedWorker creates a new WorkflowTaskAssignedWorker
-func NewWorkflowTaskAssignedWorker(emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskAssignedWorker {
-	return &WorkflowTaskAssignedWorker{
-		emailService: emailService,
-		slackService: slackService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
-	}
-}
-
-// Work is the River work function for sending new-task-assigned notification emails
-func (w *WorkflowTaskAssignedWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskAssignedArgs]) error {
-	args := job.Args
-
-	channel, ok := normalizeRequestedDeliveryChannel(args.Channel)
-	if !ok {
-		w.logger.Warnw("WorkflowTaskAssignedWorker: invalid delivery channel, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"channel", args.Channel,
-		)
-		return nil
-	}
-
-	if args.AssignedToType == notification.DeliveryChannelEmail {
-		if channel != "" && channel != notification.DeliveryChannelEmail {
-			w.logger.Debugw("WorkflowTaskAssignedWorker: unsupported channel for email assignee, skipping",
-				"step_execution_id", args.StepExecutionID,
-				"user_id", args.UserID,
-				"channel", channel,
-			)
-			return nil
-		}
-		return w.sendToEmailAddress(ctx, args)
-	}
-	return w.sendToUser(ctx, args)
-}
-
-// sendToUser looks up the user by ID and sends the notification if they are subscribed
-func (w *WorkflowTaskAssignedWorker) sendToUser(ctx context.Context, args WorkflowTaskAssignedArgs) error {
-	user, err := w.userRepo.FindUserByID(ctx, args.UserID)
-	if err != nil {
-		w.logger.Warnw("WorkflowTaskAssignedWorker: user not found, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", err,
-		)
-		return nil
-	}
-
-	channels, ok := selectUserNotificationChannels(user, notification.NotificationTypeTaskAvailable, args.Channel)
-	if !ok {
-		w.logger.Warnw("WorkflowTaskAssignedWorker: invalid delivery channel, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"channel", args.Channel,
-		)
-		return nil
-	}
-	if len(channels) == 0 {
-		w.logger.Debugw("WorkflowTaskAssignedWorker: user not subscribed to requested channel, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"channel", args.Channel,
-		)
-		return nil
-	}
-
-	for _, channel := range channels {
-		switch channel {
-		case notification.DeliveryChannelEmail:
-			if err := w.sendEmail(ctx, args, user.Email, user.FullName()); err != nil {
-				return err
-			}
-		case notification.DeliveryChannelSlack:
-			if err := w.sendSlack(ctx, args, user); err != nil {
-				return err
-			}
-		default:
-			w.logger.Debugw("WorkflowTaskAssignedWorker: unsupported channel, skipping",
-				"step_execution_id", args.StepExecutionID,
-				"user_id", args.UserID,
-				"channel", channel,
-			)
-		}
-	}
-
-	return nil
-}
-
-func (w *WorkflowTaskAssignedWorker) sendSlack(ctx context.Context, args WorkflowTaskAssignedArgs, user NotificationUser) error {
-	if w.slackService == nil || !w.slackService.IsEnabled() {
-		w.logger.Debugw("WorkflowTaskAssignedWorker: slack service not configured, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-		)
-		return nil
-	}
-
-	slackUserID := strings.TrimSpace(user.SlackUserID)
-	if slackUserID == "" {
-		w.logger.Debugw("WorkflowTaskAssignedWorker: user has no Slack link, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-		)
-		return nil
-	}
-
-	message, err := slackformatters.FormatWorkflowTaskAssignedMessage(
-		user.FullName(),
-		args.StepTitle,
-		args.WorkflowTitle,
-		args.WorkflowInstanceTitle,
-		resolveTaskURL(args.StepURL, w.webBaseURL),
-		formatDueDate(args.DueDate),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to format workflow-task-assigned slack message: %w", err)
-	}
-
-	result, err := w.slackService.SendMessage(ctx, slackUserID, message)
-	if err != nil {
-		return fmt.Errorf("failed to send workflow-task-assigned slack message: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("workflow-task-assigned slack message send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("WorkflowTaskAssignedWorker: slack message sent",
-		"step_execution_id", args.StepExecutionID,
-		"user_id", args.UserID,
-		"slack_user_id", slackUserID,
-		"delivery_id", result.DeliveryID,
-	)
-
-	return nil
-}
-
-// sendToEmailAddress sends the notification directly to the email address assignee without a user lookup
-func (w *WorkflowTaskAssignedWorker) sendToEmailAddress(ctx context.Context, args WorkflowTaskAssignedArgs) error {
-	return w.sendEmail(ctx, args, args.UserID, "")
-}
-
-// sendEmail renders the template and sends the notification email
-func (w *WorkflowTaskAssignedWorker) sendEmail(ctx context.Context, args WorkflowTaskAssignedArgs, toAddress string, userName string) error {
-	myTasksURL := resolveTaskURL(args.StepURL, w.webBaseURL)
-	templateData := map[string]interface{}{
-		"UserName":              userName,
-		"StepTitle":             args.StepTitle,
-		"WorkflowTitle":         args.WorkflowTitle,
-		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
-		"StepURL":               myTasksURL,
-		"MyTasksURL":            w.webBaseURL + "/my-tasks",
-		"DueDate":               formatDueDate(args.DueDate),
-	}
-
-	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-assigned", templateData)
-	if err != nil {
-		w.logger.Errorw("WorkflowTaskAssignedWorker: failed to render template",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to render workflow-task-assigned template: %w", err)
-	}
-
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{toAddress},
-		Subject:  fmt.Sprintf("Task ready for you: %s — %s", args.StepTitle, args.WorkflowTitle),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}
-
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		w.logger.Errorw("WorkflowTaskAssignedWorker: failed to send email",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to send workflow-task-assigned email: %w", err)
-	}
-
-	if !result.Success {
-		w.logger.Errorw("WorkflowTaskAssignedWorker: email send reported failure",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", result.Error,
-		)
-		return fmt.Errorf("workflow-task-assigned email send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("WorkflowTaskAssignedWorker: email sent",
-		"step_execution_id", args.StepExecutionID,
-		"user_id", args.UserID,
-		"message_id", result.MessageID,
-	)
-
-	return nil
-}
-
-// WorkflowTaskDueSoonWorker handles task-due-soon reminder notification jobs
-type WorkflowTaskDueSoonWorker struct {
-	emailService EmailService
-	slackService SlackService
-	userRepo     UserRepository
-	webBaseURL   string
-	logger       *zap.SugaredLogger
-}
-
-// NewWorkflowTaskDueSoonWorker creates a new WorkflowTaskDueSoonWorker
-func NewWorkflowTaskDueSoonWorker(emailService EmailService, slackService SlackService, userRepo UserRepository, webBaseURL string, logger *zap.SugaredLogger) *WorkflowTaskDueSoonWorker {
-	return &WorkflowTaskDueSoonWorker{
-		emailService: emailService,
-		slackService: slackService,
-		userRepo:     userRepo,
-		webBaseURL:   webBaseURL,
-		logger:       logger,
-	}
-}
-
-// Work is the River work function for sending task-due-in-1-day reminder emails
-func (w *WorkflowTaskDueSoonWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskDueSoonArgs]) error {
-	args := job.Args
-
-	user, err := w.userRepo.FindUserByID(ctx, args.UserID)
-	if err != nil {
-		w.logger.Warnw("WorkflowTaskDueSoonWorker: user not found, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", err,
-		)
-		return nil
-	}
-
-	channels, ok := selectUserNotificationChannels(user, notification.NotificationTypeTaskAvailable, args.Channel)
-	if !ok {
-		w.logger.Warnw("WorkflowTaskDueSoonWorker: invalid delivery channel, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"channel", args.Channel,
-		)
-		return nil
-	}
-	if len(channels) == 0 {
-		w.logger.Debugw("WorkflowTaskDueSoonWorker: user not subscribed to requested channel, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"channel", args.Channel,
-		)
-		return nil
-	}
-
-	for _, channel := range channels {
-		switch channel {
-		case notification.DeliveryChannelEmail:
-			if err := w.sendEmail(ctx, args, user); err != nil {
-				return err
-			}
-		case notification.DeliveryChannelSlack:
-			if err := w.sendSlack(ctx, args, user); err != nil {
-				return err
-			}
-		default:
-			w.logger.Debugw("WorkflowTaskDueSoonWorker: unsupported channel, skipping",
-				"step_execution_id", args.StepExecutionID,
-				"user_id", args.UserID,
-				"channel", channel,
-			)
-		}
-	}
-
-	return nil
-}
-
-func (w *WorkflowTaskDueSoonWorker) sendSlack(ctx context.Context, args WorkflowTaskDueSoonArgs, user NotificationUser) error {
-	if w.slackService == nil || !w.slackService.IsEnabled() {
-		w.logger.Debugw("WorkflowTaskDueSoonWorker: slack service not configured, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-		)
-		return nil
-	}
-
-	slackUserID := strings.TrimSpace(user.SlackUserID)
-	if slackUserID == "" {
-		w.logger.Debugw("WorkflowTaskDueSoonWorker: user has no Slack link, skipping",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-		)
-		return nil
-	}
-
-	message, err := slackformatters.FormatWorkflowTaskDueSoonMessage(
-		user.FullName(),
-		args.StepTitle,
-		args.WorkflowTitle,
-		args.WorkflowInstanceTitle,
-		resolveTaskURL(args.StepURL, w.webBaseURL),
-		formatDate(args.DueDate),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to format workflow-task-due-soon slack message: %w", err)
-	}
-
-	result, err := w.slackService.SendMessage(ctx, slackUserID, message)
-	if err != nil {
-		return fmt.Errorf("failed to send workflow-task-due-soon slack message: %w", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("workflow-task-due-soon slack message send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("WorkflowTaskDueSoonWorker: slack message sent",
-		"step_execution_id", args.StepExecutionID,
-		"user_id", args.UserID,
-		"slack_user_id", slackUserID,
-		"delivery_id", result.DeliveryID,
-	)
-
-	return nil
-}
-
-func (w *WorkflowTaskDueSoonWorker) sendEmail(ctx context.Context, args WorkflowTaskDueSoonArgs, user NotificationUser) error {
-	myTasksURL := resolveTaskURL(args.StepURL, w.webBaseURL)
-	templateData := map[string]interface{}{
-		"UserName":              user.FullName(),
-		"StepTitle":             args.StepTitle,
-		"WorkflowTitle":         args.WorkflowTitle,
-		"WorkflowInstanceTitle": args.WorkflowInstanceTitle,
-		"StepURL":               myTasksURL,
-		"MyTasksURL":            w.webBaseURL + "/my-tasks",
-		"DueDate":               formatDate(args.DueDate),
-	}
-
-	htmlBody, textBody, err := w.emailService.UseTemplate("workflow-task-due-soon", templateData)
-	if err != nil {
-		w.logger.Errorw("WorkflowTaskDueSoonWorker: failed to render template",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to render workflow-task-due-soon template: %w", err)
-	}
-
-	message := &types.Message{
-		From:     w.emailService.GetDefaultFromAddress(),
-		To:       []string{user.Email},
-		Subject:  fmt.Sprintf("Reminder: %s is due soon — %s", args.StepTitle, args.WorkflowTitle),
-		HTMLBody: htmlBody,
-		TextBody: textBody,
-	}
-
-	result, err := w.emailService.Send(ctx, message)
-	if err != nil {
-		w.logger.Errorw("WorkflowTaskDueSoonWorker: failed to send email",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to send workflow-task-due-soon email: %w", err)
-	}
-
-	if !result.Success {
-		w.logger.Errorw("WorkflowTaskDueSoonWorker: email send reported failure",
-			"step_execution_id", args.StepExecutionID,
-			"user_id", args.UserID,
-			"error", result.Error,
-		)
-		return fmt.Errorf("workflow-task-due-soon email send failed: %s", result.Error)
-	}
-
-	w.logger.Infow("WorkflowTaskDueSoonWorker: email sent",
-		"step_execution_id", args.StepExecutionID,
-		"user_id", args.UserID,
-		"message_id", result.MessageID,
-	)
-
-	return nil
-}
-
-// JobInsertOptionsForWorkflowNotification returns insert options for workflow notification email jobs
-func JobInsertOptionsForWorkflowNotification() *river.InsertOpts {
-	return &river.InsertOpts{
-		Queue:       "email",
-		MaxAttempts: 5,
-	}
-}
-
-func JobInsertOptionsForWorkflowTaskAssignedNotification() *river.InsertOpts {
-	return &river.InsertOpts{
-		Queue:       "email",
-		MaxAttempts: 5,
-		UniqueOpts: river.UniqueOpts{
-			ByArgs:   true,
-			ByPeriod: 5 * time.Minute,
-		},
-	}
-}
-
 // JobInsertOptionsForRiskProcessEvidence returns insert options for risk processing jobs
 func JobInsertOptionsForRiskProcessEvidence() *river.InsertOpts {
 	return &river.InsertOpts{
@@ -1074,7 +588,16 @@ func JobInsertOptionsWithRetry(queue string, maxAttempts int) *river.InsertOpts 
 }
 
 // Workers returns all workers as work functions with dependencies injected
-func Workers(emailService EmailService, digestService DigestService, slackService SlackService, userRepo UserRepository, db *gorm.DB, webBaseURL string, logger *zap.SugaredLogger) *river.Workers {
+func Workers(
+	emailService EmailService,
+	digestService DigestService,
+	slackService SlackService,
+	userRepo UserRepository,
+	db *gorm.DB,
+	webBaseURL string,
+	notificationWorkerEnqueuer notification.WorkerEnqueuer,
+	logger *zap.SugaredLogger,
+) *river.Workers {
 	workers := river.NewWorkers()
 
 	// Create worker instances with dependencies
@@ -1107,10 +630,35 @@ func Workers(emailService EmailService, digestService DigestService, slackServic
 
 	// Register workflow notification workers if dependencies are available
 	if userRepo != nil {
-		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorker(emailService, slackService, userRepo, webBaseURL, logger)
+		workflowAssignedRuntimeProvider := newWorkerNotificationRuntimeProvider(
+			emailService,
+			slackService,
+			func() notification.WorkerEnqueuer { return notificationWorkerEnqueuer },
+		)
+		workflowDueSoonRuntimeProvider := newWorkerNotificationRuntimeProvider(
+			emailService,
+			slackService,
+			func() notification.WorkerEnqueuer { return nil },
+		)
+
+		workflowTaskAssignedWorker := NewWorkflowTaskAssignedWorkerWithRuntimeProvider(
+			emailService,
+			userRepo,
+			webBaseURL,
+			workflowAssignedRuntimeProvider,
+			logger,
+		)
+		workflowTaskAssignedWorker.db = db
+		workflowTaskAssignedWorker.notificationWorkerEnqueuer = notificationWorkerEnqueuer
 		river.AddWorker(workers, river.WorkFunc(workflowTaskAssignedWorker.Work))
 
-		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorker(emailService, slackService, userRepo, webBaseURL, logger)
+		workflowTaskDueSoonWorker := NewWorkflowTaskDueSoonWorkerWithRuntimeProvider(
+			emailService,
+			userRepo,
+			webBaseURL,
+			workflowDueSoonRuntimeProvider,
+			logger,
+		)
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
 
 		if db != nil {

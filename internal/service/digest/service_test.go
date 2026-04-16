@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/compliance-framework/api/internal/config"
-	slacksvc "github.com/compliance-framework/api/internal/service/slack"
+	"github.com/compliance-framework/api/internal/service/notification"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -59,23 +58,17 @@ func TestEvidenceSummaryStructure(t *testing.T) {
 	assert.Len(t, summary.TopNotSatisfied, 1)
 }
 
-func TestNewService_StoresInjectedSlackService(t *testing.T) {
-	slackService, err := slacksvc.NewService(&config.SlackConfig{
-		Enabled: true,
-		Token:   "xoxb-test-token",
-	}, zap.NewNop().Sugar())
-	require.NoError(t, err)
+func TestNewService_StoresInjectedNotifier(t *testing.T) {
+	notifier := notification.NewService(nil, nil, nil)
 
 	service := NewService(
 		nil,
-		nil,
-		slackService,
-		nil,
+		notifier,
 		&config.Config{Slack: &config.SlackConfig{Enabled: true, Token: "xoxb-test-token"}},
 		zap.NewNop().Sugar(),
 	)
 
-	assert.Same(t, slackService, service.slackService)
+	assert.Same(t, notifier, service.notifier)
 }
 
 func TestEvidenceDigestDispatchOptions_UsesCorrelationAndSourceJobKind(t *testing.T) {
@@ -89,8 +82,6 @@ func TestEvidenceDigestDispatchOptions_UsesCorrelationAndSourceJobKind(t *testin
 
 func TestGlobalDigestSlackEnabled_RequiresConfiguredChannel(t *testing.T) {
 	service := NewService(
-		nil,
-		nil,
 		nil,
 		nil,
 		&config.Config{Slack: &config.SlackConfig{Enabled: true, DigestChannel: ""}},
