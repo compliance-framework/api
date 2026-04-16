@@ -3,12 +3,9 @@ package worker
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/compliance-framework/api/internal/service/notification"
-	"github.com/compliance-framework/api/internal/service/relational"
 	"github.com/compliance-framework/api/internal/workflow"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
@@ -24,7 +21,7 @@ func (WorkflowTaskDigestCheckerArgs) Kind() string { return "workflow_task_diges
 // Timeout returns the timeout for the digest checker job
 func (WorkflowTaskDigestCheckerArgs) Timeout() time.Duration { return 5 * time.Minute }
 
-// WorkflowTaskDigestCheckerWorker queries all subscribed users and enqueues per-user, per-channel digest jobs.
+// WorkflowTaskDigestCheckerWorker queries all subscribed users and enqueues one digest job per user.
 type WorkflowTaskDigestCheckerWorker struct {
 	db     *gorm.DB
 	client workflow.RiverClient
@@ -40,57 +37,14 @@ func NewWorkflowTaskDigestCheckerWorker(db *gorm.DB, client workflow.RiverClient
 	}
 }
 
-// Work queries all users subscribed to task daily digest and enqueues a WorkflowTaskDigestArgs job for each channel.
+// Work queries all users subscribed to task daily digest and enqueues a WorkflowTaskDigestArgs job for each user.
 func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.Job[WorkflowTaskDigestCheckerArgs]) error {
 	if w.db == nil {
 		return fmt.Errorf("WorkflowTaskDigestCheckerWorker: db is nil")
 	}
 
-	var subscriptions []relational.UserNotificationSubscription
-	if err := w.db.WithContext(ctx).
-		Where("notification_type = ?", notification.NotificationTypeTaskDailyDigest).
-		Find(&subscriptions).Error; err != nil {
-		return fmt.Errorf("workflow-task-digest-checker: failed to query task daily digest subscriptions: %w", err)
-	}
-
-	userChannels := make(map[string][]string, len(subscriptions))
-	for i := range subscriptions {
-		userID := strings.TrimSpace(subscriptions[i].UserID)
-		if userID == "" {
-			continue
-		}
-
-		normalizedChannels, invalidChannels := notification.NormalizeDeliveryChannels(subscriptions[i].Channels)
-		if len(invalidChannels) > 0 {
-			w.logger.Warnw(
-				"WorkflowTaskDigestCheckerWorker: ignoring invalid delivery channels in task daily digest subscription",
-				"user_id", userID,
-				"invalid_channels", invalidChannels,
-				"channels", subscriptions[i].Channels,
-			)
-		}
-		if len(normalizedChannels) == 0 {
-			continue
-		}
-
-		userChannels[userID] = mergeNormalizedDeliveryChannels(userChannels[userID], normalizedChannels)
-	}
-
-	if len(userChannels) == 0 {
-		w.logger.Infow("WorkflowTaskDigestCheckerWorker: no subscribed users found")
-		return nil
-	}
-
-	userIDs := make([]string, 0, len(userChannels))
-	for userID := range userChannels {
-		userIDs = append(userIDs, userID)
-	}
-
-	var users []relational.User
-	if err := w.db.WithContext(ctx).
-		Select("id").
-		Where("id IN ?", userIDs).
-		Find(&users).Error; err != nil {
+	users, err := notification.NewGORMUserRepository(w.db).ListActiveUsersByNotificationType(ctx, notification.NotificationTypeTaskDailyDigest)
+	if err != nil {
 		return fmt.Errorf("workflow-task-digest-checker: failed to load subscribed users: %w", err)
 	}
 
@@ -99,25 +53,21 @@ func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.J
 		return nil
 	}
 
-	params := make([]river.InsertManyParams, 0, len(users)*len(allWorkflowNotificationChannels()))
+	params := make([]river.InsertManyParams, 0, len(users))
 	for i := range users {
-		if users[i].ID == nil {
+		if users[i].ID == "" {
 			continue
 		}
 
-		channels := userChannels[users[i].ID.String()]
-		for _, channel := range channels {
-			params = append(params, river.InsertManyParams{
-				Args: WorkflowTaskDigestArgs{
-					UserID:  users[i].ID.String(),
-					Channel: channel,
-				},
-				InsertOpts: &river.InsertOpts{
-					Queue:       "digest",
-					MaxAttempts: 3,
-				},
-			})
-		}
+		params = append(params, river.InsertManyParams{
+			Args: WorkflowTaskDigestArgs{
+				UserID: users[i].ID,
+			},
+			InsertOpts: &river.InsertOpts{
+				Queue:       "digest",
+				MaxAttempts: 3,
+			},
+		})
 	}
 
 	if len(params) == 0 {
@@ -141,35 +91,4 @@ func (w *WorkflowTaskDigestCheckerWorker) Work(ctx context.Context, job *river.J
 		"enqueued", inserted,
 	)
 	return nil
-}
-
-func mergeNormalizedDeliveryChannels(existing []string, incoming []string) []string {
-	if len(existing) == 0 {
-		return slices.Clone(incoming)
-	}
-	if len(incoming) == 0 {
-		return slices.Clone(existing)
-	}
-
-	seen := make(map[string]struct{}, len(existing)+len(incoming))
-	merged := make([]string, 0, len(existing)+len(incoming))
-
-	for _, channel := range existing {
-		if _, ok := seen[channel]; ok {
-			continue
-		}
-		seen[channel] = struct{}{}
-		merged = append(merged, channel)
-	}
-
-	for _, channel := range incoming {
-		if _, ok := seen[channel]; ok {
-			continue
-		}
-		seen[channel] = struct{}{}
-		merged = append(merged, channel)
-	}
-
-	slices.Sort(merged)
-	return merged
 }

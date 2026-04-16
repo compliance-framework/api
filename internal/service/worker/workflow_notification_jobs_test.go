@@ -164,7 +164,7 @@ func TestDueSoonCheckerWorker_EnqueuesOneJobPerChannel(t *testing.T) {
 	assert.Equal(t, 1, slackJobs)
 }
 
-func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedChannel(t *testing.T) {
+func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedUser(t *testing.T) {
 	db := newWorkflowNotificationJobsTestDB(t)
 	client := &stubRiverClient{}
 	worker := NewWorkflowTaskDigestCheckerWorker(db, client, zap.NewNop().Sugar())
@@ -197,17 +197,17 @@ func TestWorkflowTaskDigestCheckerWorker_EnqueuesOneJobPerSubscribedChannel(t *t
 
 	err := worker.Work(context.Background(), &river.Job[WorkflowTaskDigestCheckerArgs]{Args: WorkflowTaskDigestCheckerArgs{}})
 	require.NoError(t, err)
-	require.Len(t, client.params, 3)
+	require.Len(t, client.params, 2)
 
-	got := make(map[string][]string)
+	got := make(map[string]string)
 	for _, param := range client.params {
 		args, ok := param.Args.(WorkflowTaskDigestArgs)
 		require.True(t, ok)
-		got[args.UserID] = append(got[args.UserID], args.Channel)
+		got[args.UserID] = args.Channel
 	}
 
-	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack}, got[userOneID.String()])
-	assert.ElementsMatch(t, []string{notification.DeliveryChannelEmail}, got[userTwoID.String()])
+	assert.Equal(t, "", got[userOneID.String()])
+	assert.Equal(t, "", got[userTwoID.String()])
 	_, exists := got[missingUserID.String()]
 	assert.False(t, exists)
 }

@@ -56,3 +56,26 @@ func renderWorkflowTaskDueSoonSlack(_ context.Context, model any) (slackprovider
 		Blocks: append([]slack.Block(nil), message.Blocks...),
 	}, nil
 }
+
+func renderWorkflowTaskDigestSlack(_ context.Context, model any) (slackprovider.Content, error) {
+	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
+	if err != nil {
+		return slackprovider.Content{}, err
+	}
+
+	message, err := slackformatters.FormatWorkflowTaskDigestMessage(
+		digestModel.UserName,
+		digestModel.PeriodLabel,
+		toSlackDigestTasks(digestModel.PendingTasks),
+		toSlackDigestTasks(digestModel.OverdueTasks),
+		digestModel.MyTasksURL,
+	)
+	if err != nil {
+		return slackprovider.Content{}, fmt.Errorf("failed to format workflow-task-digest slack message: %w", err)
+	}
+
+	return slackprovider.Content{
+		Text:   message.Text,
+		Blocks: append([]slack.Block(nil), message.Blocks...),
+	}, nil
+}

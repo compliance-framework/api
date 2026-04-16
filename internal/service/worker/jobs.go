@@ -662,7 +662,19 @@ func Workers(
 		river.AddWorker(workers, river.WorkFunc(workflowTaskDueSoonWorker.Work))
 
 		if db != nil {
-			workflowTaskDigestWorker := NewWorkflowTaskDigestWorker(db, emailService, slackService, userRepo, webBaseURL, logger)
+			workflowDigestRuntimeProvider := newWorkerNotificationRuntimeProvider(
+				emailService,
+				slackService,
+				func() notification.WorkerEnqueuer { return nil },
+			)
+			workflowTaskDigestWorker := NewWorkflowTaskDigestWorkerWithRuntimeProvider(
+				db,
+				emailService,
+				userRepo,
+				webBaseURL,
+				workflowDigestRuntimeProvider,
+				logger,
+			)
 			river.AddWorker(workers, river.WorkFunc(workflowTaskDigestWorker.Work))
 
 			workflowExecutionFailedWorker := NewWorkflowExecutionFailedWorker(db, emailService, userRepo, webBaseURL, logger)

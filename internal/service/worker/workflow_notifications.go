@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compliance-framework/api/internal/service/notification"
 	slackprovider "github.com/compliance-framework/api/internal/service/notification/providers/slack"
@@ -12,6 +13,7 @@ import (
 const (
 	workflowTaskAssignedNotificationKind = notification.Kind(JobTypeWorkflowTaskAssigned)
 	workflowTaskDueSoonNotificationKind  = notification.Kind(JobTypeWorkflowTaskDueSoon)
+	workflowTaskDigestNotificationKind   = notification.Kind(JobTypeWorkflowTaskDigest)
 )
 
 type workflowTaskAssignedNotificationModel struct {
@@ -34,6 +36,15 @@ type workflowTaskDueSoonNotificationModel struct {
 	DueDate               string
 }
 
+type workflowTaskDigestNotificationModel struct {
+	UserName     string
+	PeriodLabel  string
+	PendingTasks []DigestTask
+	OverdueTasks []DigestTask
+	MyTasksURL   string
+	GeneratedAt  time.Time
+}
+
 type notificationUserRepositoryAdapter struct {
 	base   UserRepository
 	cached map[string]NotificationUser
@@ -48,6 +59,7 @@ func newWorkflowNotificationServiceFromFactory(
 		users,
 		workflowTaskAssignedNotificationDefinition(emailService),
 		workflowTaskDueSoonNotificationDefinition(emailService),
+		workflowTaskDigestNotificationDefinition(emailService),
 	)
 }
 
@@ -83,6 +95,22 @@ func workflowTaskDueSoonNotificationDefinition(emailService EmailService) notifi
 	}
 }
 
+func workflowTaskDigestNotificationDefinition(emailService EmailService) notification.Definition {
+	return notification.Definition{
+		Kind:              workflowTaskDigestNotificationKind,
+		SubscriptionType:  notification.NotificationTypeTaskDailyDigest,
+		SupportedChannels: []string{notification.DeliveryChannelEmail, notification.DeliveryChannelSlack},
+		Renderers: map[string]notification.ChannelRenderer{
+			notification.DeliveryChannelEmail: notification.EmailChannelRenderer(func(ctx context.Context, model any) (notification.EmailContent, error) {
+				return renderWorkflowTaskDigestEmail(ctx, emailService, model)
+			}),
+			notification.DeliveryChannelSlack: slackprovider.Renderer(func(ctx context.Context, model any) (slackprovider.Content, error) {
+				return renderWorkflowTaskDigestSlack(ctx, model)
+			}),
+		},
+	}
+}
+
 func newWorkflowTaskAssignedNotificationModel(args WorkflowTaskAssignedArgs, userName, webBaseURL string) workflowTaskAssignedNotificationModel {
 	return workflowTaskAssignedNotificationModel{
 		UserName:              strings.TrimSpace(userName),
@@ -104,6 +132,17 @@ func newWorkflowTaskDueSoonNotificationModel(args WorkflowTaskDueSoonArgs, userN
 		StepURL:               resolveTaskURL(args.StepURL, webBaseURL),
 		MyTasksURL:            webBaseURL + "/my-tasks",
 		DueDate:               formatDate(args.DueDate),
+	}
+}
+
+func newWorkflowTaskDigestNotificationModel(data digestNotificationData) workflowTaskDigestNotificationModel {
+	return workflowTaskDigestNotificationModel{
+		UserName:     strings.TrimSpace(data.UserName),
+		PeriodLabel:  strings.TrimSpace(data.PeriodLabel),
+		PendingTasks: data.PendingTasks,
+		OverdueTasks: data.OverdueTasks,
+		MyTasksURL:   strings.TrimSpace(data.MyTasksURL),
+		GeneratedAt:  data.GeneratedAt,
 	}
 }
 
@@ -148,6 +187,21 @@ func buildWorkflowTaskDueSoonNotificationRequest(args WorkflowTaskDueSoonArgs, u
 		},
 		Model:   newWorkflowTaskDueSoonNotificationModel(args, userName, webBaseURL),
 		Options: taskAvailableDispatchOptions(JobTypeWorkflowTaskDueSoon, args.Channel, args.StepExecutionID),
+	}
+}
+
+func buildWorkflowTaskDigestNotificationRequest(args WorkflowTaskDigestArgs, data digestNotificationData) notification.Request {
+	return notification.Request{
+		Kind: workflowTaskDigestNotificationKind,
+		Audiences: []notification.Audience{
+			{User: &notification.UserAudience{UserID: args.UserID}},
+		},
+		Model: newWorkflowTaskDigestNotificationModel(data),
+		Options: notification.DispatchOptions{
+			RequestedChannel: strings.TrimSpace(args.Channel),
+			CorrelationID:    JobTypeWorkflowTaskDigest + ":" + strings.TrimSpace(args.UserID),
+			SourceJobKind:    JobTypeWorkflowTaskDigest,
+		},
 	}
 }
 
@@ -221,6 +275,33 @@ func renderWorkflowTaskDueSoonEmail(_ context.Context, emailService EmailService
 	}, nil
 }
 
+func renderWorkflowTaskDigestEmail(_ context.Context, emailService EmailService, model any) (notification.EmailContent, error) {
+	digestModel, err := workflowTaskDigestNotificationModelFromAny(model)
+	if err != nil {
+		return notification.EmailContent{}, err
+	}
+
+	if emailService == nil {
+		return notification.EmailContent{
+			From:     "noreply@localhost",
+			Subject:  fmt.Sprintf("Your workflow task summary - %s", formatDate(digestModel.GeneratedAt)),
+			TextBody: "Your workflow task digest is ready.",
+		}, nil
+	}
+
+	htmlBody, textBody, err := emailService.UseTemplate("workflow-task-digest", digestModel.templateData())
+	if err != nil {
+		return notification.EmailContent{}, fmt.Errorf("failed to render workflow-task-digest template: %w", err)
+	}
+
+	return notification.EmailContent{
+		From:     emailService.GetDefaultFromAddress(),
+		Subject:  fmt.Sprintf("Your workflow task summary — %s", formatDate(digestModel.GeneratedAt)),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}, nil
+}
+
 func workflowTaskAssignedNotificationModelFromAny(model any) (workflowTaskAssignedNotificationModel, error) {
 	switch typed := model.(type) {
 	case workflowTaskAssignedNotificationModel:
@@ -246,6 +327,30 @@ func workflowTaskDueSoonNotificationModelFromAny(model any) (workflowTaskDueSoon
 		return *typed, nil
 	default:
 		return workflowTaskDueSoonNotificationModel{}, fmt.Errorf("unexpected workflow task due soon model type %T", model)
+	}
+}
+
+func (m workflowTaskDigestNotificationModel) templateData() map[string]interface{} {
+	return map[string]interface{}{
+		"UserName":     m.UserName,
+		"PeriodLabel":  m.PeriodLabel,
+		"PendingTasks": m.PendingTasks,
+		"OverdueTasks": m.OverdueTasks,
+		"MyTasksURL":   m.MyTasksURL,
+	}
+}
+
+func workflowTaskDigestNotificationModelFromAny(model any) (workflowTaskDigestNotificationModel, error) {
+	switch typed := model.(type) {
+	case workflowTaskDigestNotificationModel:
+		return typed, nil
+	case *workflowTaskDigestNotificationModel:
+		if typed == nil {
+			return workflowTaskDigestNotificationModel{}, fmt.Errorf("workflow task digest model is required")
+		}
+		return *typed, nil
+	default:
+		return workflowTaskDigestNotificationModel{}, fmt.Errorf("unexpected workflow task digest model type %T", model)
 	}
 }
 
